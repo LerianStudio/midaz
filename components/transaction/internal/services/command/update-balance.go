@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains commands for updating account balances.
 package command
 
 import (
@@ -13,35 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateBalances updates multiple account balances after transaction validation.
+// UpdateBalances performs a batch update of account balances after a transaction.
 //
-// This method implements batch balance updates for transaction processing, which:
-// 1. Merges validation responses (from and to amounts)
-// 2. Calculates new balance values for each account
-// 3. Increments version numbers for optimistic locking
-// 4. Performs batch update in PostgreSQL
-//
-// Balance Calculation:
-//   - Uses lib-commons OperateBalances to apply amount changes
-//   - Handles available and on-hold amounts
-//   - Ensures double-entry accounting principles
-//
-// Optimistic Locking:
-//   - Version number is incremented on each update
-//   - Prevents concurrent modification conflicts
-//   - Database enforces version check in UPDATE WHERE clause
+// This use case applies the calculated amount changes from a transaction to multiple
+// balances in a single, atomic operation. It also increments the version number for
+// each balance to support optimistic locking and prevent race conditions.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - validate: Validation responses with calculated amounts
-//   - balances: Current balances to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - validate: The validation response containing the calculated amount changes.
+//   - balances: The current balances to be updated.
 //
 // Returns:
-//   - error: nil on success, error if update fails
-//
-// OpenTelemetry: Creates span "command.update_balances_new"
+//   - error: An error if the batch update fails.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -91,22 +76,20 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	return nil
 }
 
-// Update updates a single balance in the repository.
+// Update updates the flags of a single balance.
 //
-// This method updates balance flags (allow_sending, allow_receiving) for a specific balance.
-// It's used for administrative operations to enable/disable balance operations.
+// This use case is used for administrative purposes, such as enabling or disabling
+// sending and receiving capabilities for a specific balance.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - balanceID: UUID of the balance to update
-//   - update: Update input with allow_sending and allow_receiving flags
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - balanceID: The UUID of the balance to update.
+//   - update: The input data containing the new flag values.
 //
 // Returns:
-//   - error: nil on success, error if update fails
-//
-// OpenTelemetry: Creates span "exec.update_balance"
+//   - error: An error if the update fails.
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

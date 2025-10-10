@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
@@ -16,29 +15,29 @@ import (
 //
 // This file defines a hierarchy of error types that correspond to different HTTP status codes
 // and business scenarios. Each error type includes:
-//   - EntityType: The type of entity involved (e.g., "Account", "Transaction")
-//   - Title: A human-readable error title
-//   - Message: A detailed error message for the client
-//   - Code: A unique error code from pkg/constant/errors.go
-//   - Err: The underlying error (for error wrapping)
+//   - EntityType: The type of entity involved (e.g., "Account", "Transaction").
+//   - Title: A human-readable error title.
+//   - Message: A detailed error message for the client.
+//   - Code: A unique error code from pkg/constant/errors.go.
+//   - Err: The underlying error (for error wrapping).
 //
 // Error Type to HTTP Status Code Mapping:
-//   - EntityNotFoundError       -> 404 Not Found
-//   - ValidationError           -> 400 Bad Request
-//   - EntityConflictError       -> 409 Conflict
-//   - UnauthorizedError         -> 401 Unauthorized
-//   - ForbiddenError            -> 403 Forbidden
-//   - UnprocessableOperationError -> 422 Unprocessable Entity
-//   - FailedPreconditionError   -> 412 Precondition Failed
-//   - InternalServerError       -> 500 Internal Server Error
-//   - HTTPError                 -> Variable (depends on HTTP client error)
+//   - EntityNotFoundError       -> 404 Not Found.
+//   - ValidationError           -> 400 Bad Request.
+//   - EntityConflictError       -> 409 Conflict.
+//   - UnauthorizedError         -> 401 Unauthorized.
+//   - ForbiddenError            -> 403 Forbidden.
+//   - UnprocessableOperationError -> 422 Unprocessable Entity.
+//   - FailedPreconditionError   -> 412 Precondition Failed.
+//   - InternalServerError       -> 500 Internal Server Error.
+//   - HTTPError                 -> Variable (depends on HTTP client error).
 
 // EntityNotFoundError indicates that a requested entity does not exist in the system.
 //
 // This error is used when:
-//   - A database query returns no results for a given ID
-//   - A cache lookup fails to find a cached entity
-//   - A referenced entity (e.g., parent account, ledger) does not exist
+//   - A database query returns no results for a given ID.
+//   - A cache lookup fails to find a cached entity.
+//   - A referenced entity (e.g., parent account, ledger) does not exist.
 //
 // HTTP Status Code: 404 Not Found
 //
@@ -53,37 +52,34 @@ import (
 //	    }
 //	}
 type EntityNotFoundError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity that was not found (e.g., "Account", "Ledger")
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity that was not found (e.g., "Account", "Ledger").
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for EntityNotFoundError.
 //
 // The error message is constructed with the following priority:
-// 1. If Message is set, return Message
-// 2. If EntityType is set, return "Entity {EntityType} not found"
-// 3. If Err is set, return Err.Error()
-// 4. Otherwise, return generic "entity not found"
+// 1. If Message is set, return Message.
+// 2. If EntityType is set, return "Entity {EntityType} not found".
+// 3. If Err is set, return Err.Error().
+// 4. Otherwise, return generic "entity not found".
 //
 // Returns:
-//   - A string representation of the error
+//   - A string representation of the error.
 func (e EntityNotFoundError) Error() string {
-	if strings.TrimSpace(e.Message) == "" {
-		if strings.TrimSpace(e.EntityType) != "" {
-			return fmt.Sprintf("Entity %s not found", e.EntityType)
-		}
-
-		if e.Err != nil && strings.TrimSpace(e.Message) == "" {
-			return e.Err.Error()
-		}
-
-		return "entity not found"
+	if e.Message != "" {
+		return e.Message
 	}
-
-	return e.Message
+	if e.EntityType != "" {
+		return fmt.Sprintf("Entity %s not found", e.EntityType)
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return "entity not found"
 }
 
 // Unwrap implements the error unwrapping interface introduced in Go 1.13.
@@ -91,7 +87,7 @@ func (e EntityNotFoundError) Error() string {
 // This allows the use of errors.Is() and errors.As() to check for wrapped errors.
 //
 // Returns:
-//   - The underlying error, or nil if no error is wrapped
+//   - The underlying error, or nil if no error is wrapped.
 func (e EntityNotFoundError) Unwrap() error {
 	return e.Err
 }
@@ -99,10 +95,10 @@ func (e EntityNotFoundError) Unwrap() error {
 // ValidationError indicates that input validation has failed.
 //
 // This error is used when:
-//   - Required fields are missing
-//   - Field values don't meet format requirements
-//   - Business rules are violated
-//   - Data constraints are not satisfied
+//   - Required fields are missing.
+//   - Field values don't meet format requirements.
+//   - Business rules are violated.
+//   - Data constraints are not satisfied.
 //
 // HTTP Status Code: 400 Bad Request
 //
@@ -117,11 +113,11 @@ func (e EntityNotFoundError) Unwrap() error {
 //	    }
 //	}
 type ValidationError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity being validated
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity being validated.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for ValidationError.
@@ -130,19 +126,18 @@ type ValidationError struct {
 // Otherwise, only the message is returned.
 //
 // Returns:
-//   - A string representation of the error
+//   - A string representation of the error.
 func (e ValidationError) Error() string {
-	if strings.TrimSpace(e.Code) != "" {
+	if e.Code != "" {
 		return fmt.Sprintf("%s - %s", e.Code, e.Message)
 	}
-
 	return e.Message
 }
 
 // Unwrap implements the error unwrapping interface for ValidationError.
 //
 // Returns:
-//   - The underlying error, or nil if no error is wrapped
+//   - The underlying error, or nil if no error is wrapped.
 func (e ValidationError) Unwrap() error {
 	return e.Err
 }
@@ -150,9 +145,9 @@ func (e ValidationError) Unwrap() error {
 // EntityConflictError indicates that an entity already exists and cannot be created again.
 //
 // This error is used when:
-//   - Attempting to create an entity with a duplicate unique identifier
-//   - Violating unique constraints (e.g., duplicate account alias, ledger name)
-//   - Database unique constraint violations
+//   - Attempting to create an entity with a duplicate unique identifier.
+//   - Violating unique constraints (e.g., duplicate account alias, ledger name).
+//   - Database unique constraint violations.
 //
 // HTTP Status Code: 409 Conflict
 //
@@ -167,29 +162,28 @@ func (e ValidationError) Unwrap() error {
 //	    }
 //	}
 type EntityConflictError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity that conflicts
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity that conflicts.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for EntityConflictError.
 //
 // Returns:
-//   - The error message, or the underlying error's message if Message is empty
+//   - The error message, or the underlying error's message if Message is empty.
 func (e EntityConflictError) Error() string {
-	if e.Err != nil && strings.TrimSpace(e.Message) == "" {
+	if e.Err != nil && e.Message == "" {
 		return e.Err.Error()
 	}
-
 	return e.Message
 }
 
 // Unwrap implements the error unwrapping interface for EntityConflictError.
 //
 // Returns:
-//   - The underlying error, or nil if no error is wrapped
+//   - The underlying error, or nil if no error is wrapped.
 func (e EntityConflictError) Unwrap() error {
 	return e.Err
 }
@@ -197,9 +191,9 @@ func (e EntityConflictError) Unwrap() error {
 // UnauthorizedError indicates that authentication is required but was not provided.
 //
 // This error is used when:
-//   - No authentication token is present in the request
-//   - The authentication token is invalid or expired
-//   - The token cannot be validated
+//   - No authentication token is present in the request.
+//   - The authentication token is invalid or expired.
+//   - The token cannot be validated.
 //
 // HTTP Status Code: 401 Unauthorized
 //
@@ -213,17 +207,17 @@ func (e EntityConflictError) Unwrap() error {
 //	    }
 //	}
 type UnauthorizedError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity requiring authentication
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity requiring authentication.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for UnauthorizedError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e UnauthorizedError) Error() string {
 	return e.Message
 }
@@ -231,9 +225,9 @@ func (e UnauthorizedError) Error() string {
 // ForbiddenError indicates that the authenticated user lacks sufficient privileges.
 //
 // This error is used when:
-//   - The user is authenticated but doesn't have required permissions
-//   - Role-based access control denies the operation
-//   - Resource-level permissions prevent the action
+//   - The user is authenticated but doesn't have required permissions.
+//   - Role-based access control denies the operation.
+//   - Resource-level permissions prevent the action.
 //
 // HTTP Status Code: 403 Forbidden
 //
@@ -247,17 +241,17 @@ func (e UnauthorizedError) Error() string {
 //	    }
 //	}
 type ForbiddenError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity being accessed
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity being accessed.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for ForbiddenError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e ForbiddenError) Error() string {
 	return e.Message
 }
@@ -265,9 +259,9 @@ func (e ForbiddenError) Error() string {
 // UnprocessableOperationError indicates that the operation is semantically invalid.
 //
 // This error is used when:
-//   - The request is well-formed but semantically incorrect
-//   - Business logic prevents the operation (e.g., insufficient funds)
-//   - The operation violates business rules
+//   - The request is well-formed but semantically incorrect.
+//   - Business logic prevents the operation (e.g., insufficient funds).
+//   - The operation violates business rules.
 //
 // HTTP Status Code: 422 Unprocessable Entity
 //
@@ -281,17 +275,17 @@ func (e ForbiddenError) Error() string {
 //	    }
 //	}
 type UnprocessableOperationError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the operation
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the operation.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for UnprocessableOperationError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e UnprocessableOperationError) Error() string {
 	return e.Message
 }
@@ -299,9 +293,9 @@ func (e UnprocessableOperationError) Error() string {
 // HTTPError indicates an error occurred during an HTTP client request.
 //
 // This error is used when:
-//   - HTTP client requests fail
-//   - External API calls return errors
-//   - Network issues occur during HTTP communication
+//   - HTTP client requests fail.
+//   - External API calls return errors.
+//   - Network issues occur during HTTP communication.
 //
 // HTTP Status Code: Variable (depends on the HTTP client error)
 //
@@ -317,17 +311,17 @@ func (e UnprocessableOperationError) Error() string {
 //	    }
 //	}
 type HTTPError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the HTTP request
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the HTTP request.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for HTTPError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e HTTPError) Error() string {
 	return e.Message
 }
@@ -335,9 +329,9 @@ func (e HTTPError) Error() string {
 // FailedPreconditionError indicates that a required precondition was not met.
 //
 // This error is used when:
-//   - System configuration is incomplete or invalid
-//   - Required services are not available
-//   - Preconditions for an operation are not satisfied
+//   - System configuration is incomplete or invalid.
+//   - Required services are not available.
+//   - Preconditions for an operation are not satisfied.
 //
 // HTTP Status Code: 412 Precondition Failed
 //
@@ -351,17 +345,17 @@ func (e HTTPError) Error() string {
 //	    }
 //	}
 type FailedPreconditionError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the operation
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the operation.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for FailedPreconditionError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
@@ -369,10 +363,10 @@ func (e FailedPreconditionError) Error() string {
 // InternalServerError indicates an unexpected server-side error.
 //
 // This error is used when:
-//   - Unexpected exceptions occur
-//   - System failures happen
-//   - Database connections fail unexpectedly
-//   - Message broker is unavailable
+//   - Unexpected exceptions occur.
+//   - System failures happen.
+//   - Database connections fail unexpectedly.
+//   - Message broker is unavailable.
 //
 // HTTP Status Code: 500 Internal Server Error
 //
@@ -387,17 +381,17 @@ func (e FailedPreconditionError) Error() string {
 //	    }
 //	}
 type InternalServerError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity involved when error occurred
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping
+	EntityType string `json:"entityType,omitempty"` // Type of entity involved when error occurred.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error for error wrapping.
 }
 
 // Error implements the error interface for InternalServerError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (e InternalServerError) Error() string {
 	return e.Message
 }
@@ -415,17 +409,17 @@ func (e InternalServerError) Error() string {
 //	    Message: "The request could not be processed.",
 //	}
 type ResponseError struct {
-	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the error
-	Title      string `json:"title,omitempty"`      // Human-readable error title
-	Message    string `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error  `json:"err,omitempty"`        // Underlying error (not serialized to JSON)
+	EntityType string `json:"entityType,omitempty"` // Type of entity involved in the error.
+	Title      string `json:"title,omitempty"`      // Human-readable error title.
+	Message    string `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error  `json:"err,omitempty"`        // Underlying error (not serialized to JSON).
 }
 
 // Error implements the error interface for ResponseError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (r ResponseError) Error() string {
 	return r.Message
 }
@@ -433,9 +427,9 @@ func (r ResponseError) Error() string {
 // ValidationKnownFieldsError indicates validation failures for known/expected fields.
 //
 // This error is used when:
-//   - Required fields are missing from the request
-//   - Known fields have invalid values
-//   - Field-specific validation rules are violated
+//   - Required fields are missing from the request.
+//   - Known fields have invalid values.
+//   - Field-specific validation rules are violated.
 //
 // The Fields map contains field names as keys and validation error messages as values.
 //
@@ -453,18 +447,18 @@ func (r ResponseError) Error() string {
 //	    },
 //	}
 type ValidationKnownFieldsError struct {
-	EntityType string           `json:"entityType,omitempty"` // Type of entity being validated
-	Title      string           `json:"title,omitempty"`      // Human-readable error title
-	Message    string           `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string           `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error            `json:"err,omitempty"`        // Underlying error for error wrapping
-	Fields     FieldValidations `json:"fields,omitempty"`     // Map of field names to validation errors
+	EntityType string           `json:"entityType,omitempty"` // Type of entity being validated.
+	Title      string           `json:"title,omitempty"`      // Human-readable error title.
+	Message    string           `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string           `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error            `json:"err,omitempty"`        // Underlying error for error wrapping.
+	Fields     FieldValidations `json:"fields,omitempty"`     // Map of field names to validation errors.
 }
 
 // Error implements the error interface for ValidationKnownFieldsError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (r ValidationKnownFieldsError) Error() string {
 	return r.Message
 }
@@ -482,9 +476,9 @@ type FieldValidations map[string]string
 // ValidationUnknownFieldsError indicates that the request contains unexpected fields.
 //
 // This error is used when:
-//   - The request body contains fields not defined in the API schema
-//   - Extra fields are present that should not be there
-//   - The client is sending more data than expected
+//   - The request body contains fields not defined in the API schema.
+//   - Extra fields are present that should not be there.
+//   - The client is sending more data than expected.
 //
 // The Fields map contains the unexpected field names as keys and their values.
 //
@@ -502,18 +496,18 @@ type FieldValidations map[string]string
 //	    },
 //	}
 type ValidationUnknownFieldsError struct {
-	EntityType string        `json:"entityType,omitempty"` // Type of entity being validated
-	Title      string        `json:"title,omitempty"`      // Human-readable error title
-	Message    string        `json:"message,omitempty"`    // Detailed error message for the client
-	Code       string        `json:"code,omitempty"`       // Unique error code from constant package
-	Err        error         `json:"err,omitempty"`        // Underlying error for error wrapping
-	Fields     UnknownFields `json:"fields,omitempty"`     // Map of unexpected field names to their values
+	EntityType string        `json:"entityType,omitempty"` // Type of entity being validated.
+	Title      string        `json:"title,omitempty"`      // Human-readable error title.
+	Message    string        `json:"message,omitempty"`    // Detailed error message for the client.
+	Code       string        `json:"code,omitempty"`       // Unique error code from constant package.
+	Err        error         `json:"err,omitempty"`        // Underlying error for error wrapping.
+	Fields     UnknownFields `json:"fields,omitempty"`     // Map of unexpected field names to their values.
 }
 
 // Error implements the error interface for ValidationUnknownFieldsError.
 //
 // Returns:
-//   - The error message
+//   - The error message.
 func (r ValidationUnknownFieldsError) Error() string {
 	return r.Message
 }
@@ -540,11 +534,11 @@ type UnknownFields map[string]any
 // The underlying error is preserved for logging and debugging purposes.
 //
 // Parameters:
-//   - err: The underlying error that caused the internal server error
-//   - entityType: The type of entity being processed when the error occurred
+//   - err: The underlying error that caused the internal server error.
+//   - entityType: The type of entity being processed when the error occurred.
 //
 // Returns:
-//   - An InternalServerError with code 0046, generic user-facing message, and wrapped error
+//   - An InternalServerError with code 0046, generic user-facing message, and wrapped error.
 //
 // Example Usage:
 //
@@ -569,10 +563,10 @@ func ValidateInternalError(err error, entityType string) error {
 // type mismatches (e.g., "expected string but got number").
 //
 // Parameters:
-//   - err: The unmarshalling error from json.Unmarshal
+//   - err: The unmarshalling error from json.Unmarshal.
 //
 // Returns:
-//   - A ResponseError with code 0094 and a descriptive message about the parsing failure
+//   - A ResponseError with code 0094 and a descriptive message about the parsing failure.
 //
 // Example Usage:
 //
@@ -588,7 +582,7 @@ func ValidateUnmarshallingError(err error) error {
 		field := ute.Field
 		expected := ute.Type.String()
 		actual := ute.Value
-		message = fmt.Sprintf("invalid value for field '%s': expected type '%s', but got '%s'", field, expected, actual)
+		message = fmt.Sprintf("invalid value for field '%s': expected type '%s', but received value '%s'", field, expected, actual)
 	}
 
 	return ResponseError{
@@ -603,21 +597,21 @@ func ValidateUnmarshallingError(err error) error {
 // This function analyzes different types of field validation failures and returns the most
 // appropriate error type with detailed field-level information. It prioritizes error types
 // in the following order:
-// 1. Unknown fields (fields not in the API schema)
-// 2. Missing required fields
-// 3. Invalid known fields (format/validation errors)
+// 1. Unknown fields (fields not in the API schema).
+// 2. Missing required fields.
+// 3. Invalid known fields (format/validation errors).
 //
 // Parameters:
-//   - requiredFields: Map of missing required field names to error messages
-//   - knownInvalidFields: Map of invalid known field names to validation error messages
-//   - entityType: The type of entity being validated (e.g., "Account", "Transaction")
-//   - unknownFields: Map of unexpected field names to their values
+//   - requiredFields: Map of missing required field names to error messages.
+//   - knownInvalidFields: Map of invalid known field names to validation error messages.
+//   - entityType: The type of entity being validated (e.g., "Account", "Transaction").
+//   - unknownFields: Map of unexpected field names to their values.
 //
 // Returns:
-//   - ValidationUnknownFieldsError if unknown fields are present (code 0053)
-//   - ValidationKnownFieldsError if required fields are missing (code 0009)
-//   - ValidationKnownFieldsError if known fields are invalid (code 0047)
-//   - Generic error if all maps are empty (should not happen in normal usage)
+//   - ValidationUnknownFieldsError if unknown fields are present (code 0053).
+//   - ValidationKnownFieldsError if required fields are missing (code 0009).
+//   - ValidationKnownFieldsError if known fields are invalid (code 0047).
+//   - Generic error if all maps are empty (should not happen in normal usage).
 //
 // Example Usage:
 //
@@ -670,22 +664,22 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 // This function is the central error mapping function in Midaz. It takes error codes from
 // the constant package and converts them into appropriate error types (EntityNotFoundError,
 // ValidationError, EntityConflictError, etc.) with:
-//   - User-friendly titles and messages
-//   - Appropriate HTTP status codes (via error type)
-//   - Support for message formatting with args
+//   - User-friendly titles and messages.
+//   - Appropriate HTTP status codes (via error type).
+//   - Support for message formatting with args.
 //
 // The function maintains a comprehensive map of all 124+ error codes to their corresponding
 // error types and messages. If an error code is not found in the map, the original error
 // is returned unchanged.
 //
 // Parameters:
-//   - err: The error code from pkg/constant/errors.go (e.g., constant.ErrAccountIDNotFound)
-//   - entityType: The type of entity related to the error (e.g., "Account", "Transaction")
-//   - args: Optional arguments for fmt.Sprintf formatting in error messages
+//   - err: The error code from pkg/constant/errors.go (e.g., constant.ErrAccountIDNotFound).
+//   - entityType: The type of entity related to the error (e.g., "Account", "Transaction").
+//   - args: Optional arguments for fmt.Sprintf formatting in error messages.
 //
 // Returns:
 //   - A structured error type (EntityNotFoundError, ValidationError, etc.) with appropriate
-//     code, title, and message, or the original error if not found in the map
+//     code, title, and message, or the original error if not found in the map.
 //
 // Example Usage:
 //
@@ -697,14 +691,14 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //	return pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account", aliasName)
 //
 // Error Type Mapping:
-//   - EntityNotFoundError: For "not found" errors (404)
-//   - ValidationError: For validation and constraint errors (400)
-//   - EntityConflictError: For duplicate/conflict errors (409)
-//   - UnauthorizedError: For authentication errors (401)
-//   - ForbiddenError: For authorization errors (403)
-//   - UnprocessableOperationError: For business logic errors (422)
-//   - FailedPreconditionError: For precondition failures (412)
-//   - InternalServerError: For system errors (500)
+//   - EntityNotFoundError: For "not found" errors (404).
+//   - ValidationError: For validation and constraint errors (400).
+//   - EntityConflictError: For duplicate/conflict errors (409).
+//   - UnauthorizedError: For authentication errors (401).
+//   - ForbiddenError: For authorization errors (403).
+//   - UnprocessableOperationError: For business logic errors (422).
+//   - FailedPreconditionError: For precondition failures (412).
+//   - InternalServerError: For system errors (500).
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
 		constant.ErrDuplicateLedger: EntityConflictError{
@@ -1197,7 +1191,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLockVersionAccountBalance.Error(),
 			Title:      "Race condition detected",
-			Message:    "A race condition was detected while processing your request. Please try again",
+			Message:    "A race condition was detected while processing your request. Please try again.",
 		},
 		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
 			EntityType: entityType,
@@ -1209,19 +1203,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
 			Title:      "Transaction is already a reversal",
-			Message:    "Transaction is already a reversal. Please try again",
+			Message:    "Transaction is already a reversal. Please try again.",
 		},
 		constant.ErrTransactionCantRevert: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionCantRevert.Error(),
 			Title:      "Transaction can't be reverted",
-			Message:    "Transaction can't be reverted. Please try again",
+			Message:    "Transaction can't be reverted. Please try again.",
 		},
 		constant.ErrTransactionAmbiguous: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
-			Message:    "Transaction can't use the same account in sources and destinations",
+			Message:    "Transaction can't use the same account in sources and destinations.",
 		},
 		constant.ErrBalancesCantDeleted: ValidationError{
 			EntityType: entityType,
@@ -1431,14 +1425,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 // errors where the entity type should be "ValidateSendSourceAndDistribute" for clarity.
 //
 // Currently handles:
-//   - ErrTransactionAmbiguous: When a transaction uses the same account in sources and destinations
-//   - ErrTransactionValueMismatch: When transaction values don't balance correctly
+//   - ErrTransactionAmbiguous: When a transaction uses the same account in sources and destinations.
+//   - ErrTransactionValueMismatch: When transaction values don't balance correctly.
 //
 // Parameters:
-//   - err: The error to be checked and potentially mapped
+//   - err: The error to be checked and potentially mapped.
 //
 // Returns:
-//   - A structured error if the error matches known patterns, or the original error otherwise
+//   - A structured error if the error matches known patterns, or the original error otherwise.
 //
 // Example Usage:
 //
@@ -1448,6 +1442,10 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 //
 // Note: This function is typically used in transaction validation logic where specific
 // error context is needed. For most cases, use ValidateBusinessError directly.
+//
+// FIXME: The error comparison `err.Error() == constant.Err...` is not robust.
+// It is better to use `errors.Is(err, constant.Err...)` to correctly handle wrapped errors.
+// Please, consider refactoring this to use `errors.Is`.
 func HandleKnownBusinessValidationErrors(err error) error {
 	switch {
 	case err.Error() == constant.ErrTransactionAmbiguous.Error():

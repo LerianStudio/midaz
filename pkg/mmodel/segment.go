@@ -4,90 +4,90 @@ package mmodel
 
 import "time"
 
-// CreateSegmentInput is a struct design to encapsulate request create payload data.
+// CreateSegmentInput represents the input data for creating a new segment.
 //
 // swagger:model CreateSegmentInput
 //
 // @Description CreateSegmentInput is the input payload to create a segment within a ledger, representing a logical division such as a business area, product line, or customer category.
 type CreateSegmentInput struct {
-	// Name of the segment (required, max length 256 characters)
+	// The name of the segment.
 	Name string `json:"name" validate:"required,max=256" example:"My Segment"`
 
-	// Status of the segment (active, inactive, pending)
+	// The status of the segment (e.g., ACTIVE, INACTIVE, PENDING).
 	Status Status `json:"status"`
 
-	// Additional custom attributes for the segment
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// Custom key-value pairs for extending the segment information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateSegmentInput
 
-// UpdateSegmentInput is a struct design to encapsulate request update payload data.
+// UpdateSegmentInput represents the input data for updating an existing segment.
 //
 // swagger:model UpdateSegmentInput
 //
 // @Description UpdateSegmentInput is the input payload to update an existing segment's properties such as name, status, and metadata.
 type UpdateSegmentInput struct {
-	// Updated name of the segment (optional, max length 256 characters)
+	// The updated name of the segment.
 	Name string `json:"name" validate:"max=256" example:"My Segment Updated"`
 
-	// Updated status of the segment (active, inactive, pending)
+	// The updated status of the segment.
 	Status Status `json:"status"`
 
-	// Updated or additional custom attributes for the segment
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// The updated custom key-value pairs for extending the segment information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateSegmentInput
 
-// Segment is a struct designed to encapsulate payload data.
+// Segment represents a logical division within a ledger.
 //
 // swagger:model Segment
 //
 // @Description Segment represents a logical division within a ledger such as a business area, product line, or customer category.
 type Segment struct {
-	// Unique identifier for the segment (UUID format)
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The unique identifier for the segment (UUID format).
+	ID string `json:"id" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Name of the segment (max length 256 characters)
+	// The name of the segment.
 	Name string `json:"name" example:"My Segment" maxLength:"256"`
 
-	// ID of the ledger this segment belongs to (UUID format)
-	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The ID of the ledger this segment belongs to (UUID format).
+	LedgerID string `json:"ledgerId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// ID of the organization that owns this segment (UUID format)
-	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The ID of the organization that owns this segment (UUID format).
+	OrganizationID string `json:"organizationId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Status of the segment (active, inactive, pending)
+	// The status of the segment.
 	Status Status `json:"status"`
 
-	// Timestamp when the segment was created
+	// The timestamp when the segment was created.
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the segment was last updated
+	// The timestamp when the segment was last updated.
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the segment was deleted (null if not deleted)
+	// The timestamp when the segment was soft-deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes for the segment
+	// Custom key-value pairs for extending the segment information.
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name Segment
 
-// Segments struct to return get all.
+// Segments represents a paginated list of segments.
 //
 // swagger:model Segments
 //
 // @Description Segments represents a paginated collection of segment records returned by list operations.
 type Segments struct {
-	// Array of segment records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Segment","ledgerId":"00000000-0000-0000-0000-000000000000","status":{"code":"ACTIVE"}}]
+	// An array of segment records.
+	// example: [{"id":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","name":"My Segment","ledgerId":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","status":{"code":"ACTIVE"}}]
 	Items []Segment `json:"items"`
 
-	// Current page number
+	// The current page number.
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
-	// Maximum number of items per page
+	// The maximum number of items per page.
 	// example: 10
 	// minimum: 1
 	// maximum: 100
@@ -119,15 +119,15 @@ type SegmentsResponse struct {
 type SegmentErrorResponse struct {
 	// in: body
 	Body struct {
-		// Error code identifying the specific error
+		// The error code identifying the specific error.
 		// example: 400001
 		Code int `json:"code"`
 
-		// Human-readable error message
+		// A human-readable error message.
 		// example: Invalid input: field 'name' is required
 		Message string `json:"message"`
 
-		// Additional error details if available
+		// Additional error details if available.
 		// example: {"field": "name", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}

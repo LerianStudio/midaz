@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving asset rates by asset code.
 package query
 
 import (
@@ -16,31 +15,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllAssetRatesByAssetCode retrieves asset rates for currency conversions with metadata.
+// GetAllAssetRatesByAssetCode retrieves a list of asset rates for a given source asset.
 //
-// Fetches asset rates from PostgreSQL for a source asset to multiple target assets,
-// then enriches with MongoDB metadata. Used for multi-currency transaction processing.
-//
-// The method:
-// 1. Validates source asset code (alphanumeric, uppercase)
-// 2. Validates all target asset codes
-// 3. Fetches asset rates with cursor pagination
-// 4. Fetches metadata for all rates
-// 5. Merges metadata into rate objects
+// This use case fetches the exchange rates from a source asset to one or more
+// target assets. It retrieves the rates from PostgreSQL and enriches them with
+// metadata from MongoDB.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - fromAssetCode: Source asset code (e.g., "USD")
-//   - filter: Query parameters with ToAssetCodes array (e.g., ["EUR", "GBP"])
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - fromAssetCode: The source asset code for the exchange rates.
+//   - filter: Query parameters, including the target asset codes.
 //
 // Returns:
-//   - []*assetrate.AssetRate: Array of asset rates with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if validation or query fails
-//
-// OpenTelemetry: Creates span "query.get_asset_rate_by_asset_codes"
+//   - []*assetrate.AssetRate: A slice of asset rates with their metadata.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if validation or retrieval fails.
 func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

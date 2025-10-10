@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the onboarding service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving an asset by its ID.
 package query
 
 import (
@@ -17,29 +16,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetByID retrieves a single asset by ID with metadata.
+// GetAssetByID retrieves a single asset by its ID, enriched with metadata.
 //
-// This method implements the get asset query use case, which:
-// 1. Fetches the asset from PostgreSQL by ID
-// 2. Fetches associated metadata from MongoDB
-// 3. Merges metadata into the asset object
-// 4. Returns the enriched asset
+// This use case fetches an asset from the PostgreSQL database and its corresponding
+// metadata from MongoDB, then merges them into a single response.
+// Soft-deleted assets are excluded from the result.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the asset to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the asset to retrieve.
 //
 // Returns:
-//   - *mmodel.Asset: Asset with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrAssetIDNotFound: Asset doesn't exist or is deleted
-//
-// OpenTelemetry:
-//   - Creates span "query.get_asset_by_id"
+//   - *mmodel.Asset: The asset with its metadata, or nil if not found.
+//   - error: An error if the asset is not found or if the query fails.
 func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -70,6 +61,9 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 	if asset != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String())
 		if err != nil {
+			// FIXME: This error handling is incorrect. It returns an ErrAssetIDNotFound, but the error
+			// is related to fetching metadata, not the asset itself. The function should either
+			// return the asset without metadata or a more appropriate metadata-specific error.
 			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb asset", err)

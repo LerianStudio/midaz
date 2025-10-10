@@ -1,17 +1,16 @@
-# Workflow Generator v2.0 - Simplified Modular Architecture
+# Midaz API Workflow Generator v2.0 - Simplified Modular Architecture
 
 ## 🎯 Overview
 
-This is the modernized, simplified version of the Midaz API Workflow Generator that implements the architecture described in `WF_SIMP_PLAN.md`. It maintains 100% compatibility with the original implementation while providing significant improvements in maintainability, debugging, and extensibility.
+This document provides a comprehensive guide to the modernized, modular version of the Midaz API Workflow Generator. It maintains 100% compatibility with the original implementation while offering significant improvements in maintainability, debugging, and extensibility.
 
 ### Key Benefits
 
-- **30% Reduction in Lines of Code**: From 896 to ~600 lines in core logic
-- **Modular Architecture**: Separate concerns with dedicated classes
-- **Configuration-Driven**: All hardcoded values moved to config files
-- **Enhanced Error Handling**: Comprehensive validation and error reporting
-- **Preserved Business Logic**: Critical dependency chains maintained exactly
-- **Safe Migration**: Wrapper for gradual rollout with fallback capabilities
+- **Reduced Code Complexity**: Over 30% reduction in lines of code in the core logic.
+- **Modular Architecture**: Each major function (parsing, matching, mapping) is encapsulated in its own class, promoting separation of concerns.
+- **Configuration-Driven**: All hardcoded values, such as API patterns and variable names, have been moved to a central configuration file.
+- **Enhanced Error Handling**: The system now provides comprehensive validation and detailed error reporting.
+- **Preserved Business Logic**: Critical dependency chains and business logic, such as the balance zeroing pattern, are maintained exactly as in the original implementation.
 
 ## 🏗️ Architecture
 
@@ -19,66 +18,57 @@ This is the modernized, simplified version of the Midaz API Workflow Generator t
 
 ```
 scripts/postman-coll-generation/
-├── create-workflow-v2.js          # New main entry point
-├── create-workflow-wrapper.js     # Migration wrapper with fallback
+├── create-workflow.js             # Main entry point
 ├── config/
 │   └── workflow.config.js         # Centralized configuration
 ├── lib/
-│   ├── workflow-processor.js      # Main orchestration
-│   ├── markdown-parser.js         # Markdown parsing & validation
-│   ├── request-matcher.js         # Collection search with alternatives
-│   ├── path-resolver.js           # URL normalization & corrections
-│   ├── variable-mapper.js         # Parameter substitution
-│   └── request-body-generator.js  # Transaction body templates
-└── tests/
-    ├── unit/                       # Component tests
-    ├── integration/               # Full workflow tests
-    └── regression/               # Old vs new comparison
+│   ├── workflow-processor.js      # Main orchestration logic
+│   ├── markdown-parser.js         # Markdown parsing and validation
+│   ├── request-matcher.js         # Collection search with alternative path matching
+│   ├── path-resolver.js           # URL normalization and corrections
+│   ├── variable-mapper.js         # Parameter and variable substitution
+│   └── request-body-generator.js  # Transaction body template management
+└── enhance-tests.js               # Enhanced test script generation
 ```
 
 ## 🚀 Usage
 
-### Direct Usage (New Implementation)
+### Direct Usage
+
+To generate a workflow, run the `create-workflow.js` script with the input collection, workflow Markdown, and output collection file paths:
+
 ```bash
-node create-workflow-v2.js input.json WORKFLOW.md output.json
-```
-
-### Safe Migration (Wrapper with Fallback)
-```bash
-# Use old implementation (default)
-node create-workflow-wrapper.js input.json WORKFLOW.md output.json
-
-# Use new implementation with fallback
-USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js input.json WORKFLOW.md output.json
-
-# Compare both implementations
-ENABLE_COMPARISON=true node create-workflow-wrapper.js input.json WORKFLOW.md output.json
+node create-workflow.js <input-collection.json> <workflow.md> <output-collection.json>
 ```
 
 ### Environment Variables
-- `USE_NEW_WORKFLOW_GENERATOR=true/false` - Use new implementation
-- `ENABLE_COMPARISON=true/false` - Compare both implementations  
-- `FAIL_ON_DIFFERENCES=true/false` - Fail if outputs differ
-- `DEBUG=true/false` - Enable debug output
+
+- `DEBUG=true`: Enables detailed debug output for troubleshooting.
 
 ## 🔧 Configuration
 
-All configuration is centralized in `config/workflow.config.js`:
+All configuration is centralized in `config/workflow.config.js`.
 
 ### API Pattern Management
+
+Define rules for correcting and normalizing API paths to handle API evolution.
+
 ```javascript
 apiPatterns: {
   pathCorrections: [
     {
       name: "Missing ledger segment",
       detect: /^\/v1\/organizations\/[^/]+\/accounts/,
-      correct: (path) => path.replace(/* ... */)
-    }
-  ]
+      correct: (path) => path.replace(/* ... */),
+    },
+  ];
 }
 ```
 
 ### Variable Mapping
+
+Configure how variables are substituted in paths and request bodies.
+
 ```javascript
 variables: {
   mapping: {
@@ -99,6 +89,9 @@ variables: {
 ```
 
 ### Transaction Templates
+
+Define standard request bodies for different types of transactions.
+
 ```javascript
 transactions: {
   templates: {
@@ -110,23 +103,12 @@ transactions: {
 }
 ```
 
-## 🧪 Testing
-
-### Run Regression Tests
-```bash
-cd tests/regression
-node output-comparison.test.js
-```
-
-### Test Coverage
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: Full workflow generation
-- **Regression Tests**: Old vs new implementation comparison
-
 ## 🔍 Critical Preserved Logic
 
 ### 1. Dependency Chain Integrity
-The exact variable dependency chain is preserved:
+
+The exact variable dependency chain from the original implementation is preserved to ensure correct workflow execution:
+
 ```
 Step 1 → organizationId
 Step 5 → ledgerId (uses organizationId)
@@ -136,40 +118,26 @@ Step 49 → Zero Out (uses currentBalanceAmount)
 ```
 
 ### 2. Balance Zeroing Pattern (IMMUTABLE)
-Steps 48-49 implement critical accounting pattern that CANNOT be modified:
-- Step 48: Extract `Math.abs(balance.available)` → `currentBalanceAmount`
-- Step 49: Create reverse transaction using exact extracted amount
+
+Steps 48-49 implement a critical accounting pattern that **must not be modified**:
+
+- **Step 48**: Extracts `Math.abs(balance.available)` and stores it as `currentBalanceAmount`.
+- **Step 49**: Creates a reverse transaction using the exact extracted amount to zero out the balance.
 
 ### 3. Transaction Type Differentiation
-Three distinct transaction patterns maintained:
-- **JSON**: Explicit source and destination
-- **Inflow**: Money coming in (no source)
-- **Outflow**: Money going out (no destination)
 
-## 🔄 Migration Strategy
+The three distinct transaction patterns from the original implementation are maintained:
 
-### Phase 1: Shadow Mode (Recommended)
-```bash
-# Run both implementations, use old output
-ENABLE_COMPARISON=true node create-workflow-wrapper.js ...
-```
-
-### Phase 2: New Implementation with Fallback  
-```bash
-# Use new implementation, fallback to old on failure
-USE_NEW_WORKFLOW_GENERATOR=true node create-workflow-wrapper.js ...
-```
-
-### Phase 3: Direct Usage
-```bash
-# Use new implementation directly
-node create-workflow-v2.js ...
-```
+- **JSON**: An explicit source and destination are provided.
+- **Inflow**: Represents money coming in (no explicit source).
+- **Outflow**: Represents money going out (no explicit destination).
 
 ## 🐛 Debugging
 
 ### Enhanced Logging
-The new implementation provides detailed logging:
+
+The new implementation provides detailed logging to trace the workflow generation process:
+
 ```
 🔍 Searching for: POST /v1/organizations
    Generated 2 alternative paths:
@@ -179,41 +147,43 @@ The new implementation provides detailed logging:
 ```
 
 ### Error Context
-Comprehensive error reporting with context:
+
+The system provides comprehensive error reporting with context for easier debugging:
+
 ```javascript
 if (error instanceof ValidationError) {
-  error.issues.forEach(issue => {
+  error.issues.forEach((issue) => {
     console.error(`${issue.type}: ${issue.message}`);
   });
 }
 ```
 
 ### Statistics
-Processing statistics for optimization:
+
+The workflow processor provides statistics for performance analysis and optimization:
+
 ```javascript
 const stats = processor.getStatistics();
-// matcherStats: success rates, failed requests
-// variableMapperStats: mapping coverage
+// stats.matcherStats: success rates, failed requests
+// stats.variableMapperStats: mapping coverage
 ```
 
 ## ⚡ Performance
 
 ### Optimizations
-- **Reduced Complexity**: Cyclomatic complexity from 45 to ~15
-- **Efficient Matching**: Path alternatives generated once, reused
-- **Memory Management**: Proper object cloning and cleanup
-- **Early Termination**: Stop processing on critical errors
 
-### Metrics
-- **Processing Time**: < 10% increase over original
-- **Memory Usage**: Reduced due to modular architecture
-- **Code Maintainability**: Significantly improved
+- **Reduced Complexity**: Cyclomatic complexity has been significantly reduced.
+- **Efficient Matching**: Path alternatives are generated once and reused.
+- **Memory Management**: Proper object cloning and cleanup are implemented.
 
 ## 🛠️ Extending the System
 
 ### Adding New Path Corrections
+
+To add a new path correction, update the `pathCorrections` array in `config/workflow.config.js`:
+
 ```javascript
-// In config/workflow.config.js
+// in config/workflow.config.js
 pathCorrections: [
   {
     name: "New API Pattern",
@@ -223,54 +193,26 @@ pathCorrections: [
 ]
 ```
 
-### Adding Transaction Types
-```javascript
-// In config/workflow.config.js
-transactions: {
-  templates: {
-    newType: { /* template */ }
-  }
-}
+### Adding New Transaction Types
 
-// In lib/request-body-generator.js
-if (step.path.includes('/transactions/newtype')) {
-  return this.config.transactions.templates.newType;
-}
-```
+To add a new transaction type, define a new template in `config/workflow.config.js` and update the logic in `lib/request-body-generator.js`.
 
-### Custom Validation Rules
-```javascript
-// In lib/markdown-parser.js
-validateCustomRules(steps, issues) {
-  // Add custom validation logic
-}
-```
+### Adding Custom Validation Rules
 
-## 📋 Validation Checklist
-
-Before deploying to production:
-
-- [ ] Run regression tests: `node tests/regression/output-comparison.test.js`
-- [ ] Compare outputs with wrapper: `ENABLE_COMPARISON=true ...`
-- [ ] Test with actual collection and workflow files
-- [ ] Verify zero-out balance logic produces identical transactions
-- [ ] Check all 56 workflow steps are generated correctly
-- [ ] Validate dependency chains are preserved
-- [ ] Confirm enhanced test scripts work in Postman
+To add custom validation rules, extend the `validateCustomRules` function in `lib/markdown-parser.js`.
 
 ## 🚨 Critical Warnings
 
-1. **DO NOT MODIFY** the balance zeroing templates without extensive testing
-2. **DO NOT CHANGE** variable names in the dependency chain
-3. **ALWAYS RUN** regression tests before deployment
-4. **TEST THOROUGHLY** with production data before switching
+1. **DO NOT MODIFY** the balance zeroing templates without extensive testing.
+2. **DO NOT CHANGE** the variable names in the dependency chain.
+3. **ALWAYS RUN** regression tests before deploying any changes.
+4. **TEST THOROUGHLY** with production-like data before switching to a new version.
 
 ## 📞 Support
 
-For issues or questions:
-1. Check the debug output with `DEBUG=true`
-2. Run regression tests to identify the issue
-3. Compare with original implementation using wrapper
-4. Review the configuration for missing patterns
+If you encounter issues, follow these steps:
 
-The modular architecture makes it easy to isolate and fix issues in specific components without affecting the entire system.
+1. Enable debug output with `DEBUG=true`.
+2. Review the logs to identify the point of failure.
+3. Verify that the configuration in `config/workflow.config.js` is correct.
+4. Check the Markdown file for formatting errors.

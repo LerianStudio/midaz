@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the CreateAsset command implementation.
+// This file contains the command for creating a new asset.
 package command
 
 import (
@@ -15,80 +15,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAsset creates a new asset and automatically creates an associated external account.
+// CreateAsset creates a new asset and its associated external account.
 //
-// This method implements the create asset use case, which:
-// 1. Validates RabbitMQ health (required for sending external account to transaction service)
-// 2. Sets default status to ACTIVE if not provided
-// 3. Validates asset type (currency, crypto, commodities, others)
-// 4. Validates asset code format (alphanumeric, uppercase, at least one letter)
-// 5. Validates currency code compliance (ISO 4217) if type is "currency"
-// 6. Checks for duplicate asset name or code
-// 7. Creates the asset in PostgreSQL
-// 8. Creates associated metadata in MongoDB
-// 9. Creates an external account for the asset (if not already exists)
-// 10. Sends external account to transaction service queue
-// 11. Returns the complete asset with metadata
+// This use case is responsible for:
+//  1. Validating the asset's type and code, including ISO 4217 compliance for currencies.
+//  2. Ensuring the asset name and code are unique within the ledger.
+//  3. Persisting the asset in PostgreSQL and its metadata in MongoDB.
+//  4. Automatically creating a corresponding "external" account for the asset,
+//     which is used for transactions involving external systems.
+//  5. Publishing an event to RabbitMQ to initialize the external account's balance.
 //
 // Business Rules:
-//   - Asset codes must be uppercase and alphanumeric with at least one letter
-//   - Currency type assets must comply with ISO 4217 standard
-//   - Asset name and code must be unique within a ledger
-//   - Status defaults to ACTIVE if not provided
-//   - External account is automatically created with alias "@external/{CODE}"
-//   - External account has type "external" and status "external"
-//   - RabbitMQ must be healthy (external accounts need to be sent to transaction service)
-//
-// External Account:
-//   - Automatically created for each asset
-//   - Alias: "@external/{ASSET_CODE}" (e.g., "@external/USD")
-//   - Name: "External {ASSET_CODE}" (e.g., "External USD")
-//   - Type: "external"
-//   - Used for transactions with external systems
-//   - Only created once (checked before creation)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (assets table, accounts table)
-//   - Metadata: MongoDB (flexible key-value storage)
-//   - Queue: RabbitMQ (external account creation event)
+//   - Asset codes must be uppercase, alphanumeric, and contain at least one letter.
+//   - Assets of type "currency" must have a code that complies with the ISO 4217 standard.
+//   - An external account is created for each new asset with the alias "@external/{CODE}".
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization that owns this asset
-//   - ledgerID: UUID of the ledger that contains this asset
-//   - cii: Create asset input with name, type, code, status, and metadata
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization that owns the asset.
+//   - ledgerID: The UUID of the ledger where the asset will be created.
+//   - cii: The input data for creating the asset.
 //
 // Returns:
-//   - *mmodel.Asset: Created asset with metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrMessageBrokerUnavailable: RabbitMQ is not healthy
-//   - ErrInvalidType: Asset type is not valid
-//   - ErrInvalidCodeFormat: Code format is invalid
-//   - ErrCodeUppercaseRequirement: Code is not uppercase
-//   - ErrCurrencyCodeStandardCompliance: Currency code doesn't comply with ISO 4217
-//   - ErrAssetNameOrCodeDuplicate: Asset with same name or code already exists
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.CreateAssetInput{
-//	    Name: "US Dollar",
-//	    Type: "currency",
-//	    Code: "USD",
-//	    Status: mmodel.Status{Code: "ACTIVE"},
-//	}
-//	asset, err := useCase.CreateAsset(ctx, orgID, ledgerID, input)
-//	if err != nil {
-//	    return nil, err
-//	}
-//	// External account "@external/USD" is automatically created
-//
-// OpenTelemetry:
-//   - Creates span "command.create_asset"
-//   - Records errors as span events
-//   - Tracks validation and creation steps
+//   - *mmodel.Asset: The newly created asset, complete with its metadata.
+//   - error: An error if the creation fails due to business rule violations or database issues.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -127,6 +77,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if err := libCommons.ValidateCode(cii.Code); err != nil {
+		// FIXME: This error handling is repetitive. Refactor into a helper function
+		// to reduce code duplication and improve readability.
 		if err.Error() == constant.ErrInvalidCodeFormat.Error() {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
 
@@ -152,6 +104,10 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		}
 	}
 
+	// FIXME: This logic is incorrect. FindByNameOrCode returns an error if the asset is *not* found.
+	// The code should check if the error is `services.ErrDatabaseItemNotFound` and proceed in that case.
+	// If the error is nil, it means an asset with the same name or code already exists, and an
+	// `ErrAssetNameOrCodeDuplicate` error should be returned. Any other error should be returned directly.
 	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset by name or code", err)

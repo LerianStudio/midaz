@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating or updating an asset rate.
 package command
 
 import (
@@ -16,39 +15,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOrUpdateAssetRate creates or updates an asset rate (exchange rate between assets).
+// CreateOrUpdateAssetRate creates or updates an asset rate (exchange rate) in the repository.
 //
-// This method implements upsert semantics for asset rates, which:
-// 1. Validates asset codes (from and to)
-// 2. Checks if rate already exists for the currency pair
-// 3. Updates existing rate if found
-// 4. Creates new rate if not found
-// 5. Manages metadata (create or update)
-// 6. Returns the created/updated asset rate
+// This use case implements an upsert logic for managing asset rates. If a rate for the
+// given currency pair already exists, it will be updated; otherwise, a new one will be created.
 //
 // Business Rules:
-//   - Asset codes must be valid (alphanumeric, uppercase)
-//   - Currency pair (from, to) must be unique per ledger
-//   - Rate and scale define the conversion ratio
-//   - TTL specifies how long the rate is valid
-//   - External ID is optional (auto-generated if not provided)
-//   - Source indicates where the rate came from (e.g., "manual", "api")
-//
-// Upsert Logic:
-//   - If currency pair exists: Update rate, scale, source, TTL, external_id
-//   - If currency pair doesn't exist: Create new asset rate
+//   - Asset codes must be valid (uppercase, alphanumeric, with at least one letter).
+//   - The currency pair (from, to) must be unique per ledger.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - cari: Asset rate input with from/to codes, rate, scale, TTL
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - cari: The input data for the asset rate.
 //
 // Returns:
-//   - *assetrate.AssetRate: Created or updated asset rate with metadata
-//   - error: Business error if validation or persistence fails
-//
-// OpenTelemetry: Creates span "command.create_or_update_asset_rate"
+//   - *assetrate.AssetRate: The created or updated asset rate, including its metadata.
+//   - error: An error if the operation fails due to a business rule violation or database issue.
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

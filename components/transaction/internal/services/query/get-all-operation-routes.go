@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving all operation routes.
 package query
 
 import (
@@ -20,23 +19,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetAllOperationRoutes retrieves a paginated list of operation routes with metadata.
+// GetAllOperationRoutes retrieves a paginated list of operation routes.
 //
-// Fetches operation routes from PostgreSQL with cursor pagination, then enriches with
-// MongoDB metadata. Returns empty array if no routes found.
+// This use case fetches operation routes from PostgreSQL and enriches them with
+// metadata from MongoDB.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - filter: Query parameters (cursor pagination, sorting, metadata filters)
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - filter: Query parameters for pagination, sorting, and metadata filtering.
 //
 // Returns:
-//   - []*mmodel.OperationRoute: Array of operation routes with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_operation_routes"
+//   - []*mmodel.OperationRoute: A slice of operation routes with their metadata.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -72,6 +69,8 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter)
 		if err != nil {
+			// FIXME: This error seems incorrect. It should be a more generic error,
+			// as the metadata might not be found, which is not a business error.
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation route", err)

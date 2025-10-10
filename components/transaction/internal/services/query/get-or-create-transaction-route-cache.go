@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving a transaction route from the cache.
 package query
 
 import (
@@ -14,33 +13,26 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// GetOrCreateTransactionRouteCache retrieves transaction route cache from Redis with database fallback.
+// GetOrCreateTransactionRouteCache retrieves a transaction route from the cache,
+// with a fallback to the database.
 //
-// This method implements cache-aside pattern for transaction route caching:
-// 1. Checks Redis cache for transaction route (msgpack format)
-// 2. If found: Deserializes and returns cached data
-// 3. If not found: Fetches from PostgreSQL, creates cache, returns data
+// This use case implements a cache-aside pattern. It first attempts to fetch the
+// transaction route from the Redis cache. If the route is not found in the cache,
+// it retrieves it from PostgreSQL, stores it in the cache for future requests,
+// and then returns the data.
 //
-// Cache Strategy:
-//   - Persistent cache (no TTL) - routes rarely change
-//   - Msgpack binary format for efficiency
-//   - Cache-aside pattern (lazy loading)
-//   - Automatic cache creation on miss
-//
-// The cache structure pre-categorizes operation routes by type (source/destination)
-// for fast lookup during transaction processing.
+// The cached data is pre-categorized by operation route type (source/destination)
+// for efficient lookups during transaction processing.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionRouteID: UUID of the transaction route
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionRouteID: The UUID of the transaction route.
 //
 // Returns:
-//   - mmodel.TransactionRouteCache: Cached route data with operation routes by type
-//   - error: Error if not found or cache operation fails
-//
-// OpenTelemetry: Creates span "command.get_or_create_transaction_route_cache"
+//   - mmodel.TransactionRouteCache: The cached transaction route data.
+//   - error: An error if the route is not found or if a cache operation fails.
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

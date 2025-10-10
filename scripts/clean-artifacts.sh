@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script recursively cleans all build artifacts, temporary files, and
+# environment files from the project. It runs the `make clean` target in each
+# component and performs a deep clean of common artifact directories.
 
 # Import shared utilities and colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

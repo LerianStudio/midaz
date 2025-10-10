@@ -1,7 +1,20 @@
-# check if stdout is a terminal...
+#!/bin/bash
+#
+# This script defines a set of variables for colored and formatted text output
+# in the terminal. It checks if the terminal supports colors before defining
+# the variables to ensure compatibility.
+#
+# Usage:
+#   Source this script in your shell scripts to use the color variables.
+#   Example:
+#     source "colors.sh"
+#     echo "${red}This is an error message.${normal}"
+#     echo "${bold}${green}This is a success message.${normal}"
+
+# Check if stdout is a terminal.
 if test -t 1; then
 
-    # see if it supports colors...
+    # Check if the terminal supports colors.
     ncolors=$(tput colors)
 
     if test -n "$ncolors" && test $ncolors -ge 8; then

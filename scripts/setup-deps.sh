@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script sets up the local environment for generating documentation by
+# checking and installing all required dependencies. It is designed to be run
+# once during the initial setup of a CI/CD pipeline or a new development machine.
 set -euo pipefail
 
 # Setup script for documentation generation dependencies

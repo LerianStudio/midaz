@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for updating an operation route.
 package command
 
 import (
@@ -19,30 +18,23 @@ import (
 
 // UpdateOperationRoute updates an existing operation route in the repository.
 //
-// This method updates operation route properties:
-// 1. Updates title, description, code
-// 2. Updates account rules (rule_type, valid_if)
-// 3. Updates metadata using merge semantics
-// 4. Returns updated operation route
+// This use case handles partial updates for an operation route's mutable fields
+// and merges any provided metadata with the existing metadata in MongoDB.
 //
 // Business Rules:
-//   - All fields are optional (partial updates)
-//   - Operation type cannot be changed (immutable)
-//   - Account rules can be updated
-//   - Metadata is merged with existing
+//   - The operation route must exist to be updated.
+//   - The operation type is immutable and cannot be changed.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the operation route to update
-//   - input: Update input with title, description, code, account rules, metadata
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the operation route to update.
+//   - input: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.OperationRoute: Updated operation route with metadata
-//   - error: Business error if not found or update fails
-//
-// OpenTelemetry: Creates span "command.update_operation_route"
+//   - *mmodel.OperationRoute: The updated operation route, including merged metadata.
+//   - error: An error if the operation route is not found or if the update fails.
 func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

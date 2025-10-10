@@ -1,3 +1,5 @@
+// Package fuzzy provides fuzz testing for the Midaz API.
+// This file contains tests that fuzz various fields in HTTP request payloads.
 package fuzzy
 
 import (
@@ -24,6 +26,11 @@ func randString(n int) string {
 	return string(b)
 }
 
+// TestFuzz_Organization_Fields fuzzes the legalName and legalDocument fields of
+// the organization creation payload with random string lengths and characters.
+//
+// This test ensures that the API can handle a wide range of inputs without
+// crashing or producing 5xx errors.
 func TestFuzz_Organization_Fields(t *testing.T) {
 	shouldRun(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -46,6 +53,11 @@ func TestFuzz_Organization_Fields(t *testing.T) {
 	}
 }
 
+// TestFuzz_Accounts_AliasAndType fuzzes the alias and type fields for account creation.
+//
+// This test sends random strings of varying lengths for the account alias and
+// occasionally attempts to create an account with a forbidden type ("external").
+// It also tests the system's ability to handle duplicate alias submissions.
 func TestFuzz_Accounts_AliasAndType(t *testing.T) {
 	shouldRun(t)
 	env := h.LoadEnvironment()
@@ -105,6 +117,12 @@ func TestFuzz_Accounts_AliasAndType(t *testing.T) {
 	_ = trans // reserved for future header fuzz on transaction endpoints
 }
 
+// TestFuzz_Transactions_Amounts_And_Codes fuzzes transaction amounts with a variety
+// of valid and invalid values.
+//
+// This test submits transactions with negative, zero, large, and high-precision
+// amounts to verify that the validation and processing logic can handle these
+// edge cases without causing panics or unexpected 5xx errors.
 func TestFuzz_Transactions_Amounts_And_Codes(t *testing.T) {
 	shouldRun(t)
 	env := h.LoadEnvironment()

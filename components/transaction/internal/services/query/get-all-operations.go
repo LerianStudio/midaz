@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving all operations.
 package query
 
 import (
@@ -19,24 +18,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllOperations retrieves a paginated list of operations with metadata.
+// GetAllOperations retrieves a paginated list of operations.
 //
-// Fetches operations from PostgreSQL with cursor pagination, then enriches with MongoDB metadata.
-// Returns empty array if no operations found.
+// This use case fetches operations from PostgreSQL and enriches them with metadata
+// from MongoDB.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of the transaction (filters operations by transaction)
-//   - filter: Query parameters (cursor pagination, sorting, date range)
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the transaction to filter operations by.
+//   - filter: Query parameters for pagination, sorting, and date range filtering.
 //
 // Returns:
-//   - []*operation.Operation: Array of operations with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_operations"
+//   - []*operation.Operation: A slice of operations with their metadata.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -75,6 +72,8 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
+		// FIXME: This error seems incorrect. It should be a more generic error,
+		// as the metadata might not be found, which is not a business error.
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)

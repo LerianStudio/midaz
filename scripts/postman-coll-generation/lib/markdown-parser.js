@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 
 /**
- * MarkdownParser Class
- * 
- * Parses workflow steps from Markdown format with robust error handling
- * and validation. Maintains the exact parsing logic from the original
- * implementation while adding improved error reporting and validation.
+ * @file MarkdownParser Class
+ * @description
+ * This class parses workflow steps from a Markdown format with robust error
+ * handling and validation. It maintains the exact parsing logic from the
+ * original implementation while adding improved error reporting and validation
+ * capabilities.
  */
 
+/**
+ * Custom error class for parsing errors.
+ */
 class ParseError extends Error {
+  /**
+   * @param {string} message - The error message.
+   * @param {Object} context - Additional context for debugging.
+   */
   constructor(message, context = {}) {
     super(message);
     this.name = 'ParseError';
@@ -16,7 +24,14 @@ class ParseError extends Error {
   }
 }
 
+/**
+ * Custom error class for validation errors.
+ */
 class ValidationError extends Error {
+  /**
+   * @param {string} message - The error message.
+   * @param {Array} issues - An array of validation issues.
+   */
   constructor(message, issues = []) {
     super(message);
     this.name = 'ValidationError';
@@ -25,6 +40,9 @@ class ValidationError extends Error {
 }
 
 class MarkdownParser {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
     this.patterns = {
@@ -40,9 +58,9 @@ class MarkdownParser {
   }
 
   /**
-   * Parse workflow steps from markdown content
-   * @param {string} markdown - The markdown content to parse
-   * @returns {Array} Array of workflow step objects
+   * Parses workflow steps from Markdown content.
+   * @param {string} markdown - The Markdown content to parse.
+   * @returns {Array} An array of workflow step objects.
    */
   parse(markdown) {
     const lines = markdown.split('\n');
@@ -80,18 +98,18 @@ class MarkdownParser {
   }
 
   /**
-   * Check if a line contains a step title
-   * @param {string} line - Line to check
-   * @returns {boolean}
+   * Checks if a line contains a step title.
+   * @param {string} line - The line to check.
+   * @returns {boolean} True if the line is a step title, false otherwise.
    */
   isStepTitle(line) {
     return this.patterns.stepTitle.test(line.trim());
   }
 
   /**
-   * Parse a step title line
-   * @param {string} line - Line containing step title
-   * @returns {Object} Step object with basic properties
+   * Parses a step title line.
+   * @param {string} line - The line containing the step title.
+   * @returns {Object} A step object with basic properties.
    */
   parseStepTitle(line) {
     const match = line.trim().match(this.patterns.stepTitle);
@@ -114,9 +132,9 @@ class MarkdownParser {
   }
 
   /**
-   * Parse a line and update the current step object
-   * @param {string} line - Line to parse
-   * @param {Object} currentStep - Current step object to update
+   * Parses a line and updates the current step object.
+   * @param {string} line - The line to parse.
+   * @param {Object} currentStep - The current step object to update.
    */
   parseLine(line, currentStep) {
     const trimmedLine = line.trim();
@@ -153,9 +171,9 @@ class MarkdownParser {
   }
 
   /**
-   * Parse Uses section
-   * @param {string} line - Line containing Uses
-   * @param {Object} currentStep - Current step object
+   * Parses the "Uses" section of a workflow step.
+   * @param {string} line - The line containing the "Uses" section.
+   * @param {Object} currentStep - The current step object to update.
    */
   parseUses(line, currentStep) {
     // Check if uses is on the same line - handle multiple uses separated by commas
@@ -175,9 +193,9 @@ class MarkdownParser {
   }
 
   /**
-   * Parse Outputs section
-   * @param {string} line - Line containing Outputs
-   * @param {Object} currentStep - Current step object
+   * Parses the "Outputs" section of a workflow step.
+   * @param {string} line - The line containing the "Outputs" section.
+   * @param {Object} currentStep - The current step object to update.
    */
   parseOutputs(line, currentStep) {
     // Check if output is on the same line - handle multiple outputs separated by commas
@@ -195,9 +213,9 @@ class MarkdownParser {
   }
 
   /**
-   * Validate parsed steps
-   * @param {Array} steps - Array of parsed steps
-   * @returns {Array} Validated steps array
+   * Validates an array of parsed workflow steps.
+   * @param {Array} steps - The array of parsed steps to validate.
+   * @returns {Array} The validated array of steps.
    */
   validate(steps) {
     const issues = [];
@@ -265,9 +283,9 @@ class MarkdownParser {
   }
 
   /**
-   * Validate step dependencies
-   * @param {Array} steps - Array of steps
-   * @param {Array} issues - Array to collect validation issues
+   * Validates the dependencies between workflow steps.
+   * @param {Array} steps - The array of steps to validate.
+   * @param {Array} issues - The array to collect validation issues.
    */
   validateDependencies(steps, issues) {
     const availableOutputs = new Map(); // stepNumber -> [outputs]
@@ -318,9 +336,9 @@ class MarkdownParser {
   }
 
   /**
-   * Get parsing statistics
-   * @param {Array} steps - Array of parsed steps
-   * @returns {Object} Statistics object
+   * Gathers statistics about the parsed workflow steps.
+   * @param {Array} steps - The array of parsed steps.
+   * @returns {Object} An object containing parsing statistics.
    */
   getStatistics(steps) {
     const stats = {

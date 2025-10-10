@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains commands for handling idempotency keys.
 package command
 
 import (
@@ -18,39 +17,24 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// CreateOrCheckIdempotencyKey creates or checks an idempotency key in Redis.
+// CreateOrCheckIdempotencyKey creates or checks an idempotency key in Redis to prevent duplicate transactions.
 //
-// This method implements idempotency for transaction creation, preventing duplicate
-// transactions from being processed. It:
-// 1. Generates internal key from organization, ledger, and idempotency key
-// 2. Attempts to set the key in Redis (SetNX - set if not exists)
-// 3. If key already exists, retrieves the stored transaction ID
-// 4. Returns nil if key was successfully created (first request)
-// 5. Returns transaction ID if key already exists (duplicate request)
-//
-// Idempotency Flow:
-//   - First request: SetNX succeeds, key is created with empty value, returns nil
-//   - Duplicate request: SetNX fails, retrieves stored value, returns transaction ID
-//   - After processing: SetValueOnExistingIdempotencyKey stores transaction ID
-//
-// Business Rules:
-//   - Idempotency key is optional (defaults to request hash if not provided)
-//   - TTL determines how long the key is valid (typically 24 hours)
-//   - Key format: "idempotency:{org_id}:{ledger_id}:{key}"
+// This function implements the first step of an idempotency check. It attempts to
+// create a lock in Redis using the provided key. If successful, it means this is
+// the first request with this key. If the lock already exists, it retrieves the
+// stored transaction data, indicating a duplicate request.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - key: Idempotency key from header (optional)
-//   - hash: Request hash (used if key is empty)
-//   - ttl: Time-to-live for the idempotency key
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - key: The idempotency key from the request header.
+//   - hash: A hash of the request payload, used as a fallback if the key is empty.
+//   - ttl: The time-to-live for the idempotency key in Redis.
 //
 // Returns:
-//   - *string: nil if first request, transaction ID if duplicate
-//   - error: Redis error or ErrIdempotencyKey if key exists but has no value
-//
-// OpenTelemetry: Creates span "command.create_idempotency_key"
+//   - *string: A pointer to the stored transaction data if it's a duplicate request, otherwise nil.
+//   - error: An error if there's an issue with Redis or if the key exists but has no value.
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -88,43 +72,36 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 			logger.Infof("Found value on redis with this key: %v", internalKey)
 
 			return &value, nil
-		} else {
-			err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
-
-			logger.Warnf("Failed, exists value on redis with this key: %v", err)
-
-			return nil, err
 		}
+
+		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+
+		logger.Warnf("Failed, exists value on redis with this key: %v", err)
+
+		return nil, err
 	}
 
 	return nil, nil
 }
 
-// SetValueOnExistingIdempotencyKey stores the transaction result in the idempotency key.
+// SetValueOnExistingIdempotencyKey stores the transaction result in an existing idempotency key.
 //
-// This method is called after successful transaction creation to store the transaction
-// data in Redis. Subsequent requests with the same idempotency key will receive this
-// stored transaction instead of creating a duplicate.
+// This function is the second step of the idempotency flow. After a transaction
+// has been successfully processed, this function is called to store the resulting
+// transaction data in the Redis key that was created by CreateOrCheckIdempotencyKey.
+// Any subsequent requests with the same idempotency key will then receive this stored data.
 //
-// Idempotency Flow:
-//  1. CreateOrCheckIdempotencyKey creates empty key (first request)
-//  2. Transaction is processed and created
-//  3. SetValueOnExistingIdempotencyKey stores transaction data
-//  4. Duplicate requests retrieve stored transaction data
-//
-// The method does not return errors - failures are logged but don't affect the
-// transaction creation (the transaction was already created successfully).
+// Failures in this function are only logged and do not return an error, as the
+// primary transaction has already been completed successfully.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - key: Idempotency key from header (optional)
-//   - hash: Request hash (used if key is empty)
-//   - t: Created transaction to store
-//   - ttl: Time-to-live for the idempotency key
-//
-// OpenTelemetry: Creates span "command.set_value_idempotency_key"
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - key: The idempotency key from the request header.
+//   - hash: A hash of the request payload, used as a fallback if the key is empty.
+//   - t: The transaction data to be stored.
+//   - ttl: The time-to-live for the idempotency key in Redis.
 func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

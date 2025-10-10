@@ -29,7 +29,7 @@ var (
 	// ErrLedgerNameConflict indicates a ledger name collision within the same organization.
 	ErrLedgerNameConflict = errors.New("0002")
 
-	// Asset Errors (0003-0005, 0034, 0055-0056)
+	// Asset Errors (0003-0005, 0028, 0034, 0055-0056)
 
 	// ErrAssetNameOrCodeDuplicate indicates an asset with the same name or code already exists.
 	ErrAssetNameOrCodeDuplicate = errors.New("0003")
@@ -225,6 +225,9 @@ var (
 	// ErrTransactionValueMismatch indicates transaction values do not balance (debits != credits).
 	ErrTransactionValueMismatch = errors.New("0073")
 
+	// FIXME: The comment "cannot be modified" may be too strong.
+	// A transaction with a parent can be modified in some cases (e.g., adding metadata).
+	// Please, verify the business rule and update the comment to be more precise about what cannot be modified.
 	// ErrTransactionIDHasAlreadyParentTransaction indicates the transaction already has a parent and cannot be modified.
 	ErrTransactionIDHasAlreadyParentTransaction = errors.New("0087")
 

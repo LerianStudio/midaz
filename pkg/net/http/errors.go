@@ -18,25 +18,25 @@ import (
 // function with the correct HTTP status code.
 //
 // Error Type to HTTP Status Code Mapping:
-//   - pkg.EntityNotFoundError       -> 404 Not Found
-//   - pkg.EntityConflictError       -> 409 Conflict
-//   - pkg.ValidationError           -> 400 Bad Request
-//   - pkg.UnprocessableOperationError -> 422 Unprocessable Entity
-//   - pkg.UnauthorizedError         -> 401 Unauthorized
-//   - pkg.ForbiddenError            -> 403 Forbidden
-//   - pkg.ValidationKnownFieldsError -> 400 Bad Request
-//   - pkg.ValidationUnknownFieldsError -> 400 Bad Request
-//   - pkg.ResponseError             -> Variable (based on error code)
-//   - pkg.InternalServerError       -> 500 Internal Server Error
-//   - libCommons.Response           -> Variable (based on error code)
-//   - Unknown errors                -> 500 Internal Server Error
+//   - pkg.EntityNotFoundError:       -> 404 Not Found
+//   - pkg.EntityConflictError:       -> 409 Conflict
+//   - pkg.ValidationError:           -> 400 Bad Request
+//   - pkg.UnprocessableOperationError: -> 422 Unprocessable Entity
+//   - pkg.UnauthorizedError:         -> 401 Unauthorized
+//   - pkg.ForbiddenError:            -> 403 Forbidden
+//   - pkg.ValidationKnownFieldsError:  -> 400 Bad Request
+//   - pkg.ValidationUnknownFieldsError:-> 400 Bad Request
+//   - pkg.ResponseError:             -> Variable (based on error code)
+//   - pkg.InternalServerError:       -> 500 Internal Server Error
+//   - libCommons.Response:           -> Variable (based on error code)
+//   - Unknown errors:                -> 500 Internal Server Error (default fallback)
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - err: The domain error to be converted to an HTTP response
+//   - c: Fiber context for the HTTP request.
+//   - err: The domain error to be converted to an HTTP response.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example Usage:
 //
@@ -67,6 +67,8 @@ func WithError(c *fiber.Ctx, err error) error {
 	case pkg.ValidationKnownFieldsError, pkg.ValidationUnknownFieldsError:
 		return BadRequest(c, e)
 	case pkg.ResponseError:
+		// FIXME: Redundant type assertion. The type switch already asserts the type of `e`.
+		// This can be simplified to `return JSONResponseError(c, e)`.
 		var rErr pkg.ResponseError
 		_ = errors.As(err, &rErr)
 
@@ -80,6 +82,8 @@ func WithError(c *fiber.Ctx, err error) error {
 		case libConstants.ErrOverFlowInt64.Error():
 			return InternalServerError(c, e.Code, e.Title, e.Message)
 		default:
+			// FIXME: Consider adding a comment to explain why other libCommons.Response errors are treated as BadRequest.
+			// This would improve clarity on the default error handling strategy.
 			return BadRequest(c, pkg.ValidationKnownFieldsError{
 				Code:    e.Code,
 				Title:   e.Title,

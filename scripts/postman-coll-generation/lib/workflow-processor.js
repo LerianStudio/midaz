@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * WorkflowProcessor Class
- * 
- * Main orchestration class that coordinates all components to generate
- * the complete workflow from markdown and collection inputs.
+ * @file WorkflowProcessor Class
+ * @description
+ * This is the main orchestration class that coordinates all components to generate
+ * a complete Postman collection workflow from Markdown and a base collection.
  */
 
 const { v4: uuidv4 } = require('uuid');
@@ -16,6 +16,9 @@ const { RequestBodyGenerator } = require('./request-body-generator');
 const { generateEnhancedTestScript, generateEnhancedPreRequestScript, generateWorkflowSummaryScript } = require('../enhance-tests');
 
 class WorkflowProcessor {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
     this.markdownParser = new MarkdownParser(config);
@@ -26,10 +29,10 @@ class WorkflowProcessor {
   }
 
   /**
-   * Process collection and markdown to generate workflow
-   * @param {Object} collection - Postman collection
-   * @param {string} markdown - Workflow markdown content
-   * @returns {Object} Complete workflow folder
+   * Processes a Postman collection and a Markdown file to generate a workflow.
+   * @param {Object} collection - The base Postman collection.
+   * @param {string} markdown - The workflow definition in Markdown format.
+   * @returns {Object} A complete Postman workflow folder.
    */
   async process(collection, markdown) {
     console.log('🚀 Starting workflow processing...');
@@ -87,10 +90,10 @@ class WorkflowProcessor {
   }
 
   /**
-   * Process a single workflow step
-   * @param {Object} step - Step object
-   * @param {Object} collection - Postman collection
-   * @returns {Object|null} Processed workflow item or null
+   * Processes a single workflow step.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @param {Object} collection - The Postman collection to search for requests.
+   * @returns {Object|null} The processed workflow item, or null if not found.
    */
   async processStep(step, collection) {
     // Find the original request in the collection
@@ -127,18 +130,18 @@ class WorkflowProcessor {
   }
 
   /**
-   * Deep clone a request object
-   * @param {Object} original - Original request
-   * @returns {Object} Cloned request
+   * Deep clones a request object.
+   * @param {Object} original - The original request object.
+   * @returns {Object} The cloned request object.
    */
   cloneRequest(original) {
     return JSON.parse(JSON.stringify(original));
   }
 
   /**
-   * Generate description for workflow step
-   * @param {Object} step - Step object
-   * @returns {string} Generated description
+   * Generates a description for a workflow step.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {string} The generated description.
    */
   generateDescription(step) {
     let description = `**Workflow Step ${step.number}: ${step.title}**\n\n${step.description || 'No description provided in Markdown.'}`;
@@ -155,9 +158,9 @@ class WorkflowProcessor {
   }
 
   /**
-   * Transform URL in workflow item
-   * @param {Object} workflowItem - Workflow item to transform
-   * @param {Object} step - Step object
+   * Transforms the URL of a workflow item by mapping variables.
+   * @param {Object} workflowItem - The workflow item to transform.
+   * @param {Object} step - The step object from the parsed workflow.
    */
   transformUrl(workflowItem, step) {
     if (!workflowItem.request.url || !workflowItem.request.url.path) {
@@ -175,18 +178,18 @@ class WorkflowProcessor {
   }
 
   /**
-   * Check if step needs body transformation
-   * @param {Object} step - Step object
-   * @returns {boolean} True if body transformation is needed
+   * Checks if a step needs its request body to be transformed.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {boolean} True if a body transformation is needed.
    */
   needsBodyTransformation(step) {
     return this.bodyGenerator.needsBody(step);
   }
 
   /**
-   * Transform request body
-   * @param {Object} workflowItem - Workflow item to transform
-   * @param {Object} step - Step object
+   * Transforms the request body of a workflow item.
+   * @param {Object} workflowItem - The workflow item to transform.
+   * @param {Object} step - The step object from the parsed workflow.
    */
   transformBody(workflowItem, step) {
     const body = this.bodyGenerator.generate(step);
@@ -205,9 +208,9 @@ class WorkflowProcessor {
   }
 
   /**
-   * Add enhanced test scripts
-   * @param {Object} workflowItem - Workflow item
-   * @param {Object} step - Step object
+   * Adds enhanced pre-request and test scripts to a workflow item.
+   * @param {Object} workflowItem - The workflow item to add scripts to.
+   * @param {Object} step - The step object from the parsed workflow.
    */
   addTestScripts(workflowItem, step) {
     const requires = (step.uses || []).map(use => typeof use === 'string' ? use : use.variable);
@@ -254,9 +257,9 @@ class WorkflowProcessor {
   }
 
   /**
-   * Handle special cases
-   * @param {Object} workflowItem - Workflow item
-   * @param {Object} step - Step object
+   * Handles special cases for specific workflow steps.
+   * @param {Object} workflowItem - The workflow item to handle.
+   * @param {Object} step - The step object from the parsed workflow.
    */
   handleSpecialCases(workflowItem, step) {
     if (step.title === "Check Account Balance Before Zeroing") {
@@ -265,8 +268,8 @@ class WorkflowProcessor {
   }
 
   /**
-   * Handle balance extraction for zero-out step
-   * @param {Object} workflowItem - Workflow item
+   * Adds logic to extract the account balance for the "zero-out" step.
+   * @param {Object} workflowItem - The workflow item to modify.
    */
   handleBalanceExtraction(workflowItem) {
     // Find test event and add balance extraction logic
@@ -300,10 +303,10 @@ if (pm.response.code === 200) {
   }
 
   /**
-   * Create placeholder for missing request
-   * @param {Object} step - Step object
-   * @param {Error} [error] - Optional error object
-   * @returns {Object} Placeholder item
+   * Creates a placeholder item for a request that could not be found.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @param {Error} [error] - An optional error object to include in the description.
+   * @returns {Object} A placeholder item for the Postman collection.
    */
   createPlaceholder(step, error = null) {
     const baseUrl = this.pathResolver.determineBaseUrl(step.path);
@@ -333,10 +336,10 @@ if (pm.response.code === 200) {
   }
 
   /**
-   * Create workflow folder with all items
-   * @param {Array} workflowItems - Array of workflow items
-   * @param {Array} steps - Original steps for summary
-   * @returns {Object} Workflow folder object
+   * Creates the main workflow folder for the Postman collection.
+   * @param {Array} workflowItems - An array of workflow items to include in the folder.
+   * @param {Array} steps - The original array of parsed steps.
+   * @returns {Object} The generated workflow folder object.
    */
   createWorkflowFolder(workflowItems, steps) {
     const workflowFolder = {
@@ -376,8 +379,8 @@ if (pm.response.code === 200) {
   }
 
   /**
-   * Get processing statistics
-   * @returns {Object} Processing statistics
+   * Gets processing statistics from all components.
+   * @returns {Object} An object containing statistics from the workflow processing.
    */
   getStatistics() {
     return {

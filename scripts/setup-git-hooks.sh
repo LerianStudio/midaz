@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script sets up Git hooks for the Midaz project by creating template hooks
+# for pre-commit, pre-push, and commit-msg actions. These hooks enforce code
+# quality, run tests, and validate commit message formats.
 
 # Git hooks directory
 HOOKS_DIR=".git/hooks"

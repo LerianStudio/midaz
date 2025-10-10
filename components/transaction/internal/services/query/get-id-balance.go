@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving a balance by its ID.
 package query
 
 import (
@@ -16,21 +15,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetBalanceByID retrieves a single balance by ID with metadata.
+// GetBalanceByID retrieves a single balance by its ID, enriched with metadata.
 //
-// Fetches balance from PostgreSQL and enriches with MongoDB metadata.
+// This use case fetches a balance from PostgreSQL and then attempts to retrieve the
+// most up-to-date balance information from the Redis cache. If cached data is
+// available, it is used to override the database values.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - balanceID: UUID of the balance to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - balanceID: The UUID of the balance to retrieve.
 //
 // Returns:
-//   - *mmodel.Balance: Balance with metadata
-//   - error: Business error if not found or query fails
-//
-// OpenTelemetry: Creates span "query.get_balance_by_id"
+//   - *mmodel.Balance: The balance with its metadata.
+//   - error: An error if the balance is not found or if the retrieval fails.
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

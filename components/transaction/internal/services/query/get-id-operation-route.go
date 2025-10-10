@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving an operation route by its ID.
 package query
 
 import (
@@ -17,26 +16,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOperationRouteByID retrieves an operation route by ID with metadata.
+// GetOperationRouteByID retrieves an operation route by its ID, enriched with metadata.
 //
-// Fetches operation route from PostgreSQL and enriches with MongoDB metadata.
-// Operation routes define account selection rules for transaction routing.
+// This use case fetches an operation route from PostgreSQL and its corresponding
+// metadata from MongoDB. Operation routes define the rules for selecting source or
+// destination accounts in a transaction.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - portfolioID: Portfolio ID (unused in current implementation)
-//   - id: UUID of the operation route to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - portfolioID: The UUID of the portfolio (currently unused).
+//   - id: The UUID of the operation route to retrieve.
 //
 // Returns:
-//   - *mmodel.OperationRoute: Operation route with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrOperationRouteNotFound: Operation route doesn't exist
-//
-// OpenTelemetry: Creates span "query.get_operation_route_by_id"
+//   - *mmodel.OperationRoute: The operation route with its metadata.
+//   - error: An error if the operation route is not found or if the retrieval fails.
 func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

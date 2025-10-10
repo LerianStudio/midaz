@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the onboarding service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving a segment by its ID.
 package query
 
 import (
@@ -17,29 +16,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetSegmentByID retrieves a single segment by ID with metadata.
+// GetSegmentByID retrieves a single segment by its ID, enriched with metadata.
 //
-// This method implements the get segment query use case, which:
-// 1. Fetches the segment from PostgreSQL by ID
-// 2. Fetches associated metadata from MongoDB
-// 3. Merges metadata into the segment object
-// 4. Returns the enriched segment
+// This use case fetches a segment from the PostgreSQL database and its corresponding
+// metadata from MongoDB, then merges them into a single response.
+// Soft-deleted segments are excluded from the result.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the segment to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the segment to retrieve.
 //
 // Returns:
-//   - *mmodel.Segment: Segment with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrSegmentIDNotFound: Segment doesn't exist or is deleted
-//
-// OpenTelemetry:
-//   - Creates span "query.get_segment_by_id"
+//   - *mmodel.Segment: The segment with its metadata, or nil if not found.
+//   - error: An error if the segment is not found or if the query fails.
 func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -70,6 +61,9 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 	if segment != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String())
 		if err != nil {
+			// FIXME: This error handling is incorrect. It returns an ErrSegmentIDNotFound, but the
+			// error is related to fetching metadata, not the segment itself. The function should
+			// either return the segment without metadata or a more appropriate metadata-specific error.
 			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb segment", err)

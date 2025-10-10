@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains command implementation.
-
+// This file contains the command for updating a segment.
 package command
 
 import (
@@ -19,52 +18,22 @@ import (
 
 // UpdateSegmentByID updates an existing segment in the repository.
 //
-// This method implements the update segment use case, which:
-// 1. Updates the segment in PostgreSQL
-// 2. Updates associated metadata in MongoDB using merge semantics
-// 3. Returns the updated segment with merged metadata
+// This use case handles partial updates for a segment's name and status, and
+// merges any provided metadata with the existing metadata in MongoDB.
 //
 // Business Rules:
-//   - Only provided fields are updated (partial updates supported)
-//   - Name can be updated
-//   - Status can be updated
-//   - Metadata is merged with existing
-//
-// Update Behavior:
-//   - Empty strings in input are treated as "clear the field"
-//   - Empty status means "don't update status"
-//   - Metadata is merged with existing metadata (RFC 7396)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (segments table)
-//   - Metadata: MongoDB (merged with existing)
+//   - The segment must exist.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the segment to update
-//   - upi: Update segment input with fields to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the segment to be updated.
+//   - upi: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.Segment: Updated segment with merged metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrSegmentIDNotFound: Segment doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.UpdateSegmentInput{
-//	    Name:   "North America Region - Updated",
-//	    Status: mmodel.Status{Code: "ACTIVE"},
-//	}
-//	segment, err := useCase.UpdateSegmentByID(ctx, orgID, ledgerID, segmentID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.update_segment_by_id"
-//   - Records errors as span events
+//   - *mmodel.Segment: The updated segment, including the merged metadata.
+//   - error: An error if the segment is not found or if the update fails.
 func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateSegmentInput) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

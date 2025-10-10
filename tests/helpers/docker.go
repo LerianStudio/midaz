@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains Docker container management utilities for test infrastructure.
 package helpers
 
@@ -10,7 +11,8 @@ import (
 	"time"
 )
 
-// ComposeUpBackend brings infra + onboarding + transaction online using root Makefile.
+// ComposeUpBackend starts the backend services (infra, onboarding, transaction)
+// using the root Makefile.
 func ComposeUpBackend() error {
 	cmd := exec.Command("make", "up-backend")
 
@@ -22,7 +24,7 @@ func ComposeUpBackend() error {
 	return nil
 }
 
-// ComposeDownBackend stops services started with ComposeUpBackend.
+// ComposeDownBackend stops the backend services that were started with ComposeUpBackend.
 func ComposeDownBackend() error {
 	cmd := exec.Command("make", "down-backend")
 
@@ -34,7 +36,8 @@ func ComposeDownBackend() error {
 	return nil
 }
 
-// DockerAction performs a docker container action like stop/start/restart/pause/unpause.
+// DockerAction performs a Docker container action, such as stop, start, restart,
+// pause, or unpause.
 func DockerAction(action, container string, extraArgs ...string) error {
 	args := append([]string{action, container}, extraArgs...)
 	cmd := exec.Command("docker", args...)
@@ -47,7 +50,8 @@ func DockerAction(action, container string, extraArgs ...string) error {
 	return nil
 }
 
-// RestartWithWait restarts a container and waits a bit for it to come back.
+// RestartWithWait restarts a Docker container and then waits for a specified
+// duration to allow it to initialize.
 func RestartWithWait(container string, wait time.Duration) error {
 	if err := DockerAction("restart", container); err != nil {
 		return err
@@ -58,8 +62,8 @@ func RestartWithWait(container string, wait time.Duration) error {
 	return nil
 }
 
-// DockerNetwork connects or disconnects a container to/from a Docker network.
-// action should be "connect" or "disconnect".
+// DockerNetwork connects or disconnects a container from a Docker network.
+// The `action` parameter should be either "connect" or "disconnect".
 func DockerNetwork(action, network, container string) error {
 	cmd := exec.Command("docker", "network", action, network, container)
 
@@ -71,7 +75,8 @@ func DockerNetwork(action, network, container string) error {
 	return nil
 }
 
-// DockerExec runs a command inside a running container and returns its combined output.
+// DockerExec runs a command inside a running container and returns its combined
+// standard output and standard error.
 func DockerExec(container string, args ...string) (string, error) {
 	full := append([]string{"exec", container}, args...)
 	cmd := exec.Command("docker", full...)
@@ -84,8 +89,8 @@ func DockerExec(container string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// DockerLogsSince returns docker logs for a container since the provided RFC3339 timestamp.
-// If tail > 0, limits the number of lines returned.
+// DockerLogsSince returns the logs for a container since a specified RFC3339
+// timestamp, optionally limited by the `tail` parameter.
 func DockerLogsSince(container, since string, tail int) (string, error) {
 	args := []string{"logs", "--since", since}
 	if tail > 0 {

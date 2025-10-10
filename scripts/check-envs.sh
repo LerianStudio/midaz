@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script performs a series of checks to ensure that the local development
+# environment is correctly configured. It verifies Git hooks, checks for exposed
+# .env files, and ensures that all components have the necessary .env files.
 
 # Set colors for output
 GREEN='\033[0;32m'

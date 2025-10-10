@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains HTTP client utilities and request/response helpers.
 package helpers
 
@@ -12,13 +13,14 @@ import (
 	"time"
 )
 
-// HTTPClient wraps a standard http.Client with base URL handling.
+// HTTPClient is a wrapper around the standard http.Client that simplifies making
+// requests to a specific base URL.
 type HTTPClient struct {
 	base   string
 	client *http.Client
 }
 
-// NewHTTPClient constructs a client with given base URL and timeout.
+// NewHTTPClient creates a new HTTPClient with a specified base URL and request timeout.
 func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
 	return &HTTPClient{
 		base: base,
@@ -28,7 +30,8 @@ func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
 	}
 }
 
-// RequestFull executes an HTTP request and returns status, body, and headers.
+// RequestFull executes an HTTP request and returns the full response, including
+// the status code, body, and headers.
 func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, headers map[string]string, body any) (int, []byte, http.Header, error) {
 	var rdr io.Reader
 
@@ -72,13 +75,15 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 	return resp.StatusCode, data, resp.Header, nil
 }
 
-// Request executes an HTTP request with optional JSON body and returns status code and response body.
+// Request is a simplified version of RequestFull that executes an HTTP request
+// and returns only the status code and response body.
 func (c *HTTPClient) Request(ctx context.Context, method, path string, headers map[string]string, body any) (int, []byte, error) {
 	code, b, _, err := c.RequestFull(ctx, method, path, headers, body)
 	return code, b, err
 }
 
-// RequestRaw sends a request with an arbitrary raw body and explicit Content-Type.
+// RequestRaw sends a request with an arbitrary raw byte slice as the body and an
+// explicit Content-Type header.
 func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, headers map[string]string, contentType string, raw []byte) (int, []byte, http.Header, error) {
 	if headers == nil {
 		headers = map[string]string{}
@@ -111,8 +116,9 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 	return resp.StatusCode, b, resp.Header, nil
 }
 
-// RequestWithHeaderValues executes an HTTP request with explicit header values including duplicates.
-// The map value is a slice; each value is added using Header.Add in order. Content-Type is NOT auto-set.
+// RequestWithHeaderValues executes an HTTP request with explicit header values,
+// allowing for duplicate headers.
+// The `headers` map uses a string slice to support multiple values for the same key.
 func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path string, headers map[string][]string, body any) (int, []byte, http.Header, error) {
 	var rdr io.Reader
 
@@ -150,8 +156,9 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 	return resp.StatusCode, data, resp.Header, nil
 }
 
-// RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
-// Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
+// RequestFullWithRetry performs a request with a simple retry mechanism for transient errors.
+// It retries on 429, 502, 503, 504 status codes, or network errors, with an
+// exponential backoff strategy.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
 	if attempts <= 0 {
 		attempts = 1

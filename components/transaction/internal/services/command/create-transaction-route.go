@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating a new transaction route.
 package command
 
 import (
@@ -19,40 +18,31 @@ import (
 
 // CreateTransactionRoute creates a new transaction route with associated operation routes.
 //
-// This method implements the create transaction route use case, which:
-// 1. Generates UUIDv7 for the transaction route ID
-// 2. Validates that all referenced operation routes exist
-// 3. Validates that operation routes include both source and destination types
-// 4. Creates the transaction route in PostgreSQL
-// 5. Associates operation routes with the transaction route
-// 6. Creates metadata in MongoDB
-// 7. Returns the complete transaction route
+// This use case is responsible for:
+//  1. Validating that the referenced operation routes exist and include at least one
+//     source and one destination.
+//  2. Persisting the transaction route in the PostgreSQL database.
+//  3. Associating the operation routes with the newly created transaction route.
+//  4. Storing any associated metadata in MongoDB.
+//  5. Returning the complete transaction route, including its metadata.
+//
+// Transaction routes define the flow of funds by specifying which accounts can be
+// sources or destinations, enabling automated and rule-based transaction processing.
 //
 // Business Rules:
-//   - Transaction route must reference at least one source operation route
-//   - Transaction route must reference at least one destination operation route
-//   - All referenced operation routes must exist
-//   - Title and description are required
-//   - Code is optional (for programmatic reference)
-//
-// Transaction Routes:
-//   - Define how transactions flow through the system
-//   - Specify which accounts can be sources and destinations
-//   - Enable automated transaction routing based on rules
-//   - Support complex routing logic (account type, alias patterns)
+//   - A transaction route must have at least one source and one destination operation route.
+//   - All referenced operation routes must already exist.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - payload: Transaction route input with title, description, operation routes
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - payload: The input data for creating the transaction route.
 //
 // Returns:
-//   - *mmodel.TransactionRoute: Created transaction route with metadata
-//   - error: Business error if validation or creation fails
-//
-// OpenTelemetry: Creates span "command.create_transaction_route"
-func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
+//   - *mmodel.TransactionRoute: The newly created transaction route.
+//   - error: An error if validation or creation fails.
+func (uc *UseCase) CreateTransactionRoute(ctx context.TBD, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route")
@@ -138,21 +128,17 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes include both source and destination.
-//
-// This function ensures transaction routes have complete routing rules by checking:
-//   - At least one operation route with type "source" exists
-//   - At least one operation route with type "destination" exists
+// validateOperationRouteTypes validates that a list of operation routes contains at least one source and one destination.
 //
 // Business Rule:
-//   - Transaction routes must define both where money comes from (source) and
-//     where it goes to (destination) to enable proper transaction routing
+//   - A transaction route must define both where funds originate (source) and where
+//     they are sent (destination) to ensure complete and valid transaction routing.
 //
 // Parameters:
-//   - operationRoutes: Array of operation routes to validate
+//   - operationRoutes: A slice of operation routes to validate.
 //
 // Returns:
-//   - error: ErrMissingOperationRoutes if source or destination is missing, nil if valid
+//   - error: An error if either a source or a destination is missing.
 func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
 	hasSource := false
 	hasDestination := false

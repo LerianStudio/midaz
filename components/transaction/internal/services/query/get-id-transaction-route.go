@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving a transaction route by its ID.
 package query
 
 import (
@@ -17,25 +16,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetTransactionRouteByID retrieves a transaction route by ID with metadata.
+// GetTransactionRouteByID retrieves a transaction route by its ID, enriched with metadata.
 //
-// Fetches transaction route from PostgreSQL and enriches with MongoDB metadata.
-// Transaction routes define how transactions flow through the system.
+// This use case fetches a transaction route from PostgreSQL and its corresponding
+// metadata from MongoDB. Transaction routes define the flow of funds by specifying
+// rules for automated transaction processing.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the transaction route to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the transaction route to retrieve.
 //
 // Returns:
-//   - *mmodel.TransactionRoute: Transaction route with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrTransactionRouteNotFound: Transaction route doesn't exist
-//
-// OpenTelemetry: Creates span "query.get_transaction_route_by_id"
+//   - *mmodel.TransactionRoute: The transaction route with its metadata.
+//   - error: An error if the transaction route is not found or if the retrieval fails.
 func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

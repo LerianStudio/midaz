@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the UpdateOrganizationByID command implementation.
+// This file contains the command for updating an organization.
 package command
 
 import (
@@ -18,57 +18,24 @@ import (
 
 // UpdateOrganizationByID updates an existing organization in the repository.
 //
-// This method implements the update organization use case, which:
-// 1. Validates that parent organization ID is not the same as organization ID
-// 2. Validates country code if address is provided (ISO 3166-1 alpha-2)
-// 3. Updates the organization in PostgreSQL
-// 4. Updates associated metadata in MongoDB
-// 5. Returns the updated organization with metadata
+// This use case handles partial updates for an organization's mutable fields and
+// merges any provided metadata with the existing metadata in MongoDB.
 //
 // Business Rules:
-//   - An organization cannot be its own parent
-//   - Country code must be valid ISO 3166-1 alpha-2 format if provided
-//   - Only provided fields are updated (partial updates supported)
-//   - Parent organization must exist if provided
-//   - Legal document cannot be updated (immutable field, enforced at HTTP layer)
-//
-// Update Behavior:
-//   - Empty strings in input are treated as "clear the field"
-//   - Nil pointers in input mean "don't update this field"
-//   - Empty status means "don't update status"
-//   - Empty address means "don't update address"
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (organizations table)
-//   - Metadata: MongoDB (metadata is replaced, not merged)
+//   - The organization must exist.
+//   - An organization cannot be its own parent.
+//   - The country code in the address must be a valid ISO 3166-1 alpha-2 code.
+//   - Immutable fields like LegalDocument cannot be changed.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - id: UUID of the organization to update
-//   - uoi: Update organization input with fields to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - id: The UUID of the organization to be updated.
+//   - uoi: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.Organization: Updated organization with metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrOrganizationIDNotFound: Organization doesn't exist
-//   - ErrParentIDSameID: Attempting to set organization as its own parent
-//   - ErrInvalidCountryCode: Country code is not valid ISO 3166-1 alpha-2
-//   - ErrParentOrganizationIDNotFound: Parent organization doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.UpdateOrganizationInput{
-//	    LegalName: "Acme Corporation Ltd.",
-//	    Status:    mmodel.Status{Code: "ACTIVE"},
-//	}
-//	org, err := useCase.UpdateOrganizationByID(ctx, orgID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.update_organization_by_id"
-//   - Records errors as span events
+//   - *mmodel.Organization: The updated organization, including the merged metadata.
+//   - error: An error if the organization is not found or if the update fails due to
+//     a business rule violation or database error.
 func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

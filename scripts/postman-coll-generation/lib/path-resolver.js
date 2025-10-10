@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 
 /**
- * PathResolver Class
- * 
- * Handles URL path normalization, alternative path generation,
- * and path corrections for API evolution. Centralizes all the
- * path manipulation logic from the original implementation.
+ * @file PathResolver Class
+ * @description
+ * This class handles URL path normalization, alternative path generation,
+ * and path corrections for API evolution. It centralizes all path manipulation
+ * logic from the original implementation.
  */
 
 class PathResolver {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
   }
 
   /**
-   * Normalize a path string for comparison
-   * @param {string} pathStr - Path string to normalize
-   * @returns {string} Normalized path
+   * Normalizes a path string for consistent comparison.
+   * @param {string} pathStr - The path string to normalize.
+   * @returns {string} The normalized path.
    */
   normalize(pathStr) {
     if (!pathStr) return '';
@@ -43,9 +46,9 @@ class PathResolver {
   }
 
   /**
-   * Extract path from Postman URL object or raw string
-   * @param {Object|string} urlObject - URL object from Postman or string
-   * @returns {string} Extracted path
+   * Extracts the path from a Postman URL object or a raw string.
+   * @param {Object|string} urlObject - The URL object from Postman or a string.
+   * @returns {string} The extracted path.
    */
   extractPath(urlObject) {
     if (!urlObject) return '';
@@ -75,9 +78,9 @@ class PathResolver {
   }
 
   /**
-   * Generate alternative paths based on configuration patterns
-   * @param {string} normalizedPath - Normalized target path
-   * @returns {Array} Array of alternative paths
+   * Generates alternative paths based on configuration patterns.
+   * @param {string} normalizedPath - The normalized target path.
+   * @returns {Array} An array of alternative paths.
    */
   generateAlternatives(normalizedPath) {
     const alternatives = [];
@@ -104,9 +107,9 @@ class PathResolver {
   }
 
   /**
-   * Generate common path variations based on known patterns
-   * @param {string} normalizedPath - Normalized path
-   * @returns {Array} Array of path variations
+   * Generates common path variations based on known API patterns.
+   * @param {string} normalizedPath - The normalized path.
+   * @returns {Array} An array of path variations.
    */
   generateCommonVariations(normalizedPath) {
     const variations = [];
@@ -180,9 +183,9 @@ class PathResolver {
   }
 
   /**
-   * Apply path corrections based on configuration
-   * @param {string} path - Original path
-   * @returns {string} Corrected path
+   * Applies path corrections based on the configuration.
+   * @param {string} path - The original path.
+   * @returns {string} The corrected path.
    */
   correctPath(path) {
     let correctedPath = path;
@@ -203,9 +206,9 @@ class PathResolver {
   }
 
   /**
-   * Determine the base URL for a given path
-   * @param {string} path - API path
-   * @returns {string} Base URL variable name
+   * Determines the base URL for a given path based on service routing rules.
+   * @param {string} path - The API path.
+   * @returns {string} The base URL variable name (e.g., "{{onboardingUrl}}").
    */
   determineBaseUrl(path) {
     const transactionPaths = this.config.apiPatterns.serviceRouting.transaction;
@@ -230,19 +233,19 @@ class PathResolver {
   }
 
   /**
-   * Compare two paths for equality after normalization
-   * @param {string} path1 - First path
-   * @param {string} path2 - Second path
-   * @returns {boolean} True if paths are equivalent
+   * Compares two paths for equality after normalization.
+   * @param {string} path1 - The first path.
+   * @param {string} path2 - The second path.
+   * @returns {boolean} True if the paths are equivalent.
    */
   pathsEqual(path1, path2) {
     return this.normalize(path1) === this.normalize(path2);
   }
 
   /**
-   * Get path segments as array
-   * @param {string} path - Path string
-   * @returns {Array} Array of path segments
+   * Gets the segments of a path as an array.
+   * @param {string} path - The path string.
+   * @returns {Array} An array of path segments.
    */
   getSegments(path) {
     const normalized = this.normalize(path);
@@ -250,9 +253,9 @@ class PathResolver {
   }
 
   /**
-   * Build path from segments array
-   * @param {Array} segments - Array of path segments
-   * @returns {string} Constructed path
+   * Builds a path from an array of segments.
+   * @param {Array} segments - An array of path segments.
+   * @returns {string} The constructed path.
    */
   buildPath(segments) {
     if (!Array.isArray(segments)) return '';
@@ -260,9 +263,9 @@ class PathResolver {
   }
 
   /**
-   * Extract parameter names from path
-   * @param {string} path - Path with parameters
-   * @returns {Array} Array of parameter names
+   * Extracts parameter names from a path.
+   * @param {string} path - The path with parameters (e.g., "/users/{userId}").
+   * @returns {Array} An array of parameter names.
    */
   extractParameters(path) {
     const parameters = [];
@@ -276,9 +279,9 @@ class PathResolver {
   }
 
   /**
-   * Validate path format
-   * @param {string} path - Path to validate
-   * @returns {Object} Validation result
+   * Validates the format of a path.
+   * @param {string} path - The path to validate.
+   * @returns {Object} A validation result object with `isValid`, `errors`, and `warnings`.
    */
   validatePath(path) {
     const result = {

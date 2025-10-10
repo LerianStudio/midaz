@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains balance tracking utilities for verifying transaction correctness.
 package helpers
 
@@ -10,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// BalanceSnapshot captures the state of an account balance at a point in time
+// BalanceSnapshot captures the state of an account's balance at a specific point in time.
 type BalanceSnapshot struct {
 	Available decimal.Decimal
 	Block     decimal.Decimal
@@ -18,7 +19,7 @@ type BalanceSnapshot struct {
 	Timestamp time.Time
 }
 
-// GetBalanceSnapshot captures the current balance state for an account
+// GetBalanceSnapshot captures the current balance state for a given account.
 func GetBalanceSnapshot(ctx context.Context, client *HTTPClient, orgID, ledgerID, accountAlias, assetCode string, headers map[string]string) (*BalanceSnapshot, error) {
 	// Get current balance
 	available, err := GetAvailableSumByAlias(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
@@ -36,7 +37,8 @@ func GetBalanceSnapshot(ctx context.Context, client *HTTPClient, orgID, ledgerID
 	}, nil
 }
 
-// WaitForBalanceChange waits for the balance to change by the expected delta from a snapshot
+// WaitForBalanceChange polls an account's balance until it changes by an expected
+// delta from a previous snapshot, or until a timeout is reached.
 func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledgerID, accountAlias, assetCode string, headers map[string]string, snapshot *BalanceSnapshot, expectedDelta decimal.Decimal, timeout time.Duration) (decimal.Decimal, error) {
 	expectedFinal := snapshot.Available.Add(expectedDelta)
 
@@ -77,7 +79,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 		snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
 }
 
-// TrackOperationBalance tracks balance changes during an operation
+// OperationTracker provides a way to track balance changes for a specific account during a test.
 type OperationTracker struct {
 	OrgID           string
 	LedgerID        string
@@ -88,7 +90,8 @@ type OperationTracker struct {
 	InitialSnapshot *BalanceSnapshot
 }
 
-// NewOperationTracker creates a new operation tracker for an account
+// NewOperationTracker creates a new balance tracker for an account, taking an
+// initial snapshot of its balance.
 func NewOperationTracker(ctx context.Context, client *HTTPClient, orgID, ledgerID, accountAlias, assetCode string, headers map[string]string) (*OperationTracker, error) {
 	snapshot, err := GetBalanceSnapshot(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
 	if err != nil {
@@ -106,12 +109,14 @@ func NewOperationTracker(ctx context.Context, client *HTTPClient, orgID, ledgerI
 	}, nil
 }
 
-// VerifyDelta verifies that the balance changed by the expected amount
+// VerifyDelta verifies that the account's balance has changed by the expected
+// amount since the initial snapshot was taken.
 func (ot *OperationTracker) VerifyDelta(ctx context.Context, expectedDelta decimal.Decimal, timeout time.Duration) (decimal.Decimal, error) {
 	return WaitForBalanceChange(ctx, ot.Client, ot.OrgID, ot.LedgerID, ot.AccountAlias, ot.AssetCode, ot.Headers, ot.InitialSnapshot, expectedDelta, timeout)
 }
 
-// GetCurrentDelta returns the current balance delta from the initial snapshot
+// GetCurrentDelta returns the current difference between the account's live balance
+// and the balance stored in the initial snapshot.
 func (ot *OperationTracker) GetCurrentDelta(ctx context.Context) (decimal.Decimal, error) {
 	current, err := GetBalanceSnapshot(ctx, ot.Client, ot.OrgID, ot.LedgerID, ot.AccountAlias, ot.AssetCode, ot.Headers)
 	if err != nil {

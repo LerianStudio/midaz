@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains logging utilities for test output and debugging.
 package helpers
 
@@ -8,9 +9,11 @@ import (
 	"time"
 )
 
-// StartLogCapture marks a start timestamp and returns a function that writes docker logs
-// for the given containers since that timestamp to ./reports/logs/<container>_<testName>.log.
-// Intended for use within tests; paths are relative to the package CWD (e.g., tests/chaos).
+// StartLogCapture returns a deferred function that captures Docker logs from a
+// specified point in time, saving them to a file for debugging purposes.
+//
+// This is useful for capturing the logs of specific containers during a test run,
+// which can be invaluable for diagnosing failures in a CI/CD environment.
 func StartLogCapture(containers []string, testName string) func() {
 	since := time.Now().Format(time.RFC3339)
 	safeName := strings.ReplaceAll(testName, "/", "_")

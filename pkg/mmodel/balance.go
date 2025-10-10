@@ -13,127 +13,127 @@ import (
 	"github.com/google/uuid"
 )
 
-// Balance is a struct designed to encapsulate response payload data.
+// Balance represents the amount of a specific asset held in an account.
 //
 // swagger:model Balance
 // @Description Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.
 type Balance struct {
-	// Unique identifier for the balance (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// Unique identifier for the balance (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ID string `json:"id" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Organization that owns this balance
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the organization that owns this balance (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string `json:"organizationId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Ledger containing the account this balance belongs to
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the ledger containing the account this balance belongs to (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID string `json:"ledgerId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Account that holds this balance
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the account that holds this balance (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	AccountID string `json:"accountId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Alias for the account, used for easy identification or tagging
+	// Alias for the account, used for easy identification or tagging.
 	// example: @person1
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
-	// Unique key for the balance
+	// Unique key for the balance.
 	// example: asset-freeze
 	// maxLength: 100
 	Key string `json:"key" example:"asset-freeze" maxLength:"100"`
 
-	// Asset code identifying the currency or asset type of this balance
+	// Asset code identifying the currency or asset type of this balance.
 	// example: USD
 	// minLength: 2
 	// maxLength: 10
 	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
 
-	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+	// Amount available for transactions (in the smallest unit of the asset, e.g., cents).
 	// example: 1500
 	// minimum: 0
 	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
 
-	// Amount currently on hold and unavailable for transactions
+	// Amount currently on hold and unavailable for transactions (in the smallest unit of the asset, e.g., cents).
 	// example: 500
 	// minimum: 0
 	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
 
-	// Optimistic concurrency control version
+	// Optimistic concurrency control version.
 	// example: 1
 	// minimum: 1
 	Version int64 `json:"version" example:"1" minimum:"1"`
 
-	// Type of account holding this balance
+	// Type of account holding this balance.
 	// example: creditCard
 	// maxLength: 50
 	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
 
-	// Whether the account can send funds from this balance
+	// Indicates if the account can send funds from this balance.
 	// example: true
 	AllowSending bool `json:"allowSending" example:"true"`
 
-	// Whether the account can receive funds to this balance
+	// Indicates if the account can receive funds to this balance.
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
 
-	// Timestamp when the balance was created (RFC3339 format)
+	// Timestamp when the balance was created (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the balance was last updated (RFC3339 format)
+	// Timestamp when the balance was last updated (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
+	// Timestamp when the balance was soft-deleted, null if not deleted (RFC3339 format).
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Custom key-value pairs for extending the balance information
+	// Custom key-value pairs for extending the balance information.
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
+// CreateAdditionalBalance represents the input data for creating an additional balance on an account.
 //
 // swagger:model CreateAdditionalBalance
 // @Description Request payload for creating a new balance with specified permissions and custom key.
 type CreateAdditionalBalance struct {
-	// Unique key for the balance
+	// Unique key for the balance.
 	// required: true
 	// maxLength: 100
 	// example: asset-freeze
 	Key string `json:"key" validate:"required,nowhitespaces,max=100" example:"asset-freeze"`
-	// Whether the account should be allowed to send funds from this balance
+	// Specifies if sending funds is allowed from this balance.
 	// required: false
 	// example: true
 	AllowSending *bool `json:"allowSending" example:"true"`
 
-	// Whether the account should be allowed to receive funds to this balance
+	// Specifies if receiving funds is allowed to this balance.
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
 } // @name CreateAdditionalBalance
 
-// UpdateBalance is a struct designed to encapsulate balance update request payload data.
+// UpdateBalance represents the input data for updating a balance's permissions.
 //
 // swagger:model UpdateBalance
 // @Description Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 type UpdateBalance struct {
-	// Whether the account should be allowed to send funds from this balance
+	// Specifies if sending funds is allowed from this balance.
 	// required: false
 	// example: true
 	AllowSending *bool `json:"allowSending" example:"true"`
 
-	// Whether the account should be allowed to receive funds to this balance
+	// Specifies if receiving funds is allowed to this balance.
 	// required: false
 	// example: true
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
@@ -146,7 +146,7 @@ type UpdateBalance struct {
 // functions that require UUID types rather than strings.
 //
 // Returns:
-//   - uuid.UUID: The parsed UUID representation of the balance's ID
+//   - uuid.UUID: The parsed UUID representation of the balance's ID.
 //
 // Panics:
 //   - If the ID is not a valid UUID format, this method will panic via uuid.MustParse.
@@ -155,21 +155,21 @@ func (b *Balance) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(b.ID)
 }
 
-// Balances struct to return paginated list of balances.
+// Balances represents a paginated list of balances.
 //
 // swagger:model Balances
 // @Description Paginated list of balances with metadata about the current page, limit, and the balance items themselves. Used for list operations.
 type Balances struct {
-	// Array of balance records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","accountId":"00000000-0000-0000-0000-000000000000","assetCode":"USD","available":1500}]
+	// Array of balance records for the current page.
+	// example: [{"id":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","accountId":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","assetCode":"USD","available":1500}]
 	Items []Balance `json:"items"`
 
-	// Current page number in the pagination
+	// Current page number in the pagination.
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
-	// Maximum number of items per page
+	// Maximum number of items per page.
 	// example: 10
 	// minimum: 1
 	// maximum: 100
@@ -180,36 +180,36 @@ type Balances struct {
 //
 // This is an internal model not exposed via API.
 type BalanceRedis struct {
-	// Unique identifier for the balance (UUID format)
+	// Unique identifier for the balance (UUID format).
 	ID string `json:"id"`
 
-	// Alias for the account, used for easy identification or tagging
+	// Alias for the account, used for easy identification or tagging.
 	// example: @person1
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
-	// Account that holds this balance
+	// ID of the account that holds this balance.
 	AccountID string `json:"accountId"`
 
-	// Asset code identifying the currency or asset type of this balance
+	// Asset code identifying the currency or asset type of this balance.
 	AssetCode string `json:"assetCode"`
 
-	// Amount available for transactions
+	// Amount available for transactions.
 	Available decimal.Decimal `json:"available"`
 
-	// Amount currently on hold
+	// Amount currently on hold.
 	OnHold decimal.Decimal `json:"onHold"`
 
-	// Optimistic concurrency control version
+	// Optimistic concurrency control version.
 	Version int64 `json:"version"`
 
-	// Type of account holding this balance
+	// Type of account holding this balance.
 	AccountType string `json:"accountType"`
 
-	// Whether the account can send funds (1=true, 0=false)
+	// Whether the account can send funds (1=true, 0=false).
 	AllowSending int `json:"allowSending"`
 
-	// Whether the account can receive funds (1=true, 0=false)
+	// Whether the account can receive funds (1=true, 0=false).
 	AllowReceiving int `json:"allowReceiving"`
 }
 
@@ -222,10 +222,10 @@ type BalanceRedis struct {
 // The function handles nil balances gracefully by skipping them in the output.
 //
 // Parameters:
-//   - balances: Slice of Balance pointers to convert (nil entries are skipped)
+//   - balances: Slice of Balance pointers to convert (nil entries are skipped).
 //
 // Returns:
-//   - []*libTransaction.Balance: Slice of converted balances in lib-commons format
+//   - []*libTransaction.Balance: Slice of converted balances in lib-commons format.
 //
 // Example:
 //
@@ -251,10 +251,10 @@ func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance
 // processing when operations need to be validated or executed.
 //
 // Parameters:
-//   - operations: Slice of BalanceOperation structs containing balances to extract
+//   - operations: Slice of BalanceOperation structs containing balances to extract.
 //
 // Returns:
-//   - []*libTransaction.Balance: Slice of converted balances from the operations
+//   - []*libTransaction.Balance: Slice of converted balances from the operations.
 //
 // Example:
 //
@@ -282,7 +282,7 @@ func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*lib
 // The DeletedAt pointer is preserved as-is.
 //
 // Returns:
-//   - *libTransaction.Balance: A new balance instance in lib-commons format
+//   - *libTransaction.Balance: A new balance instance in lib-commons format.
 //
 // Example:
 //
@@ -322,15 +322,15 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 // all these representations to shopspring/decimal.Decimal for precise financial calculations.
 //
 // Supported input formats for decimal fields:
-//   - float64: Directly converted to decimal
-//   - string: Parsed as decimal string (e.g., "1000.50")
-//   - json.Number: Parsed as int64 or float64, then converted to decimal
+//   - float64: Directly converted to decimal.
+//   - string: Parsed as decimal string (e.g., "1000.50").
+//   - json.Number: Parsed as int64 or float64, then converted to decimal.
 //
 // Parameters:
-//   - data: JSON byte array to unmarshal
+//   - data: JSON byte array to unmarshal.
 //
 // Returns:
-//   - error: nil on success, error if parsing fails
+//   - error: nil on success, error if parsing fails.
 //
 // Example JSON inputs:
 //
@@ -358,7 +358,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	case string:
 		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
+			return fmt.Errorf("error converting available field from string to decimal: %v", err)
 		}
 
 		b.Available = decimalValue
@@ -367,7 +367,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			f, err := v.Float64()
 			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
+				return fmt.Errorf("error converting available field from json.Number: %v", err)
 			}
 
 			b.Available = decimal.NewFromFloat(f)
@@ -377,7 +377,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	default:
 		f, ok := v.(float64)
 		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
+			return fmt.Errorf("unsupported type for available: %T", v)
 		}
 
 		b.Available = decimal.NewFromFloat(f)
@@ -389,7 +389,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	case string:
 		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
+			return fmt.Errorf("error converting onHold field from string to decimal: %v", err)
 		}
 
 		b.OnHold = decimalValue
@@ -398,7 +398,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			f, err := v.Float64()
 			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
+				return fmt.Errorf("error converting onHold field from json.Number: %v", err)
 			}
 
 			b.OnHold = decimal.NewFromFloat(f)
@@ -408,7 +408,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	default:
 		f, ok := v.(float64)
 		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
+			return fmt.Errorf("unsupported type for onHold: %T", v)
 		}
 
 		b.OnHold = decimal.NewFromFloat(f)
@@ -424,21 +424,22 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 type BalanceErrorResponse struct {
 	// in: body
 	Body struct {
-		// Error code identifying the specific error
+		// Error code identifying the specific error.
 		// example: 400001
 		Code int `json:"code"`
 
-		// Human-readable error message
+		// Human-readable error message.
 		// example: Invalid input: field 'assetCode' is required
 		Message string `json:"message"`
 
-		// Additional error details if available
+		// Additional error details if available.
 		// example: {"field": "assetCode", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}
 }
 
-// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
+// BalanceOperation represents a balance operation with associated metadata for transaction processing.
+// This is used for operations on Redis by cache-aside.
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
@@ -446,7 +447,7 @@ type BalanceOperation struct {
 	InternalKey string
 }
 
-// TransactionRedisQueue represents a transaction queue for cache-aside
+// TransactionRedisQueue represents a transaction queue for cache-aside processing.
 type TransactionRedisQueue struct {
 	HeaderID          string                     `json:"header_id"`
 	TransactionID     uuid.UUID                  `json:"transaction_id"`

@@ -11,9 +11,11 @@ import (
 )
 
 // Suppress unused import errors
-var _ = fmt.Printf
-var _ = strconv.Itoa
-var _ = sync.Once{}
+var (
+	_ = fmt.Printf
+	_ = strconv.Itoa
+	_ = sync.Once{}
+)
 
 type TransactionParser struct {
 	*antlr.BaseParser
@@ -64,14 +66,14 @@ func transactionParserInit() {
 		8, 1, 8, 1, 9, 1, 9, 1, 10, 1, 10, 1, 11, 1, 11, 1, 12, 1, 12, 1, 12, 1,
 		12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12,
 		3, 12, 121, 8, 12, 1, 13, 1, 13, 1, 14, 1, 14, 1, 14, 1, 14, 1, 14, 1,
-		14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 15, 1, 15, 1, 15, 1, 15, 1, 15,
-		3, 15, 141, 8, 15, 1, 15, 3, 15, 144, 8, 15, 1, 15, 3, 15, 147, 8, 15,
-		1, 15, 3, 15, 150, 8, 15, 1, 15, 1, 15, 1, 16, 1, 16, 1, 16, 3, 16, 157,
-		8, 16, 1, 16, 4, 16, 160, 8, 16, 11, 16, 12, 16, 161, 1, 16, 1, 16, 1,
-		17, 1, 17, 1, 17, 1, 17, 1, 17, 3, 17, 171, 8, 17, 1, 17, 3, 17, 174, 8,
-		17, 1, 17, 3, 17, 177, 8, 17, 1, 17, 3, 17, 180, 8, 17, 1, 17, 1, 17, 1,
-		18, 1, 18, 1, 18, 3, 18, 187, 8, 18, 1, 18, 4, 18, 190, 8, 18, 11, 18,
-		12, 18, 191, 1, 18, 1, 18, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1,
+		14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 15, 1, 15, 1, 15, 1, 15, 1, 15, 3,
+		15, 141, 8, 15, 1, 15, 3, 15, 144, 8, 15, 1, 15, 3, 15, 147, 8, 15, 1,
+		15, 3, 15, 150, 8, 15, 1, 15, 1, 15, 1, 16, 1, 16, 1, 16, 3, 16, 157, 8,
+		16, 1, 16, 4, 16, 160, 8, 16, 11, 16, 12, 16, 161, 1, 16, 1, 16, 1,
+		17, 1, 17, 1, 17, 1, 17, 3, 17, 171, 8, 17, 1, 17, 3, 17, 174, 8, 17, 1,
+		17, 3, 17, 177, 8, 17, 1, 17, 3, 17, 180, 8, 17, 1, 17, 1, 17, 1, 18, 1,
+		18, 1, 18, 3, 18, 187, 8, 18, 1, 18, 4, 18, 190, 8, 18, 11, 18, 12, 18,
+		191, 1, 18, 1, 18, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1,
 		19, 1, 19, 1, 19, 1, 19, 1, 19, 0, 0, 20, 0, 2, 4, 6, 8, 10, 12, 14, 16,
 		18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 0, 5, 1, 0, 2, 3, 1, 0, 7,
 		8, 2, 0, 25, 25, 27, 27, 2, 0, 25, 25, 29, 29, 2, 0, 27, 27, 29, 30, 205,
@@ -101,43 +103,43 @@ func transactionParserInit() {
 		97, 98, 3, 20, 10, 0, 98, 99, 5, 4, 0, 0, 99, 17, 1, 0, 0, 0, 100, 101,
 		7, 2, 0, 0, 101, 19, 1, 0, 0, 0, 102, 103, 7, 2, 0, 0, 103, 21, 1, 0, 0,
 		0, 104, 105, 7, 3, 0, 0, 105, 23, 1, 0, 0, 0, 106, 107, 5, 13, 0, 0, 107,
-		108, 5, 27, 0, 0, 108, 109, 3, 22, 11, 0, 109, 110, 5, 14, 0, 0, 110, 111,
-		3, 22, 11, 0, 111, 121, 1, 0, 0, 0, 112, 113, 5, 15, 0, 0, 113, 114, 3,
-		22, 11, 0, 114, 115, 5, 16, 0, 0, 115, 116, 3, 22, 11, 0, 116, 121, 1,
-		0, 0, 0, 117, 118, 5, 15, 0, 0, 118, 121, 3, 22, 11, 0, 119, 121, 5, 28,
-		0, 0, 120, 106, 1, 0, 0, 0, 120, 112, 1, 0, 0, 0, 120, 117, 1, 0, 0, 0,
-		120, 119, 1, 0, 0, 0, 121, 25, 1, 0, 0, 0, 122, 123, 7, 4, 0, 0, 123, 27,
-		1, 0, 0, 0, 124, 125, 5, 1, 0, 0, 125, 126, 5, 17, 0, 0, 126, 127, 5, 27,
-		0, 0, 127, 128, 5, 27, 0, 0, 128, 129, 5, 18, 0, 0, 129, 130, 5, 27, 0,
-		0, 130, 131, 3, 22, 11, 0, 131, 132, 5, 14, 0, 0, 132, 133, 3, 22, 11,
-		0, 133, 134, 5, 4, 0, 0, 134, 29, 1, 0, 0, 0, 135, 136, 5, 1, 0, 0, 136,
-		137, 5, 19, 0, 0, 137, 138, 3, 26, 13, 0, 138, 140, 3, 24, 12, 0, 139,
-		141, 3, 28, 14, 0, 140, 139, 1, 0, 0, 0, 140, 141, 1, 0, 0, 0, 141, 143,
-		1, 0, 0, 0, 142, 144, 3, 10, 5, 0, 143, 142, 1, 0, 0, 0, 143, 144, 1, 0,
-		0, 0, 144, 146, 1, 0, 0, 0, 145, 147, 3, 12, 6, 0, 146, 145, 1, 0, 0, 0,
-		146, 147, 1, 0, 0, 0, 147, 149, 1, 0, 0, 0, 148, 150, 3, 14, 7, 0, 149,
-		148, 1, 0, 0, 0, 149, 150, 1, 0, 0, 0, 150, 151, 1, 0, 0, 0, 151, 152,
-		5, 4, 0, 0, 152, 31, 1, 0, 0, 0, 153, 154, 5, 1, 0, 0, 154, 156, 5, 20,
-		0, 0, 155, 157, 5, 28, 0, 0, 156, 155, 1, 0, 0, 0, 156, 157, 1, 0, 0, 0,
-		157, 159, 1, 0, 0, 0, 158, 160, 3, 30, 15, 0, 159, 158, 1, 0, 0, 0, 160,
-		161, 1, 0, 0, 0, 161, 159, 1, 0, 0, 0, 161, 162, 1, 0, 0, 0, 162, 163,
-		1, 0, 0, 0, 163, 164, 5, 4, 0, 0, 164, 33, 1, 0, 0, 0, 165, 166, 5, 1,
-		0, 0, 166, 167, 5, 21, 0, 0, 167, 168, 3, 26, 13, 0, 168, 170, 3, 24, 12,
-		0, 169, 171, 3, 28, 14, 0, 170, 169, 1, 0, 0, 0, 170, 171, 1, 0, 0, 0,
-		171, 173, 1, 0, 0, 0, 172, 174, 3, 10, 5, 0, 173, 172, 1, 0, 0, 0, 173,
-		174, 1, 0, 0, 0, 174, 176, 1, 0, 0, 0, 175, 177, 3, 12, 6, 0, 176, 175,
-		1, 0, 0, 0, 176, 177, 1, 0, 0, 0, 177, 179, 1, 0, 0, 0, 178, 180, 3, 14,
-		7, 0, 179, 178, 1, 0, 0, 0, 179, 180, 1, 0, 0, 0, 180, 181, 1, 0, 0, 0,
-		181, 182, 5, 4, 0, 0, 182, 35, 1, 0, 0, 0, 183, 184, 5, 1, 0, 0, 184, 186,
-		5, 22, 0, 0, 185, 187, 5, 28, 0, 0, 186, 185, 1, 0, 0, 0, 186, 187, 1,
-		0, 0, 0, 187, 189, 1, 0, 0, 0, 188, 190, 3, 34, 17, 0, 189, 188, 1, 0,
-		0, 0, 190, 191, 1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191, 192, 1, 0, 0, 0,
-		192, 193, 1, 0, 0, 0, 193, 194, 5, 4, 0, 0, 194, 37, 1, 0, 0, 0, 195, 196,
-		5, 1, 0, 0, 196, 197, 5, 23, 0, 0, 197, 198, 5, 27, 0, 0, 198, 199, 3,
-		22, 11, 0, 199, 200, 5, 14, 0, 0, 200, 201, 3, 22, 11, 0, 201, 202, 3,
-		32, 16, 0, 202, 203, 3, 36, 18, 0, 203, 204, 5, 4, 0, 0, 204, 39, 1, 0,
-		0, 0, 18, 45, 48, 51, 54, 91, 120, 140, 143, 146, 149, 156, 161, 170, 173,
-		176, 179, 186, 191,
+		108, 5, 27, 0, 0, 108, 109, 3, 22, 11, 0, 109, 110, 5, 14, 0, 0, 110,
+		111, 3, 22, 11, 0, 111, 121, 1, 0, 0, 0, 112, 113, 5, 15, 0, 0, 113,
+		114, 3, 22, 11, 0, 114, 115, 5, 16, 0, 0, 115, 116, 3, 22, 11, 0, 116,
+		121, 1, 0, 0, 0, 117, 118, 5, 15, 0, 0, 118, 121, 3, 22, 11, 0, 119,
+		121, 5, 28, 0, 0, 120, 106, 1, 0, 0, 0, 120, 112, 1, 0, 0, 0, 120, 117,
+		1, 0, 0, 0, 120, 119, 1, 0, 0, 0, 121, 25, 1, 0, 0, 0, 122, 123, 7, 4, 0,
+		0, 123, 27, 1, 0, 0, 0, 124, 125, 5, 1, 0, 0, 125, 126, 5, 17, 0, 0, 126,
+		127, 5, 27, 0, 0, 127, 128, 5, 27, 0, 0, 128, 129, 5, 18, 0, 0, 129,
+		130, 5, 27, 0, 0, 130, 131, 3, 22, 11, 0, 131, 132, 5, 14, 0, 0, 132,
+		133, 3, 22, 11, 0, 133, 134, 5, 4, 0, 0, 134, 29, 1, 0, 0, 0, 135, 136,
+		5, 1, 0, 0, 136, 137, 5, 19, 0, 0, 137, 138, 3, 26, 13, 0, 138, 140, 3,
+		24, 12, 0, 139, 141, 3, 28, 14, 0, 140, 139, 1, 0, 0, 0, 140, 141, 1, 0,
+		0, 0, 141, 143, 1, 0, 0, 0, 142, 144, 3, 10, 5, 0, 143, 142, 1, 0, 0, 0,
+		143, 144, 1, 0, 0, 0, 144, 146, 1, 0, 0, 0, 145, 147, 3, 12, 6, 0, 146,
+		145, 1, 0, 0, 0, 146, 147, 1, 0, 0, 0, 147, 149, 1, 0, 0, 0, 148, 150,
+		3, 14, 7, 0, 149, 148, 1, 0, 0, 0, 149, 150, 1, 0, 0, 0, 150, 151, 1, 0,
+		0, 0, 151, 152, 5, 4, 0, 0, 152, 31, 1, 0, 0, 0, 153, 154, 5, 1, 0, 0,
+		154, 156, 5, 20, 0, 0, 155, 157, 5, 28, 0, 0, 156, 155, 1, 0, 0, 0, 156,
+		157, 1, 0, 0, 0, 157, 159, 1, 0, 0, 0, 158, 160, 3, 30, 15, 0, 159, 158,
+		1, 0, 0, 0, 160, 161, 1, 0, 0, 0, 161, 159, 1, 0, 0, 0, 161, 162, 1, 0,
+		0, 0, 162, 163, 1, 0, 0, 0, 163, 164, 5, 4, 0, 0, 164, 33, 1, 0, 0, 0,
+		165, 166, 5, 1, 0, 0, 166, 167, 5, 21, 0, 0, 167, 168, 3, 26, 13, 0, 168,
+		170, 3, 24, 12, 0, 169, 171, 3, 28, 14, 0, 170, 169, 1, 0, 0, 0, 170,
+		171, 1, 0, 0, 0, 171, 173, 1, 0, 0, 0, 172, 174, 3, 10, 5, 0, 173, 172,
+		1, 0, 0, 0, 173, 174, 1, 0, 0, 0, 174, 176, 1, 0, 0, 0, 175, 177, 3, 12,
+		6, 0, 176, 175, 1, 0, 0, 0, 176, 177, 1, 0, 0, 0, 177, 179, 1, 0, 0, 0,
+		178, 180, 3, 14, 7, 0, 179, 178, 1, 0, 0, 0, 179, 180, 1, 0, 0, 0, 180,
+		181, 1, 0, 0, 0, 181, 182, 5, 4, 0, 0, 182, 35, 1, 0, 0, 0, 183, 184,
+		5, 1, 0, 0, 184, 186, 5, 22, 0, 0, 185, 187, 5, 28, 0, 0, 186, 185, 1,
+		0, 0, 0, 186, 187, 1, 0, 0, 0, 187, 189, 1, 0, 0, 0, 188, 190, 3, 34, 17,
+		0, 189, 188, 1, 0, 0, 0, 190, 191, 1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191,
+		192, 1, 0, 0, 0, 192, 193, 1, 0, 0, 0, 193, 194, 5, 4, 0, 0, 194, 37, 1,
+		0, 0, 0, 195, 196, 5, 1, 0, 0, 196, 197, 5, 23, 0, 0, 197, 198, 5, 27, 0,
+		0, 198, 199, 3, 22, 11, 0, 199, 200, 5, 14, 0, 0, 200, 201, 3, 22, 11,
+		0, 201, 202, 3, 32, 16, 0, 202, 203, 3, 36, 18, 0, 203, 204, 5, 4, 0, 0,
+		204, 39, 1, 0, 0, 0, 18, 45, 48, 51, 54, 91, 120, 140, 143, 146, 149,
+		156, 161, 170, 173, 176, 179, 186, 191,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
@@ -259,7 +261,7 @@ type TransactionContext struct {
 }
 
 func NewEmptyTransactionContext() *TransactionContext {
-	var p = new(TransactionContext)
+	p := new(TransactionContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_transaction
 	return p
@@ -273,7 +275,7 @@ func InitEmptyTransactionContext(p *TransactionContext) {
 func (*TransactionContext) IsTransactionContext() {}
 
 func NewTransactionContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *TransactionContext {
-	var p = new(TransactionContext)
+	p := new(TransactionContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -460,8 +462,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 			p.SetState(44)
 			p.Description()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(48)
@@ -472,8 +473,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 			p.SetState(47)
 			p.Code()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(51)
@@ -484,8 +484,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 			p.SetState(50)
 			p.Pending()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(54)
@@ -496,8 +495,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 			p.SetState(53)
 			p.Metadata()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	{
@@ -546,7 +544,7 @@ type ChartOfAccountsGroupNameContext struct {
 }
 
 func NewEmptyChartOfAccountsGroupNameContext() *ChartOfAccountsGroupNameContext {
-	var p = new(ChartOfAccountsGroupNameContext)
+	p := new(ChartOfAccountsGroupNameContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_chartOfAccountsGroupName
 	return p
@@ -560,7 +558,7 @@ func InitEmptyChartOfAccountsGroupNameContext(p *ChartOfAccountsGroupNameContext
 func (*ChartOfAccountsGroupNameContext) IsChartOfAccountsGroupNameContext() {}
 
 func NewChartOfAccountsGroupNameContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ChartOfAccountsGroupNameContext {
-	var p = new(ChartOfAccountsGroupNameContext)
+	p := new(ChartOfAccountsGroupNameContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -676,7 +674,7 @@ type CodeContext struct {
 }
 
 func NewEmptyCodeContext() *CodeContext {
-	var p = new(CodeContext)
+	p := new(CodeContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_code
 	return p
@@ -690,7 +688,7 @@ func InitEmptyCodeContext(p *CodeContext) {
 func (*CodeContext) IsCodeContext() {}
 
 func NewCodeContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *CodeContext {
-	var p = new(CodeContext)
+	p := new(CodeContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -802,7 +800,7 @@ type TrueOrFalseContext struct {
 }
 
 func NewEmptyTrueOrFalseContext() *TrueOrFalseContext {
-	var p = new(TrueOrFalseContext)
+	p := new(TrueOrFalseContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_trueOrFalse
 	return p
@@ -816,7 +814,7 @@ func InitEmptyTrueOrFalseContext(p *TrueOrFalseContext) {
 func (*TrueOrFalseContext) IsTrueOrFalseContext() {}
 
 func NewTrueOrFalseContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *TrueOrFalseContext {
-	var p = new(TrueOrFalseContext)
+	p := new(TrueOrFalseContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -908,7 +906,7 @@ type PendingContext struct {
 }
 
 func NewEmptyPendingContext() *PendingContext {
-	var p = new(PendingContext)
+	p := new(PendingContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_pending
 	return p
@@ -922,7 +920,7 @@ func InitEmptyPendingContext(p *PendingContext) {
 func (*PendingContext) IsPendingContext() {}
 
 func NewPendingContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *PendingContext {
-	var p = new(PendingContext)
+	p := new(PendingContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1046,7 +1044,7 @@ type DescriptionContext struct {
 }
 
 func NewEmptyDescriptionContext() *DescriptionContext {
-	var p = new(DescriptionContext)
+	p := new(DescriptionContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_description
 	return p
@@ -1060,7 +1058,7 @@ func InitEmptyDescriptionContext(p *DescriptionContext) {
 func (*DescriptionContext) IsDescriptionContext() {}
 
 func NewDescriptionContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *DescriptionContext {
-	var p = new(DescriptionContext)
+	p := new(DescriptionContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1176,7 +1174,7 @@ type ChartOfAccountsContext struct {
 }
 
 func NewEmptyChartOfAccountsContext() *ChartOfAccountsContext {
-	var p = new(ChartOfAccountsContext)
+	p := new(ChartOfAccountsContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_chartOfAccounts
 	return p
@@ -1190,7 +1188,7 @@ func InitEmptyChartOfAccountsContext(p *ChartOfAccountsContext) {
 func (*ChartOfAccountsContext) IsChartOfAccountsContext() {}
 
 func NewChartOfAccountsContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ChartOfAccountsContext {
-	var p = new(ChartOfAccountsContext)
+	p := new(ChartOfAccountsContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1307,7 +1305,7 @@ type MetadataContext struct {
 }
 
 func NewEmptyMetadataContext() *MetadataContext {
-	var p = new(MetadataContext)
+	p := new(MetadataContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_metadata
 	return p
@@ -1321,7 +1319,7 @@ func InitEmptyMetadataContext(p *MetadataContext) {
 func (*MetadataContext) IsMetadataContext() {}
 
 func NewMetadataContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *MetadataContext {
-	var p = new(MetadataContext)
+	p := new(MetadataContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1489,7 +1487,7 @@ type PairContext struct {
 }
 
 func NewEmptyPairContext() *PairContext {
-	var p = new(PairContext)
+	p := new(PairContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_pair
 	return p
@@ -1503,7 +1501,7 @@ func InitEmptyPairContext(p *PairContext) {
 func (*PairContext) IsPairContext() {}
 
 func NewPairContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *PairContext {
-	var p = new(PairContext)
+	p := new(PairContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1640,7 +1638,7 @@ type KeyContext struct {
 }
 
 func NewEmptyKeyContext() *KeyContext {
-	var p = new(KeyContext)
+	p := new(KeyContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_key
 	return p
@@ -1654,7 +1652,7 @@ func InitEmptyKeyContext(p *KeyContext) {
 func (*KeyContext) IsKeyContext() {}
 
 func NewKeyContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *KeyContext {
-	var p = new(KeyContext)
+	p := new(KeyContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1756,7 +1754,7 @@ type ValueContext struct {
 }
 
 func NewEmptyValueContext() *ValueContext {
-	var p = new(ValueContext)
+	p := new(ValueContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_value
 	return p
@@ -1770,7 +1768,7 @@ func InitEmptyValueContext(p *ValueContext) {
 func (*ValueContext) IsValueContext() {}
 
 func NewValueContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ValueContext {
-	var p = new(ValueContext)
+	p := new(ValueContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1872,7 +1870,7 @@ type ValueOrVariableContext struct {
 }
 
 func NewEmptyValueOrVariableContext() *ValueOrVariableContext {
-	var p = new(ValueOrVariableContext)
+	p := new(ValueOrVariableContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_valueOrVariable
 	return p
@@ -1886,7 +1884,7 @@ func InitEmptyValueOrVariableContext(p *ValueOrVariableContext) {
 func (*ValueOrVariableContext) IsValueOrVariableContext() {}
 
 func NewValueOrVariableContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ValueOrVariableContext {
-	var p = new(ValueOrVariableContext)
+	p := new(ValueOrVariableContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -1983,7 +1981,7 @@ type SendTypesContext struct {
 }
 
 func NewEmptySendTypesContext() *SendTypesContext {
-	var p = new(SendTypesContext)
+	p := new(SendTypesContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_sendTypes
 	return p
@@ -1997,7 +1995,7 @@ func InitEmptySendTypesContext(p *SendTypesContext) {
 func (*SendTypesContext) IsSendTypesContext() {}
 
 func NewSendTypesContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SendTypesContext {
-	var p = new(SendTypesContext)
+	p := new(SendTypesContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -2026,7 +2024,7 @@ type ShareIntContext struct {
 }
 
 func NewShareIntContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ShareIntContext {
-	var p = new(ShareIntContext)
+	p := new(ShareIntContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
 	p.parser = parser
@@ -2082,7 +2080,7 @@ type AmountContext struct {
 }
 
 func NewAmountContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *AmountContext {
-	var p = new(AmountContext)
+	p := new(AmountContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
 	p.parser = parser
@@ -2167,7 +2165,7 @@ type ShareIntOfIntContext struct {
 }
 
 func NewShareIntOfIntContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ShareIntOfIntContext {
-	var p = new(ShareIntOfIntContext)
+	p := new(ShareIntOfIntContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
 	p.parser = parser
@@ -2248,7 +2246,7 @@ type RemainingContext struct {
 }
 
 func NewRemainingContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *RemainingContext {
-	var p = new(RemainingContext)
+	p := new(RemainingContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
 	p.parser = parser
@@ -2428,7 +2426,7 @@ type AccountContext struct {
 }
 
 func NewEmptyAccountContext() *AccountContext {
-	var p = new(AccountContext)
+	p := new(AccountContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_account
 	return p
@@ -2442,7 +2440,7 @@ func InitEmptyAccountContext(p *AccountContext) {
 func (*AccountContext) IsAccountContext() {}
 
 func NewAccountContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *AccountContext {
-	var p = new(AccountContext)
+	p := new(AccountContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -2550,7 +2548,7 @@ type RateContext struct {
 }
 
 func NewEmptyRateContext() *RateContext {
-	var p = new(RateContext)
+	p := new(RateContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_rate
 	return p
@@ -2564,7 +2562,7 @@ func InitEmptyRateContext(p *RateContext) {
 func (*RateContext) IsRateContext() {}
 
 func NewRateContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *RateContext {
-	var p = new(RateContext)
+	p := new(RateContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -2770,7 +2768,7 @@ type FromContext struct {
 }
 
 func NewEmptyFromContext() *FromContext {
-	var p = new(FromContext)
+	p := new(FromContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_from
 	return p
@@ -2784,7 +2782,7 @@ func InitEmptyFromContext(p *FromContext) {
 func (*FromContext) IsFromContext() {}
 
 func NewFromContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *FromContext {
-	var p = new(FromContext)
+	p := new(FromContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -2960,8 +2958,7 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 			p.SetState(139)
 			p.Rate()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(143)
@@ -2972,8 +2969,7 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 			p.SetState(142)
 			p.Description()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(146)
@@ -2984,8 +2980,7 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 			p.SetState(145)
 			p.ChartOfAccounts()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(149)
@@ -3000,7 +2995,6 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 			p.SetState(148)
 			p.Metadata()
 		}
-
 	}
 	{
 		p.SetState(151)
@@ -3046,7 +3040,7 @@ type SourceContext struct {
 }
 
 func NewEmptySourceContext() *SourceContext {
-	var p = new(SourceContext)
+	p := new(SourceContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_source
 	return p
@@ -3060,7 +3054,7 @@ func InitEmptySourceContext(p *SourceContext) {
 func (*SourceContext) IsSourceContext() {}
 
 func NewSourceContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SourceContext {
-	var p = new(SourceContext)
+	p := new(SourceContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -3185,7 +3179,6 @@ func (p *TransactionParser) Source() (localctx ISourceContext) {
 				goto errorExit
 			}
 		}
-
 	}
 	p.SetState(159)
 	p.GetErrorHandler().Sync(p)
@@ -3254,7 +3247,7 @@ type ToContext struct {
 }
 
 func NewEmptyToContext() *ToContext {
-	var p = new(ToContext)
+	p := new(ToContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_to
 	return p
@@ -3268,7 +3261,7 @@ func InitEmptyToContext(p *ToContext) {
 func (*ToContext) IsToContext() {}
 
 func NewToContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ToContext {
-	var p = new(ToContext)
+	p := new(ToContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -3444,8 +3437,7 @@ func (p *TransactionParser) To() (localctx IToContext) {
 			p.SetState(169)
 			p.Rate()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(173)
@@ -3456,8 +3448,7 @@ func (p *TransactionParser) To() (localctx IToContext) {
 			p.SetState(172)
 			p.Description()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(176)
@@ -3468,8 +3459,7 @@ func (p *TransactionParser) To() (localctx IToContext) {
 			p.SetState(175)
 			p.ChartOfAccounts()
 		}
-
-	} else if p.HasError() { // JIM
+	} else if p.HasError() { // FIXME: This comment seems to be a placeholder or debug note ("JIM") and should be removed or clarified.
 		goto errorExit
 	}
 	p.SetState(179)
@@ -3484,7 +3474,6 @@ func (p *TransactionParser) To() (localctx IToContext) {
 			p.SetState(178)
 			p.Metadata()
 		}
-
 	}
 	{
 		p.SetState(181)
@@ -3530,7 +3519,7 @@ type DistributeContext struct {
 }
 
 func NewEmptyDistributeContext() *DistributeContext {
-	var p = new(DistributeContext)
+	p := new(DistributeContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_distribute
 	return p
@@ -3544,7 +3533,7 @@ func InitEmptyDistributeContext(p *DistributeContext) {
 func (*DistributeContext) IsDistributeContext() {}
 
 func NewDistributeContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *DistributeContext {
-	var p = new(DistributeContext)
+	p := new(DistributeContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
@@ -3669,7 +3658,6 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 				goto errorExit
 			}
 		}
-
 	}
 	p.SetState(189)
 	p.GetErrorHandler().Sync(p)
@@ -3737,7 +3725,7 @@ type SendContext struct {
 }
 
 func NewEmptySendContext() *SendContext {
-	var p = new(SendContext)
+	p := new(SendContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
 	p.RuleIndex = TransactionParserRULE_send
 	return p
@@ -3751,7 +3739,7 @@ func InitEmptySendContext(p *SendContext) {
 func (*SendContext) IsSendContext() {}
 
 func NewSendContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SendContext {
-	var p = new(SendContext)
+	p := new(SendContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 

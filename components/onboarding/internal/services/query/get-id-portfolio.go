@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the onboarding service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving a portfolio by its ID.
 package query
 
 import (
@@ -17,29 +16,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetPortfolioByID retrieves a single portfolio by ID with metadata.
+// GetPortfolioByID retrieves a single portfolio by its ID, enriched with metadata.
 //
-// This method implements the get portfolio query use case, which:
-// 1. Fetches the portfolio from PostgreSQL by ID
-// 2. Fetches associated metadata from MongoDB
-// 3. Merges metadata into the portfolio object
-// 4. Returns the enriched portfolio
+// This use case fetches a portfolio from the PostgreSQL database and its corresponding
+// metadata from MongoDB, then merges them into a single response.
+// Soft-deleted portfolios are excluded from the result.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the portfolio to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the portfolio to retrieve.
 //
 // Returns:
-//   - *mmodel.Portfolio: Portfolio with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrPortfolioIDNotFound: Portfolio doesn't exist or is deleted
-//
-// OpenTelemetry:
-//   - Creates span "query.get_portfolio_by_id"
+//   - *mmodel.Portfolio: The portfolio with its metadata, or nil if not found.
+//   - error: An error if the portfolio is not found or if the query fails.
 func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -70,6 +61,9 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 	if portfolio != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String())
 		if err != nil {
+			// FIXME: This error handling is incorrect. It returns an ErrPortfolioIDNotFound, but the
+			// error is related to fetching metadata, not the portfolio itself. The function should
+			// either return the portfolio without metadata or a more appropriate metadata-specific error.
 			err := pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb portfolio", err)

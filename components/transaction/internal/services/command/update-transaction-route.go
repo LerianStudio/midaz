@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for updating a transaction route.
 package command
 
 import (
@@ -19,38 +18,24 @@ import (
 
 // UpdateTransactionRoute updates an existing transaction route in the repository.
 //
-// This method updates transaction route properties and manages operation route relationships:
-// 1. Updates title and description
-// 2. Calculates operation routes to add/remove (if provided)
-// 3. Validates new operation route set (must have source and destination)
-// 4. Updates transaction route in PostgreSQL
-// 5. Updates metadata using merge semantics
-// 6. Returns updated transaction route
-//
-// Operation Route Management:
-//   - Compares existing vs new operation routes
-//   - Determines which relationships to add/remove
-//   - Validates that result includes both source and destination
-//   - Updates many-to-many relationship table
+// This use case handles partial updates for a transaction route's mutable fields,
+// manages its associations with operation routes, and merges any provided metadata.
 //
 // Business Rules:
-//   - Title and description are optional (partial updates)
-//   - Operation routes are optional (if provided, must be complete set)
-//   - Must maintain at least one source and one destination route
-//   - Metadata is merged with existing
+//   - The transaction route must exist to be updated.
+//   - If operation routes are provided, the new set must include at least one source
+//     and one destination.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the transaction route to update
-//   - input: Update input with title, description, operation routes, metadata
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the transaction route to update.
+//   - input: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.TransactionRoute: Updated transaction route with metadata
-//   - error: Business error if not found or validation fails
-//
-// OpenTelemetry: Creates span "command.update_transaction_route"
+//   - *mmodel.TransactionRoute: The updated transaction route, including metadata.
+//   - error: An error if the route is not found or if validation fails.
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -109,37 +94,27 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	return transactionRouteUpdated, nil
 }
 
-// handleOperationRouteUpdates calculates operation route relationship changes.
+// handleOperationRouteUpdates calculates the differences in operation route associations.
 //
-// This helper function compares existing operation routes with the new set to determine:
-// 1. Which operation routes to add (in new set but not in existing)
-// 2. Which operation routes to remove (in existing but not in new set)
-// 3. Validates that the new set includes both source and destination types
+// This helper function compares the existing set of operation routes for a transaction
+// route with a new set, determining which associations to add and which to remove.
+// It also ensures the new set is valid.
 //
-// The function:
-//   - Fetches current transaction route with operation routes
-//   - Fetches all referenced operation routes to validate they exist
-//   - Validates new set has both source and destination
-//   - Calculates diff (toAdd, toRemove)
-//
-// Validation:
-//   - Minimum 2 operation routes required (at least 1 source + 1 destination)
-//   - All referenced operation routes must exist
-//   - Must include both source and destination types
+// Business Rules:
+//   - The new set of operation routes must contain at least one source and one destination.
+//   - All referenced operation routes must exist.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionRouteID: UUID of the transaction route being updated
-//   - newOperationRouteIDs: New set of operation route IDs
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionRouteID: The UUID of the transaction route being updated.
+//   - newOperationRouteIDs: A slice of UUIDs for the new set of operation routes.
 //
 // Returns:
-//   - toAdd: Operation route IDs to add
-//   - toRemove: Operation route IDs to remove
-//   - err: Validation error if requirements not met
-//
-// OpenTelemetry: Creates span "command.handle_operation_route_updates"
+//   - toAdd: A slice of operation route UUIDs to associate with the transaction route.
+//   - toRemove: A slice of operation route UUIDs to disassociate from the transaction route.
+//   - err: An error if validation fails.
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

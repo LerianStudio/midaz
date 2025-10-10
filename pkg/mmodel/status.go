@@ -2,15 +2,15 @@
 // This file contains Status-related models.
 package mmodel
 
-// Status structure for marshaling/unmarshalling JSON.
+// Status represents the status of an entity.
 //
 // swagger:model Status
 // @Description Entity status information with a standardized code and optional description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED.
 type Status struct {
-	// Status code identifier, common values include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED
+	// A standardized code representing the status of an entity.
 	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100" enum:"ACTIVE,INACTIVE,PENDING,SUSPENDED,DELETED"`
 
-	// Optional human-readable description of the status
+	// An optional human-readable description of the status.
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
 } // @name Status
 
@@ -21,11 +21,11 @@ type Status struct {
 // use default values.
 //
 // A status is considered empty if:
-//   - Code is an empty string
-//   - Description is nil
+//   - The Code is an empty string.
+//   - The Description is nil.
 //
 // Returns:
-//   - true if both fields are empty/nil, false if any field has a value
+//   - true if both fields are empty/nil, false if any field has a value.
 //
 // Example:
 //

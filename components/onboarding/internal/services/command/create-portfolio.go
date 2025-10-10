@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the CreatePortfolio command implementation.
+// This file contains the command for creating a new portfolio.
 package command
 
 import (
@@ -13,58 +13,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreatePortfolio creates a new portfolio and persists it to the repository.
+// CreatePortfolio creates a new portfolio in the repository.
 //
-// This method implements the create portfolio use case, which:
-// 1. Sets default status to ACTIVE if not provided
-// 2. Generates a UUIDv7 for the portfolio ID
-// 3. Creates the portfolio in PostgreSQL
-// 4. Creates associated metadata in MongoDB
-// 5. Returns the complete portfolio with metadata
+// This use case is responsible for:
+// 1. Setting a default status of "ACTIVE" if none is provided.
+// 2. Generating a UUIDv7 for the new portfolio.
+// 3. Persisting the portfolio in the PostgreSQL database.
+// 4. Storing any associated metadata in MongoDB.
+// 5. Returning the newly created portfolio, including its metadata.
 //
-// Business Rules:
-//   - Status defaults to ACTIVE if not provided or empty
-//   - Name is required (validated at HTTP layer)
-//   - Entity ID is optional (for linking to external systems)
-//   - Organization and ledger must exist (validated by foreign key constraints)
-//
-// Portfolios are used to:
-//   - Group related accounts (e.g., by business unit, department, client)
-//   - Organize accounts for reporting purposes
-//   - Link accounts to external entities via entity ID
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (portfolios table)
-//   - Metadata: MongoDB (flexible key-value storage)
+// Portfolios are used to group related accounts, often for reporting or organizational purposes.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization that owns this portfolio
-//   - ledgerID: UUID of the ledger that contains this portfolio
-//   - cpi: Create portfolio input with name, entity ID, status, and metadata
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization that owns the portfolio.
+//   - ledgerID: The UUID of the ledger where the portfolio will be created.
+//   - cpi: The input data for creating the portfolio.
 //
 // Returns:
-//   - *mmodel.Portfolio: Created portfolio with metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrLedgerIDNotFound: Ledger doesn't exist
-//   - ErrOrganizationIDNotFound: Organization doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.CreatePortfolioInput{
-//	    Name:     "Corporate Accounts",
-//	    EntityID: "EXT-CORP-001",
-//	    Status:   mmodel.Status{Code: "ACTIVE"},
-//	    Metadata: map[string]any{"department": "Treasury"},
-//	}
-//	portfolio, err := useCase.CreatePortfolio(ctx, orgID, ledgerID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.create_portfolio"
-//   - Records errors as span events
+//   - *mmodel.Portfolio: The created portfolio, complete with its metadata.
+//   - error: An error if the persistence fails.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

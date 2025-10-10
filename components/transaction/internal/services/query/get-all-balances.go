@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains queries for retrieving balances.
 package query
 
 import (
@@ -15,25 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllBalances retrieves a paginated list of balances with metadata.
+// GetAllBalances retrieves a paginated list of all balances.
 //
-// Fetches balances from PostgreSQL with cursor pagination, then enriches with MongoDB metadata.
-// Returns empty array if no balances found.
-// If balance data exists in Redis cache, it updates the Available, OnHold, and Version fields
-// from the cached values (other fields come from PostgreSQL).
+// This use case fetches balances from PostgreSQL and then attempts to retrieve the
+// most up-to-date balance information from the Redis cache. If cached data is
+// available, it is used to override the database values.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - filter: Query parameters (cursor pagination, sorting, date range)
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - filter: Query parameters for pagination, sorting, and date range filtering.
 //
 // Returns:
-//   - []*mmodel.Balance: Array of balances with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_balances"
+//   - []*mmodel.Balance: A slice of balances.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -87,24 +83,21 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	return balances, cur, nil
 }
 
-// GetAllBalancesByAlias retrieves all balances for an account by alias.
+// GetAllBalancesByAlias retrieves all balances for an account, identified by its alias.
 //
-// Fetches all balance entries (default + additional) for an account identified by alias.
-// Does NOT enrich with metadata (performance optimization).
-// If balance data exists in Redis cache, it updates the Available, OnHold, and Version fields
-// from the cached values (other fields come from PostgreSQL).
+// This use case fetches balance entries from PostgreSQL and then attempts to retrieve
+// the most up-to-date balance information from the Redis cache. This version of the
+// query does not enrich the balances with metadata, optimizing for performance.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - alias: Account alias to lookup
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - alias: The account alias to look up.
 //
 // Returns:
-//   - []*mmodel.Balance: Array of balances (without metadata)
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_balances_by_alias"
+//   - []*mmodel.Balance: A slice of balances for the account.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -31,6 +31,9 @@ const (
 	// without affecting account balances.
 	NOTED = "NOTED"
 
+	// FIXME: This constant is related to database errors and is not specific to transactions.
+	// Consider moving it to a more generic file like `pkg/constant/database.go`
+	// or `pkg/constant/errors.go` to improve code organization.
 	// Database Error Codes
 
 	// UniqueViolationCode is the PostgreSQL error code for unique constraint violations (23505).

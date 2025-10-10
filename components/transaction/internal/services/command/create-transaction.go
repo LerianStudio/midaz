@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating a new transaction.
 package command
 
 import (
@@ -19,33 +18,27 @@ import (
 
 // CreateTransaction creates a new transaction and persists it to the repository.
 //
-// This method implements the create transaction use case, which:
-// 1. Generates a UUIDv7 for the transaction ID
-// 2. Sets status to APPROVED (transactions are pre-validated)
-// 3. Extracts transaction details from lib-commons Transaction struct
-// 4. Persists transaction to PostgreSQL
-// 5. Creates associated metadata in MongoDB
-// 6. Returns the complete transaction with metadata
+// This use case is responsible for:
+// 1. Generating a UUIDv7 for the new transaction.
+// 2. Setting the transaction status to "APPROVED" by default.
+// 3. Persisting the transaction in the PostgreSQL database.
+// 4. Storing any associated metadata in MongoDB.
+// 5. Returning the newly created transaction, including its metadata.
 //
 // Business Rules:
-//   - Transactions are created in APPROVED status (validation happens before this)
-//   - Parent transaction ID is optional (for multi-step transactions)
-//   - Amount and asset code are extracted from the send specification
-//   - Chart of accounts group name is required
-//   - Metadata is optional (max 100 characters per key)
+//   - Transactions are created with an "APPROVED" status, as validation is
+//     expected to occur before this step.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of parent transaction (uuid.Nil if none)
-//   - t: lib-commons Transaction struct with send/distribute specifications
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the parent transaction, if any.
+//   - t: The transaction data from the lib-commons library.
 //
 // Returns:
-//   - *transaction.Transaction: Created transaction with metadata
-//   - error: Business error if creation fails
-//
-// OpenTelemetry: Creates span "command.create_transaction"
+//   - *transaction.Transaction: The newly created transaction.
+//   - error: An error if the creation fails.
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -54,6 +47,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to create new transaction")
 
+	// FIXME: The 'description' variable is redundant. The status can be
+	// initialized directly using constant.APPROVED for both Code and Description.
 	description := constant.APPROVED
 	status := transaction.Status{
 		Code:        description,

@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# This script checks the test coverage for each component in the `components`
+# directory and ensures that it meets the minimum required percentage.
 
 # Set colors for output
 GREEN='\033[0;32m'

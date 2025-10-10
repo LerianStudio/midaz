@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the asynchronous command for creating balances, transactions, and operations.
 package command
 
 import (
@@ -26,38 +25,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CreateBalanceTransactionOperationsAsync processes queued transaction data (balances, transaction, operations).
+// CreateBalanceTransactionOperationsAsync processes a queued message to create balances, a transaction, and operations.
 //
-// This method is the worker function that processes transaction queue messages. It:
-// 1. Unmarshals TransactionQueue from msgpack format
-// 2. Updates account balances (unless transaction is NOTED status)
-// 3. Creates or updates the transaction record
-// 4. Creates transaction metadata
-// 5. Creates all operation records
-// 6. Creates operation metadata
-// 7. Publishes transaction events (async)
-// 8. Removes transaction from Redis queue (async)
-//
-// Processing Flow:
-//   - For APPROVED/CANCELED: Update balances, create transaction, create operations
-//   - For NOTED: Skip balance updates, create transaction, create operations
-//   - For PENDING: Update to APPROVED, create operations
-//
-// Idempotency:
-//   - Handles duplicate transaction creation (unique violation)
-//   - Handles duplicate operation creation (unique violation)
-//   - Updates transaction status if already exists
-//
-// Async Cleanup:
-//   - Publishes transaction events in goroutine (fire-and-forget)
-//   - Removes from Redis queue in goroutine (fire-and-forget)
+// This function is the primary worker for asynchronously processing transaction data.
+// It orchestrates the creation of all necessary records, including updating balances,
+// creating the transaction and its operations, and storing metadata. The function
+// also handles idempotency by checking for duplicate records.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - data: Queue message with transaction data
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - data: The queue message containing the transaction data.
 //
 // Returns:
-//   - error: nil on success, error if processing fails
+//   - error: An error if any step of the processing fails.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -131,13 +111,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 				logger.Warnf(msg)
 
 				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
-
-				logger.Errorf("Error creating operation: %v", err)
-
-				return err
 			}
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
+
+			logger.Errorf("Error creating operation: %v", err)
+
+			return err
 		}
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
@@ -157,36 +137,21 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
-// CreateOrUpdateTransaction creates or updates a transaction with idempotent handling.
+// CreateOrUpdateTransaction creates a new transaction or updates an existing one, with idempotency handling.
 //
-// This helper function implements transaction creation with duplicate handling:
-// 1. Attempts to create transaction
-// 2. If unique violation (transaction already exists):
-//   - For PENDING transactions: Updates status to APPROVED/CANCELED
-//   - For other statuses: Logs and continues (idempotent)
-//
-// 3. Returns the transaction
-//
-// Status Handling:
-//   - CREATED: Changes to APPROVED (validation complete)
-//   - PENDING: Stores DSL body, updates status later
-//
-// Idempotency:
-//   - Unique violation on ID means transaction already processed
-//   - Updates status if needed (PENDING → APPROVED/CANCELED)
-//   - Logs duplicate creation attempts
+// This function attempts to create a new transaction record. If a unique violation
+// error occurs, it checks if the transaction was in a PENDING state and updates its
+// status accordingly. This ensures that transactions are processed idempotently.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - logger: Logger instance
-//   - tracer: Tracer instance
-//   - t: TransactionQueue with transaction data
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - logger: The logger instance.
+//   - tracer: The tracer instance.
+//   - t: The transaction data from the queue.
 //
 // Returns:
-//   - *transaction.Transaction: Created or existing transaction
-//   - error: Database error if creation/update fails
-//
-// OpenTelemetry: Creates span "command.create_balance_transaction_operations.create_transaction"
+//   - *transaction.Transaction: The created or updated transaction.
+//   - error: An error if the creation or update fails.
 func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
@@ -237,20 +202,21 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	return tran, nil
 }
 
-// CreateMetadataAsync creates metadata for transactions or operations in MongoDB.
+// CreateMetadataAsync creates metadata for an entity in MongoDB.
 //
-// This helper function validates and persists metadata during async processing.
-// It's similar to CreateMetadata but designed for the async worker context.
+// This helper function is designed for use in asynchronous command handlers.
+// It validates and persists metadata for a given entity, such as a transaction
+// or an operation.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - logger: Logger instance
-//   - metadata: Key-value metadata map (nil if no metadata)
-//   - ID: Entity UUID
-//   - collection: Entity type (Transaction, Operation)
+//   - ctx: The context for tracing and logging.
+//   - logger: The logger instance.
+//   - metadata: A map of key-value pairs to be stored.
+//   - ID: The UUID string of the entity.
+//   - collection: The name of the entity, used as the collection name in MongoDB.
 //
 // Returns:
-//   - error: nil on success, validation or creation error
+//   - error: An error if the validation or persistence fails.
 func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
@@ -277,19 +243,17 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
-// CreateBTOSync is a wrapper that processes BTO data synchronously.
+// CreateBTOSync is a synchronous wrapper for CreateBalanceTransactionOperationsAsync.
 //
-// This method calls CreateBalanceTransactionOperationsAsync (despite the name, it runs sync
-// when called directly). It's used as an entry point for sync processing.
+// This function provides a synchronous entry point for processing transaction data,
+// primarily for use cases where immediate processing is required instead of queuing.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - data: Queue message with transaction data
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - data: The queue message containing the transaction data.
 //
 // Returns:
-//   - error: nil on success, error if processing fails
-//
-// OpenTelemetry: Creates span "command.create_balance_transaction_operations.create_bto_sync"
+//   - error: An error if the processing fails.
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -308,15 +272,16 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 
 // RemoveTransactionFromRedisQueue removes a processed transaction from the Redis queue.
 //
-// This cleanup function removes transaction data from Redis after successful processing.
-// It's called asynchronously (in a goroutine) and errors are logged but not returned.
+// This function is called as a fire-and-forget goroutine to clean up the Redis
+// queue after a transaction has been successfully processed. Any errors that occur
+// are logged but do not affect the overall transaction flow.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - logger: Logger instance
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of the transaction to remove
+//   - ctx: The context for tracing and logging.
+//   - logger: The logger instance.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the transaction to remove.
 func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
@@ -329,31 +294,19 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 
 // SendTransactionToRedisQueue stores transaction data in Redis for tracking and recovery.
 //
-// This method stores transaction processing state in Redis for:
-//   - Monitoring pending transactions
-//   - Recovery after failures
-//   - Debugging transaction processing
-//   - Tracking transaction lifecycle
-//
-// The stored data includes:
-//   - Request ID for correlation
-//   - Transaction IDs (organization, ledger, transaction)
-//   - Parsed DSL specification
-//   - Validation responses
-//   - Transaction status and date
-//   - TTL timestamp
-//
-// Errors are logged but not returned (fire-and-forget pattern).
+// This function is used to store the state of a transaction in Redis, which can be
+// useful for monitoring, debugging, and recovering from failures. The operation
+// is fire-and-forget, and any errors are logged without interrupting the main flow.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of the transaction
-//   - parserDSL: Parsed DSL transaction specification
-//   - validate: Validation responses
-//   - transactionStatus: Current transaction status
-//   - transactionDate: Transaction creation date
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the transaction.
+//   - parserDSL: The parsed DSL specification of the transaction.
+//   - validate: The validation responses for the transaction.
+//   - transactionStatus: The current status of the transaction.
+//   - transactionDate: The creation date of the transaction.
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())

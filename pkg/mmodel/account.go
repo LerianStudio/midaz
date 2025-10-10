@@ -2,10 +2,10 @@
 //
 // This package contains all the data structures (models) that represent the core business
 // entities in the Midaz platform. These models are used for:
-//   - API request/response payloads (with JSON serialization)
-//   - Database entity representations
-//   - Internal data transfer between layers
-//   - OpenAPI/Swagger documentation generation
+//   - API request/response payloads (with JSON serialization).
+//   - Database entity representations.
+//   - Internal data transfer between layers.
+//   - OpenAPI/Swagger documentation generation.
 //
 // Model Hierarchy:
 //
@@ -13,55 +13,55 @@
 //
 //	Organization (top level)
 //	  └── Ledger
-//	      ├── Asset (currencies, cryptocurrencies, commodities)
-//	      ├── Portfolio (grouping of accounts)
-//	      ├── Segment (logical divisions)
-//	      ├── Account (financial buckets)
-//	      │   └── Balance (asset holdings with available/on-hold amounts)
-//	      ├── AccountType (account classification)
-//	      ├── OperationRoute (transaction routing rules)
-//	      └── TransactionRoute (transaction flow definitions)
+//	      ├── Asset (currencies, cryptocurrencies, commodities).
+//	      ├── Portfolio (grouping of accounts).
+//	      ├── Segment (logical divisions).
+//	      ├── Account (financial buckets).
+//	      │   └── Balance (asset holdings with available/on-hold amounts).
+//	      ├── AccountType (account classification).
+//	      ├── OperationRoute (transaction routing rules).
+//	      └── TransactionRoute (transaction flow definitions).
 //
 // Key Concepts:
 //
-//   - Organizations: Top-level entities representing companies or business units
-//   - Ledgers: Financial record-keeping systems within organizations
-//   - Assets: Types of value (USD, BTC, stocks, etc.)
-//   - Accounts: Individual financial entities (bank accounts, cards, expense categories)
-//   - Balances: Amount of specific assets held in accounts
-//   - Portfolios: Collections of accounts grouped for business purposes
-//   - Segments: Logical divisions for organizing accounts
-//   - Routes: Define how transactions flow through the system
+//   - Organizations: Top-level entities representing companies or business units.
+//   - Ledgers: Financial record-keeping systems within organizations.
+//   - Assets: Types of value (USD, BTC, stocks, etc.).
+//   - Accounts: Individual financial entities (bank accounts, cards, expense categories).
+//   - Balances: Amount of specific assets held in accounts.
+//   - Portfolios: Collections of accounts grouped for business purposes.
+//   - Segments: Logical divisions for organizing accounts.
+//   - Routes: Define how transactions flow through the system.
 //
 // Model Types:
 //
-//   - Input Models: Used for create/update operations (e.g., CreateAccountInput, UpdateAccountInput)
-//   - Entity Models: Complete representations with all fields (e.g., Account, Ledger)
-//   - Collection Models: Paginated lists of entities (e.g., Accounts, Ledgers)
-//   - Response Models: Swagger response wrappers (e.g., AccountResponse, AccountErrorResponse)
+//   - Input Models: Used for create/update operations (e.g., CreateAccountInput, UpdateAccountInput).
+//   - Entity Models: Complete representations with all fields (e.g., Account, Ledger).
+//   - Collection Models: Paginated lists of entities (e.g., Accounts, Ledgers).
+//   - Response Models: Swagger response wrappers (e.g., AccountResponse, AccountErrorResponse).
 //
 // All models include:
-//   - JSON struct tags for serialization
-//   - Validation tags for input validation
-//   - Swagger annotations for API documentation
-//   - Example values for documentation
+//   - JSON struct tags for serialization.
+//   - Validation tags for input validation.
+//   - Swagger annotations for API documentation.
+//   - Example values for documentation.
 //
 // Metadata Support:
 //
 // Most entities support a flexible metadata field (map[string]any) that allows clients
 // to extend entities with custom key-value pairs. Metadata has validation constraints:
-//   - Keys: max 100 characters
-//   - Values: max 2000 characters
-//   - No nested objects allowed
+//   - Keys: max 100 characters.
+//   - Values: max 2000 characters.
+//   - No nested objects allowed.
 //
 // Status Management:
 //
 // Entities use a Status struct with standardized codes:
-//   - ACTIVE: Entity is operational
-//   - INACTIVE: Entity is disabled but not deleted
-//   - PENDING: Entity is awaiting activation
-//   - SUSPENDED: Entity is temporarily disabled
-//   - DELETED: Entity is soft-deleted
+//   - ACTIVE: Entity is operational.
+//   - INACTIVE: Entity is disabled but not deleted.
+//   - PENDING: Entity is awaiting activation.
+//   - SUSPENDED: Entity is temporarily disabled.
+//   - DELETED: Entity is soft-deleted.
 //
 // Soft Deletion:
 //
@@ -71,9 +71,9 @@
 // Pagination:
 //
 // Collection models (Accounts, Ledgers, etc.) include pagination metadata:
-//   - Page: Current page number (1-indexed)
-//   - Limit: Maximum items per page (1-100)
-//   - Items: Array of entity records
+//   - Page: Current page number (1-indexed).
+//   - Limit: Maximum items per page (1-100).
+//   - Items: Array of entity records.
 //
 // The X-Total-Count header provides the total count across all pages.
 package mmodel
@@ -84,7 +84,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAccountInput is a struct designed to encapsulate request create payload data.
+// CreateAccountInput represents the input data for creating a new account.
 //
 // swagger:model CreateAccountInput
 // @Description Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.
@@ -104,62 +104,63 @@ import (
 //	  }
 //	}
 type CreateAccountInput struct {
-	// Human-readable name of the account
+	// Human-readable name of the account.
 	// required: false
 	// example: Corporate Checking Account
 	// maxLength: 256
 	Name string `json:"name" validate:"max=256" example:"Corporate Checking Account" maxLength:"256"`
 
-	// ID of the parent account if this is a subaccount (optional)
+	// ID of the parent account if this is a subaccount (optional).
 	// required: false
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Optional external identifier for linking to external systems.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" validate:"omitempty,max=256" example:"EXT-ACC-12345" maxLength:"256"`
 
-	// Asset code that this account will use for balances and transactions
+	// Asset code that this account will use for balances and transactions.
 	// required: true
 	// example: USD
 	// maxLength: 100
 	AssetCode string `json:"assetCode" validate:"required,max=100" example:"USD" maxLength:"100"`
 
-	// ID of the portfolio this account belongs to (optional)
+	// ID of the portfolio this account belongs to (optional).
 	// required: false
 	// format: uuid
 	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
-	// ID of the segment this account belongs to (optional)
+	// ID of the segment this account belongs to (optional).
 	// required: false
 	// format: uuid
 	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Current operating status of the account
+	// Current operating status of the account.
 	// required: false
 	Status Status `json:"status"`
 
-	// Unique alias for the account (optional, must follow alias format rules)
+	// Unique alias for the account (optional, must follow alias format rules).
 	// required: false
 	// example: @treasury_checking
 	// maxLength: 100
 	Alias *string `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix,invalidaliascharacters" example:"@treasury_checking" maxLength:"100"`
 
-	// Type of the account
+	// Type of the account. Note: "external" type is not allowed for creation.
 	// required: true
 	// example: deposit
 	// maxLength: 256
 	Type string `json:"type" validate:"required,max=256,invalidstrings=external" example:"deposit"`
 
-	// Custom key-value pairs for extending the account information
+	// Custom key-value pairs for extending the account information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateAccountInput
 
-// UpdateAccountInput is a struct designed to encapsulate request update payload data.
+// UpdateAccountInput represents the input data for updating an existing account.
 //
 // swagger:model UpdateAccountInput
 // @Description Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.
@@ -176,39 +177,40 @@ type CreateAccountInput struct {
 //	  }
 //	}
 type UpdateAccountInput struct {
-	// Updated name of the account
+	// Updated name of the account.
 	// required: false
 	// example: Primary Corporate Checking Account
 	// maxLength: 256
 	Name string `json:"name" validate:"max=256" example:"Primary Corporate Checking Account" maxLength:"256"`
 
-	// Updated segment ID for the account
+	// Updated segment ID for the account.
 	// required: false
 	// format: uuid
 	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Updated portfolio ID for the account
+	// Updated portfolio ID for the account.
 	// required: false
 	// format: uuid
 	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Optional external identifier for linking to external systems.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" validate:"omitempty,max=256" example:"EXT-ACC-12345" maxLength:"256"`
 
-	// Updated status of the account
+	// Updated status of the account.
 	// required: false
 	Status Status `json:"status"`
 
-	// Updated custom key-value pairs for extending the account information
+	// Updated custom key-value pairs for extending the account information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"department": "Global Treasury", "purpose": "Primary Operations", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
 
-// Account is a struct designed to encapsulate response payload data.
+// Account represents a financial account in the ledger system.
 //
 // swagger:model Account
 // @Description Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.
@@ -235,55 +237,55 @@ type UpdateAccountInput struct {
 //	  }
 //	}
 type Account struct {
-	// Unique identifier for the account (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// Unique identifier for the account (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ID string `json:"id" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Human-readable name of the account
+	// Human-readable name of the account.
 	// example: Corporate Checking Account
 	// maxLength: 256
 	Name string `json:"name" example:"Corporate Checking Account" maxLength:"256"`
 
-	// ID of the parent account if this is a sub-account (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the parent account if this is a sub-account (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	ParentAccountID *string `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentAccountID *string `json:"parentAccountId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Optional external identifier for linking to external systems.
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" example:"EXT-ACC-12345" maxLength:"256"`
 
-	// Asset code associated with this account (determines currency/asset type)
+	// Asset code associated with this account (determines currency/asset type).
 	// example: USD
 	// maxLength: 100
 	AssetCode string `json:"assetCode" example:"USD" maxLength:"100"`
 
-	// ID of the organization that owns this account (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the organization that owns this account (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string `json:"organizationId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// ID of the ledger this account belongs to (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the ledger this account belongs to (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID string `json:"ledgerId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// ID of the portfolio this account belongs to (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the portfolio this account belongs to (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	PortfolioID *string `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	PortfolioID *string `json:"portfolioId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// ID of the segment this account belongs to (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// ID of the segment this account belongs to (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	SegmentID *string `json:"segmentId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	SegmentID *string `json:"segmentId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Current operating status of the account
+	// Current operating status of the account.
 	Status Status `json:"status"`
 
-	// Unique alias for the account (makes referencing easier)
+	// Unique alias for the account (makes referencing easier).
 	// example: @treasury_checking
 	// maxLength: 100
 	Alias *string `json:"alias" example:"@treasury_checking" maxLength:"100"`
@@ -292,22 +294,22 @@ type Account struct {
 	// example: deposit
 	Type string `json:"type" example:"deposit"`
 
-	// Timestamp when the account was created (RFC3339 format)
+	// Timestamp when the account was created (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the account was last updated (RFC3339 format)
+	// Timestamp when the account was last updated (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the account was soft deleted, null if not deleted (RFC3339 format)
+	// Timestamp when the account was soft deleted, null if not deleted (RFC3339 format).
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Custom key-value pairs for extending the account information
+	// Custom key-value pairs for extending the account information.
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name Account
@@ -319,7 +321,7 @@ type Account struct {
 // functions that require UUID types rather than strings.
 //
 // Returns:
-//   - uuid.UUID: The parsed UUID representation of the account's ID
+//   - uuid.UUID: The parsed UUID representation of the account's ID.
 //
 // Panics:
 //   - If the ID is not a valid UUID format, this method will panic via uuid.MustParse.
@@ -334,7 +336,7 @@ func (a *Account) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(a.ID)
 }
 
-// Accounts struct to return a paginated list of accounts.
+// Accounts represents a paginated list of accounts.
 //
 // swagger:model Accounts
 // @Description Paginated list of accounts with metadata about the current page, limit, and the account items themselves. Used for list operations.
@@ -372,16 +374,16 @@ func (a *Account) IDtoUUID() uuid.UUID {
 //	  "limit": 10
 //	}
 type Accounts struct {
-	// Array of account records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Corporate Checking Account","assetCode":"USD","status":{"code": "ACTIVE"}}]
+	// Array of account records returned in this page.
+	// example: [{"id":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","name":"Corporate Checking Account","assetCode":"USD","status":{"code": "ACTIVE"}}]
 	Items []Account `json:"items"`
 
-	// Current page number in the pagination
+	// Current page number in the pagination.
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
-	// Maximum number of items per page
+	// Maximum number of items per page.
 	// example: 10
 	// minimum: 1
 	// maximum: 100
@@ -422,15 +424,15 @@ type AccountsResponse struct {
 type AccountErrorResponse struct {
 	// in: body
 	Body struct {
-		// Error code identifying the specific error
+		// Error code identifying the specific error.
 		// example: 400001
 		Code int `json:"code"`
 
-		// Human-readable error message
+		// Human-readable error message.
 		// example: Invalid input: field 'assetCode' is required
 		Message string `json:"message"`
 
-		// Additional error details if available
+		// Additional error details if available.
 		// example: {"field": "assetCode", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}

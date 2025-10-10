@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving an asset rate by its external ID.
 package query
 
 import (
@@ -13,22 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetRateByExternalID retrieves an asset rate by external ID with metadata.
+// GetAssetRateByExternalID retrieves an asset rate by its external ID, enriched with metadata.
 //
-// Fetches asset rate from PostgreSQL using external ID (for integration with external systems),
-// then enriches with MongoDB metadata.
+// This use case is designed for integrations with external systems, allowing them
+// to look up an asset rate using their own identifier.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - externalID: External system's ID for the asset rate
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - externalID: The external system's ID for the asset rate.
 //
 // Returns:
-//   - *assetrate.AssetRate: Asset rate with metadata
-//   - error: Error if not found or query fails
-//
-// OpenTelemetry: Creates span "query.get_asset_rate_by_external_id"
+//   - *assetrate.AssetRate: The asset rate with its metadata.
+//   - error: An error if the asset rate is not found or if the retrieval fails.
 func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

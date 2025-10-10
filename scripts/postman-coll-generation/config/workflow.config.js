@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * Workflow Configuration
- * 
- * This file contains all configuration patterns for the workflow generation process.
- * It centralizes hardcoded values from the original implementation and provides
- * a structured approach to handling API evolution and special cases.
+ * @file Workflow Configuration for Postman Collection Generation
+ *
+ * @description
+ * This file centralizes all configuration for the workflow generation process,
+ * including API routing patterns, path corrections, variable mappings, and
+ * transaction templates. It provides a structured approach to handling API
+ * evolution and special cases, replacing hardcoded values from the original
+ * implementation.
  */
 
 module.exports = {
-  // API Evolution Management
+  // API Evolution Management: Defines rules for routing and correcting API paths.
   apiPatterns: {
+    // serviceRouting: Maps URL path prefixes to their corresponding services.
     serviceRouting: {
       onboarding: [
         "/organizations",
@@ -28,6 +32,7 @@ module.exports = {
       ],
     },
 
+    // pathCorrections: Provides rules for rewriting incorrect or outdated API paths.
     pathCorrections: [
       {
         name: "Missing ledger segment in accounts path",
@@ -77,9 +82,9 @@ module.exports = {
     ],
   },
 
-  // Variable Management
+  // Variable Management: Configures how variables are extracted and mapped in requests.
   variables: {
-    // Variable extraction configuration for special steps
+    // Variable extraction configuration for special steps.
     extraction: {
       "Check Account Balance Before Zeroing": {
         from: "response.items[0].available",
@@ -93,9 +98,9 @@ module.exports = {
       },
     },
 
-    // Variable mapping for parameter substitution
+    // Variable mapping for parameter substitution.
     mapping: {
-      // Context-dependent {id} parameter mapping based on URL path
+      // Context-dependent {id} parameter mapping based on URL path.
       contextual: {
         "{id}": [
           {
@@ -141,7 +146,7 @@ module.exports = {
         ],
       },
 
-      // Direct parameter mapping
+      // Direct parameter mapping for common variable names.
       direct: {
         "{organizationId}": "{{organizationId}}",
         "{organization_id}": "{{organizationId}}",
@@ -173,10 +178,10 @@ module.exports = {
     },
   },
 
-  // Transaction Templates
+  // Transaction Templates: Provides predefined request bodies for different transaction types.
   transactions: {
     templates: {
-      // JSON Transaction Template (explicit source and destination)
+      // JSON Transaction Template (explicit source and destination).
       json: {
         chartOfAccountsGroupName: "Example chartOfAccountsGroupName",
         code: "Example code",
@@ -210,7 +215,7 @@ module.exports = {
         },
       },
 
-      // Inflow Transaction Template (money coming IN, no explicit source)
+      // Inflow Transaction Template (money coming IN, no explicit source).
       inflow: {
         chartOfAccountsGroupName: "Example chartOfAccountsGroupName",
         code: "Example code",
@@ -233,7 +238,7 @@ module.exports = {
         },
       },
 
-      // Outflow Transaction Template (money going OUT, no explicit destination)
+      // Outflow Transaction Template (money going OUT, no explicit destination).
       outflow: {
         chartOfAccountsGroupName: "Example chartOfAccountsGroupName",
         code: "Example code",
@@ -256,7 +261,7 @@ module.exports = {
         },
       },
 
-      // Zero Out Transaction Template (CRITICAL - do not modify)
+      // Zero Out Transaction Template (CRITICAL - do not modify).
       zeroOut: {
         chartOfAccountsGroupName: "Example chartOfAccountsGroupName",
         code: "Zero Out Balance Transaction",
@@ -296,7 +301,7 @@ module.exports = {
     },
   },
 
-  // Step Classifications and Test Strategies
+  // Step Classifications and Test Strategies: Defines how each workflow step is categorized and tested.
   stepTypes: {
     CREATE: {
       pattern: /^Create /,
@@ -337,13 +342,13 @@ module.exports = {
     },
   },
 
-  // Base URL Configuration
+  // Base URL Configuration: Defines the base URLs for each service.
   baseUrls: {
     onboarding: "{{onboardingUrl}}",
     transaction: "{{transactionUrl}}",
   },
 
-  // Performance and Validation Settings
+  // Performance and Validation Settings: Configures performance tracking and validation rules.
   performance: {
     maxResponseTime: 5000, // milliseconds
     enablePerformanceTracking: true,
@@ -351,7 +356,7 @@ module.exports = {
     performanceIncreaseThreshold: 50, // percentage
   },
 
-  // Validation Rules
+  // Validation Rules: Defines regex patterns and required fields for response validation.
   validation: {
     uuidRegex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     isoTimestampRegex: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/,
@@ -367,7 +372,7 @@ module.exports = {
     },
   },
 
-  // Error Handling Configuration
+  // Error Handling Configuration: Configures how errors and missing requests are handled.
   errors: {
     handleMissingRequests: true,
     createPlaceholders: true,
@@ -375,7 +380,7 @@ module.exports = {
     maxMissingRequestsWarning: 5,
   },
 
-  // Feature Flags
+  // Feature Flags: Enables or disables specific features in the generation process.
   features: {
     enhancedTestScripts: true,
     dependencyValidation: true,

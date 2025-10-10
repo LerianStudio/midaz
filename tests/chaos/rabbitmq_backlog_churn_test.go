@@ -12,7 +12,13 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Pause/unpause RabbitMQ amid transaction posts; API remains 2xx; final balances reflect successes.
+// TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions simulates a RabbitMQ outage
+// to verify that the system can handle a message backlog and continue to accept
+// transactions.
+//
+// This chaos experiment pauses and unpauses the RabbitMQ container while transactions
+// are being posted. It ensures that the API remains available and that the final
+// account balances reflect all successful transactions.
 func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	shouldRunChaos(t)
 	defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-rabbitmq"}, "RabbitMQ_BacklogChurn_AcceptsTransactions")()

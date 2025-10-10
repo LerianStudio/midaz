@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the onboarding service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving an organization by its ID.
 package query
 
 import (
@@ -17,47 +16,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOrganizationByID retrieves a single organization by ID with metadata.
+// GetOrganizationByID retrieves a single organization by its ID, enriched with metadata.
 //
-// This method implements the get organization query use case, which:
-// 1. Fetches the organization from PostgreSQL by ID
-// 2. Fetches associated metadata from MongoDB
-// 3. Merges metadata into the organization object
-// 4. Returns the enriched organization
-//
-// Query Features:
-//   - Retrieves single entity by UUID
-//   - Automatically enriches with metadata
-//   - Excludes soft-deleted organizations
-//
-// Behavior:
-//   - Returns error if organization not found
-//   - Metadata is optional (organization returned even if metadata fetch fails)
-//   - Soft-deleted organizations are not returned
+// This use case fetches an organization from the PostgreSQL database and its
+// corresponding metadata from MongoDB, then merges them into a single response.
+// Soft-deleted organizations are excluded from the result.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - id: UUID of the organization to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - id: The UUID of the organization to retrieve.
 //
 // Returns:
-//   - *mmodel.Organization: Organization with metadata
-//   - error: Business error if not found or query fails
-//
-// Possible Errors:
-//   - ErrOrganizationIDNotFound: Organization doesn't exist or is deleted
-//   - Database errors: Connection failures
-//
-// Example:
-//
-//	organization, err := useCase.GetOrganizationByID(ctx, orgID)
-//	if err != nil {
-//	    return nil, err
-//	}
-//	// Returns organization with metadata
-//
-// OpenTelemetry:
-//   - Creates span "query.get_organization_by_id"
-//   - Records errors as span events
+//   - *mmodel.Organization: The organization with its metadata, or nil if not found.
+//   - error: An error if the organization is not found or if the query fails.
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -88,6 +59,10 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 	if organization != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String())
 		if err != nil {
+			// FIXME: This error handling is incorrect. It returns an ErrOrganizationIDNotFound,
+			// but the error is related to fetching metadata, not the organization itself.
+			// The function should either return the organization without metadata or a
+			// more appropriate metadata-specific error.
 			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb organization", err)

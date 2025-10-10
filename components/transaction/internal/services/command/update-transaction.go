@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains commands for updating a transaction.
 package command
 
 import (
@@ -17,27 +16,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransaction updates an existing transaction in the repository.
+// UpdateTransaction updates the description and metadata of an existing transaction.
 //
-// This method updates transaction description and metadata. Only provided fields are updated.
+// This use case handles partial updates, allowing clients to modify only the fields
+// they provide. Metadata is merged with the existing data.
 //
 // Business Rules:
-//   - Only description and metadata can be updated
-//   - Transaction status, amount, and operations cannot be changed
-//   - Metadata is merged with existing (RFC 7396 JSON Merge Patch)
+//   - The transaction must exist to be updated.
+//   - Only the description and metadata are mutable.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of the transaction to update
-//   - uti: Update input with description and metadata
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the transaction to update.
+//   - uti: The input data containing the fields to update.
 //
 // Returns:
-//   - *transaction.Transaction: Updated transaction with merged metadata
-//   - error: Business error if transaction not found or update fails
-//
-// OpenTelemetry: Creates span "command.update_transaction"
+//   - *transaction.Transaction: The updated transaction, including merged metadata.
+//   - error: An error if the transaction is not found or if the update fails.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -83,23 +80,16 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 // UpdateTransactionStatus updates the status of a transaction.
 //
-// This method is used internally to change transaction status during processing.
-// It updates only the status field, leaving other fields unchanged.
-//
-// Transaction Status Flow:
-//   - CREATED → APPROVED (after validation)
-//   - CREATED → CANCELED (if validation fails)
-//   - PENDING → APPROVED (after async processing)
+// This internal use case is responsible for transitioning a transaction's status
+// as it moves through its lifecycle (e.g., from PENDING to APPROVED).
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - tran: Transaction with updated status
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - tran: The transaction with the updated status.
 //
 // Returns:
-//   - *transaction.Transaction: Updated transaction
-//   - error: Business error if transaction not found or update fails
-//
-// OpenTelemetry: Creates span "command.update_transaction_status"
+//   - *transaction.Transaction: The updated transaction.
+//   - error: An error if the transaction is not found or if the update fails.
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains environment configuration and service URL management.
 package helpers
 
@@ -11,7 +12,8 @@ import (
 	"time"
 )
 
-// Environment holds base URLs for Midaz services and behavior flags.
+// Environment holds the base URLs for the Midaz services and configuration flags
+// that control test behavior.
 type Environment struct {
 	OnboardingURL  string
 	TransactionURL string
@@ -19,8 +21,8 @@ type Environment struct {
 	HTTPTimeout    time.Duration
 }
 
-// LoadEnvironment loads environment configuration with sensible defaults
-// matching the local docker-compose setup.
+// LoadEnvironment reads the test environment configuration from environment variables,
+// providing sensible defaults that match the local docker-compose setup.
 func LoadEnvironment() Environment {
 	onboarding := getenv("ONBOARDING_URL", "http://localhost:3000")
 	transaction := getenv("TRANSACTION_URL", "http://localhost:3001")
@@ -48,7 +50,8 @@ func getenv(key, def string) string {
 	return def
 }
 
-// WaitForTCP waits until the given host:port is accepting connections or timeout elapses.
+// WaitForTCP polls a given host:port until it accepts a TCP connection or until
+// a timeout is reached.
 func WaitForTCP(hostPort string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -66,8 +69,8 @@ func WaitForTCP(hostPort string, timeout time.Duration) error {
 	}
 }
 
-// URLHostPort extracts host:port from a base URL string.
-// If no port is specified, it defaults based on scheme (https=443, http=80).
+// URLHostPort extracts the host:port combination from a raw URL string.
+// It defaults to port 80 for HTTP and 443 for HTTPS if no port is specified.
 func URLHostPort(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -95,7 +98,8 @@ func URLHostPort(raw string) (string, error) {
 	return net.JoinHostPort(host, port), nil
 }
 
-// WaitForHTTP200 polls a URL until it returns HTTP 200 or timeout elapses.
+// WaitForHTTP200 polls a URL until it returns an HTTP 200 OK status code or
+// until a timeout is reached.
 func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 	client := &http.Client{Timeout: 2 * time.Second}
 	deadline := time.Now().Add(timeout)

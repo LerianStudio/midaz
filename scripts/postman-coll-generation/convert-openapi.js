@@ -1,64 +1,30 @@
 #!/usr/bin/env node
 
 /**
- * OpenAPI to Postman Converter
- * 
- * This script provides a comprehensive tool that:
- * 1. Enhances OpenAPI specs with better examples and descriptions
- * 2. Converts the enhanced specs to Postman collections
- * 
- * Usage: node convert-openapi.js <input-file> <output-file> [--env <env-output-file>]
- * 
- * =====================================================================
- * CODE STRUCTURE INDEX
- * =====================================================================
- * 
- * 1. IMPORTS AND SETUP (Line ~18)
- *    - Required Node.js modules
- * 
- * 2. COMMAND LINE ARGUMENT HANDLING (Line ~25)
- *    - parseCommandLineArgs(): Parse and validate CLI arguments
- *    - ensureDirectoriesExist(): Create output directories if needed
- *    - readOpenApiSpec(): Read and parse OpenAPI spec file
- * 
- * 3. DEPENDENCY MAP AND SCRIPT GENERATION (Line ~100)
- *    - DEPENDENCY_MAP: Maps API endpoints to their dependencies
- *    - generatePreRequestScript(): Create Postman pre-request scripts
- *    - generateTestScript(): Create Postman test scripts
- * 
- * 4. POSTMAN COLLECTION CREATION (Line ~290)
- *    - createPostmanCollection(): Convert OpenAPI spec to Postman collection
- *    - createRequestItem(): Create Postman request item from OpenAPI operation
- *    - createEnvironmentTemplate(): Generate Postman environment template
- * 
- * 5. EXAMPLE GENERATION (Line ~1080)
- *    - generateSendExample(): Generate example for Send objects
- *    - generateAddressExample(): Generate example for Address objects
- *    - generateObjectExample(): Generate examples for complex objects
- *    - generateArrayExample(): Generate examples for arrays
- * 
- * 6. SCHEMA DEFINITIONS (Line ~565)
- *    - ENHANCED_PAGINATION_SCHEMA: Improved pagination schema
- *    - ENHANCED_ERROR_SCHEMA: Improved error schema
- *    - STANDARD_ERROR_RESPONSES: Standard API error responses
- * 
- * 7. OPENAPI ENHANCEMENT (Line ~1380)
- *    - updateOpenApiSpec(): Enhance OpenAPI spec with better components
- *    - updateEndpoints(): Update endpoints to use standard responses
- *    - fixPathParameters(): Fix path parameter formats
- * 
- * 8. MAIN EXECUTION (Line ~1520)
- *    - main(): Main execution function
- *    - ensureExamplesFollowStandards(): Ensure examples follow project standards
- * 
- * =====================================================================
- * PROJECT STANDARDS
- * =====================================================================
- * 
- * - Status fields are represented as objects with a Code field: {"code": "ACTIVE"}
- * - USD is used as the standard currency example
- * - Examples are realistic and consistent across all models
- * - Address examples include detailed information with standard fields
+ * @file OpenAPI to Postman Converter
+ * @description
+ * This script provides a comprehensive tool that enhances OpenAPI specifications
+ * and converts them into Postman collections. It automates the process of
+ * generating examples, creating test scripts, and ensuring consistency with
+ * project standards.
+ *
+ * @usage node convert-openapi.js <input-file> <output-file> [--env <env-output-file>]
+ *
+ * @section CODE STRUCTURE INDEX
+ * 1. IMPORTS AND SETUP: Required Node.js modules.
+ * 2. COMMAND LINE ARGUMENT HANDLING: Parses and validates CLI arguments.
+ * 3. DEPENDENCY MAP AND SCRIPT GENERATION: Creates Postman pre-request and test scripts.
+ * 4. POSTMAN COLLECTION CREATION: Converts OpenAPI specs to Postman collections.
+ * 5. EXAMPLE GENERATION: Generates examples for complex objects and arrays.
+ * 6. SCHEMA DEFINITIONS: Defines enhanced schemas for pagination and errors.
+ * 7. OPENAPI ENHANCEMENT: Enhances OpenAPI specs with better components and responses.
+ * 8. MAIN EXECUTION: Main execution function.
+ *
+ * @section PROJECT STANDARDS
+ * - Status fields are represented as objects with a `code` field (e.g., `{"code": "ACTIVE"}`).
+ * - "USD" is used as the standard currency example.
+ * - Examples are realistic and consistent across all models.
+ * - Address examples include detailed information with standard fields.
  */
 
 //=============================================================================
@@ -74,8 +40,8 @@ const yaml = require('js-yaml');
 //=============================================================================
 
 /**
- * Parse and validate command line arguments
- * @returns {Object} Object containing input/output file paths
+ * Parses and validates command-line arguments.
+ * @returns {Object} An object containing the input and output file paths.
  */
 function parseCommandLineArgs() {
   const args = process.argv.slice(2);
@@ -98,9 +64,9 @@ function parseCommandLineArgs() {
 }
 
 /**
- * Ensure all required directories exist
- * @param {string} outputFile - Path to the output file
- * @param {string|null} envOutputFile - Path to the environment output file
+ * Ensures that all required output directories exist.
+ * @param {string} outputFile - The path to the output file.
+ * @param {string|null} envOutputFile - The path to the environment output file.
  */
 function ensureDirectoriesExist(outputFile, envOutputFile) {
   const outputDir = path.dirname(outputFile);
@@ -117,9 +83,9 @@ function ensureDirectoriesExist(outputFile, envOutputFile) {
 }
 
 /**
- * Read and parse the OpenAPI specification file
- * @param {string} inputFile - Path to the input file
- * @returns {Object} Parsed OpenAPI specification
+ * Reads and parses the OpenAPI specification file.
+ * @param {string} inputFile - The path to the input file.
+ * @returns {Object} The parsed OpenAPI specification.
  */
 function readOpenApiSpec(inputFile) {
   // Check if input file exists

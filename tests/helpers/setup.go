@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains test setup and teardown utilities.
 package helpers
 
@@ -9,7 +10,8 @@ import (
 	"time"
 )
 
-// CreateUSDAsset posts a minimal USD asset to the onboarding API; ignores if already exists.
+// CreateUSDAsset creates a standard USD asset in the system, retrying on transient
+// errors and ignoring conflicts if the asset already exists.
 func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID string, headers map[string]string) error {
 	payload := map[string]any{
 		"name": "US Dollar",
@@ -64,8 +66,8 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
 	return nil
 }
 
-// SetupInflow posts a simple inflow transaction to credit an alias with amount for a given asset code.
-// Returns status code and body for assertion when needed.
+// SetupInflowTransaction posts a simple inflow transaction to credit an account
+// with a specified amount of a given asset.
 func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias, assetCode, amount string, headers map[string]string) (int, []byte, error) {
 	payload := map[string]any{
 		"send": map[string]any{
@@ -86,7 +88,7 @@ func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledge
 	return code, body, err
 }
 
-// CreateOrganization creates an organization and returns its ID.
+// SetupOrganization creates a new organization and returns its unique ID.
 func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[string]string, name string) (string, error) {
 	payload := OrgPayload(name, RandString(12))
 
@@ -105,7 +107,7 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 	return org.ID, nil
 }
 
-// CreateLedger creates a ledger under the given organization and returns its ID.
+// SetupLedger creates a new ledger within a given organization and returns its unique ID.
 func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, name string) (string, error) {
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers", headers, map[string]any{"name": name})
 	if err != nil || code != 201 {
@@ -122,7 +124,8 @@ func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]st
 	return ledger.ID, nil
 }
 
-// CreateAccount creates an account with alias and asset code (type=deposit) and returns its ID.
+// SetupAccount creates a new account with a specified alias and asset code and
+// returns its unique ID.
 func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, alias, assetCode string) (string, error) {
 	payload := map[string]any{
 		"name":      "Test Account",

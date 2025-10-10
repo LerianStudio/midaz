@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating a balance.
 package command
 
 import (
@@ -14,35 +13,24 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// CreateBalance creates initial balances for accounts received from the onboarding service.
+// CreateBalance creates the initial balance for an account from a queue message.
 //
-// This method is called asynchronously when the onboarding service publishes account
-// creation events to RabbitMQ. It:
-// 1. Unmarshals account data from the queue message
-// 2. Creates a default balance entry for each account
-// 3. Initializes balance with zero available and on-hold amounts
-// 4. Sets allow_sending and allow_receiving flags to true
-// 5. Handles duplicate balance creation gracefully (idempotent)
+// This function is triggered by an asynchronous message from the onboarding service
+// when a new account is created. It is responsible for creating the default balance
+// record for the account, initializing it with zero amounts, and enabling both
+// sending and receiving by default. The operation is idempotent, meaning it will
+// not fail if a balance for the account already exists.
 //
 // Business Rules:
-//   - Each account gets one default balance per asset code
-//   - Balance alias matches account alias
-//   - Initial available and on-hold amounts are zero
-//   - Both sending and receiving are enabled by default
-//   - Duplicate balance creation is logged but not treated as error (idempotent)
-//
-// Queue Message Format:
-//   - Contains account ID and array of account data
-//   - Each account has ID, alias, organization_id, ledger_id, asset_code, type
+//   - A default balance is created for each new account.
+//   - Initial available and on-hold amounts are set to zero.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - data: Queue message containing account data
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - data: The queue message containing the account data.
 //
 // Returns:
-//   - error: nil on success, error if balance creation fails
-//
-// OpenTelemetry: Creates span "command.create_balance"
+//   - error: An error if unmarshaling the message or creating the balance fails.
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

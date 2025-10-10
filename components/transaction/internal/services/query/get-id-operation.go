@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving an operation by its ID.
 package query
 
 import (
@@ -13,22 +12,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOperationByID retrieves a single operation by ID with metadata.
+// GetOperationByID retrieves a single operation by its ID, enriched with metadata.
 //
-// Fetches operation from PostgreSQL and enriches with MongoDB metadata.
+// This use case fetches an operation from PostgreSQL and its corresponding metadata
+// from MongoDB.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionID: UUID of the parent transaction
-//   - operationID: UUID of the operation to retrieve
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionID: The UUID of the parent transaction.
+//   - operationID: The UUID of the operation to retrieve.
 //
 // Returns:
-//   - *operation.Operation: Operation with metadata
-//   - error: Business error if not found or query fails
-//
-// OpenTelemetry: Creates span "query.get_operation_by_id"
+//   - *operation.Operation: The operation with its metadata.
+//   - error: An error if the operation is not found or if the retrieval fails.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

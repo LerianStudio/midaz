@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script automates the synchronization of the Postman collection with the
+# OpenAPI documentation. It converts OpenAPI specs from each component into
+# Postman collections, merges them, and then adds a predefined workflow sequence.
 set -e
 
 # Script to sync Postman collection with OpenAPI documentation (OPTIMIZED)

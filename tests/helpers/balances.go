@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains balance assertion and verification utilities.
 package helpers
 
@@ -17,8 +18,8 @@ type balanceItem struct {
 	AssetCode string `json:"assetCode"`
 }
 
-// EnsureDefaultBalanceRecord waits until the default balance exists for the given account ID.
-// It no longer attempts to create the default, as the system creates it asynchronously upon account creation.
+// EnsureDefaultBalanceRecord polls until the default balance for a given account
+// is created, as this process is asynchronous.
 func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, ledgerID, accountID string, headers map[string]string) error {
 	deadline := time.Now().Add(120 * time.Second)
 
@@ -45,7 +46,8 @@ func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, l
 	}
 }
 
-// EnableDefaultBalance sets AllowSending/AllowReceiving to true on the default balance for an account alias.
+// EnableDefaultBalance enables sending and receiving on the default balance for
+// an account, identified by its alias.
 func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias string, headers map[string]string) error {
 	// Get balances by alias
 	var defID string
@@ -97,7 +99,8 @@ func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 	return nil
 }
 
-// GetAvailableSumByAlias returns the sum of Available across all balances for the given alias and asset code.
+// GetAvailableSumByAlias calculates the total available balance for a specific
+// asset by summing up the `available` fields across all balances of an account.
 func GetAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias, asset string, headers map[string]string) (decimal.Decimal, error) {
 	code, body, err := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias), headers, nil)
 	if err != nil {
@@ -129,7 +132,8 @@ func GetAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledge
 	return sum, nil
 }
 
-// WaitForAvailableSumByAlias polls until the available sum for alias equals expected, or timeout.
+// WaitForAvailableSumByAlias polls an account's balances until the total available
+// sum for a specific asset reaches an expected value, or until a timeout occurs.
 func WaitForAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias, asset string, headers map[string]string, expected decimal.Decimal, timeout time.Duration) (decimal.Decimal, error) {
 	deadline := time.Now().Add(timeout)
 

@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains multipart form data utilities for file upload testing.
 package helpers
 
@@ -10,11 +11,13 @@ import (
 	"net/http"
 )
 
-// RequestMultipart sends a multipart/form-data request with optional text fields and file parts.
+// RequestMultipart sends a `multipart/form-data` request, which can include both
+// text fields and file uploads.
 func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, headers map[string]string, fields map[string]string, files map[string]struct {
 	Field, Filename string
 	Content         []byte
-}) (int, []byte, http.Header, error) {
+},
+) (int, []byte, http.Header, error) {
 	var buf bytes.Buffer
 
 	mw := multipart.NewWriter(&buf)
@@ -67,7 +70,8 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 	return resp.StatusCode, b, resp.Header, nil
 }
 
-// PostDSL is a convenience for uploading a DSL file required by the DSL endpoint.
+// PostDSL is a convenience function for uploading a Gold DSL script as a file
+// to the appropriate endpoint.
 func (c *HTTPClient) PostDSL(ctx context.Context, path string, headers map[string]string, dsl string) (int, []byte, http.Header, error) {
 	files := map[string]struct {
 		Field, Filename string

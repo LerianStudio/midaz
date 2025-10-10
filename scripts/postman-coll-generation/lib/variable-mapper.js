@@ -1,23 +1,26 @@
 #!/usr/bin/env node
 
 /**
- * VariableMapper Class
- * 
- * Handles parameter substitution and variable mapping for workflow steps.
- * Centralizes all the complex variable mapping logic from the original
- * implementation with improved maintainability and configurability.
+ * @file VariableMapper Class
+ * @description
+ * This class handles parameter substitution and variable mapping for workflow steps.
+ * It centralizes all complex variable mapping logic from the original implementation,
+ * providing improved maintainability and configurability.
  */
 
 class VariableMapper {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
   }
 
   /**
-   * Map variables in a path array (Postman format)
-   * @param {string} stepPath - Original step path from markdown
-   * @param {Array} urlPath - URL path array from Postman request
-   * @returns {Array} Mapped path array
+   * Maps variables in a path array (Postman format).
+   * @param {string} stepPath - The original step path from the Markdown file.
+   * @param {Array} urlPath - The URL path array from the Postman request.
+   * @returns {Array} The mapped path array.
    */
   mapPath(stepPath, urlPath) {
     if (!Array.isArray(urlPath)) {
@@ -33,10 +36,10 @@ class VariableMapper {
   }
 
   /**
-   * Map a single path segment
-   * @param {string} segment - Path segment to map
-   * @param {string} fullPath - Full path for context-aware mapping
-   * @returns {string} Mapped segment
+   * Maps a single path segment to its corresponding variable.
+   * @param {string} segment - The path segment to map.
+   * @param {string} fullPath - The full path for context-aware mapping.
+   * @returns {string} The mapped segment.
    */
   mapPathSegment(segment, fullPath) {
     // Handle direct parameter mappings first
@@ -65,9 +68,9 @@ class VariableMapper {
   }
 
   /**
-   * Map contextual {id} parameter based on URL context
-   * @param {string} path - Full path for context determination
-   * @returns {string} Appropriate variable replacement
+   * Maps a contextual `{id}` parameter based on the URL.
+   * @param {string} path - The full path for context determination.
+   * @returns {string} The appropriate variable replacement (e.g., "{{organizationId}}").
    */
   mapContextualId(path) {
     const contextualMappings = this.config.variables.mapping.contextual['{id}'];
@@ -83,10 +86,10 @@ class VariableMapper {
   }
 
   /**
-   * Map variables in request body
-   * @param {string} bodyString - Request body as string
-   * @param {Object} context - Context for variable mapping
-   * @returns {string} Body with mapped variables
+   * Maps variables in a request body.
+   * @param {string} bodyString - The request body as a string.
+   * @param {Object} context - The context for variable mapping.
+   * @returns {string} The request body with mapped variables.
    */
   mapBodyVariables(bodyString, context = {}) {
     if (!bodyString) return bodyString;
@@ -105,9 +108,9 @@ class VariableMapper {
   }
 
   /**
-   * Map query parameters
-   * @param {Array} queryParams - Array of query parameter objects
-   * @returns {Array} Array with mapped query parameters
+   * Maps variables in query parameters.
+   * @param {Array} queryParams - An array of query parameter objects.
+   * @returns {Array} An array with mapped query parameters.
    */
   mapQueryParameters(queryParams) {
     if (!Array.isArray(queryParams)) {
@@ -130,9 +133,9 @@ class VariableMapper {
   }
 
   /**
-   * Map headers
-   * @param {Array} headers - Array of header objects
-   * @returns {Array} Array with mapped headers
+   * Maps variables in HTTP headers.
+   * @param {Array} headers - An array of header objects.
+   * @returns {Array} An array with mapped headers.
    */
   mapHeaders(headers) {
     if (!Array.isArray(headers)) {
@@ -155,9 +158,9 @@ class VariableMapper {
   }
 
   /**
-   * Map variables in a generic string
-   * @param {string} str - String to process
-   * @returns {string} String with mapped variables
+   * Maps variables in a generic string.
+   * @param {string} str - The string to process.
+   * @returns {string} The string with mapped variables.
    */
   mapString(str) {
     if (typeof str !== 'string') return str;
@@ -174,9 +177,9 @@ class VariableMapper {
   }
 
   /**
-   * Get required variables for a step
-   * @param {Object} step - Step object
-   * @returns {Array} Array of required variable names
+   * Gets the required variables for a workflow step.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {Array} An array of required variable names.
    */
   getRequiredVariables(step) {
     const required = new Set();
@@ -228,9 +231,9 @@ class VariableMapper {
   }
 
   /**
-   * Extract variable names from a path
-   * @param {string} path - Path to analyze
-   * @returns {Array} Array of variable names found in path
+   * Extracts variable names from a path.
+   * @param {string} path - The path to analyze.
+   * @returns {Array} An array of variable names found in the path.
    */
   extractPathVariables(path) {
     if (!path) return [];
@@ -258,9 +261,9 @@ class VariableMapper {
   }
 
   /**
-   * Validate variable mapping completeness
-   * @param {Object} step - Step object
-   * @returns {Object} Validation result
+   * Validates the completeness of variable mappings for a step.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {Object} A validation result object.
    */
   validateMappings(step) {
     const result = {
@@ -303,17 +306,17 @@ class VariableMapper {
   }
 
   /**
-   * Escape special regex characters
-   * @param {string} str - String to escape
-   * @returns {string} Escaped string
+   * Escapes special characters in a string for use in a regular expression.
+   * @param {string} str - The string to escape.
+   * @returns {string} The escaped string.
    */
   escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**
-   * Get mapping statistics
-   * @returns {Object} Statistics about configured mappings
+   * Gets statistics about the configured variable mappings.
+   * @returns {Object} An object containing statistics about the mappings.
    */
   getStatistics() {
     const directMappings = this.config.variables.mapping.direct;

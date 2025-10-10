@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains command implementation.
-
+// This file contains the command for updating an account type.
 package command
 
 import (
@@ -19,52 +18,24 @@ import (
 
 // UpdateAccountType updates an existing account type in the repository.
 //
-// This method implements the update account type use case, which:
-// 1. Updates the account type in PostgreSQL
-// 2. Updates associated metadata in MongoDB using merge semantics
-// 3. Returns the updated account type with merged metadata
+// This use case handles partial updates for an account type's name and description,
+// and merges any provided metadata with the existing metadata in MongoDB.
+// The KeyValue of an account type cannot be changed.
 //
 // Business Rules:
-//   - Only provided fields are updated (partial updates supported)
-//   - Name can be updated
-//   - Description can be updated
-//   - Key value cannot be updated (immutable, not in update input)
-//   - Metadata is merged with existing
-//
-// Update Behavior:
-//   - Empty strings in input are treated as "clear the field"
-//   - Metadata is merged with existing metadata (RFC 7396)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (account_types table)
-//   - Metadata: MongoDB (merged with existing)
+//   - The account type must exist.
+//   - The KeyValue is immutable and cannot be updated.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the account type to update
-//   - input: Update account type input with fields to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the account type to be updated.
+//   - input: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.AccountType: Updated account type with merged metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrAccountTypeNotFound: Account type doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.UpdateAccountTypeInput{
-//	    Name:        "Current Assets - Updated",
-//	    Description: "Updated description",
-//	}
-//	accountType, err := useCase.UpdateAccountType(ctx, orgID, ledgerID, typeID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.update_account_type"
-//   - Records errors as span events
+//   - *mmodel.AccountType: The updated account type, including the merged metadata.
+//   - error: An error if the account type is not found or if the update fails.
 func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

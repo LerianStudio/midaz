@@ -1,21 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * Midaz API Workflow Generator v2 (Simplified Architecture)
+ * @file Midaz API Workflow Generator v2
+ * @description
+ * This script is a modernized, modular version of the workflow generator that
+ * creates a Postman collection workflow from a Markdown definition. It maintains
+ * 100% compatibility with the original implementation while providing a more
+ * maintainable and configuration-driven architecture.
  *
- * This is the modernized, modular version of the workflow generator that
- * implements the architecture described in WF_SIMP_PLAN.md. It maintains
- * 100% compatibility with the original implementation while providing:
- *
- * - Modular, maintainable code architecture
- * - Configuration-driven behavior
- * - Comprehensive error handling and validation
- * - Enhanced debugging and logging
- * - Preserved dependency chains and business logic
- *
- * Usage: node create-workflow-v2.js <input-collection> <workflow-md> <output-collection>
- *
- * Example: node create-workflow-v2.js ./postman/MIDAZ.postman_collection.json ./postman/WORKFLOW.md ./postman/MIDAZ.postman_collection.json
+ * @usage node create-workflow.js <input-collection> <workflow-md> <output-collection>
+ * @example node create-workflow.js ./postman/MIDAZ.postman_collection.json ./postman/WORKFLOW.md ./postman/MIDAZ.postman_collection.json
  */
 
 const fs = require('fs');
@@ -26,6 +20,11 @@ const { ValidationError, ParseError } = require('./lib/markdown-parser');
 
 // --- Utility Functions ---
 
+/**
+ * Reads and parses a JSON file.
+ * @param {string} filePath - The path to the JSON file.
+ * @returns {Object} The parsed JSON object.
+ */
 function readJsonFile(filePath) {
   try {
     const data = fs.readFileSync(filePath, 'utf8');
@@ -36,6 +35,11 @@ function readJsonFile(filePath) {
   }
 }
 
+/**
+ * Reads a text file.
+ * @param {string} filePath - The path to the text file.
+ * @returns {string} The content of the file.
+ */
 function readFile(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf8');
@@ -45,6 +49,11 @@ function readFile(filePath) {
   }
 }
 
+/**
+ * Writes data to a JSON file.
+ * @param {string} filePath - The path to the output file.
+ * @param {Object} data - The data to write.
+ */
 function writeJsonFile(filePath, data) {
   try {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
@@ -55,6 +64,10 @@ function writeJsonFile(filePath, data) {
   }
 }
 
+/**
+ * Validates the command-line arguments.
+ * @returns {Object} An object containing the file paths.
+ */
 function validateArguments() {
   if (process.argv.length < 5) {
     console.error(`❌ Usage: node create-workflow-v2.js <collection-file> <workflow-markdown-file> <output-file>`);
@@ -78,6 +91,9 @@ function validateArguments() {
   return { collectionFile, workflowFile, outputFile };
 }
 
+/**
+ * Prints the script header to the console.
+ */
 function printHeader() {
   console.log(`
 ╔════════════════════════════════════════════════╗
@@ -87,6 +103,11 @@ function printHeader() {
 `);
 }
 
+/**
+ * Prints a summary of the workflow generation process.
+ * @param {Object} stats - The statistics collected during processing.
+ * @param {number} processingTime - The total processing time in milliseconds.
+ */
 function printSummary(stats, processingTime) {
   console.log(`
 ╔════════════════════════════════════════════════╗
@@ -108,6 +129,9 @@ function printSummary(stats, processingTime) {
   }
 }
 
+/**
+ * Main execution function for the workflow generator.
+ */
 async function main() {
   const startTime = Date.now();
   

@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains command implementation.
-
+// This file contains the command for creating a new account.
 package command
 
 import (
@@ -20,74 +19,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAccount creates a new account and persists it to the repository.
+// CreateAccount creates a new account in the repository.
 //
-// This method implements the create account use case, which:
-// 1. Validates RabbitMQ health (required for sending account to transaction service)
-// 2. Applies accounting validations if enabled (account type must exist)
-// 3. Sets default name if not provided (e.g., "USD deposit account")
-// 4. Validates asset code exists
-// 5. Validates portfolio exists if provided
-// 6. Validates parent account exists and has matching asset code
-// 7. Validates or generates account alias (must be unique)
-// 8. Creates the account in PostgreSQL
-// 9. Creates associated metadata in MongoDB
-// 10. Sends account to transaction service queue for balance initialization
-// 11. Returns the complete account with metadata
+// This use case orchestrates the creation of a new account by:
+// 1. Validating dependencies like RabbitMQ and account type existence.
+// 2. Ensuring data integrity by checking asset codes, portfolios, and parent accounts.
+// 3. Generating a unique alias if one is not provided.
+// 4. Persisting the account in PostgreSQL and its metadata in MongoDB.
+// 5. Publishing an event to RabbitMQ for balance initialization in the transaction service.
 //
 // Business Rules:
-//   - Asset code must exist in the ledger
-//   - Parent account (if provided) must exist and have the same asset code
-//   - Account alias must be unique within the ledger
-//   - If no alias provided, uses account ID as alias
-//   - Portfolio (if provided) must exist, and its entity ID is copied to account
-//   - Status defaults to ACTIVE if not provided
-//   - Account type must exist if accounting validation is enabled
-//   - External account type bypasses accounting validation
-//   - RabbitMQ must be healthy (accounts need to be sent to transaction service)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (accounts table)
-//   - Metadata: MongoDB (flexible key-value storage)
-//   - Queue: RabbitMQ (account creation event for transaction service)
+//   - An asset code must be valid and exist in the ledger.
+//   - If provided, the parent account must exist and share the same asset code.
+//   - An account alias must be unique within the ledger; if not provided, the account ID is used.
+//   - If accounting validation is enabled, the account type must exist.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization that owns this account
-//   - ledgerID: UUID of the ledger that contains this account
-//   - cai: Create account input with all required and optional fields
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization that owns the account.
+//   - ledgerID: The UUID of the ledger where the account will be created.
+//   - cai: The input data for creating the account.
 //
 // Returns:
-//   - *mmodel.Account: Created account with metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrMessageBrokerUnavailable: RabbitMQ is not healthy
-//   - ErrInvalidAccountType: Account type doesn't exist (when validation enabled)
-//   - ErrAssetCodeNotFound: Asset code doesn't exist
-//   - ErrPortfolioIDNotFound: Portfolio doesn't exist
-//   - ErrInvalidParentAccountID: Parent account doesn't exist
-//   - ErrMismatchedAssetCode: Parent account has different asset code
-//   - ErrAliasUnavailability: Alias is already in use
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.CreateAccountInput{
-//	    Name:      "Corporate Checking",
-//	    AssetCode: "USD",
-//	    Type:      "deposit",
-//	    Alias:     ptr.String("@corporate_checking"),
-//	}
-//	account, err := useCase.CreateAccount(ctx, orgID, ledgerID, input)
-//	if err != nil {
-//	    return nil, err
-//	}
-//
-// OpenTelemetry:
-//   - Creates span "command.create_account"
-//   - Records errors as span events
-//   - Tracks validation and creation steps
+//   - *mmodel.Account: The newly created account, complete with its metadata.
+//   - error: An error if the creation fails due to business rule violations or database issues.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -172,6 +127,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if !libCommons.IsNilOrEmpty(cai.Alias) {
 		alias = cai.Alias
 
+		// FIXME: This logic is incorrect. FindByAlias returns an error if the account is *not* found.
+		// The code should check if the error is `services.ErrDatabaseItemNotFound` and proceed in that case.
+		// If the error is nil, it means an account with the alias already exists, and an `ErrAliasUnavailability`
+		// error should be returned. Any other error should be returned directly.
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
@@ -225,70 +184,23 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	return acc, nil
 }
 
-// determineStatus determines the status for a new account.
-//
-// This helper function applies default status logic:
-//   - If status is empty or code is empty, defaults to ACTIVE
-//   - Otherwise, uses the provided status
-//   - Always preserves the description field from input
-//
-// Parameters:
-//   - cai: Create account input containing the status
-//
-// Returns:
-//   - mmodel.Status: The determined status (with ACTIVE default)
+// determineStatus sets the default status for a new account.
+// If the provided status is empty, it defaults to "ACTIVE".
 func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
-	var status mmodel.Status
 	if cai.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cai.Status.Code) {
-		status = mmodel.Status{
-			Code: "ACTIVE",
+		return mmodel.Status{
+			Code:        "ACTIVE",
+			Description: cai.Status.Description,
 		}
-	} else {
-		status = cai.Status
 	}
-
-	status.Description = cai.Status.Description
-
-	return status
+	return cai.Status
 }
 
-// applyAccountingValidations validates that the account type exists if accounting validation is enabled.
+// applyAccountingValidations checks for the existence of an account type if validation is enabled.
 //
-// This function implements optional account type validation based on environment configuration.
-// Accounting validation can be enabled per organization:ledger pair via the
-// ACCOUNT_TYPE_VALIDATION environment variable.
-//
-// Validation Logic:
-// 1. Check if accounting validation is enabled for this org:ledger pair
-// 2. Skip validation for "external" account types (system-managed)
-// 3. Verify the account type exists in the account types table
-// 4. Return error if account type not found
-//
-// Environment Configuration:
-//   - ACCOUNT_TYPE_VALIDATION: Comma-separated list of "orgID:ledgerID" pairs
-//   - Example: "uuid1:uuid2,uuid3:uuid4"
-//   - If org:ledger pair is in the list, validation is enforced
-//
-// Parameters:
-//   - ctx: Context for tracing and logging
-//   - organizationID: Organization UUID
-//   - ledgerID: Ledger UUID
-//   - key: Account type key to validate (e.g., "deposit", "loan")
-//
-// Returns:
-//   - error: ErrInvalidAccountType if type doesn't exist, nil if valid or validation disabled
-//
-// Example:
-//
-//	// Enable validation for specific org:ledger
-//	os.Setenv("ACCOUNT_TYPE_VALIDATION", "123e4567-...:987f6543-...")
-//
-//	// This will validate account type exists
-//	err := uc.applyAccountingValidations(ctx, orgID, ledgerID, "deposit")
-//
-// OpenTelemetry:
-//   - Creates span "command.apply_accounting_validations"
-//   - Records validation results
+// This validation is controlled by the ACCOUNT_TYPE_VALIDATION environment variable, which
+// should contain a comma-separated list of "organizationID:ledgerID" pairs where
+// validation is required. The "external" account type is always exempt from this check.
 func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

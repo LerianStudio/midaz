@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains command implementation.
-
+// This file contains the command for updating an account.
 package command
 
 import (
@@ -19,61 +18,28 @@ import (
 
 // UpdateAccount updates an existing account in the repository.
 //
-// This method implements the update account use case, which:
-// 1. Fetches the existing account to validate it exists
-// 2. Prevents updates to external accounts (system-managed)
-// 3. Updates the account in PostgreSQL
-// 4. Updates associated metadata in MongoDB using merge semantics
-// 5. Returns the updated account with merged metadata
+// This use case handles partial updates for an account's mutable fields, such as
+// its name, status, and associations with portfolios or segments. It also merges
+// any provided metadata with the existing metadata in MongoDB.
 //
 // Business Rules:
-//   - External accounts cannot be updated (type "external")
-//   - This performs a full update. Fields omitted from the input will be overwritten with their zero value (e.g., an empty string for Name), clearing existing data.
-//   - Account type cannot be changed (immutable, enforced at HTTP layer)
-//   - Asset code cannot be changed (immutable, enforced at HTTP layer)
-//   - Alias cannot be changed (immutable, enforced at HTTP layer)
-//   - Portfolio and segment can be changed
-//   - Status can be updated
-//
-// Update Behavior:
-//   - All fields from input are set, including zero values (empty strings, nil pointers)
-//   - Nil pointers in input mean "don't update this field"
-//   - Metadata is merged with existing metadata (RFC 7396)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (accounts table)
-//   - Metadata: MongoDB (merged with existing)
+//   - The account must exist.
+//   - External accounts (type "external") cannot be updated.
+//   - This is a full update; fields omitted from the input will be overwritten
+//     with their zero value, effectively clearing them.
+//   - Immutable fields like AccountType, AssetCode, and Alias cannot be changed.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - portfolioID: Optional portfolio ID filter
-//   - id: UUID of the account to update
-//   - uai: Update account input with fields to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - portfolioID: An optional portfolio ID to filter the account.
+//   - id: The UUID of the account to be updated.
+//   - uai: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.Account: Updated account with merged metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrAccountIDNotFound: Account doesn't exist
-//   - ErrForbiddenExternalAccountManipulation: Attempting to update external account
-//   - ErrPortfolioIDNotFound: New portfolio doesn't exist
-//   - ErrSegmentIDNotFound: New segment doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.UpdateAccountInput{
-//	    Name:   "Updated Account Name",
-//	    Status: mmodel.Status{Code: "INACTIVE"},
-//	}
-//	account, err := useCase.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.update_account"
-//   - Records errors as span events
+//   - *mmodel.Account: The updated account, including the merged metadata.
+//   - error: An error if the account is not found, is an external account, or if the update fails.
 func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

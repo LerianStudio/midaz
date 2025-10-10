@@ -4,99 +4,99 @@ package mmodel
 
 import "time"
 
-// CreatePortfolioInput is a struct design to encapsulate request create payload data.
+// CreatePortfolioInput represents the input data for creating a new portfolio.
 //
 // swagger:model CreatePortfolioInput
 //
 // @Description CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.
 type CreatePortfolioInput struct {
-	// Optional external entity identifier (max length 256 characters)
-	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
+	// An optional external identifier for the entity.
+	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 
-	// Name of the portfolio (required, max length 256 characters)
+	// The name of the portfolio.
 	Name string `json:"name" validate:"required,max=256" example:"My Portfolio"`
 
-	// Status of the portfolio (active, inactive, pending)
+	// The status of the portfolio (e.g., ACTIVE, INACTIVE, PENDING).
 	Status Status `json:"status"`
 
-	// Additional custom attributes for the portfolio
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// Custom key-value pairs for extending the portfolio information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreatePortfolioInput
 
-// UpdatePortfolioInput is a struct design to encapsulate payload data.
+// UpdatePortfolioInput represents the input data for updating an existing portfolio.
 //
 // swagger:model UpdatePortfolioInput
 //
 // @Description UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.
 type UpdatePortfolioInput struct {
-	// Updated external entity identifier (optional, max length 256 characters)
-	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
+	// The updated external identifier for the entity.
+	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 
-	// Updated name of the portfolio (optional, max length 256 characters)
+	// The updated name of the portfolio.
 	Name string `json:"name" validate:"max=256" example:"My Portfolio Updated"`
 
-	// Updated status of the portfolio (active, inactive, pending)
+	// The updated status of the portfolio.
 	Status Status `json:"status"`
 
-	// Updated or additional custom attributes for the portfolio
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// The updated custom key-value pairs for extending the portfolio information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdatePortfolioInput
 
-// Portfolio is a struct designed to encapsulate request update payload data.
+// Portfolio represents a collection of accounts.
 //
 // swagger:model Portfolio
 //
 // @Description Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.
 type Portfolio struct {
-	// Unique identifier for the portfolio (UUID format)
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The unique identifier for the portfolio (UUID format).
+	ID string `json:"id" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Name of the portfolio (max length 256 characters)
+	// The name of the portfolio.
 	Name string `json:"name" example:"My Portfolio" maxLength:"256"`
 
-	// Optional external entity identifier (max length 256 characters)
-	EntityID string `json:"entityId,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"256"`
+	// An optional external identifier for the entity.
+	EntityID string `json:"entityId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" maxLength:"256"`
 
-	// ID of the ledger this portfolio belongs to (UUID format)
-	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The ID of the ledger this portfolio belongs to (UUID format).
+	LedgerID string `json:"ledgerId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// ID of the organization that owns this portfolio (UUID format)
-	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	// The ID of the organization that owns this portfolio (UUID format).
+	OrganizationID string `json:"organizationId" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Status of the portfolio (active, inactive, pending)
+	// The status of the portfolio.
 	Status Status `json:"status"`
 
-	// Timestamp when the portfolio was created
+	// The timestamp when the portfolio was created.
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the portfolio was last updated
+	// The timestamp when the portfolio was last updated.
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the portfolio was deleted (null if not deleted)
+	// The timestamp when the portfolio was soft-deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes for the portfolio
+	// Custom key-value pairs for extending the portfolio information.
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name Portfolio
 
-// Portfolios struct to return get all.
+// Portfolios represents a paginated list of portfolios.
 //
 // swagger:model Portfolios
 //
 // @Description Portfolios represents a paginated collection of portfolio records returned by list operations.
 type Portfolios struct {
-	// Array of portfolio records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Portfolio","ledgerId":"00000000-0000-0000-0000-000000000000","status":{"code":"ACTIVE"}}]
+	// An array of portfolio records.
+	// example: [{"id":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","name":"My Portfolio","ledgerId":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","status":{"code":"ACTIVE"}}]
 	Items []Portfolio `json:"items"`
 
-	// Current page number
+	// The current page number.
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
-	// Maximum number of items per page
+	// The maximum number of items per page.
 	// example: 10
 	// minimum: 1
 	// maximum: 100
@@ -128,15 +128,15 @@ type PortfoliosResponse struct {
 type PortfolioErrorResponse struct {
 	// in: body
 	Body struct {
-		// Error code identifying the specific error
+		// The error code identifying the specific error.
 		// example: 400001
 		Code int `json:"code"`
 
-		// Human-readable error message
+		// A human-readable error message.
 		// example: Invalid input: field 'name' is required
 		Message string `json:"message"`
 
-		// Additional error details if available
+		// Additional error details if available.
 		// example: {"field": "name", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}

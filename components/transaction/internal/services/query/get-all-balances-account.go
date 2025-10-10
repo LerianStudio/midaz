@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving all balances for a specific account.
 package query
 
 import (
@@ -15,25 +14,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllBalancesByAccountID retrieves all balances for a specific account with metadata.
+// GetAllBalancesByAccountID retrieves all balances for a specific account, enriched with metadata.
 //
-// Fetches all balance entries (default + additional) for an account from PostgreSQL,
-// then enriches with MongoDB metadata. Returns empty array if no balances found.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// This use case fetches all balance entries for an account from PostgreSQL and then
+// attempts to retrieve the most up-to-date balance information from the Redis cache.
+// If cached data is available, it is used to override the database values.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - accountID: UUID of the account
-//   - filter: Query parameters (cursor pagination, sorting)
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - accountID: The UUID of the account.
+//   - filter: Query parameters for pagination and sorting.
 //
 // Returns:
-//   - []*mmodel.Balance: Array of balances with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_balances_by_account_id"
+//   - []*mmodel.Balance: A slice of balances for the account.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

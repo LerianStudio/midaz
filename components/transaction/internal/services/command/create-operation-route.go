@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating an operation route.
 package command
 
 import (
@@ -15,41 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOperationRoute creates a new operation route and persists it to the repository.
+// CreateOperationRoute creates a new operation route in the repository.
 //
-// This method implements the create operation route use case, which:
-// 1. Generates UUIDv7 for the operation route ID
-// 2. Creates the operation route in PostgreSQL
-// 3. Creates associated metadata in MongoDB
-// 4. Returns the complete operation route with metadata
-//
-// Business Rules:
-//   - Operation type must be either "source" or "destination"
-//   - Title and description are required
-//   - Code is optional (for programmatic reference)
-//   - Account rules define which accounts match this route
-//
-// Operation Routes:
-//   - Define account selection rules for transaction routing
-//   - Specify operation type (source or destination)
-//   - Support account matching by alias or account_type
-//   - Enable automated account selection in transactions
-//
-// Account Rules:
-//   - rule_type: "alias" or "account_type"
-//   - valid_if: Matching criteria (exact alias or account type value)
+// This use case is responsible for creating operation routes, which define rules
+// for selecting source or destination accounts in a transaction. These routes
+// can match accounts based on their alias or account type.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - payload: Operation route input with title, description, type, account rules
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - payload: The input data for creating the operation route.
 //
 // Returns:
-//   - *mmodel.OperationRoute: Created operation route with metadata
-//   - error: Business error if creation fails
-//
-// OpenTelemetry: Creates span "command.create_operation_route"
+//   - *mmodel.OperationRoute: The newly created operation route, including its metadata.
+//   - error: An error if the creation fails.
 func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

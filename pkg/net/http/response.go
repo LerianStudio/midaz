@@ -22,13 +22,13 @@ import (
 // provided authentication token is invalid or expired.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0041" for token missing)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0041" for token missing).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -47,13 +47,13 @@ func Unauthorized(c *fiber.Ctx, code, title, message string) error {
 // the requested action.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0043" for insufficient privileges)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0043" for insufficient privileges).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -72,11 +72,11 @@ func Forbidden(c *fiber.Ctx, code, title, message string) error {
 // validation. The body can be any serializable structure, typically a validation error.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - s: Response body (typically pkg.ValidationKnownFieldsError or pkg.ValidationUnknownFieldsError)
+//   - c: Fiber context for the HTTP request.
+//   - s: Response body (typically pkg.ValidationKnownFieldsError or pkg.ValidationUnknownFieldsError).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -96,11 +96,11 @@ func BadRequest(c *fiber.Ctx, s any) error {
 // contains the newly created resource.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - s: Response body (typically the created entity)
+//   - c: Fiber context for the HTTP request.
+//   - s: Response body (typically the created entity).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -119,11 +119,11 @@ func Created(c *fiber.Ctx, s any) error {
 // success response for GET, PUT, and PATCH operations.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - s: Response body (typically an entity or collection)
+//   - c: Fiber context for the HTTP request.
+//   - s: Response body (typically an entity or collection).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -142,10 +142,10 @@ func OK(c *fiber.Ctx, s any) error {
 // DELETE operations or updates that don't return the updated resource.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
+//   - c: Fiber context for the HTTP request.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -163,11 +163,11 @@ func NoContent(c *fiber.Ctx) error {
 // has not been completed. This is typically used for asynchronous operations.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - s: Response body (typically contains a job ID or status information)
+//   - c: Fiber context for the HTTP request.
+//   - s: Response body (typically contains a job ID or status information).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -186,11 +186,11 @@ func Accepted(c *fiber.Ctx, s any) error {
 // or when a large dataset is being returned in chunks.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - s: Response body (partial data)
+//   - c: Fiber context for the HTTP request.
+//   - s: Response body (partial data).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -205,10 +205,10 @@ func PartialContent(c *fiber.Ctx, s any) error {
 // beyond the end of a resource).
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
+//   - c: Fiber context for the HTTP request.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -224,13 +224,13 @@ func RangeNotSatisfiable(c *fiber.Ctx) error {
 // Use this function when a requested resource does not exist.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0007" for entity not found)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0007" for entity not found).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -249,13 +249,13 @@ func NotFound(c *fiber.Ctx, code, title, message string) error {
 // typically for duplicate entries or unique constraint violations.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0001" for duplicate ledger)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0001" for duplicate ledger).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -273,11 +273,11 @@ func Conflict(c *fiber.Ctx, code, title, message string) error {
 // Use this function when a feature or endpoint is not yet implemented.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -296,13 +296,13 @@ func NotImplemented(c *fiber.Ctx, message string) error {
 // typically for business logic errors like insufficient funds.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0018" for insufficient funds)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0018" for insufficient funds).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -320,13 +320,13 @@ func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 // Use this function when an unexpected server-side error occurs.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - code: Business error code (e.g., "0046" for internal server error)
-//   - title: Human-readable error title
-//   - message: Detailed error message for the client
+//   - c: Fiber context for the HTTP request.
+//   - code: Business error code (e.g., "0046" for internal server error).
+//   - title: Human-readable error title.
+//   - message: Detailed error message for the client.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -345,11 +345,11 @@ func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 // Code field as the HTTP status code. The entire error struct is serialized to JSON.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - err: ResponseError containing code, title, message, and other error details
+//   - c: Fiber context for the HTTP request.
+//   - err: ResponseError containing code, title, message, and other error details.
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //
@@ -371,12 +371,12 @@ func JSONResponseError(c *fiber.Ctx, err pkg.ResponseError) error {
 // and response body. Use this when the standard response functions don't fit your needs.
 //
 // Parameters:
-//   - c: Fiber context for the HTTP request
-//   - status: HTTP status code (e.g., http.StatusOK, http.StatusCreated)
-//   - s: Response body (any JSON-serializable structure)
+//   - c: Fiber context for the HTTP request.
+//   - status: HTTP status code (e.g., http.StatusOK, http.StatusCreated).
+//   - s: Response body (any JSON-serializable structure).
 //
 // Returns:
-//   - error: Fiber error (typically nil as response is sent)
+//   - error: Fiber error (typically nil as response is sent).
 //
 // Example:
 //

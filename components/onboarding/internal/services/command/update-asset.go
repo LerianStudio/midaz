@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the UpdateAssetByID command implementation.
+// This file contains the command for updating an asset.
 package command
 
 import (
@@ -18,54 +18,24 @@ import (
 
 // UpdateAssetByID updates an existing asset in the repository.
 //
-// This method implements the update asset use case, which:
-// 1. Updates the asset in PostgreSQL
-// 2. Updates associated metadata in MongoDB using merge semantics
-// 3. Returns the updated asset with merged metadata
+// This use case handles partial updates for an asset's name and status,
+// and merges any provided metadata with the existing metadata in MongoDB.
+// The asset's code and type are immutable and cannot be changed.
 //
 // Business Rules:
-//   - Only provided fields are updated (partial updates supported)
-//   - Asset code cannot be changed (immutable, not in update input)
-//   - Asset type cannot be changed (immutable, not in update input)
-//   - Name can be updated
-//   - Status can be updated
-//   - Metadata is merged with existing
-//
-// Update Behavior:
-//   - Empty strings in input are treated as "clear the field"
-//   - Empty status means "don't update status"
-//   - Metadata is merged with existing metadata (RFC 7396)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (assets table)
-//   - Metadata: MongoDB (merged with existing)
+//   - The asset must exist.
+//   - The asset's code and type cannot be updated.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - id: UUID of the asset to update
-//   - uii: Update asset input with fields to update
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - id: The UUID of the asset to be updated.
+//   - uii: The input data containing the fields to update.
 //
 // Returns:
-//   - *mmodel.Asset: Updated asset with merged metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrAssetIDNotFound: Asset doesn't exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.UpdateAssetInput{
-//	    Name:   "US Dollar - Updated",
-//	    Status: mmodel.Status{Code: "ACTIVE"},
-//	}
-//	asset, err := useCase.UpdateAssetByID(ctx, orgID, ledgerID, assetID, input)
-//
-// OpenTelemetry:
-//   - Creates span "command.update_asset_by_id"
-//   - Records errors as span events
+//   - *mmodel.Asset: The updated asset, including the merged metadata.
+//   - error: An error if the asset is not found or if the update fails.
 func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

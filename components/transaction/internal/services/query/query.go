@@ -1,20 +1,9 @@
-// Package query implements the Query side of CQRS pattern for the transaction service.
+// Package query implements the Query side of the CQRS pattern for the transaction service.
 //
-// This package contains all read operations (get, list, count) for the transaction service.
-// It implements queries for:
-//   - Transactions (list, get by ID, get by DSL)
-//   - Balances (list, get by ID, get by account)
-//   - Operations (list, get by ID, get by transaction)
-//   - Asset rates (list, get by ID, get by codes)
-//   - Transaction routes (list, get by ID)
-//   - Operation routes (list, get by ID)
-//   - Metadata enrichment (automatic for all entities)
-//
-// The query side focuses on data retrieval with:
-//   - Pagination support (offset and cursor-based)
-//   - Metadata enrichment from MongoDB
-//   - Cache utilization for performance
-//   - Read-optimized queries
+// This package is responsible for all read operations (queries) within the transaction
+// domain. It follows the Clean Architecture pattern, with the UseCase struct
+// orchestrating data retrieval from various repositories and enriching it with
+// metadata.
 package query
 
 import (
@@ -29,41 +18,36 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 )
 
-// UseCase is a struct that aggregates repositories for query operations.
+// UseCase encapsulates all the dependencies required for query use cases.
 //
-// This struct implements the Query side of CQRS, providing read operations
-// for transactions, balances, operations, and routes. It follows the use case
-// pattern, where each public method represents a query use case.
-//
-// The UseCase coordinates multiple repositories to:
-//   - Fetch data from PostgreSQL
-//   - Enrich with metadata from MongoDB
-//   - Utilize Redis cache for performance
+// This struct follows the Clean Architecture pattern, centralizing all read
+// operations for the transaction domain and orchestrating interactions between
+// repositories and other services.
 type UseCase struct {
-	// TransactionRepo provides an abstraction on top of the transaction data source.
+	// TransactionRepo provides an abstraction for accessing transaction data.
 	TransactionRepo transaction.Repository
 
-	// OperationRepo provides an abstraction on top of the operation data source.
+	// OperationRepo provides an abstraction for accessing operation data.
 	OperationRepo operation.Repository
 
-	// AssetRateRepo provides an abstraction on top of the operation data source.
+	// AssetRateRepo provides an abstraction for accessing asset rate data.
 	AssetRateRepo assetrate.Repository
 
-	// BalanceRepo provides an abstraction on top of the balance data source.
+	// BalanceRepo provides an abstraction for accessing balance data.
 	BalanceRepo balance.Repository
 
-	// OperationRouteRepo provides an abstraction on top of the operation route data source.
+	// OperationRouteRepo provides an abstraction for accessing operation route data.
 	OperationRouteRepo operationroute.Repository
 
-	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
+	// TransactionRouteRepo provides an abstraction for accessing transaction route data.
 	TransactionRouteRepo transactionroute.Repository
 
-	// MetadataRepo provides an abstraction on top of the metadata data source.
+	// MetadataRepo provides an abstraction for accessing metadata in MongoDB.
 	MetadataRepo mongodb.Repository
 
-	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
+	// RabbitMQRepo provides an abstraction for publishing messages to RabbitMQ.
 	RabbitMQRepo rabbitmq.ProducerRepository
 
-	// RedisRepo provides an abstraction on top of the redis consumer.
+	// RedisRepo provides an abstraction for interacting with Redis.
 	RedisRepo redis.RedisRepository
 }

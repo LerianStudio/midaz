@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains authentication and authorization test utilities.
 package helpers
 
@@ -13,14 +14,13 @@ import (
 	"time"
 )
 
-// AuthenticateFromEnv obtains a Bearer token using env vars and exports TEST_AUTH_HEADER.
-// Inputs via env:
+// AuthenticateFromEnv obtains a Bearer token from an OAuth endpoint using
+// credentials from environment variables and sets the TEST_AUTH_HEADER.
 //
-//	TEST_AUTH_URL: OAuth token endpoint (e.g., https://auth.../v1/login/oauth/access_token)
-//	TEST_AUTH_USERNAME: username
-//	TEST_AUTH_PASSWORD: password
-//
-// If TEST_AUTH_URL is empty, no-op. On success sets TEST_AUTH_HEADER to "Bearer <token>".
+// This function reads the OAuth URL, username, and password from the environment.
+// If the URL is not set, it performs a no-op. On successful authentication, it
+// exports the `TEST_AUTH_HEADER` environment variable with the Bearer token for
+// use in subsequent API requests.
 func AuthenticateFromEnv() error {
 	authURL := os.Getenv("TEST_AUTH_URL")
 	if authURL == "" {
@@ -91,10 +91,12 @@ func AuthenticateFromEnv() error {
 	return os.Setenv("TEST_AUTH_HEADER", "Bearer "+token)
 }
 
-// RunTestsWithAuth authenticates using env (if configured) and runs tests, failing fast on auth errors.
-// Usage in each package's TestMain:
+// RunTestsWithAuth is a helper function to be called from TestMain that authenticates
+// using environment variables before running the package's tests.
 //
-//	func TestMain(m *testing.M) { helpers.RunTestsWithAuth(m) }
+// It wraps the test execution with an authentication step, ensuring that all tests
+// in the package have access to a valid auth token if required. If authentication
+// fails, it terminates the test run.
 func RunTestsWithAuth(m *testing.M) {
 	if err := AuthenticateFromEnv(); err != nil {
 		log.Fatalf("Failed to authenticate from environment: %v", err)

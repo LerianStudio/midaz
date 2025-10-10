@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script verifies that errors are properly logged before being returned
+# in the use case files within the components directory. It checks for `return err`
+# statements that are not preceded by a logging statement.
 
 # Set colors for output
 GREEN='\033[0;32m'
@@ -41,7 +45,10 @@ for component in "${COMPONENTS[@]}"; do
     SERVICE_FILES=$(find "$component" -path "*/services/*" -name "*.go" | grep -v "_test.go")
     
     for file in $SERVICE_FILES; do
-        # Use awk to analyze the file more thoroughly
+        # Use awk to analyze the file more thoroughly.
+        # The awk script tracks whether a logging statement has appeared within a
+        # function before a `return err` statement. If a `return err` is found
+        # without a recent preceding log, it is flagged as an issue.
         MISSING_LOGS=$(awk '
             BEGIN { issues = 0; line_num = 0; in_func = 0; has_log = 0; }
             

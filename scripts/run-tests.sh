@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This script runs all tests for the Midaz project, including core packages and
+# individual components. It checks for required dependencies and provides a
+# summary of the test execution.
 
 # Import shared utilities and colors
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

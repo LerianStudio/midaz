@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * RequestMatcher Class
- * 
- * Finds matching requests in the Postman collection based on method and path.
- * Includes sophisticated matching with alternatives and logging for debugging.
+ * @file RequestMatcher Class
+ * @description
+ * This class finds matching requests in a Postman collection based on method and
+ * path. It includes sophisticated matching logic with alternative path generation
+ * and detailed logging for debugging.
  */
 
 const { PathResolver } = require('./path-resolver');
 
 class RequestMatcher {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
     this.pathResolver = new PathResolver(config);
@@ -17,11 +21,11 @@ class RequestMatcher {
   }
 
   /**
-   * Find a request matching method and path in collection
-   * @param {string} method - HTTP method
-   * @param {string} path - API path
-   * @param {Object} collection - Postman collection
-   * @returns {Object|null} Matching request item or null
+   * Finds a request in the collection that matches a given method and path.
+   * @param {string} method - The HTTP method to match.
+   * @param {string} path - The API path to match.
+   * @param {Object} collection - The Postman collection to search.
+   * @returns {Object|null} The matching request item, or null if not found.
    */
   async find(method, path, collection) {
     // Initialize match tracking
@@ -88,11 +92,11 @@ class RequestMatcher {
   }
 
   /**
-   * Search collection recursively for matching requests
-   * @param {Object} collection - Postman collection
-   * @param {string} method - HTTP method
-   * @param {Array} targetPaths - Array of target paths to match
-   * @returns {Array} Array of matching request items
+   * Recursively searches a Postman collection for matching requests.
+   * @param {Object} collection - The Postman collection or a folder within it.
+   * @param {string} method - The HTTP method to match.
+   * @param {Array} targetPaths - An array of target paths to match against.
+   * @returns {Array} An array of matching request items.
    */
   searchCollection(collection, method, targetPaths) {
     const results = [];
@@ -137,10 +141,10 @@ class RequestMatcher {
   }
 
   /**
-   * Select the best candidate from multiple matches
-   * @param {Array} candidates - Array of candidate matches
-   * @param {string} targetPath - Original target path
-   * @returns {Object} Best candidate
+   * Selects the best candidate from multiple matches based on match quality.
+   * @param {Array} candidates - An array of candidate matches.
+   * @param {string} targetPath - The original target path.
+   * @returns {Object} The best candidate from the array.
    */
   selectBestCandidate(candidates, targetPath) {
     if (candidates.length === 1) {
@@ -174,11 +178,11 @@ class RequestMatcher {
   }
 
   /**
-   * Log missing request details
-   * @param {string} method - HTTP method
-   * @param {string} path - Original path
-   * @param {string} normalizedTarget - Normalized target path
-   * @param {Array} alternatives - Alternative paths tried
+   * Logs details for a request that could not be found.
+   * @param {string} method - The HTTP method of the missing request.
+   * @param {string} path - The original path of the missing request.
+   * @param {string} normalizedTarget - The normalized target path.
+   * @param {Array} alternatives - An array of alternative paths that were tried.
    */
   logMissing(method, path, normalizedTarget, alternatives) {
     console.warn(`❌ No matching request found for: ${method} ${path}`);
@@ -193,10 +197,10 @@ class RequestMatcher {
   }
 
   /**
-   * Log ambiguous matches
-   * @param {string} method - HTTP method
-   * @param {string} path - Original path
-   * @param {Array} candidates - Matching candidates
+   * Logs details when multiple ambiguous matches are found for a request.
+   * @param {string} method - The HTTP method of the request.
+   * @param {string} path - The original path of the request.
+   * @param {Array} candidates - An array of matching candidate requests.
    */
   logAmbiguous(method, path, candidates) {
     console.warn(`⚠️ Multiple matches found for: ${method} ${path}`);
@@ -209,8 +213,8 @@ class RequestMatcher {
   }
 
   /**
-   * Get matching statistics for debugging
-   * @returns {Object} Statistics about matching attempts
+   * Gets statistics about the matching attempts for debugging purposes.
+   * @returns {Object} An object containing statistics about the matching process.
    */
   getStatistics() {
     const attempts = Array.from(this.matchAttempts.values());
@@ -246,26 +250,26 @@ class RequestMatcher {
   }
 
   /**
-   * Get detailed matching history for debugging
-   * @returns {Array} Array of matching attempts with details
+   * Gets the detailed matching history for debugging.
+   * @returns {Array} An array of matching attempts with their details.
    */
   getMatchingHistory() {
     return Array.from(this.matchAttempts.values());
   }
 
   /**
-   * Clear matching history
+   * Clears the matching history.
    */
   clearHistory() {
     this.matchAttempts.clear();
   }
 
   /**
-   * Find requests that might be close matches for failed searches
-   * @param {Object} collection - Postman collection
-   * @param {string} method - HTTP method
-   * @param {string} path - Original path
-   * @returns {Array} Array of potential close matches
+   * Finds requests that are similar to a failed search target.
+   * @param {Object} collection - The Postman collection to search.
+   * @param {string} method - The HTTP method of the failed search.
+   * @param {string} path - The original path of the failed search.
+   * @returns {Array} An array of potential close matches, sorted by similarity.
    */
   findSimilarRequests(collection, method, path) {
     const results = [];
@@ -327,10 +331,10 @@ class RequestMatcher {
   }
 
   /**
-   * Check if two path segments are similar
-   * @param {string} seg1 - First segment
-   * @param {string} seg2 - Second segment
-   * @returns {boolean} True if segments are similar
+   * Checks if two path segments are similar.
+   * @param {string} seg1 - The first segment.
+   * @param {string} seg2 - The second segment.
+   * @returns {boolean} True if the segments are considered similar.
    */
   segmentsSimilar(seg1, seg2) {
     if (seg1 === seg2) return true;
@@ -349,10 +353,10 @@ class RequestMatcher {
   }
 
   /**
-   * Calculate Levenshtein distance between two strings
-   * @param {string} str1 - First string
-   * @param {string} str2 - Second string
-   * @returns {number} Edit distance
+   * Calculates the Levenshtein distance between two strings.
+   * @param {string} str1 - The first string.
+   * @param {string} str2 - The second string.
+   * @returns {number} The edit distance between the two strings.
    */
   levenshteinDistance(str1, str2) {
     const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));

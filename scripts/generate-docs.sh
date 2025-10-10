@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# This script automates the generation of OpenAPI (Swagger) specifications and
+# Postman collections for the Midaz services. It orchestrates the following steps:
+# 1. Generates OpenAPI specs for each component using `swag`.
+# 2. Installs Node.js dependencies for the Postman conversion scripts.
+# 3. Converts the OpenAPI specs into a unified Postman collection.
+# 4. Verifies the generated output files.
 set -euo pipefail
 
 # Clean documentation generation script

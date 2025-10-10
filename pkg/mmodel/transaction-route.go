@@ -9,7 +9,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// TransactionRoute is a struct designed to store TransactionRoute data.
+// TransactionRoute represents a rule that defines the flow of a transaction.
 //
 // swagger:model TransactionRoute
 // @Description TransactionRoute object
@@ -20,11 +20,12 @@ type TransactionRoute struct {
 	OrganizationID uuid.UUID `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 	// The unique identifier of the Ledger.
 	LedgerID uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
+	// A short text summarizing the purpose of the transaction, used as an entry note for identification.
 	Title string `json:"title,omitempty" example:"Charge Settlement"`
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" example:"Settlement route for service charges"`
-	// Additional metadata stored as JSON
+	// Custom key-value pairs for extending the transaction route information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes []OperationRoute `json:"operationRoutes,omitempty"`
@@ -32,52 +33,54 @@ type TransactionRoute struct {
 	CreatedAt time.Time `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	// The timestamp when the transaction route was last updated.
 	UpdatedAt time.Time `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
-	// The timestamp when the transaction route was deleted.
+	// The timestamp when the transaction route was soft-deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name TransactionRoute
 
-// CreateTransactionRouteInput is a struct designed to store CreateRouteInput data.
+// CreateTransactionRouteInput represents the input data for creating a new transaction route.
 //
 // swagger:model CreateTransactionRouteInput
 // @Description CreateTransactionRouteInput payload
 type CreateTransactionRouteInput struct {
-	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
+	// A short text summarizing the purpose of the transaction, used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"required,max=50" example:"Charge Settlement"`
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
-	// Additional metadata stored as JSON
+	// Custom key-value pairs for extending the transaction route information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// An object containing accounting data of Operation Routes from the Transaction Route.
+	// An array of Operation Route IDs that make up this Transaction Route.
 	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required"`
 } // @name CreateTransactionRouteInput
 
-// UpdateTransactionRouteInput is a struct designed to store transaction route update data.
+// UpdateTransactionRouteInput represents the input data for updating an existing transaction route.
 //
 // swagger:model UpdateTransactionRouteInput
 // @Description UpdateTransactionRouteInput payload
 type UpdateTransactionRouteInput struct {
-	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
+	// A short text summarizing the purpose of the transaction, used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"max=50" example:"Charge Settlement"`
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
-	// Additional metadata stored as JSON
+	// Custom key-value pairs for extending the transaction route information.
+	// Note: Nested structures are not supported.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// An object containing accounting data of Operation Routes from the Transaction Route.
+	// An array of Operation Route IDs that make up this Transaction Route.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
 } // @name UpdateTransactionRouteInput
 
-// TransactionRouteCache represents the cache structure for transaction routes in Redis
+// TransactionRouteCache represents the cache-optimized structure for a transaction route.
 type TransactionRouteCache struct {
 	Source      map[string]OperationRouteCache `json:"source"`
 	Destination map[string]OperationRouteCache `json:"destination"`
 }
 
-// OperationRouteCache represents the cached data for a single operation route
+// OperationRouteCache represents the cached data for a single operation route.
 type OperationRouteCache struct {
 	Account *AccountCache `json:"account,omitempty"`
 }
 
-// AccountCache represents the cached account rule data
+// AccountCache represents the cached data for an account rule.
 type AccountCache struct {
 	RuleType string `json:"ruleType"`
 	ValidIf  any    `json:"validIf"`
@@ -90,16 +93,16 @@ type AccountCache struct {
 // operation routes by their type (source/destination) and indexes them by ID for O(1) lookup.
 //
 // The cache structure is used during transaction validation to quickly verify that:
-//   - Transactions follow the defined routing rules
-//   - Accounts match the expected aliases or account types
-//   - Operation types (debit/credit) align with the route configuration
+//   - Transactions follow the defined routing rules.
+//   - Accounts match the expected aliases or account types.
+//   - Operation types (debit/credit) align with the route configuration.
 //
 // Returns:
-//   - TransactionRouteCache: A cache-optimized structure with routes organized by type
+//   - TransactionRouteCache: A cache-optimized structure with routes organized by type.
 //
 // Cache Structure:
-//   - Source: Map of source operation route IDs to their cached data
-//   - Destination: Map of destination operation route IDs to their cached data
+//   - Source: Map of source operation route IDs to their cached data.
+//   - Destination: Map of destination operation route IDs to their cached data.
 //
 // Example:
 //
@@ -150,10 +153,10 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 // payload sizes compared to JSON, which is important for high-throughput transaction processing.
 //
 // Parameters:
-//   - data: Binary msgpack-encoded data to deserialize
+//   - data: Binary msgpack-encoded data to deserialize.
 //
 // Returns:
-//   - error: nil on success, error if deserialization fails
+//   - error: nil on success, error if deserialization fails.
 //
 // Example:
 //
@@ -173,8 +176,8 @@ func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
 // frequently.
 //
 // Returns:
-//   - []byte: Msgpack-encoded binary data
-//   - error: nil on success, error if serialization fails
+//   - []byte: Msgpack-encoded binary data.
+//   - error: nil on success, error if serialization fails.
 //
 // Example:
 //

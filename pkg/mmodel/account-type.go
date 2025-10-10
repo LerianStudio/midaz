@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// AccountType is a struct designed to store Account Type object data.
+// AccountType represents an account type in the system.
 //
 // swagger:model AccountType
 // @Description AccountType object
@@ -36,7 +36,7 @@ type AccountType struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name AccountType
 
-// CreateAccountTypeInput is a struct designed to store Account Type input data.
+// CreateAccountTypeInput represents the input data for creating an Account Type.
 //
 // swagger:model CreateAccountTypeInput
 // @Description CreateAccountTypeInput payload
@@ -47,13 +47,14 @@ type CreateAccountTypeInput struct {
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
 	// A unique key value identifier for the account type.
 	KeyValue string `json:"keyValue" validate:"required,max=50,invalidaccounttype" example:"current_assets"`
-	// Custom key-value pairs for extending the account type information
+	// Custom key-value pairs for extending the account type information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateAccountTypeInput
 
-// UpdateAccountTypeInput is a struct designed to store Account Type input data.
+// UpdateAccountTypeInput represents the input data for updating an Account Type.
 //
 // swagger:model UpdateAccountTypeInput
 // @Description UpdateAccountTypeInput payload
@@ -62,7 +63,8 @@ type UpdateAccountTypeInput struct {
 	Name string `json:"name,omitempty" validate:"max=100" example:"Current Assets"`
 	// Detailed description of the account type.
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
-	// Custom key-value pairs for extending the account type information
+	// Custom key-value pairs for extending the account type information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`

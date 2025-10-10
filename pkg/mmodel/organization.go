@@ -4,7 +4,7 @@ package mmodel
 
 import "time"
 
-// CreateOrganizationInput is a struct designed to encapsulate request create payload data.
+// CreateOrganizationInput represents the input data for creating a new organization.
 //
 // swagger:model CreateOrganizationInput
 // @Description Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
@@ -28,44 +28,45 @@ import "time"
 //	  }
 //	}
 type CreateOrganizationInput struct {
-	// Official legal name of the organization
+	// The official legal name of the organization.
 	// required: true
 	// example: Lerian Financial Services Ltd.
 	// maxLength: 256
 	LegalName string `json:"legalName" validate:"required,max=256" example:"Lerian Financial Services Ltd." maxLength:"256"`
 
-	// UUID of the parent organization if this is a child organization
+	// The UUID of the parent organization if this is a child organization.
 	// required: false
 	// format: uuid
 	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Trading or brand name of the organization, if different from legal name
+	// The trading or brand name of the organization, if different from the legal name.
 	// required: false
 	// example: Lerian FS
 	// maxLength: 256
 	DoingBusinessAs *string `json:"doingBusinessAs" validate:"omitempty,max=256" example:"Lerian FS" maxLength:"256"`
 
-	// Official tax ID, company registration number, or other legal identification
+	// The official tax ID, company registration number, or other legal identification.
 	// required: true
 	// example: 123456789012345
 	// maxLength: 256
 	LegalDocument string `json:"legalDocument" validate:"required,max=256" example:"123456789012345" maxLength:"256"`
 
-	// Physical address of the organization
+	// The physical address of the organization.
 	// required: false
 	Address Address `json:"address"`
 
-	// Current operating status of the organization (defaults to ACTIVE if not specified)
+	// The current operating status of the organization (defaults to ACTIVE if not specified).
 	// required: false
 	Status Status `json:"status"`
 
-	// Custom key-value pairs for extending the organization information
+	// Custom key-value pairs for extending the organization information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateOrganizationInput
 
-// UpdateOrganizationInput is a struct designed to encapsulate request update payload data.
+// UpdateOrganizationInput represents the input data for updating an existing organization.
 //
 // swagger:model UpdateOrganizationInput
 // @Description Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
@@ -92,38 +93,39 @@ type CreateOrganizationInput struct {
 //	  }
 //	}
 type UpdateOrganizationInput struct {
-	// Updated legal name of the organization
+	// The updated legal name of the organization.
 	// required: false
 	// example: Lerian Financial Group Ltd.
 	// maxLength: 256
 	LegalName string `json:"legalName" validate:"max=256" example:"Lerian Financial Group Ltd." maxLength:"256"`
 
-	// Updated UUID of the parent organization if this is a child organization
+	// The updated UUID of the parent organization if this is a child organization.
 	// required: false
 	// format: uuid
 	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Updated trading or brand name of the organization
+	// The updated trading or brand name of the organization.
 	// required: false
 	// example: Lerian Group
 	// maxLength: 256
 	DoingBusinessAs string `json:"doingBusinessAs" validate:"max=256" example:"Lerian Group" maxLength:"256"`
 
-	// Updated physical address of the organization
+	// The updated physical address of the organization.
 	// required: false
 	Address Address `json:"address"`
 
-	// Updated status of the organization
+	// The updated status of the organization.
 	// required: false
 	Status Status `json:"status"`
 
-	// Updated custom key-value pairs for extending the organization information
+	// The updated custom key-value pairs for extending the organization information.
+	// Note: Nested structures are not supported.
 	// required: false
 	// example: {"industry": "Financial Technology", "founded": 2020, "employees": 200, "headquarters": "New York"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateOrganizationInput
 
-// Organization is a struct designed to encapsulate response payload data.
+// Organization represents an organization in the system.
 //
 // swagger:model Organization
 // @Description Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
@@ -153,88 +155,88 @@ type UpdateOrganizationInput struct {
 //	  }
 //	}
 type Organization struct {
-	// Unique identifier for the organization (UUID format)
-	// example: 00000000-0000-0000-0000-000000000000
+	// The unique identifier for the organization (UUID format).
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ID string `json:"id" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a" format:"uuid"`
 
-	// Reference to the parent organization, if this is a child organization
-	// example: 00000000-0000-0000-0000-000000000000
+	// A reference to the parent organization, if this is a child organization.
+	// example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
 	// format: uuid
 	ParentOrganizationID *string `json:"parentOrganizationId" format:"uuid"`
 
-	// Official legal name of the organization
+	// The official legal name of the organization.
 	// example: Lerian Financial Services Ltd.
 	// maxLength: 256
 	LegalName string `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
 
-	// Trading or brand name of the organization, if different from legal name
+	// The trading or brand name of the organization, if different from the legal name.
 	// example: Lerian FS
 	// maxLength: 256
 	DoingBusinessAs *string `json:"doingBusinessAs" example:"Lerian FS" maxLength:"256"`
 
-	// Official tax ID, company registration number, or other legal identification
+	// The official tax ID, company registration number, or other legal identification.
 	// example: 123456789012345
 	// maxLength: 256
 	LegalDocument string `json:"legalDocument" example:"123456789012345" maxLength:"256"`
 
-	// Physical address of the organization
+	// The physical address of the organization.
 	Address Address `json:"address"`
 
-	// Current operating status of the organization
+	// The current operating status of the organization.
 	Status Status `json:"status"`
 
-	// Timestamp when the organization was created (RFC3339 format)
+	// The timestamp when the organization was created (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the organization was last updated (RFC3339 format)
+	// The timestamp when the organization was last updated (RFC3339 format).
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the organization was soft deleted, null if not deleted (RFC3339 format)
+	// The timestamp when the organization was soft-deleted, null if not deleted (RFC3339 format).
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Custom key-value pairs for extending the organization information
+	// Custom key-value pairs for extending the organization information.
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name Organization
 
-// Address structure for marshaling/unmarshalling JSON.
+// Address represents a physical address.
 //
 // swagger:model Address
 // @Description Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.
 type Address struct {
-	// Primary address line (street address or PO Box)
+	// The primary address line (street address or PO Box).
 	// example: 123 Financial Avenue
 	// maxLength: 256
 	Line1 string `json:"line1" example:"123 Financial Avenue" maxLength:"256"`
 
-	// Secondary address information like apartment number, suite, or floor
+	// Secondary address information like apartment number, suite, or floor.
 	// example: Suite 1500
 	// maxLength: 256
 	Line2 *string `json:"line2" example:"Suite 1500" maxLength:"256"`
 
-	// Postal code or ZIP code
+	// The postal code or ZIP code.
 	// example: 10001
 	// maxLength: 20
 	ZipCode string `json:"zipCode" example:"10001" maxLength:"20"`
 
-	// City or locality name
+	// The city or locality name.
 	// example: New York
 	// maxLength: 100
 	City string `json:"city" example:"New York" maxLength:"100"`
 
-	// State, province, or region name or code
+	// The state, province, or region name or code.
 	// example: NY
 	// maxLength: 100
 	State string `json:"state" example:"NY" maxLength:"100"`
 
-	// Country code in ISO 3166-1 alpha-2 format (two-letter country code)
+	// The country code in ISO 3166-1 alpha-2 format (two-letter country code).
 	// example: US
 	// minLength: 2
 	// maxLength: 2
@@ -247,15 +249,15 @@ type Address struct {
 // validation logic to determine if an address was provided or should be considered missing.
 //
 // An address is considered empty if:
-//   - Line1 is an empty string
-//   - Line2 is nil
-//   - ZipCode is an empty string
-//   - City is an empty string
-//   - State is an empty string
-//   - Country is an empty string
+//   - Line1 is an empty string.
+//   - Line2 is nil.
+//   - ZipCode is an empty string.
+//   - City is an empty string.
+//   - State is an empty string.
+//   - Country is an empty string.
 //
 // Returns:
-//   - true if all fields are empty/nil, false if any field has a value
+//   - true if all fields are empty/nil, false if any field has a value.
 //
 // Example:
 //
@@ -272,7 +274,7 @@ func (a Address) IsEmpty() bool {
 	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
 }
 
-// Organizations struct to return paginated list of organizations.
+// Organizations represents a paginated list of organizations.
 //
 // swagger:model Organizations
 // @Description Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
@@ -306,16 +308,16 @@ func (a Address) IsEmpty() bool {
 //	  "limit": 10
 //	}
 type Organizations struct {
-	// Array of organization records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","legalName":"Lerian Financial Services Ltd.","status":{"code":"ACTIVE"}}]
+	// An array of organization records for the current page.
+	// example: [{"id":"01965ed9-7fa4-75b2-8872-fc9e8509ab0a","legalName":"Lerian Financial Services Ltd.","status":{"code":"ACTIVE"}}]
 	Items []Organization `json:"items"`
 
-	// Current page number in the pagination
+	// The current page number in the pagination.
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
-	// Maximum number of items per page
+	// The maximum number of items per page.
 	// example: 10
 	// minimum: 1
 	// maximum: 100
@@ -356,15 +358,15 @@ type OrganizationsResponse struct {
 type OrganizationErrorResponse struct {
 	// in: body
 	Body struct {
-		// Error code identifying the specific error
+		// The error code identifying the specific error.
 		// example: 400001
 		Code int `json:"code"`
 
-		// Human-readable error message
+		// A human-readable error message.
 		// example: Invalid input: field 'legalName' is required
 		Message string `json:"message"`
 
-		// Additional error details if available
+		// Additional error details if available.
 		// example: {"field": "legalName", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}

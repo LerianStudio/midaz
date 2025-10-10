@@ -1,21 +1,25 @@
 #!/usr/bin/env node
 
 /**
- * RequestBodyGenerator Class
- * 
- * Generates request bodies for different transaction types based on templates.
- * Handles the complex transaction body generation logic from the original.
+ * @file RequestBodyGenerator Class
+ * @description
+ * This class generates request bodies for different transaction types based on
+ * predefined templates. It centralizes the logic for creating complex
+ * transaction bodies.
  */
 
 class RequestBodyGenerator {
+  /**
+   * @param {Object} config - The workflow configuration object.
+   */
   constructor(config) {
     this.config = config;
   }
 
   /**
-   * Generate request body for a step
-   * @param {Object} step - Step object
-   * @returns {Object|null} Request body object or null
+   * Generates a request body for a given workflow step.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {Object|null} A request body object, or null if no body is needed.
    */
   generate(step) {
     if (!this.needsBody(step)) {
@@ -36,9 +40,9 @@ class RequestBodyGenerator {
   }
 
   /**
-   * Check if step needs body generation
-   * @param {Object} step - Step object
-   * @returns {boolean} True if body is needed
+   * Checks if a workflow step requires a request body to be generated.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {boolean} True if a body is needed, false otherwise.
    */
   needsBody(step) {
     return step.method === 'POST' && (
@@ -48,9 +52,9 @@ class RequestBodyGenerator {
   }
 
   /**
-   * Generate transaction body based on path
-   * @param {Object} step - Step object
-   * @returns {Object} Transaction body
+   * Generates the request body for a transaction based on its path.
+   * @param {Object} step - The step object from the parsed workflow.
+   * @returns {Object} The generated transaction body.
    */
   generateTransactionBody(step) {
     if (step.path.includes('/transactions/json')) {
@@ -66,8 +70,8 @@ class RequestBodyGenerator {
   }
 
   /**
-   * Generate zero out transaction body
-   * @returns {Object} Zero out transaction body
+   * Generates the request body for a "zero out" transaction.
+   * @returns {Object} The "zero out" transaction body.
    */
   generateZeroOutBody() {
     return this.config.transactions.templates.zeroOut;

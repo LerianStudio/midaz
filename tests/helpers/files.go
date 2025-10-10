@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains file handling utilities for test data management.
 package helpers
 
@@ -8,7 +9,8 @@ import (
 	"path/filepath"
 )
 
-// WriteTextFile ensures the directory exists and writes content to path, overwriting any existing file.
+// WriteTextFile creates a directory if it doesn't exist and writes the given
+// content to a file, overwriting it if it already exists.
 func WriteTextFile(path string, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir: %w", err)

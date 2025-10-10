@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for deleting a transaction route.
 package command
 
 import (
@@ -17,31 +16,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteTransactionRouteByID soft-deletes a transaction route and its operation route relationships.
+// DeleteTransactionRouteByID soft-deletes a transaction route and its associations.
 //
-// This method implements the delete transaction route use case, which:
-// 1. Fetches the transaction route to validate it exists
-// 2. Extracts all associated operation route IDs
-// 3. Deletes the transaction route (soft delete)
-// 4. Removes operation route relationships from junction table
-// 5. Cache invalidation should be handled separately
+// This use case performs a soft-delete of a transaction route and removes the links
+// to its associated operation routes from the junction table. The operation routes
+// themselves are not deleted.
 //
 // Business Rules:
-//   - Transaction route must exist
-//   - All operation route relationships are removed
-//   - Soft delete sets deleted_at timestamp
-//   - Operation routes themselves are not deleted (only relationships)
+//   - The transaction route must exist to be deleted.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - transactionRouteID: UUID of the transaction route to delete
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - transactionRouteID: The UUID of the transaction route to delete.
 //
 // Returns:
-//   - error: nil on success, business error if not found or deletion fails
-//
-// OpenTelemetry: Creates span "command.delete_transaction_route_by_id"
+//   - error: An error if the transaction route is not found or if the deletion fails.
 func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -55,6 +46,8 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Warnf("Transaction Route ID not found: %s", transactionRouteID.String())
 
+			// FIXME: This error seems incorrect. It should be constant.ErrTransactionRouteNotFound
+			// instead of constant.ErrOperationRouteNotFound.
 			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 

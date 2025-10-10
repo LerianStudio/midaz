@@ -6,6 +6,7 @@ package account
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/v3/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils"

@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Enhanced Workflow Generator for CI Regression Testing
- * Simplified version without template literal issues
+ * @file Enhanced Workflow Test Script Generator
+ * @description
+ * This script provides functions to generate enhanced Pre-request and Test scripts
+ * for Postman collections, enabling comprehensive validation for CI regression
+ * testing. It includes detailed status checks, performance tracking, and business
+ * logic validation.
  */
 
 const fs = require('fs');
@@ -10,7 +14,14 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 /**
- * Generate comprehensive validation script for CI regression testing
+ * Generates a comprehensive validation script for CI regression testing.
+ * @param {Object} operation - The operation object from the OpenAPI specification.
+ * @param {string} path - The path of the endpoint.
+ * @param {string} method - The HTTP method of the endpoint.
+ * @param {Array} outputs - The variables that this step is expected to output.
+ * @param {number} stepNumber - The step number in the workflow.
+ * @param {string} stepTitle - The title of the workflow step.
+ * @returns {string} The generated test script.
  */
 function generateEnhancedTestScript(operation, path, method, outputs, stepNumber, stepTitle) {
   const scripts = [];
@@ -413,7 +424,10 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
 }
 
 /**
- * Generate enhanced pre-request script for environment setup and validation
+ * Generates an enhanced pre-request script for environment setup and validation.
+ * @param {number} stepNumber - The step number in the workflow.
+ * @param {string} stepTitle - The title of the workflow step.
+ * @returns {string} The generated pre-request script.
  */
 function generateEnhancedPreRequestScript(stepNumber, stepTitle) {
   return `
@@ -485,7 +499,9 @@ console.log("✅ Pre-request setup completed for Step ${stepNumber}");
 }
 
 /**
- * Generate workflow summary script for final validation
+ * Generates a workflow summary script for final validation.
+ * @param {number} totalSteps - The total number of steps in the workflow.
+ * @returns {string} The generated summary script.
  */
 function generateWorkflowSummaryScript(totalSteps) {
   return `

@@ -1,6 +1,5 @@
 // Package command implements write operations (commands) for the transaction service.
-// This file contains command implementation.
-
+// This file contains the command for creating an additional balance.
 package command
 
 import (
@@ -18,44 +17,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAdditionalBalance creates an additional balance entry for an account.
+// CreateAdditionalBalance creates a new balance entry for an account with a specific key.
 //
-// This method implements additional balance creation, which allows accounts to have
-// multiple balance entries with different keys (e.g., "available", "pending", "reserved").
-// It:
-// 1. Checks if balance with the key already exists (returns error if duplicate)
-// 2. Fetches the default balance to get account details
-// 3. Validates account type (external accounts cannot have additional balances)
-// 4. Creates new balance entry with specified key
-// 5. Initializes with zero available and on-hold amounts
-// 6. Sets allow_sending and allow_receiving flags
+// This use case allows an account to have multiple balances, such as "available" and "pending",
+// by creating a new balance record with a unique key. It is not applicable to external accounts.
 //
 // Business Rules:
-//   - Balance key must be unique per account
-//   - External accounts cannot have additional balances
-//   - Key is normalized to lowercase
-//   - Inherits account details from default balance
-//   - Initial amounts are zero
-//   - Allow flags default to true if not specified
-//
-// Use Cases:
-//   - Segregating funds (available vs reserved)
-//   - Holding funds temporarily
-//   - Multi-currency sub-accounts
-//   - Custom balance tracking
+//   - The balance key must be unique per account.
+//   - External accounts cannot have additional balances.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - accountID: UUID of the account
-//   - cbi: Create additional balance input with key and flags
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - accountID: The UUID of the account.
+//   - cbi: The input data for creating the additional balance, including the key.
 //
 // Returns:
-//   - *mmodel.Balance: Created additional balance
-//   - error: Business error if duplicate key or external account
-//
-// OpenTelemetry: Creates span "command.create_additional_balance"
+//   - *mmodel.Balance: The newly created additional balance.
+//   - error: An error if the balance key already exists, the account is external, or the creation fails.
 func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

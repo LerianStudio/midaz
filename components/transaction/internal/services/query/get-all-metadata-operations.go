@@ -1,6 +1,5 @@
 // Package query implements read operations (queries) for the transaction service.
-// This file contains query implementation.
-
+// This file contains the query for retrieving operations filtered by metadata.
 package query
 
 import (
@@ -19,26 +18,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataOperations retrieves operations filtered by metadata criteria.
+// GetAllMetadataOperations retrieves a list of operations filtered by metadata.
 //
-// Metadata-first query: Searches MongoDB for matching metadata, then fetches operations
-// from PostgreSQL. Returns only operations that match metadata filters.
-//
-// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// This use case performs a metadata-first query, retrieving a list of entity IDs
+// from MongoDB that match the metadata filter, and then fetching the corresponding
+// operations from PostgreSQL.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - organizationID: UUID of the organization
-//   - ledgerID: UUID of the ledger
-//   - accountID: UUID of the account
-//   - filter: Query parameters with metadata filters
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - organizationID: The UUID of the organization.
+//   - ledgerID: The UUID of the ledger.
+//   - accountID: The UUID of the account.
+//   - filter: Query parameters, including metadata filters.
 //
 // Returns:
-//   - []*operation.Operation: Array of operations with metadata
-//   - libHTTP.CursorPagination: Pagination cursor info
-//   - error: Business error if query fails
-//
-// OpenTelemetry: Creates span "query.get_all_metadata_operations"
+//   - []*operation.Operation: A slice of operations with their metadata.
+//   - libHTTP.CursorPagination: Pagination information for the result set.
+//   - error: An error if the retrieval fails.
 func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

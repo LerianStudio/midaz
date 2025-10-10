@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the DeleteOrganizationByID command implementation.
+// This file contains the command for deleting an organization.
 package command
 
 import (
@@ -18,51 +18,23 @@ import (
 
 // DeleteOrganizationByID soft-deletes an organization from the repository.
 //
-// This method implements the delete organization use case, which performs a soft delete
-// by setting the DeletedAt timestamp. The organization record remains in the database
-// but is excluded from normal queries.
-//
-// Soft Deletion:
-//   - Sets DeletedAt timestamp to current time
-//   - Organization remains in database for audit purposes
-//   - Excluded from list and get operations (via WHERE deleted_at IS NULL)
-//   - Can be used for historical reporting
-//   - Cannot be undeleted (no restore operation)
-//
-// Cascade Behavior:
-//   - Child entities (ledgers, accounts, etc.) are NOT automatically deleted
-//   - Clients should delete child entities first if desired
-//   - Foreign key constraints prevent deletion if child entities reference this organization
+// This use case performs a soft delete by setting the DeletedAt timestamp.
+// The organization record is preserved for auditing but is excluded from normal
+// queries. Child entities such as ledgers and accounts are not automatically deleted.
 //
 // Business Rules:
-//   - Organization must exist
-//   - Organization must not have active child entities (enforced by constraints)
-//   - Soft delete is NOT idempotent (deleting already deleted org returns error)
+//   - The organization must exist and not have been previously deleted.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - id: UUID of the organization to delete
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - id: The UUID of the organization to be deleted.
 //
 // Returns:
-//   - error: Business error if organization not found, database error if deletion fails
+//   - error: An error if the organization is not found or if the deletion fails.
 //
-// Possible Errors:
-//   - ErrOrganizationIDNotFound: Organization doesn't exist or already deleted
-//   - Database errors: Foreign key violations, connection failures
-//
-// Example:
-//
-//	err := useCase.DeleteOrganizationByID(ctx, orgID)
-//	if err != nil {
-//	    return err
-//	}
-//	// Organization is soft-deleted (DeletedAt set)
-//
-// OpenTelemetry:
-//   - Creates span "usecase.delete_organization_by_id"
-//   - Records errors as span events
-//
-// Note: The span name uses "usecase" prefix instead of "command" (inconsistent with other methods)
+// FIXME: The OpenTelemetry span name "usecase.delete_organization_by_id" is
+// inconsistent with other commands, which use the "command." prefix.
+// It should be renamed to "command.delete_organization_by_id" for consistency.
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

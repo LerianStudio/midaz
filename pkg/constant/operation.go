@@ -8,13 +8,13 @@ package constant
 // in the double-entry ledger system. Each operation type affects account balances
 // in specific ways according to accounting principles.
 const (
-	// DEBIT represents a debit operation that decreases liability/equity/revenue accounts
-	// or increases asset/expense accounts. In the Midaz system, debits are one side of
+	// DEBIT represents a debit operation, which increases asset/expense accounts or
+	// decreases liability/equity/revenue accounts. In the Midaz system, debits are one side of
 	// the double-entry equation and must always balance with corresponding credits.
 	DEBIT = "DEBIT"
 
-	// CREDIT represents a credit operation that increases liability/equity/revenue accounts
-	// or decreases asset/expense accounts. Credits form the other side of the double-entry
+	// CREDIT represents a credit operation, which increases liability/equity/revenue accounts or
+	// decreases asset/expense accounts. Credits form the other side of the double-entry
 	// equation and must always balance with corresponding debits.
 	CREDIT = "CREDIT"
 

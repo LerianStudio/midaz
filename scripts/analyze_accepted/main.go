@@ -1,5 +1,9 @@
-// Package main provides a script to analyze accepted transactions and verify balance consistency.
-// This tool reads transaction logs and validates that balance calculations are correct.
+// Package main provides a script to analyze accepted transactions from chaos tests
+// and verify balance consistency against live data.
+//
+// This tool reads a log of accepted transaction IDs, cross-references them with
+// container logs to identify any missing transactions, and compares the final
+// calculated balances with the live balances from the API.
 package main
 
 import (
@@ -39,6 +43,7 @@ func getenv(k, d string) string {
 	return d
 }
 
+// fetchAliasAvailable retrieves the current available balance for a given alias from the API.
 func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (float64, error) {
 	url := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", strings.TrimRight(transURL, "/"), org, ledger, alias)
 	req, _ := http.NewRequest(http.MethodGet, url, nil)

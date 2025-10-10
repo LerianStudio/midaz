@@ -1,5 +1,5 @@
 // Package command implements write operations (commands) for the onboarding service.
-// This file contains the CreateOrganization command implementation.
+// This file contains the command for creating a new organization.
 package command
 
 import (
@@ -14,57 +14,25 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CreateOrganization creates a new organization and persists it to the repository.
+// CreateOrganization creates a new organization in the repository.
 //
-// This method implements the create organization use case, which:
-// 1. Validates the country code in the address (ISO 3166-1 alpha-2)
-// 2. Sets default status to ACTIVE if not provided
-// 3. Creates the organization in PostgreSQL
-// 4. Creates associated metadata in MongoDB
-// 5. Returns the complete organization with metadata
+// This use case is responsible for:
+// 1. Validating the country code in the address against the ISO 3166-1 alpha-2 standard.
+// 2. Setting a default status of "ACTIVE" if none is provided.
+// 3. Persisting the organization in the PostgreSQL database.
+// 4. Storing any associated metadata in MongoDB.
+// 5. Returning the newly created organization, including its metadata.
 //
 // Business Rules:
-//   - Country code must be valid ISO 3166-1 alpha-2 format (2 letters)
-//   - Status defaults to ACTIVE if not provided or empty
-//   - Parent organization ID is optional (for hierarchical organizations)
-//   - Legal name and legal document are required (validated at HTTP layer)
-//
-// Data Storage:
-//   - Primary data: PostgreSQL (organizations table)
-//   - Metadata: MongoDB (flexible key-value storage)
+//   - The country code in the address must be a valid ISO 3166-1 alpha-2 code.
 //
 // Parameters:
-//   - ctx: Context for tracing, logging, and cancellation
-//   - coi: Create organization input with all required and optional fields
+//   - ctx: The context for tracing, logging, and cancellation.
+//   - coi: The input data for creating the organization.
 //
 // Returns:
-//   - *mmodel.Organization: Created organization with metadata
-//   - error: Business error if validation fails, database error if persistence fails
-//
-// Possible Errors:
-//   - ErrInvalidCountryCode: Country code is not valid ISO 3166-1 alpha-2
-//   - ErrParentOrganizationIDNotFound: Parent organization does not exist
-//   - Database errors: Connection failures, constraint violations
-//
-// Example:
-//
-//	input := &mmodel.CreateOrganizationInput{
-//	    LegalName:     "Acme Corp",
-//	    LegalDocument: "12345678901234",
-//	    Address: mmodel.Address{
-//	        Country: "US",
-//	        // ... other fields
-//	    },
-//	}
-//	org, err := useCase.CreateOrganization(ctx, input)
-//	if err != nil {
-//	    return nil, err
-//	}
-//
-// OpenTelemetry:
-//   - Creates span "command.create_organization"
-//   - Creates sub-span "command.create_organization.validate_address"
-//   - Records errors as span events
+//   - *mmodel.Organization: The created organization, complete with its metadata.
+//   - error: An error if the creation fails due to a business rule violation or a database error.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,8 @@
+# This file contains the ASCII art logo for Midaz.io.
+# It is used in shell scripts to display a branded header.
+#
+# The logo was generated using an ASCII art generator and includes the
+# engineering team's signature.
                                     __  __ _     _           
                                    |  \/  (_) __| | __ _ ____
                                    | |\/| | |/ _` |/ _` |_  /

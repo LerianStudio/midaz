@@ -1,4 +1,5 @@
-// Package helpers provides test utilities and helper functions for integration tests.
+// Package helpers provides reusable utilities and setup functions to streamline
+// integration and end-to-end tests.
 // This file contains HTTP header utilities for test requests.
 package helpers
 
@@ -6,8 +7,11 @@ import (
 	"os"
 )
 
-// AuthHeaders returns default headers including Authorization and X-Request-Id.
-// If TEST_AUTH_HEADER is set, its value is used for Authorization.
+// AuthHeaders returns a standard set of HTTP headers for authenticated requests,
+// including `Content-Type`, `X-Request-Id`, and `Authorization`.
+//
+// If the `TEST_AUTH_HEADER` environment variable is set, its value is used for
+// the Authorization header; otherwise, a default test token is used.
 func AuthHeaders(requestID string) map[string]string {
 	hdr := map[string]string{
 		"Content-Type": "application/json",
