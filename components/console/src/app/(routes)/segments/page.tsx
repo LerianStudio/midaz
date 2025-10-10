@@ -25,9 +25,11 @@ import { EntityBox } from '@/components/entity-box'
 import { InputField } from '@/components/form'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Form } from '@/components/ui/form'
+import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
+  const { toast } = useToast()
   const { currentOrganization, currentLedger } = useOrganization()
   const [columnFilters, setColumnFilters] = useState<any>([])
 
@@ -55,6 +57,13 @@ const Page = () => {
     ledgerId: currentLedger.id,
     onSuccess: () => {
       handleDialogClose()
+      toast({
+        description: intl.formatMessage({
+          id: 'success.segments.delete',
+          defaultMessage: 'Segment successfully deleted'
+        }),
+        variant: 'success'
+      })
       refetch()
     }
   })
