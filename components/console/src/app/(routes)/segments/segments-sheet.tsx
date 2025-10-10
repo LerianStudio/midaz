@@ -156,13 +156,16 @@ export const SegmentsSheet = ({
           >
             <Tabs defaultValue="details" className="mt-0">
               <TabsList className="mb-8 px-0">
-                <TabsTrigger value="details">
+                <TabsTrigger value="details" data-testid="segment-details-tab">
                   {intl.formatMessage({
                     id: 'ledgers.segments.sheet.tabs.details',
                     defaultMessage: 'Segment Details'
                   })}
                 </TabsTrigger>
-                <TabsTrigger value="metadata">
+                <TabsTrigger
+                  value="metadata"
+                  data-testid="segment-metadata-tab"
+                >
                   {intl.formatMessage({
                     id: 'common.metadata',
                     defaultMessage: 'Metadata'
@@ -180,6 +183,7 @@ export const SegmentsSheet = ({
                     control={form.control}
                     readOnly={isReadOnly}
                     required
+                    data-testid="segment-name-input"
                   />
 
                   <p className="text-shadcn-400 text-xs font-normal italic">
@@ -206,6 +210,7 @@ export const SegmentsSheet = ({
                   type="submit"
                   fullWidth
                   loading={createPending || updatePending}
+                  data-testid="segment-form-save-button"
                 >
                   {intl.formatMessage({
                     id: 'common.save',

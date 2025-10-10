@@ -29,7 +29,7 @@ test.describe('Segments Management - E2E Tests', () => {
       await expect(page.getByPlaceholder(/Search by ID/i)).toBeVisible()
 
       // Verify pagination limit field is visible
-      await expect(page.locator('[name="limit"]')).toBeVisible()
+      await expect(page.getByTestId('pagination-limit')).toBeVisible()
     })
   })
 
@@ -52,7 +52,14 @@ test.describe('Segments Management - E2E Tests', () => {
         // Verify "New Segment" button in empty state
         await expect(page.getByTestId('new-segment').last()).toBeVisible()
       } else {
-        // Segments exist - verify table is visible
+        // Wait for data to load
+        await page.waitForLoadState('networkidle')
+        await page.waitForTimeout(500)
+
+        // Verify table exists first
+        await expect(page.getByTestId('segments-table')).toBeVisible()
+
+        // Segments exist - verify table header is visible
         await expect(
           page.getByRole('columnheader', { name: /^Name$/i })
         ).toBeVisible()
@@ -62,6 +69,15 @@ test.describe('Segments Management - E2E Tests', () => {
 
   test('should create a new segment with basic details', async ({ page }) => {
     const segmentName = `E2E-Segment-${Date.now()}`
+
+    await test.step('Set pagination limit to show more items', async () => {
+      // Increase pagination limit to 100 to ensure new segment is visible
+      const limitSelect = page.getByTestId('pagination-limit')
+      await limitSelect.click()
+      await page.getByRole('option', { name: '100' }).click()
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+    })
 
     await test.step('Open create segment sheet', async () => {
       await page.waitForLoadState('networkidle')
@@ -83,7 +99,11 @@ test.describe('Segments Management - E2E Tests', () => {
       await page.getByLabel(/Segment Name/i).fill(segmentName)
 
       // Wait for form validation
-      await page.waitForTimeout(500)
+      await page.waitForTimeout(1000)
+
+      // Ensure save button is enabled
+      const saveButton = page.getByRole('button', { name: /^Save$|^Salvar$/i })
+      await expect(saveButton).toBeEnabled({ timeout: 5000 })
     })
 
     await test.step('Save the segment', async () => {
@@ -103,10 +123,35 @@ test.describe('Segments Management - E2E Tests', () => {
     })
 
     await test.step('Verify segment appears in the list', async () => {
-      // Verify segment appears in the table
-      await expect(
-        page.getByRole('row', { name: new RegExp(segmentName) })
-      ).toBeVisible({ timeout: 15000 })
+      // Wait for any refetch/loading to complete
+      await page.waitForTimeout(2000)
+      await page.waitForLoadState('networkidle')
+
+      // Reload page to ensure fresh data
+      await page.reload({ waitUntil: 'networkidle' })
+      await page.waitForTimeout(1000)
+
+      // Verify segment appears in the table (check if it exists anywhere on page)
+      const segmentRow = page.getByRole('row', {
+        name: new RegExp(segmentName)
+      })
+      const isVisible = await segmentRow.isVisible().catch(() => false)
+
+      if (!isVisible) {
+        // If not visible, it might be on another page or not created
+        // Check if table has any rows at all
+        const tableBody = page.locator('tbody')
+        const rowCount = await tableBody.locator('tr').count()
+
+        // Log for debugging
+        console.log(`Rows in table: ${rowCount}`)
+
+        // Try waiting a bit more and check again
+        await page.waitForTimeout(2000)
+        await expect(segmentRow).toBeVisible({ timeout: 10000 })
+      } else {
+        await expect(segmentRow).toBeVisible()
+      }
 
       // Optionally verify success notification
       const successToast = page
@@ -118,6 +163,14 @@ test.describe('Segments Management - E2E Tests', () => {
 
   test('should create segment with metadata', async ({ page }) => {
     const segmentName = `Full-Segment-${Date.now()}`
+
+    await test.step('Set pagination limit to show more items', async () => {
+      const limitSelect = page.getByTestId('pagination-limit')
+      await limitSelect.click()
+      await page.getByRole('option', { name: '100' }).click()
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+    })
 
     await test.step('Open create segment sheet', async () => {
       await page.waitForLoadState('networkidle')
@@ -134,6 +187,9 @@ test.describe('Segments Management - E2E Tests', () => {
 
     await test.step('Fill basic details', async () => {
       await page.getByLabel(/Segment Name/i).fill(segmentName)
+
+      // Wait for form validation
+      await page.waitForTimeout(1000)
     })
 
     await test.step('Add metadata', async () => {
@@ -177,6 +233,9 @@ test.describe('Segments Management - E2E Tests', () => {
 
       await page.waitForLoadState('networkidle')
 
+      // Wait for any refetch/loading to complete
+      await page.waitForTimeout(2000)
+
       // Verify segment appears in the list
       await expect(
         page.getByRole('row', { name: new RegExp(segmentName) })
@@ -187,6 +246,14 @@ test.describe('Segments Management - E2E Tests', () => {
   test('should edit an existing segment', async ({ page }) => {
     const initialName = `Edit-Segment-${Date.now()}`
     const updatedName = `Updated-${Date.now()}`
+
+    await test.step('Set pagination limit to show more items', async () => {
+      const limitSelect = page.getByTestId('pagination-limit')
+      await limitSelect.click()
+      await page.getByRole('option', { name: '100' }).click()
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+    })
 
     await test.step('Create segment first', async () => {
       await page.waitForLoadState('networkidle')
@@ -201,9 +268,19 @@ test.describe('Segments Management - E2E Tests', () => {
       ).toBeVisible({ timeout: 15000 })
 
       await page.getByLabel(/Segment Name/i).fill(initialName)
-      await page.getByRole('button', { name: /^Save$|^Salvar$/i }).click()
+
+      // Wait for form validation
+      await page.waitForTimeout(1000)
+
+      // Ensure save button is enabled
+      const saveButton = page.getByRole('button', { name: /^Save$|^Salvar$/i })
+      await expect(saveButton).toBeEnabled({ timeout: 5000 })
+      await saveButton.click()
 
       await page.waitForLoadState('networkidle')
+
+      // Wait for any refetch/loading to complete
+      await page.waitForTimeout(2000)
 
       // Verify segment appears in the list
       await expect(
@@ -255,6 +332,14 @@ test.describe('Segments Management - E2E Tests', () => {
   test('should delete a segment', async ({ page }) => {
     const segmentName = `Delete-Segment-${Date.now()}`
 
+    await test.step('Set pagination limit to show more items', async () => {
+      const limitSelect = page.getByTestId('pagination-limit')
+      await limitSelect.click()
+      await page.getByRole('option', { name: '100' }).click()
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+    })
+
     await test.step('Create segment to delete', async () => {
       await page.waitForLoadState('networkidle')
       await page.waitForTimeout(500)
@@ -268,9 +353,19 @@ test.describe('Segments Management - E2E Tests', () => {
       ).toBeVisible({ timeout: 15000 })
 
       await page.getByLabel(/Segment Name/i).fill(segmentName)
-      await page.getByRole('button', { name: /^Save$|^Salvar$/i }).click()
+
+      // Wait for form validation
+      await page.waitForTimeout(1000)
+
+      // Ensure save button is enabled
+      const saveButton = page.getByRole('button', { name: /^Save$|^Salvar$/i })
+      await expect(saveButton).toBeEnabled({ timeout: 5000 })
+      await saveButton.click()
 
       await page.waitForLoadState('networkidle')
+
+      // Wait for any refetch/loading to complete
+      await page.waitForTimeout(2000)
 
       // Verify segment appears in the list
       await expect(
@@ -378,6 +473,14 @@ test.describe('Segments Management - E2E Tests', () => {
     const segmentName = `Search-Segment-${Date.now()}`
     let segmentId = ''
 
+    await test.step('Set pagination limit to show more items', async () => {
+      const limitSelect = page.getByTestId('pagination-limit')
+      await limitSelect.click()
+      await page.getByRole('option', { name: '100' }).click()
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+    })
+
     await test.step('Create a segment to search for', async () => {
       await page.waitForLoadState('networkidle')
       await page.waitForTimeout(500)
@@ -391,9 +494,19 @@ test.describe('Segments Management - E2E Tests', () => {
       ).toBeVisible({ timeout: 15000 })
 
       await page.getByLabel(/Segment Name/i).fill(segmentName)
-      await page.getByRole('button', { name: /^Save$|^Salvar$/i }).click()
+
+      // Wait for form validation
+      await page.waitForTimeout(1000)
+
+      // Ensure save button is enabled
+      const saveButton = page.getByRole('button', { name: /^Save$|^Salvar$/i })
+      await expect(saveButton).toBeEnabled({ timeout: 5000 })
+      await saveButton.click()
 
       await page.waitForLoadState('networkidle')
+
+      // Wait for any refetch/loading to complete
+      await page.waitForTimeout(2000)
 
       // Verify segment appears in the list
       const row = page.getByRole('row', { name: new RegExp(segmentName) })

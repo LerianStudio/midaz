@@ -56,7 +56,10 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
   const intl = useIntl()
 
   return (
-    <TableRow key={segment.id}>
+    <TableRow
+      key={segment.id}
+      data-testid={`segment-row-${segment.original.id}`}
+    >
       <TableCell>{segment.original.name}</TableCell>
       <IdTableCell id={segment.original.id} />
       <MetadataTableCell metadata={segment.original.metadata!} />
@@ -66,7 +69,7 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
             <Button
               className="h-[34px] w-[34px] p-2"
               variant="secondary"
-              data-testid="actions"
+              data-testid={`segment-menu-trigger-${segment.original.id}`}
             >
               <MoreVertical size={16} />
             </Button>
@@ -74,7 +77,7 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
           <DropdownMenuContent>
             <DropdownMenuItem
               onClick={() => handleEdit(segment.original)}
-              data-testid="edit"
+              data-testid={`segment-edit-${segment.original.id}`}
             >
               {intl.formatMessage({
                 id: `common.details`,
@@ -89,7 +92,7 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
                   segment.original.name || ''
                 )
               }
-              data-testid="delete"
+              data-testid={`segment-delete-${segment.original.id}`}
             >
               {intl.formatMessage({
                 id: `common.delete`,
@@ -121,6 +124,7 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
       <EntityDataTable.Root>
         {isNil(segments?.items) || segments.items.length === 0 ? (
           <EmptyResource
+            data-testid="segments-empty-state"
             message={intl.formatMessage({
               id: 'ledgers.segments.emptyResource',
               defaultMessage: "You haven't created any Segments yet"
