@@ -38,6 +38,7 @@ export type SelectFieldProps = PropsWithChildren & {
   multi?: boolean
   required?: boolean
   onChange?: (value: any) => void
+  'data-testid'?: string
 }
 
 export const SelectField = ({
@@ -54,6 +55,7 @@ export const SelectField = ({
   control,
   children,
   onChange,
+  'data-testid': dataTestId,
   ...others
 }: SelectFieldProps) => {
   const intl = useIntl()
@@ -85,7 +87,10 @@ export const SelectField = ({
                 disabled={disabled}
                 {...field}
               >
-                <MultipleSelectTrigger readOnly={readOnly}>
+                <MultipleSelectTrigger
+                  readOnly={readOnly}
+                  data-testid={dataTestId}
+                >
                   <MultipleSelectValue placeholder={placeholder} />
                 </MultipleSelectTrigger>
                 <MultipleSelectContent>{children}</MultipleSelectContent>
@@ -105,6 +110,7 @@ export const SelectField = ({
                   <SelectTrigger
                     className={cn(disabled && 'bg-shadcn-100')}
                     readOnly={readOnly}
+                    data-testid={dataTestId}
                   >
                     <SelectValue placeholder={placeholder} />
                   </SelectTrigger>

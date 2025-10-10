@@ -336,7 +336,7 @@ const Page = () => {
                 defaultMessage: 'Search by ID or Alias...'
               })}
               control={form.control}
-              testId="search-input"
+              data-testid="search-input"
             />
           </div>
           <EntityBox.Actions>

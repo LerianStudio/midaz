@@ -8,23 +8,38 @@ export const testDataFactory = {
   /**
    * Organization data generator
    */
-  organization: () => ({
-    id: faker.string.uuid(),
-    name: faker.company.name(),
-    legalName: faker.company.name(),
-    doingBusinessAs: faker.company.buzzPhrase(),
-    legalDocument: faker.string.numeric(14),
-    address: {
-      line1: faker.location.streetAddress(),
-      line2: faker.location.secondaryAddress(),
-      city: faker.location.city(),
-      state: faker.location.state(),
-      country: faker.location.countryCode(),
-      zipCode: faker.location.zipCode()
-    },
-    status: faker.helpers.arrayElement(['active', 'inactive']),
-    metadata: testDataFactory.metadata()
-  }),
+  organization: () => {
+    // Use specific countries that have states in the system
+    const validCountries = ['US', 'BR', 'CA']
+    const country = faker.helpers.arrayElement(validCountries)
+    
+    // Map countries to valid state codes
+    const statesByCountry: Record<string, string[]> = {
+      US: ['CA', 'NY', 'TX', 'FL', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'],
+      BR: ['SP', 'RJ', 'MG', 'BA', 'PR', 'RS', 'PE', 'CE', 'PA', 'SC'],
+      CA: ['ON', 'QC', 'BC', 'AB', 'MB', 'SK', 'NS', 'NB', 'NL', 'PE']
+    }
+    
+    const state = faker.helpers.arrayElement(statesByCountry[country] || [])
+    
+    return {
+      id: faker.string.uuid(),
+      name: faker.company.name(),
+      legalName: faker.company.name(),
+      doingBusinessAs: faker.company.buzzPhrase(),
+      legalDocument: faker.string.numeric(14),
+      address: {
+        line1: faker.location.streetAddress(),
+        line2: faker.location.secondaryAddress(),
+        city: faker.location.city(),
+        state: state,
+        country: country,
+        zipCode: faker.location.zipCode()
+      },
+      status: faker.helpers.arrayElement(['active', 'inactive']),
+      metadata: testDataFactory.metadata()
+    }
+  },
 
   /**
    * Ledger data generator
@@ -81,18 +96,26 @@ export const testDataFactory = {
   /**
    * Asset data generator
    */
-  asset: () => ({
-    id: faker.string.uuid(),
-    name: faker.finance.currencyName(),
-    code: faker.finance.currencyCode(),
-    type: faker.helpers.arrayElement([
-      'currency',
+  asset: () => {
+    const type = faker.helpers.arrayElement([
       'crypto',
       'commodity',
+      'currency',
       'others'
-    ]),
-    metadata: testDataFactory.metadata()
-  }),
+    ])
+    // Generate alphanumeric code for non-currency types
+    const code = type === 'currency'
+      ? faker.finance.currencyCode()
+      : `${faker.string.alpha(3).toUpperCase()}${faker.string.alphanumeric(5).toUpperCase().replace(/[0-9]/g, 'X')}`
+
+    return {
+      id: faker.string.uuid(),
+      name: `E2E-Asset-${faker.commerce.productName()}-${Date.now()}`,
+      code,
+      type,
+      metadata: testDataFactory.metadata()
+    }
+  },
 
   /**
    * Transaction data generator

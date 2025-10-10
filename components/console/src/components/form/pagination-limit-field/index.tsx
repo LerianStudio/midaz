@@ -22,7 +22,11 @@ export const PaginationLimitField = ({
           defaultMessage: 'Items per page'
         })}
       </p>
-      <SelectField name="limit" control={control}>
+      <SelectField
+        name="limit"
+        control={control}
+        data-testid="pagination-limit"
+      >
         {options.map((pageSize: number) => (
           <SelectItem key={pageSize} value={String(pageSize)}>
             {pageSize}
