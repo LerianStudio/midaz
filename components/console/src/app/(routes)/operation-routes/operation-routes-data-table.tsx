@@ -238,7 +238,10 @@ export const OperationRoutesDataTable: React.FC<
               defaultMessage: "You haven't created any Operation Routes yet."
             })}
           >
-            <Button onClick={handleCreate} data-testid="new-operation-route">
+            <Button
+              onClick={handleCreate}
+              data-testid="new-operation-route-empty"
+            >
               {intl.formatMessage({
                 id: 'operationRoutes.sheet.create.title',
                 defaultMessage: 'New Operation Route'
