@@ -76,6 +76,7 @@ export const TransactionModeButton = ({
                 : TransactionMode.SIMPLE
             )
           }
+          data-testid="transaction-mode-change-button"
         >
           {intl.formatMessage({
             id: 'common.change',

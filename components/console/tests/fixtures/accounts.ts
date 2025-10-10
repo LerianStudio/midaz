@@ -45,6 +45,16 @@ export const ACCOUNTS = {
       description: 'Brazilian Real account 4 for E2E tests'
     }
   },
+  BRL_ACCOUNT_5: {
+    name: 'BRL Account 5',
+    assetCode: ASSETS.BRL.code,
+    type: 'deposit',
+    alias: 'brl-account-5-e2e',
+    status: {
+      code: 'ACTIVE',
+      description: 'Brazilian Real account 5 for E2E tests'
+    }
+  },
   BTC_ACCOUNT: {
     name: 'BTC Account',
     assetCode: ASSETS.BTC.code,
