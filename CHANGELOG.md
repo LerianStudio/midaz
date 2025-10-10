@@ -1,3 +1,18 @@
+## [v3.4.0-beta.20] - 2025-10-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.19...v3.4.0-beta.20)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend**: Improved server response handling by incorporating `NextResponse`. This fix enhances the reliability of the application, ensuring that data is consistently and correctly communicated between the server and users, thus improving the overall user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been refreshed to accurately reflect recent updates and improvements. This ensures that users have a clear and accessible history of changes, aiding in understanding the software's evolution and facilitating easier tracking of updates.
+
+### 🔧 Maintenance
+- **Release Management**: Continued efforts in keeping documentation current and relevant, which indirectly benefits users by providing a reliable source of information on software changes and enhancements.
+
+
 ## [v3.4.0-beta.19] - 2025-10-09
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.18...v3.4.0-beta.19)
