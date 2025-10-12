@@ -75,9 +75,17 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
-			startDate, _ = time.Parse("2006-01-02", value)
+			if parsed, err := time.Parse("2006-01-02", value); err == nil {
+				startDate = parsed
+			} else {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+			}
 		case strings.Contains(key, "end_date"):
-			endDate, _ = time.Parse("2006-01-02", value)
+			if parsed, err := time.Parse("2006-01-02", value); err == nil {
+				endDate = parsed
+			} else {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+			}
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):

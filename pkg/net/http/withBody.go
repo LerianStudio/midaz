@@ -533,6 +533,11 @@ func validateNoNullBytes(s any) pkg.FieldValidations {
 				return
 			}
 			walk(rv.Elem(), jsonPath)
+		case reflect.Interface:
+			if rv.IsNil() {
+				return
+			}
+			walk(rv.Elem(), jsonPath)
 		case reflect.Struct:
 			rt := rv.Type()
 			for i := 0; i < rv.NumField(); i++ {
@@ -554,6 +559,19 @@ func validateNoNullBytes(s any) pkg.FieldValidations {
 		case reflect.Slice, reflect.Array:
 			for i := 0; i < rv.Len(); i++ {
 				walk(rv.Index(i), jsonPath)
+			}
+		case reflect.Map:
+			for _, key := range rv.MapKeys() {
+				val := rv.MapIndex(key)
+				keyName := "value"
+				if key.Kind() == reflect.String {
+					keyName = key.String()
+				}
+				nextPath := keyName
+				if jsonPath != "" {
+					nextPath = jsonPath + "." + keyName
+				}
+				walk(val, nextPath)
 			}
 		case reflect.String:
 			if strings.ContainsRune(rv.String(), '\x00') {
