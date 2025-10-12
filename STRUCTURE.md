@@ -1,169 +1,89 @@
 # Project Structure Overview
 
-Welcome to the comprehensive guide on the structure of our project, which is designed with a focus on scalability, maintainability, and clear separation of concerns in line with the Command Query Responsibility Segregation (CQRS) pattern. This architecture not only enhances our project's efficiency and performance but also ensures that our codebase is organized in a way that allows developers to navigate and contribute effectively.
+The Midaz repository is organized around two backend services (Onboarding and Transaction), shared libraries under `pkg`, infrastructure assets, and test harnesses. The outline below reflects the current runtime footprint.
 
 #### Directory Layout
 
-The project is structured into several key directories, each serving specific roles:
-
 ```
 MIDAZ
- |   bin
- |   chocolatey
- |---   tools
- |   components
- |---   infra
- |---   |   artifacts
- |---   |   grafana
- |---   |   postgres
- |---   |   rabbitmq
- |---   |---   etc
- |---   mdz
- |---   |   internal
- |---   |---   domain
- |---   |---   |   repository
- |---   |---   model
- |---   |---   rest
- |---   |   pkg
- |---   |---   cmd
- |---   |---   |   account
- |---   |---   |---   testdata
- |---   |---   |   asset
- |---   |---   |---   testdata
- |---   |---   |   configure
- |---   |---   |---   testdata
- |---   |---   |---   testdata 2
- |---   |---   |   ledger
- |---   |---   |---   testdata
- |---   |---   |   login
- |---   |---   |   organization
- |---   |---   |---   testdata
- |---   |---   |   portfolio
- |---   |---   |---   testdata
- |---   |---   |   root
- |---   |---   |   segment
- |---   |---   |---   testdata
- |---   |---   |   utils
- |---   |---   |   version
- |---   |---   environment
- |---   |---   factory
- |---   |---   iostreams
- |---   |---   mockutil
- |---   |---   output
- |---   |---   ptr
- |---   |---   setting
- |---   |---   tui
- |---   |   test
- |---   |---   integration
- |---   |---   |   testdata
- |---   onboarding
- |---   |   api
- |---   |   artifacts
- |---   |   cmd
- |---   |---   app
- |---   |   internal
- |---   |---   adapters
- |---   |---   |   http
- |---   |---   |---   in
- |---   |---   |---   out
- |---   |---   |   mongodb
- |---   |---   |   postgres
- |---   |---   |---   account
- |---   |---   |---   asset
- |---   |---   |---   ledger
- |---   |---   |---   organization
- |---   |---   |---   portfolio
- |---   |---   |---   segment
- |---   |---   |   rabbitmq
- |---   |---   |   redis
- |---   |---   bootstrap
- |---   |---   services
- |---   |---   |   command
- |---   |---   |   query
- |---   |   migrations
- |---   transaction
- |---   |   api
- |---   |   artifacts
- |---   |   cmd
- |---   |---   app
- |---   |   internal
- |---   |---   adapters
- |---   |---   |   http
- |---   |---   |---   in
- |---   |---   |---   out
- |---   |---   |   mongodb
- |---   |---   |   postgres
- |---   |---   |---   assetrate
- |---   |---   |---   balance
- |---   |---   |---   operation
- |---   |---   |---   transaction
- |---   |---   |   rabbitmq
- |---   |---   |   redis
- |---   |---   bootstrap
- |---   |---   services
- |---   |---   |   command
- |---   |---   |   query
- |---   |   migrations
- |   image
- |---   README
- |   pkg
- |---   constant
- |---   gold
- |---   |   parser
- |---   |   transaction
- |---   mmodel
- |---   net
- |---   |   http
- |---   shell
- |   postman
- |   scripts
+ ├── components
+ │   ├── console              # Web console (React/Tailwind)
+ │   ├── infra                # Docker-compose stacks, infra assets
+ │   ├── onboarding           # Onboarding service
+ │   │   ├── api              # Generated Swagger docs
+ │   │   ├── cmd/app          # Service entrypoint
+ │   │   └── internal
+ │   │       ├── adapters     # HTTP, database, cache, messaging adapters
+ │   │       ├── bootstrap    # Wiring of transport + services
+ │   │       └── services     # Command & query use-cases
+ │   └── transaction          # Transaction service
+ │       ├── api
+ │       ├── cmd/app
+ │       └── internal (adapters | bootstrap | services)
+ ├── image                    # Design assets & documentation
+ ├── pkg                      # Shared Go libraries (constants, models, utils, HTTP helpers)
+ ├── postman                  # API collections and Newman flows
+ ├── reports                  # Generated compliance/test reports
+ ├── scripts                  # Automation scripts (tests, tooling)
+ └── tests                    # Cross-cutting Go test suites (chaos, property, integration, etc.)
 ```
 
-#### Common Utilities (`./pkg`)
+#### Layered Architecture (Innermost → Outermost)
 
-* `console`: Description of the console utilities and their usage.
-* `libLog`: Overview of the logging framework and configuration details.
-* `libMongo`, `mpostgres`: Database utilities, including setup and configuration.
-* `libPointers`: Explanation of any custom pointer utilities or enhancements used in the project.
-* `libZap`: Details on the structured logger adapted for high-performance scenarios.
-* `libHTTP`: Information on HTTP helpers and network communication utilities.
-* `shell`: Guide on shell utilities, including scripting and automation tools.
+1. **Core Entities & Utilities**  
+   Packages without internal dependencies: `pkg/constant`, `pkg/mmodel`, `pkg/utils`, `pkg/ptr`, `pkg/gold/parser`, plus generated API specs (`components/onboarding/api`, `components/transaction/api`) and cache bindings (`components/onboarding/internal/adapters/redis`). Test harnesses (`tests/*`, `scripts/analyze_accepted`) also live here as leaf packages.
+
+2. **Shared Foundations**  
+   Cross-cutting building blocks that aggregate core types: `pkg`, `pkg/gold/transaction`, and RabbitMQ producers in both services (`components/*/internal/adapters/rabbitmq`).
+
+3. **Service Facades**  
+   Common service glue that depends on shared foundations but not concrete storage: `components/onboarding/internal/services`, `components/transaction/internal/services`, `components/transaction/internal/adapters/redis`, and transport helpers in `pkg/net/http`.
+
+4. **Infrastructure Adapters**  
+   Database integrations for MongoDB and PostgreSQL across both services (`components/*/internal/adapters/{mongodb,postgres/...}`).
+
+5. **Use-Case Orchestrators**  
+   Command/query orchestration and transactional aggregates (`components/onboarding/internal/services/{command,query}`, `components/transaction/internal/adapters/postgres/{transaction,transactionroute}`).
+
+6. **Transport Entry**  
+   HTTP routing and service exposure (`components/onboarding/internal/adapters/http/in`, `components/transaction/internal/services/{command,query}`, `components/transaction/internal/adapters/http/in`).
+
+7. **Bootstrap & Launch Wiring**  
+   Dependency orchestration that ties adapters to executables (`components/onboarding/internal/bootstrap`, `components/transaction/internal/bootstrap`).
+
+8. **Service Entrypoints**  
+   Go binaries that start each service (`components/onboarding/cmd/app`, `components/transaction/cmd/app`).
+
+#### Shared Libraries (`./pkg`)
+
+| Directory         | Purpose                                                                    |
+|-------------------|----------------------------------------------------------------------------|
+| `pkg/constant`     | Domain constants shared across services                                   |
+| `pkg/mmodel`       | Canonical domain models                                                   |
+| `pkg/utils`        | General utilities (cache helpers, jitter, etc.)                          |
+| `pkg/ptr`          | Lightweight helpers for pointer creation (e.g., `StringPtr`)             |
+| `pkg/gold`         | Gold language parser and transaction helpers                             |
+| `pkg/net/http`     | HTTP client helpers and error translation                                |
+| `pkg`              | Common error types and generic helpers used by both services             |
 
 #### Components (`./components`)
 
-##### Ledger (`./components/onboarding`)
+- **Onboarding Service**  
+  Responsible for organization onboarding flows. Internal adapters interact with MongoDB/PostgreSQL, Redis, and RabbitMQ. Command/query layers coordinate repositories before the HTTP surface exposes functionality.
 
-###### API (`./onboarding/api`)
+- **Transaction Service**  
+  Manages ledger transactions, balances, operations, and routes. Mirrors the onboarding layering with its own adapters and orchestrators.
 
-* **Endpoints** : List and describe all API endpoints, including parameters, request/response formats, and error codes.
+- **Console**  
+  React application for administrative operations. Lives outside the Go layering but shares the same component directory.
 
-###### Internal (`./onboarding/internal`)
+- **Infra**  
+  Docker Compose stacks, Grafana dashboards, and other infrastructure artifacts for local and CI environments.
 
-* **Adapters** (`./adapters`):
-  * **Database** : Connection and operation guides for MongoDB and PostgreSQL.
-* **Application Logic** (`./app`):
-  * **Command** : Documentation of command handlers, including how commands are processed.
-  * **Query** : Details on query handlers, how queries are executed, and their return structures.
-* **Domain** (`./domain`):
-  * Description of domain models such as Onboarding, Portfolio, Transaction, etc., and their relationships.
-* **Services** (`./service`):
-  * Detailed information on business logic services, their roles, and interactions in the application.
+#### Tests & Tooling
 
-##### MDZ (`./components/mdz`)
+- `tests/` holds Go-based chaos, fuzzy, property, and integration suites that exercise the services end-to-end.
+- `scripts/` centralizes automation (e.g., `run-tests.sh`, log checks, documentation tooling).
+- `postman/` provides API collections and Newman automation for workflow validation.
 
-* **Command Line Tools** (`./cmd`): Guides on how to use various command-line tools included in the MDZ component.
-* **Packages** (`./pkg`): Information on additional packages provided within the MDZ component.
-
-### Configuration (`./config`)
-
-* **Identity Schemas** (`./identity-schemas`): Guide on setting up and modifying identity schemas.
-
-### Miscellaneous
-
-#### Images (`./image`)
-
-* **README** : Purpose of images stored and how to use them in the project.
-
-#### Postman Collections (`./postman`)
-
-* **Usage** : How to import and use the provided Postman collections for API testing.
+The repository centers on the two backend services and shared libraries while retaining supporting tooling and UI assets.
