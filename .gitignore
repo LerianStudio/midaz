@@ -5,6 +5,7 @@
 ide/
 tmp/
 CLAUDE.md
+AGENTS.md
 .claude/
 .windsurf/
 .cursor/

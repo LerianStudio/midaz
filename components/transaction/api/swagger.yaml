@@ -1,5 +1,7 @@
 basePath: /
 definitions:
+  AccountRule:
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -250,6 +252,8 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateOperationRouteInput:
     type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
@@ -721,7 +725,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1043,7 +1047,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1281,8 +1285,6 @@ definitions:
           required: false
         type: string
     type: object
-  mmodel.AccountRule:
-    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1421,8 +1423,6 @@ definitions:
         example: 1
         minimum: 1
         type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
     type: object
 host: localhost:3001
 info:
@@ -2481,7 +2481,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       produces:
       - application/json
       responses:
