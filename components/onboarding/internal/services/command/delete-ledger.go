@@ -14,7 +14,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteLedgerByID deletes a ledger from the repository
+// DeleteLedgerByID performs a soft delete of a ledger from the repository.
+//
+// Deletes the ledger by setting its DeletedAt timestamp. Repository layer handles
+// cascading effects on child entities (accounts, assets, portfolios, segments).
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the ledger
+//   - id: The UUID of the ledger to delete
+//
+// Returns:
+//   - error: ErrLedgerIDNotFound if not found, or repository errors
 func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

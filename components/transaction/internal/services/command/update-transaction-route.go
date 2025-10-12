@@ -14,8 +14,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransactionRoute updates a transaction route by its ID.
-// It returns the updated transaction route and an error if the operation fails.
+// UpdateTransactionRoute updates a transaction route and manages operation route relationships.
+//
+// This function handles complex updates including:
+// - Updating route properties (title, description)
+// - Managing operation route associations (adding/removing)
+// - Updating metadata
+//
+// If operation routes are modified, the cache should be updated separately via CreateAccountingRouteCache.
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -74,8 +80,13 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	return transactionRouteUpdated, nil
 }
 
-// handleOperationRouteUpdates processes operation route relationship updates by comparing existing vs new operation routes.
-// It returns arrays of operation route IDs to add and remove, or an error if validation fails.
+// handleOperationRouteUpdates calculates which operation routes to add/remove from a transaction route.
+//
+// Compares the new list of operation route IDs against existing ones and returns:
+// - toAdd: Operation routes present in new list but not in existing
+// - toRemove: Operation routes present in existing but not in new list
+//
+// Also validates that the new operation route set contains required types (source + destination).
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

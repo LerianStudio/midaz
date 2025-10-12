@@ -8,12 +8,35 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CreateAccountingRouteCache creates a cache for the accounting route.
-// It converts the transaction route into a cache structure and stores it in Redis.
-// The cache structure is a map of operation route ids to their type and account rule.
-// The operation route ids are the uuids of the operation routes in the transaction route.
-// The type is the type of the operation route (debit or credit).
-// The account rule is the account rule of the operation route.
+// CreateAccountingRouteCache caches a transaction route in Redis for fast validation lookups.
+//
+// Transaction routes combine multiple operation routes into validated transaction flows.
+// To avoid database queries during high-throughput transaction processing, the route
+// configuration is pre-cached in Redis using msgpack for efficient serialization.
+//
+// Cache Structure (msgpack serialized):
+//
+//	{
+//	  "source": {
+//	    "operation_route_id_1": { "account": { "ruleType": "alias", "validIf": "@cash" } },
+//	    "operation_route_id_2": { "account": { "ruleType": "account_type", "validIf": ["deposit"] } }
+//	  },
+//	  "destination": {
+//	    "operation_route_id_3": { "account": { "ruleType": "alias", "validIf": "@revenue" } }
+//	  }
+//	}
+//
+// Benefits:
+// - Fast validation during transaction processing (no DB round-trip)
+// - Atomic updates with cache invalidation on route changes
+// - Redis Cluster friendly with composite keys
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - route: The transaction route with all operation routes to cache
+//
+// Returns:
+//   - error: Cache serialization or Redis storage errors
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -22,10 +45,13 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 	logger.Infof("Creating transaction route cache for transaction route with id: %s", route.ID)
 
+	// Generate Redis key for this transaction route cache
 	internalKey := libCommons.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
 
+	// Convert route to cache structure (categorized by source/destination)
 	cacheData := route.ToCache()
 
+	// Serialize to msgpack for efficient binary storage
 	cacheBytes, err := cacheData.ToMsgpack()
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert route to cache data", err)
@@ -35,6 +61,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 		return err
 	}
 
+	// Store in Redis with no TTL (persists until explicitly deleted)
 	err = uc.RedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)

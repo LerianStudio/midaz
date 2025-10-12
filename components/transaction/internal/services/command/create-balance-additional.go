@@ -15,13 +15,42 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAdditionalBalance creates a new additional balance.
+// CreateAdditionalBalance creates an additional balance bucket for an account.
+//
+// Additional balances enable sub-categorization of funds within a single account.
+// For example, a checking account might have:
+// - "default": Main available balance
+// - "rewards": Loyalty points balance
+// - "pending_transfers": Incoming transfers not yet cleared
+//
+// Use Cases:
+// - Separate balance buckets with different permissions (sending/receiving)
+// - Hold management (freeze funds in a separate bucket)
+// - Multi-purpose account segmentation
+//
+// Business Rules:
+// - External accounts cannot have additional balances (system-managed only)
+// - Each balance key must be unique per account
+// - Inherits account properties (alias, asset code, etc.) from default balance
+// - Permissions default to true if not specified
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the account
+//   - ledgerID: Ledger UUID containing the account
+//   - accountID: Account UUID to create additional balance for
+//   - cbi: Balance creation input with key and permission flags
+//
+// Returns:
+//   - *mmodel.Balance: The created additional balance
+//   - error: ErrDuplicatedAliasKeyValue if key exists, ErrAdditionalBalanceNotAllowed for external accounts
 func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
 
+	// Step 1: Check if balance with this key already exists
 	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
@@ -42,6 +71,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
 	}
 
+	// Step 2: Fetch default balance to inherit account properties
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get default balance", err)
@@ -51,12 +81,14 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
+	// Step 3: Prevent additional balances for external accounts
 	if defaultBalance.AccountType == constant.ExternalAccountType {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", nil)
 
 		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias)
 	}
 
+	// Step 4: Create additional balance inheriting from default
 	additionalBalance := &mmodel.Balance{
 		ID:             libCommons.GenerateUUIDv7().String(),
 		Alias:          defaultBalance.Alias,

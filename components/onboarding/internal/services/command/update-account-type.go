@@ -14,8 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAccountType updates an account type by its ID.
-// It returns the updated account type and an error if the operation fails.
+// UpdateAccountType updates an existing account type in the repository.
+//
+// This function performs a partial update of account type properties. The keyValue
+// field is immutable and cannot be changed after creation, as it's used as a reference
+// in account creation and validation logic.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the account type
+//   - ledgerID: The UUID of the ledger containing the account type
+//   - id: The UUID of the account type to update
+//   - input: The update input containing fields to modify (name, description, metadata)
+//
+// Returns:
+//   - *mmodel.AccountType: The updated account type with refreshed metadata
+//   - error: ErrAccountTypeNotFound if not found, or repository errors
 func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

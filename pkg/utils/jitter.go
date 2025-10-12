@@ -6,10 +6,14 @@ import (
 )
 
 const (
-	MaxRetries     = 5
+	// MaxRetries defines the default maximum number of retry attempts.
+	MaxRetries = 5
+	// InitialBackoff is the initial delay used when calculating backoff.
 	InitialBackoff = 500 * time.Millisecond
-	MaxBackoff     = 10 * time.Second
-	BackoffFactor  = 2.0
+	// MaxBackoff caps any computed backoff or jitter delay.
+	MaxBackoff = 10 * time.Second
+	// BackoffFactor is the multiplier for exponential backoff progression.
+	BackoffFactor = 2.0
 )
 
 // FullJitter returns a random delay between [0, baseDelay], capped by MaxBackoff.

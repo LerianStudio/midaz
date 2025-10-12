@@ -13,15 +13,33 @@ import (
 	"github.com/google/uuid"
 )
 
-// SendLogTransactionAuditQueue sends transaction audit log data to a message queue for processing and storage.
-// ctx is the request-scoped context for cancellation and deadlines.
-// operations is the list of operations to be logged in the audit queue.
-// organizationID is the UUID of the associated organization.
-// ledgerID is the UUID of the ledger linked to the transaction.
-// transactionID is the UUID of the transaction being logged.
+// SendLogTransactionAuditQueue publishes transaction audit logs to RabbitMQ.
+//
+// This function sends immutable audit records to a separate audit queue for:
+// - Compliance and regulatory reporting
+// - Forensic analysis and investigation
+// - Long-term audit trail preservation
+// - Tamper-evident transaction logging
+//
+// Each operation (debit/credit) in the transaction is serialized and queued
+// individually, providing granular audit trails. The audit system can consume
+// these events and store them in append-only audit storage (e.g., TimescaleDB,
+// S3, or blockchain-based audit logs).
+//
+// Note: Uses Fatalf on errors (terminates process). This is intentional as failure
+// to publish audit logs could create compliance violations. For production systems
+// that can tolerate audit loss, consider downgrading to Errorf.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - operations: List of operations (debits/credits) to audit
+//   - organizationID: Organization UUID for audit context
+//   - ledgerID: Ledger UUID for audit context
+//   - transactionID: Transaction UUID being audited
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
+	// Check if audit logging is enabled via environment variable
 	if !isAuditLogEnabled() {
 		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
 		return
@@ -32,6 +50,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 	queueData := make([]mmodel.QueueData, 0)
 
+	// Serialize each operation to audit log format
 	for _, o := range operations {
 		oLog := o.ToLog()
 
@@ -46,6 +65,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		})
 	}
 
+	// Construct audit queue message
 	queueMessage := mmodel.Queue{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
@@ -60,6 +80,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		logger.Errorf("Failed to marshal exchange message struct")
 	}
 
+	// Publish to audit queue (fatal on failure for compliance)
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxLogTransaction,
 		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
@@ -70,6 +91,9 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	}
 }
 
+// isAuditLogEnabled checks if audit logging is enabled via environment configuration.
+//
+// Returns true unless explicitly set to "false".
 func isAuditLogEnabled() bool {
 	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
 	return envValue != "false"

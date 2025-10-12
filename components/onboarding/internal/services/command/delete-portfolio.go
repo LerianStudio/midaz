@@ -14,7 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeletePortfolioByID deletes a portfolio from the repository by ids.
+// DeletePortfolioByID performs a soft delete of a portfolio from the repository.
+//
+// Soft deletes the portfolio by setting its DeletedAt timestamp. Accounts associated
+// with this portfolio are not automatically deleted; they remain in the system but
+// lose their portfolio association.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the portfolio
+//   - ledgerID: The UUID of the ledger containing the portfolio
+//   - id: The UUID of the portfolio to delete
+//
+// Returns:
+//   - error: ErrPortfolioIDNotFound if not found, or repository errors
 func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

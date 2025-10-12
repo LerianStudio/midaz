@@ -11,8 +11,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAccountType creates a new account type.
-// It returns the created account type and an error if the operation fails.
+// CreateAccountType creates a new account type and persists it in the repository.
+//
+// Account types define the categories of accounts within a chart of accounts,
+// such as "asset", "liability", "equity", "revenue", "expense", or custom types
+// like "current_assets", "fixed_assets", "accounts_payable", etc. They enable
+// enforcement of accounting rules and proper financial categorization.
+//
+// When account type validation is enabled (via ACCOUNT_TYPE_VALIDATION env var),
+// accounts can only be created if their type matches a defined AccountType in
+// the ledger's chart of accounts. This ensures consistency with accounting standards
+// and prevents the creation of accounts with undefined types.
+//
+// The keyValue field serves as the unique identifier used in account creation and
+// must follow naming conventions (alphanumeric, underscores, hyphens, no spaces).
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning this account type
+//   - ledgerID: The UUID of the ledger containing this account type
+//   - payload: The account type creation input with name, description, and keyValue
+//
+// Returns:
+//   - *mmodel.AccountType: The created account type with generated ID and metadata
+//   - error: Persistence or metadata creation errors (including unique constraint violations on keyValue)
 func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -21,6 +43,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	now := time.Now()
 
+	// Construct account type entity with validated fields
 	accountType := &mmodel.AccountType{
 		ID:             libCommons.GenerateUUIDv7(),
 		OrganizationID: organizationID,
@@ -32,6 +55,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 		UpdatedAt:      now,
 	}
 
+	// Persist the account type to PostgreSQL
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
@@ -41,6 +65,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
+	// Store custom metadata in MongoDB if provided
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)

@@ -14,8 +14,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateTransactionRoute creates a new transaction route.
-// It returns the created transaction route and an error if the operation fails.
+// CreateTransactionRoute creates a new transaction route combining operation routes.
+//
+// Transaction routes define validated transaction flows by combining multiple operation
+// routes (sources and destinations). They enforce accounting policies by ensuring
+// transactions follow predefined patterns.
+//
+// Validation Rules:
+// - Must include at least one source (debit) operation route
+// - Must include at least one destination (credit) operation route
+// - All referenced operation routes must exist
+//
+// After creation, the route should be cached via CreateAccountingRouteCache for fast validation.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the route
+//   - ledgerID: Ledger UUID containing the route
+//   - payload: Transaction route input with title, description, and operation route IDs
+//
+// Returns:
+//   - *mmodel.TransactionRoute: The created transaction route with embedded operation routes
+//   - error: ErrMissingOperationRoutes if validation fails, or persistence errors
 func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

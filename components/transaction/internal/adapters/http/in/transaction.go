@@ -30,7 +30,16 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// TransactionHandler struct that handle transaction
+// TransactionHandler handles HTTP requests for transaction operations.
+//
+// This is the **MAIN HTTP INTERFACE** for the financial ledger, providing endpoints for:
+// - Transaction creation via Gold DSL or JSON formats
+// - Inflow/outflow convenience methods
+// - Pending transaction management (commit/cancel)
+// - Transaction reversals
+// - Transaction queries and reporting
+//
+// Supports both synchronous and asynchronous processing modes via RABBITMQ_TRANSACTION_ASYNC env var.
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

@@ -14,7 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateLedgerByID update a ledger from the repository.
+// UpdateLedgerByID updates an existing ledger in the repository.
+//
+// This function performs a partial update of ledger properties. Only the fields
+// provided in the input will be updated; omitted fields remain unchanged.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the ledger
+//   - id: The UUID of the ledger to update
+//   - uli: The update input containing fields to modify (name, status, metadata)
+//
+// Returns:
+//   - *mmodel.Ledger: The updated ledger with refreshed metadata
+//   - error: ErrLedgerIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid.UUID, uli *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -23,12 +36,14 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 
 	logger.Infof("Trying to update ledger: %v", uli)
 
+	// Construct partial update entity with only provided fields
 	ledger := &mmodel.Ledger{
 		Name:           uli.Name,
 		OrganizationID: organizationID.String(),
 		Status:         uli.Status,
 	}
 
+	// Persist the update to PostgreSQL
 	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, organizationID, id, ledger)
 	if err != nil {
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
@@ -48,6 +63,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		return nil, err
 	}
 
+	// Update metadata in MongoDB using JSON Merge Patch semantics
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String(), uli.Metadata)
 	if err != nil {
 		logger.Errorf("Error updating metadata: %v", err)

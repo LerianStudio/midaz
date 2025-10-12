@@ -14,7 +14,14 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// TransactionExecute func that send balances, transaction and operations to execute sync/async.
+// TransactionExecute routes transaction processing to async or sync execution based on configuration.
+//
+// This is the execution mode dispatcher that enables high-throughput async processing
+// or synchronous execution based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
+//
+// Modes:
+// - async (default): Queues to RabbitMQ for worker consumption (high throughput)
+// - sync: Immediate database execution (low latency, testing)
 func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		return uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
@@ -23,7 +30,23 @@ func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledge
 	}
 }
 
-// SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
+// SendBTOExecuteAsync queues balance-transaction-operations for async worker processing.
+//
+// This implements the async execution path for high-throughput transaction processing:
+// 1. Serializes transaction, balances, and validation results to msgpack
+// 2. Publishes to RabbitMQ for worker consumption
+// 3. Falls back to sync processing if RabbitMQ is unavailable (resilience)
+//
+// The async pattern enables:
+// - High throughput (workers process in parallel)
+// - Decoupling validation from execution
+// - Automatic retry via RabbitMQ redelivery
+// - Back-pressure handling via queue depth monitoring
+//
+// Fallback Behavior:
+// If RabbitMQ publish fails, immediately processes the transaction synchronously
+// rather than returning an error. This ensures transactions complete even if the
+// message broker is temporarily unavailable.
 func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -32,6 +55,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	queueData := make([]mmodel.QueueData, 0)
 
+	// Package transaction data for queue
 	value := transaction.TransactionQueue{
 		Validate:    validate,
 		Balances:    blc,
@@ -39,6 +63,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		ParseDSL:    parseDSL,
 	}
 
+	// Serialize to msgpack for efficient binary transmission
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
@@ -68,6 +93,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		return err
 	}
 
+	// Attempt to publish to RabbitMQ queue
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxSendBTOQueue,
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
@@ -76,6 +102,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	); err != nil {
 		logger.Warnf("Failed to send message to queue: %s", err.Error())
 
+		// Fallback: Process synchronously if RabbitMQ is unavailable (resilience pattern)
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
 		err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTOQueue, queueMessage)
@@ -97,7 +124,17 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	return nil
 }
 
-// CreateBTOExecuteSync func that send balances, transaction and operations to execute in database sync.
+// CreateBTOExecuteSync processes balance-transaction-operations synchronously without queueing.
+//
+// This is the synchronous execution path that immediately processes transactions in
+// the request thread. Used when:
+// - RABBITMQ_TRANSACTION_ASYNC is set to false
+// - Low-latency response required
+// - Testing/debugging scenarios
+// - Simple deployments without RabbitMQ workers
+//
+// Unlike async mode, this blocks the HTTP request until transaction completes,
+// providing immediate confirmation but lower throughput.
 func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

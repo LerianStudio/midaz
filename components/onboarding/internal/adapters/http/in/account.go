@@ -16,7 +16,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// AccountHandler struct contains an account use case for managing account related operations.
+// AccountHandler handles HTTP requests for account operations.
+//
+// Coordinates between HTTP layer and business logic (command/query use cases),
+// providing RESTful API endpoints for account lifecycle management.
 type AccountHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

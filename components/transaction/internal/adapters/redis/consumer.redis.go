@@ -21,9 +21,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// addSubLua contains the embedded Lua script for atomic balance updates.
+// The script handles complex transaction authorization logic including holds,
+// releases, debits, and credits in a single atomic Redis operation.
+//
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
+// TransactionBackupQueue is the Redis key for the backup queue where failed
+// transactions are stored for retry processing.
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisRepository provides an interface for redis.
@@ -63,6 +69,8 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	return r
 }
 
+// Set stores a key-value pair in Redis with the specified TTL.
+// Returns an error if the operation fails.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -88,6 +96,8 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// SetNX sets a key-value pair only if the key doesn't already exist (SET if Not eXists).
+// Returns true if the key was set, false if it already existed.
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -113,6 +123,8 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	return isLocked, nil
 }
 
+// Get retrieves a value from Redis by key.
+// Returns the value and nil error if found, empty string if key doesn't exist.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -195,6 +207,8 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	return out, nil
 }
 
+// Del deletes one or more keys from Redis.
+// Returns an error if the operation fails.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -220,6 +234,8 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }
 
+// Incr atomically increments the value at the given key by 1.
+// Returns the new value after increment.
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -238,6 +254,9 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// AddSumBalancesRedis executes the Lua script for atomic balance updates.
+// Handles complex transaction flows including holds, releases, debits, and credits.
+// Returns updated balances or error if validation fails.
 func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -390,6 +409,8 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	return balances, nil
 }
 
+// SetBytes stores a byte array in Redis with the specified TTL.
+// Used for binary data or pre-serialized content.
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -415,6 +436,8 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	return nil
 }
 
+// GetBytes retrieves a byte array from Redis by key.
+// Returns the raw bytes stored at the key.
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -440,7 +463,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	return val, nil
 }
 
-// AddMessageToQueue add message to redis queue
+// AddMessageToQueue adds a message to a Redis hash queue for backup processing.
+// Used to store failed transactions for later retry.
 func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -465,7 +489,8 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	return nil
 }
 
-// ReadMessageFromQueue read an especific message from redis queue
+// ReadMessageFromQueue reads a specific message from the Redis backup queue.
+// Returns the message bytes or error if the key doesn't exist.
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -491,7 +516,8 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	return data, nil
 }
 
-// ReadAllMessagesFromQueue read all messages from redis queue
+// ReadAllMessagesFromQueue reads all messages from the Redis backup queue.
+// Returns a map of key-value pairs representing all queued messages.
 func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -517,7 +543,8 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	return data, nil
 }
 
-// RemoveMessageFromQueue remove message from redis queue
+// RemoveMessageFromQueue removes a message from the Redis backup queue.
+// Used after successful retry processing to clean up the queue.
 func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

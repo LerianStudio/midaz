@@ -23,8 +23,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to balance template entities.
-// It defines methods for creating, finding, listing, updating, and deleting balance templates.
+// Repository provides an interface for balance persistence operations.
+//
+// This is a **CRITICAL FINANCIAL INTERFACE** that defines atomic balance update operations
+// with optimistic locking support. All balance modifications must use version checking
+// to prevent lost updates and race conditions.
+//
+// Key operations:
+// - BalancesUpdate: Atomic batch updates with version checking (CRITICAL for transaction processing)
+// - ListByAliases: Fast lookup for transaction routing
+// - Create: Initialize balances for new accounts
+// - Update: Modify balance permissions (allowSending/allowReceiving)
 //
 //go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
@@ -41,13 +50,15 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
-// BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
+// BalancePostgreSQLRepository implements Repository using PostgreSQL.
 type BalancePostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
+// NewBalancePostgreSQLRepository creates a new PostgreSQL balance repository instance.
+//
+// Panics if database connection fails (fail-fast during initialization).
 func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
 	c := &BalancePostgreSQLRepository{
 		connection: pc,
@@ -654,12 +665,48 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 }
 
 // BalancesUpdate updates the balances in the database.
+// BalancesUpdate atomically updates multiple balances using optimistic locking in a database transaction.
+//
+// This is the **CRITICAL DATABASE-LEVEL FUNCTION** that implements the atomic balance update
+// mechanism with optimistic concurrency control. It ensures financial accuracy by:
+//
+// 1. **Database Transaction**: All balance updates occur within a single PostgreSQL transaction
+//   - Either ALL balances update successfully, or ALL changes are rolled back
+//   - Prevents partial transaction execution that would corrupt the ledger
+//
+// 2. **Optimistic Locking**: Uses version field to detect concurrent modifications
+//   - WHERE clause includes "version < $N" to ensure no other transaction modified the balance
+//   - If version check fails (rowsAffected = 0), the update is skipped
+//   - Higher-level code should detect missing updates and return ErrLockVersionAccountBalance
+//
+// 3. **Deferred Transaction Management**: Automatically commits on success, rolls back on error
+//
+// The UPDATE query structure:
+//
+//	UPDATE balance SET available = $1, on_hold = $2, version = $3, updated_at = $4
+//	WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND version < $8 AND deleted_at IS NULL
+//
+// Critical Notes:
+// - Version check uses "version < $N" not "version = $N-1" to handle edge cases
+// - Zero rows affected means concurrent modification occurred (optimistic lock failure)
+// - Currently continues on lock failure (logs but doesn't fail) - caller must verify all updates succeeded
+// - TODO: Consider returning error on rowsAffected = 0 instead of continuing, to force retry at caller level
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID for scoping (WHERE clause)
+//   - ledgerID: Ledger UUID for scoping (WHERE clause)
+//   - balances: Slice of balances with new Available, OnHold, and incremented Version values
+//
+// Returns:
+//   - error: Database connection, transaction, or execution errors
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
 
+	// Step 1: Get database connection
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
@@ -667,6 +714,8 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		return err
 	}
 
+	// Step 2: Begin database transaction for atomicity
+	// All balance updates must succeed together or fail together
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
@@ -674,6 +723,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		return err
 	}
 
+	// Step 3: Setup deferred transaction finalization (commit or rollback)
 	defer func() {
 		if err != nil {
 			rollbackErr := tx.Rollback()
@@ -692,6 +742,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		}
 	}()
 
+	// Step 4: Update each balance with optimistic locking
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
@@ -699,6 +750,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 
 		var args []any
 
+		// Build SET clause dynamically with parameterized values
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Available)
 
@@ -711,6 +763,8 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 		args = append(args, time.Now(), organizationID, ledgerID, balance.ID, balance.Version)
 
+		// Build UPDATE query with optimistic locking (version < $N)
+		// This prevents lost updates if another transaction modified the balance concurrently
 		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
 			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
 			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
@@ -736,6 +790,9 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			return err
 		}
 
+		// TODO: Consider returning error here instead of continuing. Zero rows affected means
+		// optimistic lock failure (concurrent modification). Currently logs and continues,
+		// but this could mask concurrency issues. Caller should verify all updates succeeded.
 		if rowsAffected == 0 {
 			logger.Infof("Zero rows affected")
 

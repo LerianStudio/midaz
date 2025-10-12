@@ -1,10 +1,11 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/gofiber/fiber/v2"
 	"net/http"
 	"strconv"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/gofiber/fiber/v2"
 )
 
 // Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.
@@ -96,7 +97,7 @@ func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 	})
 }
 
-// InternalServerError sends an HTTP 500 Internal Server Error response
+// InternalServerError sends an HTTP 500 Internal Server Error response.
 func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 		"code":    code,

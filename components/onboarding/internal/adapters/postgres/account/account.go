@@ -8,7 +8,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AccountPostgreSQLModel represents the entity Account into SQL context in Database
+// AccountPostgreSQLModel represents the account entity in PostgreSQL context.
+//
+// Maps domain account entity to database schema with SQL-specific types.
 type AccountPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -29,7 +31,7 @@ type AccountPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an AccountPostgreSQLModel to a response entity Account
+// ToEntity converts the PostgreSQL model to a domain account entity.
 func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -62,7 +64,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	return acc
 }
 
-// FromEntity converts a request entity Account to AccountPostgreSQLModel
+// FromEntity converts a domain account entity to the PostgreSQL model.
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if account.ID != "" {

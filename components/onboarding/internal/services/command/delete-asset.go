@@ -14,7 +14,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteAssetByID delete an asset from the repository by ids.
+// DeleteAssetByID performs a soft delete of an asset and its associated external account.
+//
+// This function implements a two-step deletion process:
+// 1. Delete the external account automatically created for this asset (e.g., "@external/USD")
+// 2. Delete the asset itself
+//
+// The external account must be deleted first to maintain referential integrity.
+// Both deletions are soft deletes (setting DeletedAt timestamp) to preserve audit trails.
+//
+// Repository layer should enforce that assets with non-zero balances in accounts
+// cannot be deleted (ErrBalanceRemainingDeletion).
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the asset
+//   - ledgerID: The UUID of the ledger containing the asset
+//   - id: The UUID of the asset to delete
+//
+// Returns:
+//   - error: ErrAssetIDNotFound if not found, ErrBalanceRemainingDeletion if balances exist, or repository errors
 func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -23,6 +42,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Remove asset for id: %s", id)
 
+	// Step 1: Retrieve the asset to get its code for external account lookup
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
@@ -42,6 +62,8 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		return err
 	}
 
+	// Step 2: Delete the associated external account first (e.g., "@external/USD").
+	// External accounts are auto-created with assets and must be cleaned up together.
 	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
 
 	acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
@@ -64,6 +86,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		}
 	}
 
+	// Step 3: Delete the asset itself after external account is removed
 	if err := uc.AssetRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())

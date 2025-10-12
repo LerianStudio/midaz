@@ -14,7 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateSegmentByID update a segment from the repository by given id.
+// UpdateSegmentByID updates an existing segment in the repository.
+//
+// This function performs a partial update of segment properties. Only the fields
+// provided in the input will be updated; omitted fields remain unchanged.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the segment
+//   - ledgerID: The UUID of the ledger containing the segment
+//   - id: The UUID of the segment to update
+//   - upi: The update input containing fields to modify (name, status, metadata)
+//
+// Returns:
+//   - *mmodel.Segment: The updated segment with refreshed metadata
+//   - error: ErrSegmentIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateSegmentInput) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

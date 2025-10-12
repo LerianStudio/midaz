@@ -7,6 +7,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
+// UpdateMetadata updates entity metadata using JSON Merge Patch semantics (RFC 7396).
+//
+// Same pattern as onboarding service - merges new metadata with existing.
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

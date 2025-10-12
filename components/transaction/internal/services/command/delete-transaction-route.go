@@ -14,8 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteTransactionRouteByID delete a transaction route from the repository by ids.
-// It will also delete the relationships between the transaction route and the operation routes.
+// DeleteTransactionRouteByID deletes a transaction route and its operation route relationships.
+//
+// This function removes both the transaction route and its associations with operation routes.
+// The cache is NOT automatically deleted here - caller must call DeleteTransactionRouteCache separately.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the route
+//   - ledgerID: Ledger UUID containing the route
+//   - transactionRouteID: UUID of the transaction route to delete
+//
+// Returns:
+//   - error: ErrOperationRouteNotFound if not found, or repository errors
 func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

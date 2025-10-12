@@ -17,8 +17,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Repository provides an interface for operations related on mongodb a metadata entities.
-// It is used to create, find, update and delete metadata entities.
+// Repository provides an interface for MongoDB metadata operations.
+//
+// Enables flexible, schema-less storage for custom entity attributes without
+// requiring PostgreSQL schema migrations. Supports batch operations for efficiency.
 //
 //go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
@@ -30,13 +32,15 @@ type Repository interface {
 	Delete(ctx context.Context, collection, id string) error
 }
 
-// MetadataMongoDBRepository is a MongoDD-specific implementation of the MetadataRepository.
+// MetadataMongoDBRepository implements Repository using MongoDB.
 type MetadataMongoDBRepository struct {
 	connection *libMongo.MongoConnection
 	Database   string
 }
 
-// NewMetadataMongoDBRepository returns a new instance of MetadataMongoDBLRepository using the given MongoDB connection.
+// NewMetadataMongoDBRepository creates a new MongoDB metadata repository instance.
+//
+// Panics if MongoDB connection fails (fail-fast during initialization).
 func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDBRepository {
 	r := &MetadataMongoDBRepository{
 		connection: mc,

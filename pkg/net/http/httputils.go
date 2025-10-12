@@ -34,7 +34,7 @@ type QueryHeader struct {
 	ToAssetCodes  []string
 }
 
-// Pagination entity from query parameter from get apis
+// Pagination represents paging and date range parameters used across list endpoints.
 type Pagination struct {
 	Limit     int
 	Page      int
@@ -44,7 +44,8 @@ type Pagination struct {
 	EndDate   time.Time
 }
 
-// ValidateParameters validate and return struct of default parameters
+// ValidateParameters parses query param strings into a QueryHeader applying defaults
+// and validation for dates, cursor and sort order.
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata      *bson.M
@@ -120,7 +121,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-// ValidateDates validate dates
+// validateDates normalizes and validates provided start/end dates.
 func validateDates(startDate, endDate *time.Time) error {
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
@@ -152,7 +153,7 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
-// ValidatePagination validate pagination parameters
+// validatePagination validates pagination cursor, sort order and limit.
 func validatePagination(cursor, sortOrder string, limit int) error {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
@@ -175,22 +176,28 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
+// GetIdempotencyKeyAndTTL extracts idempotency headers and returns key and TTL.
+// TODO: verify unit handling for TTL. Current code interprets TTL as seconds but
+// returns time.Duration without multiplying by time.Second when using libRedis.TTL.
+// Confirm libRedis.TTL semantics and adjust accordingly.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-    ikey := c.Get(libConstants.IdempotencyKey)
-    iTTL := c.Get(libConstants.IdempotencyTTL)
+	ikey := c.Get(libConstants.IdempotencyKey)
+	iTTL := c.Get(libConstants.IdempotencyTTL)
 
-    // Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-    t, err := strconv.Atoi(iTTL)
-    if err != nil || t <= 0 {
-        t = libRedis.TTL
-    }
+	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+	t, err := strconv.Atoi(iTTL)
+	if err != nil || t <= 0 {
+		t = libRedis.TTL
+	}
 
-    ttl := time.Duration(t)
+	ttl := time.Duration(t)
 
-    return ikey, ttl
+	return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
+// GetFileFromHeader reads the uploaded Gold DSL file from the multipart form.
+// It validates extension and emptiness, returning its textual contents.
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
 	if err != nil {
@@ -213,6 +220,8 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	defer func(file multipart.File) {
 		err := file.Close()
 		if err != nil {
+			// TODO: Replace panic with proper error handling. Panicking on file close
+			// failure is too aggressive and will crash the service. Should log error instead.
 			panic(0)
 		}
 	}(file)
@@ -227,6 +236,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	return fileString, nil
 }
 
+// ToOffsetPagination converts QueryHeader to offset-based Pagination.
 func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -237,6 +247,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	}
 }
 
+// ToCursorPagination converts QueryHeader to cursor-based Pagination.
 func (qh *QueryHeader) ToCursorPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,

@@ -34,6 +34,8 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	return r
 }
 
+// Set stores a key-value pair in Redis with the specified TTL.
+// If ttl is <= 0, a default TTL is applied.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -63,10 +65,14 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// Get retrieves a value from Redis by key.
+// TODO: Implementation pending - this method currently returns nil without performing any operation.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
 	return nil
 }
 
+// Del deletes a key from Redis.
+// TODO: Implementation pending - this method currently returns nil without performing any operation.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }

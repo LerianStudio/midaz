@@ -14,8 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteAccountTypeByID deletes an account type by its ID.
-// It returns an error if the operation fails or if the account type is not found.
+// DeleteAccountTypeByID performs a soft delete of an account type from the repository.
+//
+// Soft deletes the account type by setting its DeletedAt timestamp. Existing accounts
+// using this type remain valid; the deletion prevents new accounts from using this type.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the account type
+//   - ledgerID: The UUID of the ledger containing the account type
+//   - id: The UUID of the account type to delete
+//
+// Returns:
+//   - error: ErrAccountTypeNotFound if not found, or repository errors
 func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

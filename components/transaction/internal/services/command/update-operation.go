@@ -14,7 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateOperation update an operation from the repository by given id.
+// UpdateOperation updates an operation's description.
+//
+// Only description can be updated; amounts and balances are immutable for audit trail integrity.
 func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

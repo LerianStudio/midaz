@@ -15,8 +15,11 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const midazName = "midaz"
-const routingName = "routing"
+// Service identification constants used for telemetry and middleware.
+const (
+	midazName   = "midaz"   // Service name identifier
+	routingName = "routing" // Routing component identifier
+)
 
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
@@ -61,7 +64,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)
 
-	//Balance
+	// Balance
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "patch"), http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "delete"), http.ParseUUIDPathParameters("balance"), bh.DeleteBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetAllBalances)

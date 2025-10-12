@@ -13,7 +13,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountByID get an Account from the repository by given id.
+// GetAccountByID retrieves a single account by its ID, enriched with metadata.
+//
+// Fetches the account from PostgreSQL and enriches it with custom metadata from MongoDB.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the account
+//   - ledgerID: The UUID of the ledger containing the account
+//   - portfolioID: Optional portfolio UUID for scoped queries
+//   - id: The UUID of the account to retrieve
+//
+// Returns:
+//   - *mmodel.Account: The account with enriched metadata
+//   - error: ErrAccountIDNotFound if not found, or repository errors
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -22,6 +35,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 	logger.Infof("Retrieving account for id: %s", id)
 
+	// Fetch account from PostgreSQL
 	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id)
 	if err != nil {
 		logger.Errorf("Error getting account on repo by id: %v", err)
@@ -35,6 +49,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 		return nil, err
 	}
 
+	// Enrich with metadata from MongoDB if account exists
 	if account != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String())
 		if err != nil {

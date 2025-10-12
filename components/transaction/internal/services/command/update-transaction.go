@@ -14,7 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransaction update a transaction from the repository by given id.
+// UpdateTransaction updates an existing transaction's description in the repository.
+//
+// Only the description field can be updated; other fields are immutable after creation
+// to maintain audit trail integrity.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the transaction
+//   - ledgerID: Ledger UUID containing the transaction
+//   - transactionID: UUID of the transaction to update
+//   - uti: Update input containing new description and metadata
+//
+// Returns:
+//   - *transaction.Transaction: The updated transaction with refreshed metadata
+//   - error: ErrTransactionIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -58,7 +72,20 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	return transUpdated, nil
 }
 
-// UpdateTransactionStatus update a status transaction from the repository by given id.
+// UpdateTransactionStatus updates a transaction's status (e.g., PENDING -> APPROVED/CANCELED).
+//
+// This function is used when committing or canceling pending transactions.
+// Status transitions:
+// - PENDING -> APPROVED: Commit the transaction, finalize balance changes
+// - PENDING -> CANCELED: Rollback the transaction, release held funds
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - tran: Transaction entity with new status to apply
+//
+// Returns:
+//   - *transaction.Transaction: The updated transaction
+//   - error: ErrTransactionIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

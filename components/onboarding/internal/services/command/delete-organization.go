@@ -14,7 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteOrganizationByID fetch a new organization from the repository
+// DeleteOrganizationByID performs a soft delete of an organization from the repository.
+//
+// This function implements soft delete (setting DeletedAt timestamp) to maintain
+// audit trails. Deleted organizations remain in the database but are excluded from
+// normal queries. Child ledgers and accounts are handled by cascading constraints
+// or business logic in the repository layer.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - id: The UUID of the organization to delete
+//
+// Returns:
+//   - error: ErrOrganizationIDNotFound if not found, or repository errors
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -14,7 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdatePortfolioByID update a portfolio from the repository by given id.
+// UpdatePortfolioByID updates an existing portfolio in the repository.
+//
+// This function performs a partial update of portfolio properties. Only the fields
+// provided in the input will be updated; omitted fields remain unchanged.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the portfolio
+//   - ledgerID: The UUID of the ledger containing the portfolio
+//   - id: The UUID of the portfolio to update
+//   - upi: The update input containing fields to modify (name, entityID, status, metadata)
+//
+// Returns:
+//   - *mmodel.Portfolio: The updated portfolio with refreshed metadata
+//   - error: ErrPortfolioIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

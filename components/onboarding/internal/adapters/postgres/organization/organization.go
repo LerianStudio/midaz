@@ -9,7 +9,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database
+// OrganizationPostgreSQLModel represents the organization entity in PostgreSQL context.
+//
+// Maps domain organization entity to database schema with SQL-specific types.
 type OrganizationPostgreSQLModel struct {
 	ID                   string
 	ParentOrganizationID *string
@@ -25,7 +27,7 @@ type OrganizationPostgreSQLModel struct {
 	Metadata             map[string]any
 }
 
-// ToEntity converts an OrganizationPostgreSQLModel to entity.Organization
+// ToEntity converts the PostgreSQL model to a domain organization entity.
 func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -52,7 +54,7 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 	return organization
 }
 
-// FromEntity converts an entity.Organization to OrganizationPostgresModel
+// FromEntity converts a domain organization entity to the PostgreSQL model.
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
 	*t = OrganizationPostgreSQLModel{
 		ID:                   libCommons.GenerateUUIDv7().String(),

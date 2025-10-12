@@ -6,9 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
-const beginningKey = "{"
-const keySeparator = ":"
-const endKey = "}"
+// Redis key formatting constants used to build cluster-aware cache keys.
+// The curly braces ensure all related keys hash to the same slot in Redis Cluster.
+const (
+	beginningKey = "{"
+	keySeparator = ":"
+	endKey       = "}"
+)
 
 // GenericInternalKey returns a key with the following format to be used on redis cluster:
 // "name:{contextName}:organizationID:ledgerID:key"

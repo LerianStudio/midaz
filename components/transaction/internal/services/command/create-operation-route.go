@@ -12,7 +12,34 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOperationRoute creates a new operation route.
+// CreateOperationRoute creates a new operation route and persists it in the repository.
+//
+// Operation routes define reusable validation rules for transaction operations (sources/destinations).
+// They enable enforcement of accounting policies by specifying which accounts can participate
+// in specific types of operations.
+//
+// Use Cases:
+// - Restrict cash-in operations to specific deposit accounts (by alias)
+// - Limit expense posting to accounts of type "expense" (by account type)
+// - Define standard entry patterns for common transaction flows
+//
+// Account Validation Rules:
+// - ruleType="alias": Match exact account alias (e.g., "@cash_account")
+// - ruleType="account_type": Match account types (e.g., ["expense", "liability"])
+//
+// OperationType values:
+// - "source": Defines valid source (from) accounts for debits
+// - "destination": Defines valid destination (to) accounts for credits
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning this route
+//   - ledgerID: Ledger UUID containing this route
+//   - payload: Operation route configuration including validation rules
+//
+// Returns:
+//   - *mmodel.OperationRoute: The created operation route with generated ID
+//   - error: Persistence or metadata validation errors
 func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -9,7 +9,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// BalancePostgreSQLModel represents the entity Balance into SQL context in Database
+// BalancePostgreSQLModel represents the balance entity in PostgreSQL context.
+//
+// This model maps the domain balance entity to the database schema, handling
+// SQL-specific types like sql.NullTime for optional timestamps.
 type BalancePostgreSQLModel struct {
 	ID             string
 	OrganizationID string
@@ -29,7 +32,14 @@ type BalancePostgreSQLModel struct {
 	DeletedAt      sql.NullTime
 }
 
-// FromEntity converts a request entity Balance to BalancePostgreSQLModel
+// FromEntity converts a domain balance entity to the PostgreSQL model.
+//
+// This method maps domain types to SQL types and applies defaults:
+// - Sets "default" as the Key if not specified
+// - Converts DeletedAt pointer to sql.NullTime
+//
+// Parameters:
+//   - balance: The domain balance entity to convert
 func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	*b = BalancePostgreSQLModel{
 		ID:             balance.ID,
@@ -60,7 +70,10 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	}
 }
 
-// ToEntity converts an BalancePostgreSQLModel to a response entity Balance
+// ToEntity converts the PostgreSQL model back to a domain balance entity.
+//
+// Returns:
+//   - *mmodel.Balance: The domain balance entity
 func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 	balance := &mmodel.Balance{
 		ID:             b.ID,

@@ -14,7 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteSegmentByID delete a segment from the repository by ids.
+// DeleteSegmentByID performs a soft delete of a segment from the repository.
+//
+// Soft deletes the segment by setting its DeletedAt timestamp. Accounts associated
+// with this segment are not automatically deleted; they remain in the system but
+// lose their segment association.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the segment
+//   - ledgerID: The UUID of the ledger containing the segment
+//   - id: The UUID of the segment to delete
+//
+// Returns:
+//   - error: ErrSegmentIDNotFound if not found, or repository errors
 func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

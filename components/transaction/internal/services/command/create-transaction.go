@@ -14,7 +14,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateTransaction creates a new transaction persisting data in the repository.
+// CreateTransaction creates a new transaction record from a parsed Gold DSL transaction.
+//
+// This function creates the transaction header record in PostgreSQL along with optional
+// metadata in MongoDB. It does NOT update balances or create operations - those are
+// handled by the async processing pipeline (CreateBalanceTransactionOperationsAsync).
+//
+// The transaction is created in APPROVED status and stores:
+// - The complete Gold DSL body for audit and replay purposes
+// - Core transaction attributes (amount, asset code, description)
+// - Parent transaction reference (for reversals/child transactions)
+// - Chart of accounts group reference
+//
+// This function is typically called as part of a larger transaction creation flow
+// where balance validation and updates happen separately.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the transaction
+//   - ledgerID: Ledger UUID containing the transaction
+//   - transactionID: Parent transaction UUID (or uuid.Nil if no parent)
+//   - t: Parsed Gold DSL transaction structure with all transaction details
+//
+// Returns:
+//   - *transaction.Transaction: The created transaction header record
+//   - error: Persistence or metadata validation errors
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -23,12 +47,14 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to create new transaction")
 
+	// All transactions start in APPROVED status (balance updates handled elsewhere)
 	description := constant.APPROVED
 	status := transaction.Status{
 		Code:        description,
 		Description: &description,
 	}
 
+	// Link to parent transaction if provided (used for reversals, corrections, etc.)
 	var parentTransactionID *string
 
 	if transactionID != uuid.Nil {
@@ -36,6 +62,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		parentTransactionID = &value
 	}
 
+	// Construct transaction header with Gold DSL body preserved for audit
 	save := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
@@ -51,6 +78,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		UpdatedAt:                time.Now(),
 	}
 
+	// Persist transaction header to PostgreSQL
 	tran, err := uc.TransactionRepo.Create(ctx, save)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction on repo", err)
@@ -60,6 +88,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
+	// Store custom metadata in MongoDB if provided
 	if t.Metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)

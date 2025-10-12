@@ -6,4 +6,3 @@ package ptr
 //
 // The helpers return addresses of values while keeping call sites concise and
 // readable, e.g., ptr.StringPtr("value").
-

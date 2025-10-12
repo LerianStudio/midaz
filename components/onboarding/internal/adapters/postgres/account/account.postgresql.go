@@ -24,8 +24,16 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to account entities.
-// It defines methods for creating, retrieving, updating, and deleting accounts in the database.
+// Repository provides an interface for account persistence operations.
+//
+// Defines methods for managing account lifecycle with support for:
+// - CRUD operations with soft deletes
+// - Alias-based lookups (critical for transaction routing)
+// - Batch operations for efficiency
+// - Portfolio and segment scoping
+// - Parent-child account relationships
+//
+//go:generate mockgen --destination=account.postgresql_mock.go --package=account . Repository
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
@@ -42,13 +50,15 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
+// AccountPostgreSQLRepository implements Repository using PostgreSQL.
 type AccountPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
+// NewAccountPostgreSQLRepository creates a new PostgreSQL account repository instance.
+//
+// Panics if database connection fails (fail-fast during initialization).
 func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
@@ -63,7 +73,10 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 	return c
 }
 
-// Create a new account entity into Postgresql and returns it.
+// Create persists a new account to PostgreSQL.
+//
+// Handles unique constraint violations (alias, parent account) and returns appropriate
+// business errors. Uses parameterized queries to prevent SQL injection.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -978,7 +991,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

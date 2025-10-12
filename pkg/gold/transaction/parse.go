@@ -10,14 +10,18 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// TransactionVisitor walks the Gold transaction parse tree producing a
+// lib-commons transaction structure.
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 }
 
+// NewTransactionVisitor constructs a new TransactionVisitor instance.
 func NewTransactionVisitor() *TransactionVisitor {
 	return new(TransactionVisitor)
 }
 
+// Visit dispatches node processing to the underlying visitor.
 func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) }
 
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
@@ -332,6 +336,7 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 	}
 }
 
+// Parse parses a Gold DSL string and returns a lib-commons Transaction.
 func Parse(dsl string) any {
 	input := antlr.NewInputStream(dsl)
 	lexer := parser.NewTransactionLexer(input)

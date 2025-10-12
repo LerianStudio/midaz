@@ -8,8 +8,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// ReloadOperationRouteCache reloads the cache for all transaction routes associated with the given operation route.
-// It retrieves all transaction routes linked to the operation route and recreates their cache entries.
+// ReloadOperationRouteCache refreshes Redis cache for all transaction routes using an operation route.
+//
+// When an operation route is updated, all transaction routes referencing it need their
+// caches refreshed to reflect the changes. This function finds all affected transaction
+// routes and regenerates their Redis cache entries.
+//
+// Use Case: After updating an operation route's account validation rules, all transaction
+// routes using that rule must have their caches updated to enforce the new rules.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID for scoping
+//   - ledgerID: Ledger UUID for scoping
+//   - id: UUID of the operation route that was updated
+//
+// Returns:
+//   - error: Repository or cache errors (logs and continues on individual failures)
 func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

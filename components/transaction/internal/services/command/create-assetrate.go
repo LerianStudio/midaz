@@ -13,7 +13,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOrUpdateAssetRate creates or updates an asset rate.
+// CreateOrUpdateAssetRate creates or updates an exchange rate between two assets.
+//
+// Asset rates enable multi-currency/multi-asset transactions by defining conversion
+// rates between asset pairs (e.g., USD to EUR, BTC to USD). If a rate already exists
+// for the currency pair, it updates the existing rate; otherwise, creates a new one.
+//
+// Validation:
+// - Both asset codes must be valid (uppercase, alphanumeric)
+// - Automatically generates externalID if not provided
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: Organization UUID owning the rate
+//   - ledgerID: Ledger UUID containing the rate
+//   - cari: Asset rate input with from/to codes, rate, scale, source, TTL
+//
+// Returns:
+//   - *assetrate.AssetRate: The created or updated asset rate
+//   - error: Validation or persistence errors
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

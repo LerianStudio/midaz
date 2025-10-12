@@ -1,5 +1,7 @@
 package constant
 
+// UUIDPathParameters contains the canonical list of URL path parameter names
+// that should be validated as UUIDs across services.
 var UUIDPathParameters = []string{
 	"id",
 	"organization_id",
@@ -18,5 +20,10 @@ var UUIDPathParameters = []string{
 	"transaction_route_id",
 }
 
+// XTotalCount is the standard HTTP header used to return total items count in
+// paginated responses.
 const XTotalCount = "X-Total-Count"
+
+// ContentLength is the standard HTTP header representing payload length in
+// bytes.
 const ContentLength = "Content-Length"

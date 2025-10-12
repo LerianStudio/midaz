@@ -8,7 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteTransactionRouteCache deletes the cache for a transaction route.
+// DeleteTransactionRouteCache removes a transaction route from the Redis cache.
+//
+// This invalidates the cached route configuration, forcing subsequent transactions
+// to either fail validation or trigger cache reload. Typically called after deleting
+// or updating a transaction route to ensure cache consistency.
 func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

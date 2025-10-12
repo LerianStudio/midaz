@@ -14,7 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAssetByID update an asset from the repository by given id.
+// UpdateAssetByID updates an existing asset in the repository.
+//
+// This function performs a partial update of asset properties. Only name and status
+// can be updated; the asset type and code are immutable after creation to maintain
+// referential integrity across accounts and transactions.
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - organizationID: The UUID of the organization owning the asset
+//   - ledgerID: The UUID of the ledger containing the asset
+//   - id: The UUID of the asset to update
+//   - uii: The update input containing fields to modify (name, status, metadata)
+//
+// Returns:
+//   - *mmodel.Asset: The updated asset with refreshed metadata
+//   - error: ErrAssetIDNotFound if not found, or repository errors
 func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -23,11 +38,13 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Trying to update asset: %v", uii)
 
+	// Construct partial update entity (only name and status can be updated)
 	asset := &mmodel.Asset{
 		Name:   uii.Name,
 		Status: uii.Status,
 	}
 
+	// Persist the update to PostgreSQL
 	assetUpdated, err := uc.AssetRepo.Update(ctx, organizationID, ledgerID, id, asset)
 	if err != nil {
 		logger.Errorf("Error updating asset on repo by id: %v", err)
@@ -47,6 +64,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
+	// Update metadata in MongoDB using JSON Merge Patch semantics
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
 	if err != nil {
 		logger.Errorf("Error updating metadata: %v", err)
