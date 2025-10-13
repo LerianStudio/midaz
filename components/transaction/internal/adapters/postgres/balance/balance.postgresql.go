@@ -909,14 +909,6 @@ func (r *BalancePostgreSQLRepository) SyncFromRedisIfNewer(ctx context.Context, 
 	ctx, span := tracer.Start(ctx, "postgres.sync_from_redis_if_newer")
 	defer span.End()
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.repository_input", struct {
-		ID        string `json:"id"`
-		Version   int64  `json:"version"`
-		Available int64  `json:"available"`
-		OnHold    int64  `json:"onHold"`
-		Scale     int64  `json:"scale"`
-	}{ID: b.ID, Version: b.Version, Available: b.Available, OnHold: b.OnHold, Scale: b.Scale})
-
 	id, err := uuid.Parse(b.ID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "invalid balance ID", err)
