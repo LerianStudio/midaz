@@ -123,7 +123,7 @@ export const OrganizationsForm = ({
 
   return (
     <Form {...form}>
-      <div className="mb-16 flex gap-6">
+      <div className="mb-16 flex gap-6" data-testid="organizations-form">
         <div className="grow space-y-6">
           <Card.Root className="gap-0 space-y-0 space-x-0 p-0 shadow-sm">
             <Card.Header
@@ -163,6 +163,7 @@ export const OrganizationsForm = ({
                   })}
                   control={form.control}
                   readOnly
+                  data-testid="organization-id-input"
                 />
               )}
 
@@ -178,6 +179,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-legal-name-input"
               />
 
               <InputField
@@ -192,6 +194,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-doing-business-as-input"
               />
 
               <InputField
@@ -206,6 +209,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={!isNewOrganization || isReadOnly}
+                data-testid="organization-legal-document-input"
               />
             </CardContent>
 
@@ -224,6 +228,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-line1-input"
               />
 
               <InputField
@@ -238,6 +243,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-line2-input"
               />
 
               <CountryField
@@ -252,6 +258,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-country-select"
               />
 
               <StateField
@@ -266,6 +273,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-state-select"
               />
 
               <InputField
@@ -280,6 +288,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-city-input"
               />
 
               <InputField
@@ -294,6 +303,7 @@ export const OrganizationsForm = ({
                 })}
                 control={form.control}
                 readOnly={isReadOnly}
+                data-testid="organization-address-zipcode-input"
               />
             </CardContent>
 
@@ -423,6 +433,7 @@ export const OrganizationsForm = ({
               type="submit"
               onClick={form.handleSubmit(handleSubmit)}
               loading={createPending || updatePending}
+              data-testid="organization-form-save-button"
             >
               {intl.formatMessage({
                 id: 'common.save',
