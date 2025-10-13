@@ -1,3 +1,15 @@
+## [v3.4.0-beta.21] - 2025-10-13
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.20...v3.4.0-beta.21)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### ✨ Features
+- **Enhanced User Feedback**: Success messages are now displayed for segment operations in both English and Portuguese. This update provides users with immediate confirmation of successful actions, reducing uncertainty and improving overall user satisfaction during interactions.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to include the latest features and improvements. This ensures that users and developers have access to accurate and up-to-date information about the project's progression.
+
+
 ## [v3.4.0-beta.20] - 2025-10-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.19...v3.4.0-beta.20)
