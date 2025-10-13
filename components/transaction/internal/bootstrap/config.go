@@ -213,9 +213,13 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	// Initialize background workers
+	balancePreExpireWorker := NewBalancePreExpireWorker(redisConnection, logger, useCase)
+
 	return &Service{
-		Server:             server,
-		MultiQueueConsumer: multiQueueConsumer,
-		Logger:             logger,
+		Server:                 server,
+		MultiQueueConsumer:     multiQueueConsumer,
+		BalancePreExpireWorker: balancePreExpireWorker,
+		Logger:                 logger,
 	}
 }

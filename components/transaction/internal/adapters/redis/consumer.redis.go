@@ -225,8 +225,9 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		end
 
 		local function main()
-			local ttl = 3600        
+			local ttl = 3600
 			local key = KEYS[1]
+			local scheduleKey = KEYS[2]
 			local operation = ARGV[1]
 			
 			local amount = {
@@ -264,6 +265,13 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 			
 			local finalBalanceEncoded = cjson.encode(finalBalance)
 			redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
+
+			-- schedule a pre-expire warning 10 minutes before the TTL
+			local warnBefore = 600
+			local timeNow = redis.call("TIME")
+			local nowSec = tonumber(timeNow[1])
+			local dueAt = nowSec + (ttl - warnBefore)
+			redis.call("ZADD", scheduleKey, dueAt, key)
 	
 			local balanceEncoded = cjson.encode(balance)
 			return balanceEncoded
@@ -308,7 +316,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		balance.AccountID,
 	}
 
-	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	result, err := script.Run(ctx, rds, []string{key, "schedule:{balance-pre-expire}"}, args).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 

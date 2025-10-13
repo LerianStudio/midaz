@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -17,10 +22,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to balance template entities.
@@ -34,6 +35,7 @@ type Repository interface {
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]libTransaction.Amount) error
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+	SyncFromRedisIfNewer(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -899,4 +901,49 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+func (r *BalancePostgreSQLRepository) SyncFromRedisIfNewer(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.sync_from_redis_if_newer")
+	defer span.End()
+
+	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.repository_input", struct {
+		ID        string `json:"id"`
+		Version   int64  `json:"version"`
+		Available int64  `json:"available"`
+		OnHold    int64  `json:"onHold"`
+		Scale     int64  `json:"scale"`
+	}{ID: b.ID, Version: b.Version, Available: b.Available, OnHold: b.OnHold, Scale: b.Scale})
+
+	id, err := uuid.Parse(b.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "invalid balance ID", err)
+		return false, err
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		return false, err
+	}
+
+	res, err := db.ExecContext(ctx, `
+		UPDATE balance
+		SET available = $1, on_hold = $2, scale = $3, version = $4, updated_at = $5
+		WHERE organization_id = $6 AND ledger_id = $7 AND id = $8 AND deleted_at IS NULL AND version < $4
+	`, b.Available, b.OnHold, b.Scale, b.Version, time.Now(), organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update balance from redis", err)
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to read rows affected", err)
+		return false, err
+	}
+
+	return affected > 0, nil
 }
