@@ -566,7 +566,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now i
 
 	script := redis.NewScript(getBalancesNearExpirationLua)
 
-	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, now, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
+	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
 	if err != nil {
 		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
 
