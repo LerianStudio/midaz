@@ -590,8 +590,11 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now i
 	case []string:
 		out = vv
 	default:
-		// unexpected type; coerce to string
-		out = []string{fmt.Sprint(res)}
+		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
+
+		logger.Warnf("Warning: %v", err)
+
+		return nil, err
 	}
 
 	logger.Infof("fetch_due returned %d keys", len(out))
