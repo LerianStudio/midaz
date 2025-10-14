@@ -575,7 +575,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now i
 
 	var out []string
 	switch vv := res.(type) {
-	case []interface{}:
+	case []any:
 		out = make([]string, 0, len(vv))
 		for _, it := range vv {
 			switch s := it.(type) {
