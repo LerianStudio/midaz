@@ -293,11 +293,13 @@ func InitServers() *Service {
 	server := NewServer(cfg, app, logger, telemetry)
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
+	balanceSyncWorker := NewBalanceSyncWorker(redisConnection, logger, useCase)
 
 	return &Service{
 		Server:             server,
 		MultiQueueConsumer: multiQueueConsumer,
 		RedisQueueConsumer: redisConsumer,
+		BalanceSyncWorker:  balanceSyncWorker,
 		Logger:             logger,
 	}
 }
