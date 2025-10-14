@@ -3,6 +3,7 @@ import { PaginationSearchEntity } from './pagination-entity'
 
 export type SegmentSearchEntity = PaginationSearchEntity & {
   id?: string
+  sortOrder?: 'desc' | 'asc'
 }
 
 export type SegmentEntity = {
