@@ -804,6 +804,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	subQuery, orderDirection = libHTTP.ApplyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)
 
+	subQuery = subQuery.OrderBy("id " + orderDirection)
+
 	findAll := squirrel.
 		Select("*").
 		FromSelect(subQuery, "t").
