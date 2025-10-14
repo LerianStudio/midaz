@@ -22,7 +22,8 @@ export const BasicInformationPaper = ({
 
   const { data: assets } = useListAssets({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id!
+    ledgerId: currentLedger.id!,
+    limit: 100
   })
 
   return (
