@@ -92,7 +92,10 @@ export const TransactionModeModal = ({
                     data-testid="mode-select-simple"
                   />
                 </TooltipTrigger>
-                <TooltipContent side="bottom" data-testid="mode-warning-tooltip">
+                <TooltipContent
+                  side="bottom"
+                  data-testid="mode-warning-tooltip"
+                >
                   {errors?.['data-loss']?.message}
                 </TooltipContent>
               </Tooltip>

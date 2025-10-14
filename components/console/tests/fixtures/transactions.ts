@@ -87,7 +87,10 @@ export const COMPLEX_TRANSACTION_FORM_DATA = {
     description: 'E2E Complex Transaction - Duplicate Source Account',
     asset: ASSETS.BRL.code,
     value: '50',
-    sourceAccounts: [ACCOUNTS.BRL_ACCOUNT_5.alias, ACCOUNTS.BRL_ACCOUNT_5.alias], // Same account twice
+    sourceAccounts: [
+      ACCOUNTS.BRL_ACCOUNT_5.alias,
+      ACCOUNTS.BRL_ACCOUNT_5.alias
+    ], // Same account twice
     destinationAccounts: [`@external/${ASSETS.BRL.code}`]
   },
   E2E_INSUFFICIENT_FUNDS: {
