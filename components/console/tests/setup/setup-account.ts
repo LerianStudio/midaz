@@ -31,7 +31,7 @@ async function createAccount(payload: AccountPayload) {
 /**
  * Setup test accounts in the database via API
  * Creates:
- * 1. BRL Accounts - 4 accounts using Brazilian Real asset
+ * 1. BRL Accounts - 5 accounts using Brazilian Real asset
  * 2. BTC Accounts - 4 accounts using Bitcoin asset
  */
 export async function setupAccounts() {

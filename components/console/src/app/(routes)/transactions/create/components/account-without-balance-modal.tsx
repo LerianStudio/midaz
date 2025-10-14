@@ -67,7 +67,10 @@ export const AccountWithoutBalanceModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[454px]">
+      <DialogContent
+        className="sm:max-w-[454px]"
+        data-testid="insufficient-balance-modal"
+      >
         <div className="flex flex-row items-center">
           <Icon />
           <DialogHeader className="p-4">
@@ -101,13 +104,20 @@ export const AccountWithoutBalanceModal = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            data-testid="insufficient-balance-cancel-button"
+          >
             {intl.formatMessage({
               id: 'transactions.create.accountWithoutBalance.cancel',
               defaultMessage: 'Edit Transaction'
             })}
           </Button>
-          <Button onClick={onConfirm}>
+          <Button
+            onClick={onConfirm}
+            data-testid="insufficient-balance-continue-button"
+          >
             {intl.formatMessage({
               id: 'transactions.create.accountWithoutBalance.continue',
               defaultMessage: 'Continue Anyway'

@@ -45,7 +45,10 @@ export const TransactionModeModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-max p-12 sm:max-w-max">
+      <DialogContent
+        className="w-max p-12 sm:max-w-max"
+        data-testid="transaction-mode-modal"
+      >
         <DialogHeader>
           <DialogTitle className="font-medium">
             {intl.formatMessage({
@@ -86,9 +89,13 @@ export const TransactionModeModal = ({
                         'Simple transaction with movements between two parties'
                     })}
                     onClick={() => handleSelect(TransactionMode.SIMPLE)}
+                    data-testid="mode-select-simple"
                   />
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
+                <TooltipContent
+                  side="bottom"
+                  data-testid="mode-warning-tooltip"
+                >
                   {errors?.['data-loss']?.message}
                 </TooltipContent>
               </Tooltip>
@@ -105,6 +112,7 @@ export const TransactionModeModal = ({
                   'Complex transaction with multiple movements between multiple parties'
               })}
               onClick={() => handleSelect(TransactionMode.COMPLEX)}
+              data-testid="mode-select-complex"
             />
           </div>
         </DialogHeader>

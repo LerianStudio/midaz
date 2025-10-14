@@ -1,5 +1,7 @@
 import { Page } from '@playwright/test'
 import { inputType, selectOption } from './form'
+import { expandAccordion } from './accordion'
+import { inputMetadata } from './metadata'
 
 interface SimpleTransactionData {
   description: string
@@ -16,6 +18,8 @@ interface ComplexTransactionData {
   value: string
   sourceAccounts: readonly string[]
   destinationAccounts: readonly string[]
+  sourceAmounts?: readonly string[]
+  destinationAmounts?: readonly string[]
   metadata?: Record<string, string>
 }
 
@@ -121,29 +125,40 @@ export async function fillMetadata(
   page: Page,
   metadata: Record<string, string>
 ) {
-  // Wait for the metadata accordion to be visible
-  const accordion = page.getByTestId('metadata-accordion')
-  await accordion.waitFor({ state: 'visible', timeout: 5000 })
+  // Expand the metadata accordion
+  await expandAccordion(page, 'metadata-accordion')
 
-  // Click the chevron trigger to expand the accordion
-  const trigger = accordion.getByTestId('paper-collapsible-trigger')
-  await trigger.click()
-  await page.waitForTimeout(500)
+  // Input the metadata key-value pairs
+  await inputMetadata(page, metadata)
+}
 
-  // Fill each metadata key-value pair
-  for (const [key, value] of Object.entries(metadata)) {
-    // Fill the key input
-    const keyInput = page.getByTestId('metadata-key-input')
-    await keyInput.waitFor({ state: 'visible', timeout: 5000 })
-    await keyInput.fill(key)
+/**
+ * Update amounts for multiple operations
+ * This is used when splitting a transaction across multiple accounts
+ * @param page - Playwright page object
+ * @param amounts - Array of amounts to fill
+ * @param startIndex - Starting index for the operation value inputs (0 for sources, sourceCount for destinations)
+ */
+export async function updateOperationAmounts(
+  page: Page,
+  amounts: readonly string[],
+  startIndex: number = 0
+) {
+  const valueInputs = page.getByTestId('operation-value-input')
+  const count = await valueInputs.count()
 
-    // Fill the value input
-    const valueInput = page.getByTestId('metadata-value-input')
-    await valueInput.fill(value)
+  // Verify we have enough inputs starting from startIndex
+  if (startIndex + amounts.length > count) {
+    throw new Error(
+      `Expected at least ${startIndex + amounts.length} operation value inputs, found ${count}`
+    )
+  }
 
-    // Click the add button
-    const addButton = page.getByTestId('metadata-add-button')
-    await addButton.click()
+  for (let i = 0; i < amounts.length; i++) {
+    const input = valueInputs.nth(startIndex + i)
+    await input.waitFor({ state: 'visible', timeout: 5000 })
+    await input.clear()
+    await input.fill(amounts[i])
     await page.waitForTimeout(300)
   }
 }
@@ -239,6 +254,24 @@ export async function fillComplexTransaction(
   // Click Next again to proceed to operations step (step 2)
   await page.getByTestId('transaction-next-button').click()
   await page.waitForTimeout(1000)
+
+  // Update source amounts if provided (for multiple sources)
+  if (data.sourceAmounts && data.sourceAmounts.length > 0) {
+    await updateOperationAmounts(page, data.sourceAmounts, 0)
+  }
+
+  // Update destination amounts if provided (for multiple destinations)
+  // Destination inputs come after source inputs, but only if sources have editable inputs (length > 1)
+  if (data.destinationAmounts && data.destinationAmounts.length > 0) {
+    // Only count editable source inputs (sources are editable only when there are multiple sources)
+    const editableSourceCount =
+      data.sourceAccounts.length > 1 ? data.sourceAccounts.length : 0
+    await updateOperationAmounts(
+      page,
+      data.destinationAmounts,
+      editableSourceCount
+    )
+  }
 
   // Fill metadata if provided
   if (data.metadata && Object.keys(data.metadata).length > 0) {

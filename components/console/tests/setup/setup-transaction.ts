@@ -6,7 +6,7 @@ import {
 } from '../fixtures/config'
 import { TRANSACTIONS } from '../fixtures/transactions'
 
-interface TransactionPayload {
+export interface TransactionPayload {
   chartOfAccountsGroupName: string
   description: string
   send: {
@@ -40,7 +40,7 @@ interface TransactionPayload {
 /**
  * Create a transaction via the Transaction API
  */
-async function createTransaction(payload: TransactionPayload) {
+export async function createTransaction(payload: TransactionPayload) {
   const url = `${MIDAZ_TRANSACTION_BASE_PATH}/v1/organizations/${ORGANIZATION_ID}/ledgers/${LEDGER_ID}/transactions/json`
 
   try {
@@ -54,9 +54,9 @@ async function createTransaction(payload: TransactionPayload) {
 
 /**
  * Setup test transactions in the database via API
- * Creates:
- * 1. BRL Deposit - Moves 100 BRL from @external/BRL to brl-account-e2e
- * 2. BTC Deposit - Moves 0.001 BTC from @external/BTC to btc-account-e2e
+ * Creates initial deposits for all accounts:
+ * - 5 BRL accounts: 100 BRL each
+ * - 4 BTC accounts: 0.001 BTC each
  */
 export async function setupTransactions() {
   if (!ORGANIZATION_ID) {
@@ -71,27 +71,22 @@ export async function setupTransactions() {
     // eslint-disable-next-line no-console
     console.log('Creating transactions...')
 
-    // Create BRL Deposit Transaction
-    const brlTransaction = await createTransaction(
-      JSON.parse(JSON.stringify(TRANSACTIONS.BRL_DEPOSIT))
-    )
-    // eslint-disable-next-line no-console
-    console.log('✓ Created BRL deposit transaction:', brlTransaction.id)
+    const createdTransactions: Record<string, any> = {}
 
-    // Create BTC Deposit Transaction
-    const btcTransaction = await createTransaction(
-      JSON.parse(JSON.stringify(TRANSACTIONS.BTC_DEPOSIT))
-    )
-    // eslint-disable-next-line no-console
-    console.log('✓ Created BTC deposit transaction:', btcTransaction.id)
+    // Create all transactions from the fixtures
+    for (const [key, transaction] of Object.entries(TRANSACTIONS)) {
+      const result = await createTransaction(
+        JSON.parse(JSON.stringify(transaction))
+      )
+      createdTransactions[key.toLowerCase()] = result
+      // eslint-disable-next-line no-console
+      console.log(`✓ Created transaction: ${transaction.description}`)
+    }
 
     // eslint-disable-next-line no-console
     console.log('✓ Test transactions created successfully')
 
-    return {
-      brl: brlTransaction,
-      btc: btcTransaction
-    }
+    return createdTransactions
   } catch (error) {
     console.error('Failed to setup transactions:', error)
     throw error

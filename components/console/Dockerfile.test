@@ -14,9 +14,7 @@ COPY components/console/scripts/entrypoint.sh /scripts/entrypoint.sh
 
 RUN chmod +x /scripts/entrypoint.sh
 
-COPY components/console/.env.example .env.example
-
-RUN npm run set-env
+COPY components/console/.env* ./
 
 COPY components/console/ .
 

@@ -36,13 +36,19 @@ export const TransactionModeModal = ({
         data-testid="transaction-mode-modal"
       >
         <DialogHeader>
-          <DialogTitle className="font-medium">
+          <DialogTitle
+            className="font-medium"
+            data-testid="transaction-mode-modal-title"
+          >
             {intl.formatMessage({
               id: 'transactions.create.title',
               defaultMessage: 'New Transaction'
             })}
           </DialogTitle>
-          <DialogDescription className="mb-8 text-sm font-medium text-zinc-400">
+          <DialogDescription
+            className="mb-8 text-sm font-medium text-zinc-400"
+            data-testid="transaction-mode-modal-description"
+          >
             {intl.formatMessage({
               id: 'transactions.create.mode.description',
               defaultMessage:
