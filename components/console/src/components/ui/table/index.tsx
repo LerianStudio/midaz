@@ -14,7 +14,11 @@ function TableContainer({ className, ...props }: React.ComponentProps<'div'>) {
 
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
-    <div className="relative w-full overflow-auto" role="region" aria-label="Data table">
+    <div
+      className="relative w-full overflow-auto"
+      role="region"
+      aria-label="Data table"
+    >
       <table
         data-slot="data-table"
         role="table"

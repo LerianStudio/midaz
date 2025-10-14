@@ -64,7 +64,9 @@ test.describe('Transactions Management - E2E Tests', () => {
       await expect(
         tableHeader.getByText('Status', { exact: true })
       ).toBeVisible()
-      await expect(tableHeader.getByText('Value', { exact: true })).toBeVisible()
+      await expect(
+        tableHeader.getByText('Value', { exact: true })
+      ).toBeVisible()
       await expect(
         tableHeader.getByText('Actions', { exact: true })
       ).toBeVisible()
