@@ -115,7 +115,7 @@ const Page = () => {
   }
 
   return (
-    <React.Fragment>
+    <div data-testid="assets-tab-content">
       <Breadcrumb paths={breadcrumbPaths} />
 
       <PageHeader.Root>
@@ -204,7 +204,7 @@ const Page = () => {
 
         {hasRequiredContext && assets && <AssetsDataTable {...assetsProps} />}
       </div>
-    </React.Fragment>
+    </div>
   )
 }
 

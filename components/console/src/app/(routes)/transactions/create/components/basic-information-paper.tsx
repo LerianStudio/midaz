@@ -30,7 +30,7 @@ export const BasicInformationPaper = ({
       <div className="grid grid-cols-2 gap-5 p-6">
         <InputField
           name="description"
-          testId="transaction-description"
+          data-testid="transaction-description"
           label={intl.formatMessage({
             id: 'transactions.field.description',
             defaultMessage: 'Transaction description'
@@ -46,7 +46,7 @@ export const BasicInformationPaper = ({
         />
         <InputField
           name="chartOfAccountsGroupName"
-          testId="chart-of-accounts-group"
+          data-testid="chart-of-accounts-group"
           label={intl.formatMessage({
             id: 'transactions.create.field.chartOfAccountsGroupName',
             defaultMessage: 'Accounting route group'
@@ -78,7 +78,7 @@ export const BasicInformationPaper = ({
         <div className="col-span-2">
           <InputField
             name="value"
-            testId="transaction-value"
+            data-testid="transaction-value"
             type="number"
             label={intl.formatMessage({
               id: 'common.value',

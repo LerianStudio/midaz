@@ -28,7 +28,7 @@ export default defineConfig({
     storageState: 'tests/storage/data.json',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'on',
     actionTimeout: 10 * 1000 // 10 seconds for actions,
   },
 

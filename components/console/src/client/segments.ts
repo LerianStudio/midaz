@@ -31,7 +31,7 @@ export const useCreateSegment = ({
 }: UseCreateSegmentProps) => {
   return useMutation<any, any, any>({
     mutationFn: postFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments/`
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments`
     ),
     ...options
   })
@@ -78,7 +78,7 @@ export const useUpdateSegment = ({
   return useMutation<any, any, any>({
     mutationKey: [organizationId, ledgerId, segmentId],
     mutationFn: patchFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}/`
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
     ),
     ...options
   })
@@ -97,7 +97,7 @@ export const useDeleteSegment = ({
   return useMutation<any, any, any>({
     mutationKey: [organizationId, ledgerId],
     mutationFn: deleteFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments/`
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments`
     ),
     ...options
   })

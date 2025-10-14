@@ -213,7 +213,7 @@ export const OperationRoutesSheet = ({
         >
           {mode === 'create' && (
             <SheetHeader>
-              <SheetTitle>
+              <SheetTitle data-testid="sheet-title">
                 {intl.formatMessage({
                   id: 'operationRoutes.sheet.create.title',
                   defaultMessage: 'New Operation Route'
@@ -278,13 +278,14 @@ export const OperationRoutesSheet = ({
                   <InputField
                     control={form.control}
                     name="title"
+                    data-testid="input-title"
                     label={intl.formatMessage({
-                      id: 'accountTypes.field.name',
-                      defaultMessage: 'Account Type Name'
+                      id: 'operationRoutes.field.title',
+                      defaultMessage: 'Title'
                     })}
                     tooltip={intl.formatMessage({
-                      id: 'accountTypes.field.name.tooltip',
-                      defaultMessage: 'Enter the name of the account type'
+                      id: 'operationRoutes.field.title.tooltip',
+                      defaultMessage: 'Enter the title of the operation route'
                     })}
                     required={mode === 'create'}
                   />
@@ -292,46 +293,48 @@ export const OperationRoutesSheet = ({
                   <InputField
                     control={form.control}
                     name="description"
+                    data-testid="input-description"
                     label={intl.formatMessage({
-                      id: 'accountTypes.field.description',
+                      id: 'operationRoutes.field.description',
                       defaultMessage: 'Description'
                     })}
                     textArea
                     placeholder={intl.formatMessage({
-                      id: 'accountTypes.field.description.placeholder',
+                      id: 'operationRoutes.field.description.placeholder',
                       defaultMessage:
-                        'Enter a detailed description of this account type...'
+                        'Enter a detailed description of this operation route...'
                     })}
                   />
 
                   <SelectField
                     control={form.control}
                     name="operationType"
+                    data-testid="select-operation-type"
                     label={intl.formatMessage({
-                      id: 'accountTypes.field.operationType',
+                      id: 'operationRoutes.field.operationType',
                       defaultMessage: 'Operation Type'
                     })}
                     required={mode === 'create'}
                     placeholder={intl.formatMessage({
-                      id: 'accountTypes.field.operationType.placeholder',
+                      id: 'operationRoutes.field.operationType.placeholder',
                       defaultMessage: 'Select the operation type'
                     })}
                     tooltip={intl.formatMessage({
-                      id: 'accountTypes.field.operationType.tooltip',
+                      id: 'operationRoutes.field.operationType.tooltip',
                       defaultMessage:
-                        'Select the operation type for the account type'
+                        'Select whether this route is for source or destination accounts'
                     })}
                     disabled={isReadOnly || mode === 'edit'}
                   >
                     <SelectItem value="source">
                       {intl.formatMessage({
-                        id: 'accountTypes.field.operationType.source',
+                        id: 'operationRoutes.field.operationType.source',
                         defaultMessage: 'Source'
                       })}
                     </SelectItem>
                     <SelectItem value="destination">
                       {intl.formatMessage({
-                        id: 'accountTypes.field.operationType.destination',
+                        id: 'operationRoutes.field.operationType.destination',
                         defaultMessage: 'Destination'
                       })}
                     </SelectItem>
@@ -340,29 +343,30 @@ export const OperationRoutesSheet = ({
                   <SelectField
                     control={form.control}
                     name="account.ruleType"
+                    data-testid="select-rule-type"
                     onChange={() => {
                       form.setValue('account.validIf', [])
                     }}
                     label={intl.formatMessage({
-                      id: 'accountTypes.field.ruleType',
+                      id: 'operationRoutes.field.ruleType',
                       defaultMessage: 'Rule Type'
                     })}
                     tooltip={intl.formatMessage({
-                      id: 'accountTypes.field.ruleType.tooltip',
+                      id: 'operationRoutes.field.ruleType.tooltip',
                       defaultMessage:
-                        'Select the rule type for the account type'
+                        'Select the rule type for account validation'
                     })}
                     required={mode === 'create'}
                   >
                     <SelectItem value="alias" defaultChecked>
                       {intl.formatMessage({
-                        id: 'accountTypes.field.ruleType.alias',
+                        id: 'operationRoutes.field.ruleType.alias',
                         defaultMessage: 'Alias'
                       })}
                     </SelectItem>
                     <SelectItem value="account_type">
                       {intl.formatMessage({
-                        id: 'accountTypes.field.ruleType.accountType',
+                        id: 'operationRoutes.field.ruleType.accountType',
                         defaultMessage: 'Account Type'
                       })}
                     </SelectItem>
@@ -372,6 +376,7 @@ export const OperationRoutesSheet = ({
                     <SearchAccountByAliasField
                       control={form.control}
                       name="account.validIf"
+                      data-testid="input-valid-if"
                       required
                     />
                   )}
@@ -380,6 +385,7 @@ export const OperationRoutesSheet = ({
                     <SelectField
                       control={form.control}
                       name="account.validIf"
+                      data-testid="select-valid-if"
                       label={intl.formatMessage({
                         id: 'operationRoutes.field.validIf.accountType',
                         defaultMessage: 'Account Types'
@@ -446,6 +452,7 @@ export const OperationRoutesSheet = ({
                   onClick={form.handleSubmit(handleSubmit)}
                   fullWidth
                   loading={createPending || updatePending}
+                  data-testid="save-button"
                 >
                   {intl.formatMessage({
                     id: 'common.save',

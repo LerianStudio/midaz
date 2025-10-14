@@ -56,5 +56,5 @@ export async function navigateToOperationRoutes(page: Page) {
 
   // Additional wait to ensure all JavaScript execution is complete
   // This gives time for any event handlers or state updates to finish
-  await page.waitForTimeout(1000)
+  await page.waitForTimeout(10000)
 }

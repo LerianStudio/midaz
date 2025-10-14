@@ -21,11 +21,13 @@ import type { SegmentSearchEntity } from '@/core/domain/entities/segment-entity'
 import { BaseController } from '@/lib/http/server/base-controller'
 
 const CreateSchema = z.object({
-  name: segment.name
+  name: segment.name,
+  metadata: segment.metadata.optional().default({})
 })
 
 const UpdateSchema = z.object({
-  name: segment.name.optional()
+  name: segment.name.optional(),
+  metadata: segment.metadata.optional()
 })
 
 type CreateData = z.infer<typeof CreateSchema>

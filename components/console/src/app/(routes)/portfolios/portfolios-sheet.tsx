@@ -188,16 +188,23 @@ export const PortfolioSheet = ({
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
               className="flex grow flex-col"
+              data-testid="portfolios-form"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
-                  <TabsTrigger value="details">
+                  <TabsTrigger
+                    value="details"
+                    data-testid="portfolio-details-tab"
+                  >
                     {intl.formatMessage({
                       id: 'ledgers.portfolio.sheet.tabs.details',
                       defaultMessage: 'Portfolio Details'
                     })}
                   </TabsTrigger>
-                  <TabsTrigger value="metadata">
+                  <TabsTrigger
+                    value="metadata"
+                    data-testid="portfolio-metadata-tab"
+                  >
                     {intl.formatMessage({
                       id: 'common.metadata',
                       defaultMessage: 'Metadata'
@@ -215,6 +222,7 @@ export const PortfolioSheet = ({
                       control={form.control}
                       readOnly={isReadOnly}
                       required
+                      data-testid="portfolio-name-input"
                     />
 
                     {mode === 'create' && (
@@ -231,6 +239,7 @@ export const PortfolioSheet = ({
                         })}
                         control={form.control}
                         readOnly={isReadOnly}
+                        data-testid="portfolio-entity-id-input"
                       />
                     )}
                     <p className="text-shadcn-400 text-xs font-normal italic">
@@ -257,6 +266,7 @@ export const PortfolioSheet = ({
                     type="submit"
                     fullWidth
                     loading={createPending || updatePending}
+                    data-testid="portfolio-form-save-button"
                   >
                     {intl.formatMessage({
                       id: 'common.save',
