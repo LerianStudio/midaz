@@ -205,12 +205,20 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	if err != nil {
 		w.logger.Warnf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err)
 
+		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+			w.logger.Warnf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr)
+		}
+
 		return
 	}
 
 	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(val), &balance); err != nil {
 		w.logger.Warnf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err)
+
+		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+			w.logger.Warnf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr)
+		}
 
 		return
 	}
