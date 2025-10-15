@@ -586,13 +586,20 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Mock OperationRepo.Create for both operations and assert versions exist
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			Create(gomock.Any(), operation1).
 			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
 				assert.NotNil(t, op.Balance.Version)
 				assert.NotNil(t, op.BalanceAfter.Version)
 				return op, nil
-			}).
-			Times(2)
+			})
+
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), operation2).
+			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
+				assert.NotNil(t, op.Balance.Version)
+				assert.NotNil(t, op.BalanceAfter.Version)
+				return op, nil
+			})
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
