@@ -235,6 +235,8 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 			"organization_id": organizationID.String(),
 			"ledger_id":       ledgerID.String(),
 		}).AddOne(ctx)
+
+		w.logger.Infof("BalanceSyncWorker: Synced key %s", member)
 	}
 
 	if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
