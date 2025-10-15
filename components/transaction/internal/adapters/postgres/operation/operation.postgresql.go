@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +23,8 @@ import (
 
 // Repository provides an interface for operations related to operation template entities.
 // It defines methods for creating, retrieving, updating, and deleting operation templates.
+//
+//go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
@@ -39,6 +40,35 @@ type Repository interface {
 type OperationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
+}
+
+var operationColumnList = []string{
+	"id",
+	"transaction_id",
+	"description",
+	"type",
+	"asset_code",
+	"amount",
+	"available_balance",
+	"on_hold_balance",
+	"available_balance_after",
+	"on_hold_balance_after",
+	"status",
+	"status_description",
+	"account_id",
+	"account_alias",
+	"balance_id",
+	"chart_of_accounts",
+	"organization_id",
+	"ledger_id",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+	"route",
+	"balance_affected",
+	"balance_key",
+	"balance_version_before",
+	"balance_version_after",
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
@@ -77,34 +107,49 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING *`,
-		record.ID,
-		record.TransactionID,
-		record.Description,
-		record.Type,
-		record.AssetCode,
-		record.Amount,
-		record.AvailableBalance,
-		record.OnHoldBalance,
-		record.AvailableBalanceAfter,
-		record.OnHoldBalanceAfter,
-		record.Status,
-		record.StatusDescription,
-		record.AccountID,
-		record.AccountAlias,
-		record.BalanceID,
-		record.ChartOfAccounts,
-		record.OrganizationID,
-		record.LedgerID,
-		record.CreatedAt,
-		record.UpdatedAt,
-		record.DeletedAt,
-		record.Route,
-		record.BalanceAffected,
-		record.BalanceKey,
-		record.VersionBalance,
-		record.VersionBalanceAfter,
-	)
+	insert := squirrel.
+		Insert(r.tableName).
+		Columns(operationColumnList...).
+		Values(
+			record.ID,
+			record.TransactionID,
+			record.Description,
+			record.Type,
+			record.AssetCode,
+			record.Amount,
+			record.AvailableBalance,
+			record.OnHoldBalance,
+			record.AvailableBalanceAfter,
+			record.OnHoldBalanceAfter,
+			record.Status,
+			record.StatusDescription,
+			record.AccountID,
+			record.AccountAlias,
+			record.BalanceID,
+			record.ChartOfAccounts,
+			record.OrganizationID,
+			record.LedgerID,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.DeletedAt,
+			record.Route,
+			record.BalanceAffected,
+			record.BalanceKey,
+			record.VersionBalance,
+			record.VersionBalanceAfter,
+		).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := insert.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to build insert query", err)
+
+		logger.Errorf("Failed to build insert query: %v", err)
+
+		return nil, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
@@ -167,7 +212,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(operationColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -290,8 +335,25 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, pq.Array(ids))
+	list := squirrel.
+		Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := list.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build list by IDs query", err)
+
+		logger.Errorf("Failed to build list by IDs query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
 
@@ -374,8 +436,23 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3 AND id = $4 AND deleted_at IS NULL",
-		organizationID, ledgerID, transactionID, id)
+	find := squirrel.
+		Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "transaction_id": transactionID, "id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := find.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build find query", err)
+
+		logger.Errorf("Failed to build find query: %v", err)
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -447,8 +524,23 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND id = $4 AND deleted_at IS NULL",
-		organizationID, ledgerID, accountID, id)
+	findAcc := squirrel.
+		Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "account_id": accountID, "id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAcc.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build find by account query", err)
+
+		logger.Errorf("Failed to build find by account query: %v", err)
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -519,27 +611,27 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 	record := &OperationPostgreSQLModel{}
 	record.FromEntity(operation)
 
-	var updates []string
-
-	var args []any
+	qb := squirrel.Update(r.tableName).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if operation.Description != "" {
-		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Description)
+		qb = qb.Set("description", record.Description)
 	}
 
 	record.UpdatedAt = time.Now()
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	qb = qb.Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "transaction_id": transactionID, "id": id}).
+		Where(squirrel.Eq{"deleted_at": nil})
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, transactionID, id)
+	query, args, err := qb.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build update query", err)
 
-	query := `UPDATE operation SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-		` AND transaction_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		logger.Errorf("Failed to build update query: %v", err)
+
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
@@ -592,10 +684,24 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 		return err
 	}
 
+	qb := squirrel.Update(r.tableName).
+		Set("deleted_at", squirrel.Expr("now()"))
+	qb = qb.Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := qb.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build delete query", err)
+
+		logger.Errorf("Failed to build delete query: %v", err)
+
+		return err
+	}
+
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
-	result, err := db.ExecContext(ctx, `UPDATE operation SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
-		organizationID, ledgerID, id)
+	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute database query", err)
 
@@ -660,7 +766,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(operationColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
