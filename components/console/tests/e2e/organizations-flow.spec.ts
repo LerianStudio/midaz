@@ -74,14 +74,32 @@ test.describe('Organizations - Basic Tests', () => {
     await page.locator('input[name="address.city"]').fill('Test City')
     await page.locator('input[name="address.zipCode"]').fill('12345')
 
-    // Select country - use nth to skip the disabled ledger selector at top
-    const countrySelect = page.locator('button[role="combobox"]').nth(1)
-    await countrySelect.click()
+    // Select country - find by label, then find nearby combobox
+    await page.getByText(/^Country$|^País$/i).scrollIntoViewIfNeeded()
+    await page
+      .locator('label')
+      .filter({ hasText: /^Country$|^País$/i })
+      .locator('..')
+      .locator('button[role="combobox"]')
+      .click()
+    await page.waitForSelector('[role="option"]', {
+      state: 'visible',
+      timeout: 5000
+    })
     await page.locator('[role="option"]').first().click()
 
-    // Select state - use nth(2) for the state selector
-    const stateSelect = page.locator('button[role="combobox"]').nth(2)
-    await stateSelect.click()
+    // Select state - find by label, then find nearby combobox
+    await page.getByText(/^State$|^Estado$/i).scrollIntoViewIfNeeded()
+    await page
+      .locator('label')
+      .filter({ hasText: /^State$|^Estado$/i })
+      .locator('..')
+      .locator('button[role="combobox"]')
+      .click()
+    await page.waitForSelector('[role="option"]', {
+      state: 'visible',
+      timeout: 5000
+    })
     await page.locator('[role="option"]').first().click()
 
     // Submit form (Save button)
@@ -169,11 +187,32 @@ test.describe('Organizations - Full CRUD', () => {
     await page.locator('input[name="address.city"]').fill('City')
     await page.locator('input[name="address.zipCode"]').fill('99999')
 
-    // Select dropdowns (nth(1) = country, nth(2) = state, nth(0) = ledger which is disabled)
-    await page.locator('button[role="combobox"]').nth(1).click()
+    // Select country - find by label, then find nearby combobox
+    await page.getByText(/^Country$|^País$/i).scrollIntoViewIfNeeded()
+    await page
+      .locator('label')
+      .filter({ hasText: /^Country$|^País$/i })
+      .locator('..')
+      .locator('button[role="combobox"]')
+      .click()
+    await page.waitForSelector('[role="option"]', {
+      state: 'visible',
+      timeout: 5000
+    })
     await page.locator('[role="option"]').first().click()
 
-    await page.locator('button[role="combobox"]').nth(2).click()
+    // Select state - find by label, then find nearby combobox
+    await page.getByText(/^State$|^Estado$/i).scrollIntoViewIfNeeded()
+    await page
+      .locator('label')
+      .filter({ hasText: /^State$|^Estado$/i })
+      .locator('..')
+      .locator('button[role="combobox"]')
+      .click()
+    await page.waitForSelector('[role="option"]', {
+      state: 'visible',
+      timeout: 5000
+    })
     await page.locator('[role="option"]').first().click()
 
     // Save
