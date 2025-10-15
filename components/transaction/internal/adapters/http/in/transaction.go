@@ -776,11 +776,13 @@ func (handler *TransactionHandler) BuildOperations(
 				balance := operation.Balance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
+					Version:   &blc.Version,
 				}
 
 				balanceAfter := operation.Balance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
+					Version:   &bat.Version,
 				}
 
 				if isAnnotation {
@@ -791,6 +793,10 @@ func (handler *TransactionHandler) BuildOperations(
 					o := decimal.NewFromInt(0)
 					balance.OnHold = &o
 					balanceAfter.OnHold = &o
+
+					v := int64(0)
+					balance.Version = &v
+					balanceAfter.Version = &v
 				}
 
 				description := fromTo[i].Description
