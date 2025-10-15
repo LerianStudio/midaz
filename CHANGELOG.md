@@ -1,3 +1,30 @@
+## [v3.4.0-beta.22] - 2025-10-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.21...v3.4.0-beta.22)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Transaction Synchronization**: Introduced a new balance synchronization worker that ensures consistent and accurate balance data across the system. This improvement enhances reliability for users managing financial transactions, reducing discrepancies and improving data integrity.
+
+### 🐛 Bug Fixes
+- **Redis Integration**: Fixed an issue with Redis result types in the `GetBalanceSyncKeys` function, preventing errors and reducing potential downtime. This fix ensures smoother operation and enhances system reliability.
+- **Type Safety**: Improved type safety in transaction processing by updating type assertions, which prevents runtime errors and enhances overall system stability.
+
+### ⚡ Performance
+- **Transaction Processing**: Updated Redis scripts to improve balance expiration checks using current time, enhancing accuracy and reducing discrepancies in balance management.
+
+### 🔄 Changes
+- **Error Handling**: Enhanced error handling by removing unparsable keys from Redis, which increases system robustness and prevents potential data corruption.
+- **Code Quality**: Refactored Redis script logic for better maintainability and performance, streamlining the code and improving system efficiency.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the changelog to reflect recent changes, ensuring all modifications are clearly documented for future reference.
+
+### 🔧 Maintenance
+- **Testing Enhancements**: Added comprehensive unit tests for the balance synchronization use case, ensuring new changes do not introduce regressions and that the system behaves as expected.
+- **Mocking Improvements**: Introduced mock methods for balance synchronization in Postgres and Redis, facilitating more effective testing and development workflows.
+
+
 ## [v3.4.0-beta.21] - 2025-10-13
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.20...v3.4.0-beta.21)
