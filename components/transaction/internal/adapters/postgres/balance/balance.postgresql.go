@@ -39,6 +39,7 @@ type Repository interface {
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -1018,4 +1019,53 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.sync_balance")
+	defer span.End()
+
+	id, err := uuid.Parse(b.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "invalid balance ID", err)
+
+		logger.Errorf("invalid balance ID: %v", err)
+
+		return false, err
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return false, err
+	}
+
+	res, err := db.ExecContext(ctx, `
+		UPDATE balance
+		SET available = $1, on_hold = $2, version = $3, updated_at = $4
+		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
+	`, b.Available, b.OnHold, b.Version, time.Now(), organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update balance from redis", err)
+
+		logger.Errorf("Failed to update balance from redis: %v", err)
+
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to read rows affected", err)
+
+		logger.Errorf("Failed to read rows affected: %v", err)
+
+		return false, err
+	}
+
+	return affected > 0, nil
 }

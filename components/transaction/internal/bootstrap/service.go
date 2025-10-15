@@ -10,6 +10,7 @@ type Service struct {
 	*Server
 	*MultiQueueConsumer
 	*RedisQueueConsumer
+	*BalanceSyncWorker
 	libLog.Logger
 }
 
@@ -21,5 +22,6 @@ func (app *Service) Run() {
 		libCommons.RunApp("Fiber Service", app.Server),
 		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
+		libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker),
 	).Run()
 }

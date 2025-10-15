@@ -192,6 +192,21 @@ func (mr *MockRepositoryMockRecorder) ListByAliasesWithKeys(arg0, arg1, arg2, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliasesWithKeys", reflect.TypeOf((*MockRepository)(nil).ListByAliasesWithKeys), arg0, arg1, arg2, arg3)
 }
 
+// Sync mocks base method.
+func (m *MockRepository) Sync(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 mmodel.BalanceRedis) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Sync", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Sync indicates an expected call of Sync.
+func (mr *MockRepositoryMockRecorder) Sync(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sync", reflect.TypeOf((*MockRepository)(nil).Sync), arg0, arg1, arg2, arg3)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 mmodel.UpdateBalance) error {
 	m.ctrl.T.Helper()
