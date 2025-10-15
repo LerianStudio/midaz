@@ -22,7 +22,7 @@ export default async function RootLayout({
   return (
     <html suppressHydrationWarning className={inter.variable}>
       <head>
-        <script src="/runtime-env.js" />
+        <script src="/runtime-env.js" async />
       </head>
       <body suppressHydrationWarning className="font-sans">
         <NextAuthSessionProvider>

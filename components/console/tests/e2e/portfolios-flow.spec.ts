@@ -17,8 +17,10 @@ test.describe('Portfolios Flow - E2E Tests', () => {
       page.getByRole('heading', { name: 'Portfolios', level: 1 })
     ).toBeVisible()
 
+    await Promise.race([
+      page.getByTestId('new-portfolio').waitFor({ state: 'visible'}),
+    ])
     // Verify New Portfolio button exists
-    await expect(page.getByTestId('new-portfolio')).toBeVisible()
 
     // Verify search input exists
     await expect(page.getByTestId('search-input')).toBeVisible()

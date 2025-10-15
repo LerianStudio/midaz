@@ -167,7 +167,10 @@ export const OrganizationsTabContent = () => {
         )}
 
         {isLoading && (
-          <Skeleton className="mt-4 h-[390px] w-full bg-zinc-200" />
+          <Skeleton
+            className="mt-4 h-[390px] w-full bg-zinc-200"
+            data-testid="organizations-loading"
+          />
         )}
 
         {!isLoading && data?.items && data.items.length > 0 && (

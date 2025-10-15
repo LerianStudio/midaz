@@ -78,8 +78,16 @@ const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
 const parseInputData = (data?: OrganizationDto) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
+/**
+ * Prepares organization data for creation (POST request)
+ * Returns all fields as-is since new organizations need complete data
+ */
 export const parseCreateData = (data?: OrganizationFormData) => data
 
+/**
+ * Prepares organization data for updates (PATCH request)
+ * Omits 'id' (immutable) and 'legalDocument' (cannot be changed after creation)
+ */
 export const parseUpdateData = (data?: OrganizationFormData) =>
   omit(data, ['id', 'legalDocument'])
 
@@ -215,6 +223,18 @@ export const OrganizationsForm = ({
 
             <Separator />
 
+            {/*
+              Address Section
+
+              IMPORTANT FOR E2E TESTS: The combobox indexing on this page is:
+              - Index 0: Ledger selector (disabled, in top navigation)
+              - Index 1: Country field (below)
+              - Index 2: State field (below)
+              - Index 3: Parent Organization field (in next section)
+
+              Tests use button[role="combobox"] selector and rely on this order.
+              Do not add/remove/reorder comboboxes without updating tests.
+            */}
             <CardContent className="grid grid-cols-2 gap-5 p-6">
               <InputField
                 name="address.line1"
@@ -420,6 +440,7 @@ export const OrganizationsForm = ({
             variant="secondary"
             type="button"
             onClick={() => router.back()}
+            data-testid="organization-form-cancel-button"
           >
             {intl.formatMessage({
               id: 'common.cancel',
