@@ -504,6 +504,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
+			Balance: operation.Balance{ // ensure version before is present
+				Version: Int64Ptr(1),
+			},
+			BalanceAfter: operation.Balance{ // ensure version after is present
+				Version: Int64Ptr(2),
+			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
 
@@ -518,6 +524,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
 				Value: &Amount,
+			},
+			Balance: operation.Balance{ // ensure version before is present
+				Version: Int64Ptr(1),
+			},
+			BalanceAfter: operation.Balance{ // ensure version after is present
+				Version: Int64Ptr(2),
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -572,16 +584,15 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations
+		// Mock OperationRepo.Create for both operations and assert versions exist
 		mockOperationRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(operation1, nil).
-			Times(1)
-
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation2, nil).
-			Times(1)
+			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
+				assert.NotNil(t, op.Balance.Version)
+				assert.NotNil(t, op.BalanceAfter.Version)
+				return op, nil
+			}).
+			Times(2)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
