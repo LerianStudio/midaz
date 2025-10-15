@@ -794,9 +794,10 @@ func (handler *TransactionHandler) BuildOperations(
 					balance.OnHold = &o
 					balanceAfter.OnHold = &o
 
-					v := int64(0)
-					balance.Version = &v
-					balanceAfter.Version = &v
+					vBefore := int64(0)
+					balance.Version = &vBefore
+					vAfter := int64(0)
+					balanceAfter.Version = &vAfter
 				}
 
 				description := fromTo[i].Description
