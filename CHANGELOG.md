@@ -1,3 +1,18 @@
+## [v3.4.0-beta.23] - 2025-10-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.22...v3.4.0-beta.23)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### ✨ Features
+- **Enhanced Search Functionality**: We've added a new `sortOrder` property to the `SegmentSearchEntity`. This feature allows you to specify the order of search results, providing a more tailored and efficient search experience. Whether you're looking for the most recent, most relevant, or other criteria-based results, you now have the flexibility to find information faster and more intuitively.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to accurately reflect the latest changes and improvements. This ensures that all users and developers have easy access to the most current information about updates, enhancing understanding and communication across the board.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Continued efforts to keep our documentation up-to-date, ensuring transparency and clarity for all users. This helps maintain a seamless experience when navigating through project updates.
+
+
 ## [v3.4.0-beta.22] - 2025-10-15
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.21...v3.4.0-beta.22)
