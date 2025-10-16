@@ -1,3 +1,18 @@
+## [v3.4.0-beta.26] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.25...v3.4.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Transaction Management**: Improved transaction processing by adding a 'Key' field to `BalanceRedis` and updating related Redis scripts. This fix resolves issues where transactions could fail due to missing key references, enhancing reliability and user trust in transaction handling.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect recent changes and improvements, ensuring users have access to the latest information about updates and fixes, enhancing transparency and communication.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Regular updates to the changelog to ensure it accurately reflects the current state of the software, supporting user awareness and engagement.
+
+
 ## [v3.4.0-beta.25] - 2025-10-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.24...v3.4.0-beta.25)
