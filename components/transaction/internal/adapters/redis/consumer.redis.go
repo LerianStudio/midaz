@@ -297,6 +297,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			allowReceiving,
 			blcs.Balance.AssetCode,
 			blcs.Balance.AccountID,
+			blcs.Balance.Key,
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
