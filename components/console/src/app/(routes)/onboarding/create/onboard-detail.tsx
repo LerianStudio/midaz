@@ -118,7 +118,7 @@ export function OnboardDetail({ onCancel }: OnboardDetailProps) {
           </Button>
         </PageFooterSection>
         <PageFooterSection>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} data-testid="next-button">
             {intl.formatMessage({
               id: 'common.advance',
               defaultMessage: 'Next'

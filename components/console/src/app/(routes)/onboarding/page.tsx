@@ -28,6 +28,7 @@ const Page = () => {
         <DialogHeader>
           <OnboardDialogHeader>
             <OnboardDialogTitle
+              data-testid="onboarding-dialog-title"
               upperTitle={intl.formatMessage({
                 id: 'onboarding.dialog.firstSteps',
                 defaultMessage: 'First steps'

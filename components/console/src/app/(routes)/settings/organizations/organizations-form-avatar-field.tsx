@@ -120,7 +120,10 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
     }
 
     return (
-      <div className="mb-4 flex flex-col items-center justify-center gap-4">
+      <div
+        className="mb-4 flex flex-col items-center justify-center gap-4"
+        data-testid="avatar-upload-container"
+      >
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger onClick={() => !readOnly && setOpen(true)}>
             <Avatar

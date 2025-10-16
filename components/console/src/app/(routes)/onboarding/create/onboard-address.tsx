@@ -89,6 +89,7 @@ export function OnboardAddress({ onCancel }: OnboardAddressProps) {
             />
 
             <CountryField
+              dataTestId="country-select"
               name="address.country"
               label={intl.formatMessage({
                 id: 'entity.address.country',
@@ -153,7 +154,7 @@ export function OnboardAddress({ onCancel }: OnboardAddressProps) {
           </Button>
         </PageFooterSection>
         <PageFooterSection>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} data-testid="next-button">
             {intl.formatMessage({
               id: 'common.advance',
               defaultMessage: 'Next'

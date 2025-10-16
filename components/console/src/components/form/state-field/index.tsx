@@ -163,7 +163,7 @@ export const StateField = ({
     <FormField
       {...others}
       render={({ field }) => (
-        <FormItem required={required}>
+        <FormItem required={required} data-testid="state-select">
           {label && <FormLabel>{label}</FormLabel>}
           <StateComboBox
             countryName={countryName}

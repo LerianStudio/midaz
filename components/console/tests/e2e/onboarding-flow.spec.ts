@@ -1,72 +1,91 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 import { testDataFactory } from '../fixtures/test-data.factory'
 import { CommonHelpers } from '../utils/common-helpers'
 import { navigateToOnboarding } from '../utils/navigate-to-onboarding'
+import { FileUploadHelper } from '../utils/file-upload'
+
+async function fillFormStep1(
+  page: Page,
+  testData: ReturnType<typeof testDataFactory.organization>,
+  formData?: Partial<{
+    legalName: string
+    doingBusinessAs: string
+    legalDocument: string
+  }>
+) {
+  await page
+    .locator('input[name="legalName"]')
+    .fill(formData?.legalName ?? testData.legalName)
+  await page
+    .locator('input[name="doingBusinessAs"]')
+    .fill(formData?.doingBusinessAs ?? testData.doingBusinessAs)
+  await page
+    .locator('input[name="legalDocument"]')
+    .fill(formData?.legalDocument ?? testData.legalDocument)
+}
+
+async function fillFormStep2(
+  page: Page,
+  testData: ReturnType<typeof testDataFactory.organization>
+) {
+  await page.locator('input[name="address.line1"]').fill(testData.address.line1)
+  await page.locator('input[name="address.line2"]').fill(testData.address.line2)
+  // Country select
+  await page.getByTestId('country-select').locator('button').click()
+  await page.getByRole('group').locator('[data-value="BR"]').click()
+  // State select
+  await page.getByTestId('state-select').click()
+  await page.getByRole('group').locator('[data-value="AM"]').click()
+  await page.locator('input[name="address.city"]').fill(testData.address.city)
+  await page
+    .locator('input[name="address.zipCode"]')
+    .fill(testData.address.zipCode.replaceAll(/[^\d]/g, ''))
+}
 
 test.describe('Onboarding Flow - E2E Tests', () => {
   let testData: ReturnType<typeof testDataFactory.organization>
+  let ledgerData: ReturnType<typeof testDataFactory.ledger>
 
   test.beforeEach(async ({ page }) => {
     testData = testDataFactory.organization()
+    ledgerData = testDataFactory.ledger()
     await navigateToOnboarding(page)
   })
 
   test.describe('Multi-Step Onboarding Flow', () => {
     test('should complete full onboarding with all steps', async ({ page }) => {
       await test.step('Step 1: Fill organization details', async () => {
-        await page.locator('input[name="legalName"]').fill(testData.legalName)
-        await page
-          .locator('input[name="doingBusinessAs"]')
-          .fill(testData.doingBusinessAs)
-        await page
-          .locator('input[name="legalDocument"]')
-          .fill(testData.legalDocument)
+        await fillFormStep1(page, testData)
 
         // Continue to next step
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Step 2: Fill address information', async () => {
-        await page
-          .locator('input[name="address.line1"]')
-          .fill(testData.address.line1)
-        await page
-          .locator('input[name="address.line2"]')
-          .fill(testData.address.line2)
-        await page
-          .locator('input[name="address.city"]')
-          .fill(testData.address.city)
-        await page
-          .locator('input[name="address.state"]')
-          .fill(testData.address.state)
-        await page
-          .locator('input[name="address.country"]')
-          .fill(testData.address.country)
-        await page
-          .locator('input[name="address.zipCode"]')
-          .fill(testData.address.zipCode)
+        await fillFormStep2(page, testData)
 
         // Continue to next step
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Step 3: Configure theme (optional)', async () => {
-        // Theme configuration might be optional
-        const accentColorInput = page.locator('input[name="accentColor"]')
-        if (await accentColorInput.isVisible()) {
-          await accentColorInput.fill('#3B82F6')
-        }
+        // Theme upload logo image
+        const avatarUpload = page
+          .getByTestId('avatar-upload-container')
+          .getByRole('button')
 
-        const avatarInput = page.locator('input[name="avatar"]')
-        if (await avatarInput.isVisible()) {
-          await avatarInput.fill('https://example.com/avatar.png')
+        if (await avatarUpload.isVisible()) {
+          await avatarUpload.click()
+          await FileUploadHelper.uploadImage(page, '#avatar', 'test-avatar.png')
+          await page.getByRole('button', { name: /Send|Enviar/i }).click()
         }
 
         // Complete onboarding
         await page
           .getByRole('button', { name: /finish|complete|submit/i })
+          .first()
           .click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
@@ -75,7 +94,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         // Should redirect to main app or show success message
         await expect(
           page
-            .getByText(/success|complete|welcome/i)
+            .getByText(/.*active and operational|.*ativa e operante/i)
             .or(page.getByTestId('success-toast'))
         ).toBeVisible({ timeout: 10000 })
       })
@@ -85,33 +104,16 @@ test.describe('Onboarding Flow - E2E Tests', () => {
       page
     }) => {
       await test.step('Fill only required fields - Step 1', async () => {
-        await page.locator('input[name="legalName"]').fill(testData.legalName)
-        await page
-          .locator('input[name="doingBusinessAs"]')
-          .fill(testData.doingBusinessAs)
-        await page
-          .locator('input[name="legalDocument"]')
-          .fill(testData.legalDocument)
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Fill minimal address - Step 2', async () => {
-        await page
-          .locator('input[name="address.line1"]')
-          .fill(testData.address.line1)
-        await page
-          .locator('input[name="address.city"]')
-          .fill(testData.address.city)
-        await page
-          .locator('input[name="address.country"]')
-          .fill(testData.address.country)
-        await page
-          .locator('input[name="address.zipCode"]')
-          .fill(testData.address.zipCode)
+        await fillFormStep2(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
@@ -119,13 +121,18 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await page
           .getByRole('button', { name: /finish|complete|skip/i })
           .click()
+        await page
+          .getByRole('button', {
+            name: /Yes, I will configure it later|Sim, vou configurar depois/i
+          })
+          .click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Verify completion', async () => {
         await expect(
           page
-            .getByText(/success|complete/i)
+            .getByText(/.*active and operational|.*ativa e operante/i)
             .or(page.getByTestId('success-toast'))
         ).toBeVisible({ timeout: 10000 })
       })
@@ -135,20 +142,16 @@ test.describe('Onboarding Flow - E2E Tests', () => {
       page
     }) => {
       await test.step('Complete first step', async () => {
-        await page.locator('input[name="legalName"]').fill(testData.legalName)
-        await page
-          .locator('input[name="doingBusinessAs"]')
-          .fill(testData.doingBusinessAs)
-        await page
-          .locator('input[name="legalDocument"]')
-          .fill(testData.legalDocument)
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Go back to first step', async () => {
-        const backButton = page.getByRole('button', { name: /back|previous/i })
+        const backButton = page
+          .getByText(/Org details|Detalhes da Org/i)
+          .first()
         if (await backButton.isVisible()) {
           await backButton.click()
           await CommonHelpers.waitForNetworkIdle(page)
@@ -170,23 +173,24 @@ test.describe('Onboarding Flow - E2E Tests', () => {
   test.describe('Validation Scenarios', () => {
     test('should validate required fields on step 1', async ({ page }) => {
       await test.step('Try to continue without filling required fields', async () => {
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page
+          .locator('input[name="legalDocument"]')
+          .fill(testData.legalDocument)
+        await page.getByTestId('next-button').click()
       })
 
       await test.step('Verify validation errors', async () => {
-        await CommonHelpers.verifyValidationError(page, /required/i)
+        const error = page.getByText(/.*least 1 character/i).first()
+        await expect(error).toBeVisible()
       })
     })
 
     test('should validate legal document format', async ({ page }) => {
       await test.step('Enter invalid legal document', async () => {
-        await page.locator('input[name="legalName"]').fill(testData.legalName)
-        await page
-          .locator('input[name="doingBusinessAs"]')
-          .fill(testData.doingBusinessAs)
+        await fillFormStep1(page, testData)
         await page.locator('input[name="legalDocument"]').fill('invalid')
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
       })
 
       await test.step('Verify validation error for format', async () => {
@@ -202,52 +206,38 @@ test.describe('Onboarding Flow - E2E Tests', () => {
 
     test('should validate address fields on step 2', async ({ page }) => {
       await test.step('Complete step 1', async () => {
-        await page.locator('input[name="legalName"]').fill(testData.legalName)
-        await page
-          .locator('input[name="doingBusinessAs"]')
-          .fill(testData.doingBusinessAs)
-        await page
-          .locator('input[name="legalDocument"]')
-          .fill(testData.legalDocument)
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Try to continue without address', async () => {
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page
+          .locator('input[name="address.zipCode"]')
+          .fill(testData.address.zipCode.replaceAll(/[^\d]/g, ''))
+        await page.getByTestId('next-button').click()
       })
 
       await test.step('Verify address validation', async () => {
-        await CommonHelpers.verifyValidationError(page, /required/i)
+        const error = page.getByText(/.*least 1 character/i).first()
+        await expect(error).toBeVisible()
       })
     })
 
     test('should validate zipCode format', async ({ page }) => {
       await test.step('Complete step 1', async () => {
-        await CommonHelpers.fillForm(page, {
-          legalName: testData.legalName,
-          doingBusinessAs: testData.doingBusinessAs,
-          legalDocument: testData.legalDocument
-        })
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Enter invalid zipCode', async () => {
-        await page
-          .locator('input[name="address.line1"]')
-          .fill(testData.address.line1)
-        await page
-          .locator('input[name="address.city"]')
-          .fill(testData.address.city)
-        await page
-          .locator('input[name="address.country"]')
-          .fill(testData.address.country)
+        await fillFormStep2(page, testData)
         await page.locator('input[name="address.zipCode"]').fill('invalid-zip')
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
       })
 
       await test.step('Check for format validation', async () => {
@@ -273,8 +263,8 @@ test.describe('Onboarding Flow - E2E Tests', () => {
       }
 
       await test.step('Fill step 1 and continue', async () => {
-        await CommonHelpers.fillForm(page, formData)
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await fillFormStep1(page, testData, formData)
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
@@ -283,7 +273,9 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           .locator('input[name="address.line1"]')
           .fill(testData.address.line1)
 
-        const backButton = page.getByRole('button', { name: /back|previous/i })
+        const backButton = page
+          .getByText(/Org details|Detalhes da Org/i)
+          .first()
         if (await backButton.isVisible()) {
           await backButton.click()
           await CommonHelpers.waitForNetworkIdle(page)
@@ -301,14 +293,6 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           .inputValue()
         expect(dbaValue).toBe(formData.doingBusinessAs)
       })
-    })
-
-    test('should persist data across page refresh (if implemented)', async ({
-      page
-    }) => {
-      test.skip()
-      // This would test localStorage/sessionStorage persistence
-      // Implementation depends on onboarding flow design
     })
   })
 
@@ -335,13 +319,9 @@ test.describe('Onboarding Flow - E2E Tests', () => {
 
     test('should show completed steps', async ({ page }) => {
       await test.step('Complete step 1', async () => {
-        await CommonHelpers.fillForm(page, {
-          legalName: testData.legalName,
-          doingBusinessAs: testData.doingBusinessAs,
-          legalDocument: testData.legalDocument
-        })
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
@@ -358,25 +338,6 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           await expect(completedStep).toBeVisible()
         }
       })
-    })
-  })
-
-  test.describe('Error Handling', () => {
-    test('should handle organization already exists error', async ({
-      page
-    }) => {
-      // This would require mocking API response for duplicate
-      test.skip()
-    })
-
-    test('should handle network errors gracefully', async ({ page }) => {
-      // Would require network mocking
-      test.skip()
-    })
-
-    test('should allow retry after error', async ({ page }) => {
-      // Would require error scenario simulation
-      test.skip()
     })
   })
 
@@ -415,35 +376,78 @@ test.describe('Onboarding Flow - E2E Tests', () => {
 
     test('should show loading state during submission', async ({ page }) => {
       await test.step('Fill all required fields', async () => {
-        await CommonHelpers.fillForm(page, {
-          legalName: testData.legalName,
-          doingBusinessAs: testData.doingBusinessAs,
-          legalDocument: testData.legalDocument
-        })
+        await fillFormStep1(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
 
-        await CommonHelpers.fillForm(page, {
-          'address.line1': testData.address.line1,
-          'address.city': testData.address.city,
-          'address.country': testData.address.country,
-          'address.zipCode': testData.address.zipCode
-        })
+        await fillFormStep2(page, testData)
 
-        await page.getByRole('button', { name: /next|continue/i }).click()
+        await page.getByTestId('next-button').click()
         await CommonHelpers.waitForNetworkIdle(page)
       })
 
       await test.step('Submit and check loading state', async () => {
+        await page
+          .getByRole('button', {
+            name: /finish|complete|submit/i
+          })
+          .click()
+
         const submitButton = page.getByRole('button', {
-          name: /finish|complete|submit/i
+          name: /Yes, I will configure it later|Sim, vou configurar depois/i
         })
+
         await submitButton.click()
 
         // Check for loading indicator
         const isDisabled = await submitButton.isDisabled().catch(() => false)
         expect(isDisabled).toBeTruthy()
+      })
+    })
+  })
+
+  test.describe('Create Ledger', () => {
+    test('should create ledger', async ({ page }) => {
+      await test.step('Create organization', async () => {
+        await fillFormStep1(page, testData)
+        await page.getByTestId('next-button').click()
+        await CommonHelpers.waitForNetworkIdle(page)
+
+        await fillFormStep2(page, testData)
+        await page.getByTestId('next-button').click()
+        await CommonHelpers.waitForNetworkIdle(page)
+
+        await page
+          .getByRole('button', {
+            name: /finish|complete|submit/i
+          })
+          .click()
+
+        await page
+          .getByRole('button', {
+            name: /Yes, I will configure it later|Sim, vou configurar depois/i
+          })
+          .click()
+
+        await page.getByText(/continue|continuar/i).click()
+      })
+
+      await test.step('Create ledger', async () => {
+        await page.locator('input[name="name"]').fill(ledgerData.name)
+        await page
+          .getByRole('button', {
+            name: /finish|finalizar/i
+          })
+          .click()
+
+        await CommonHelpers.waitForNetworkIdle(page)
+      })
+
+      await test.step('Verify ledger created', async () => {
+        await expect(
+          page.getByText(/.*setup complete|configuração completa/i)
+        ).toBeVisible()
       })
     })
   })
