@@ -1,3 +1,19 @@
+## [v3.4.0-beta.25] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.24...v3.4.0-beta.25)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 🔄 Changes
+- **Authentication & Configuration**: We've upgraded the security scanning process by updating the Trivy scan version and configuring Docker parameters. This enhancement provides more accurate vulnerability detection, ensuring your data remains secure and compliant with the latest standards.
+
+### 📚 Documentation
+- Updated project documentation to reflect the latest security scanning configurations. This ensures you have access to the most current information, supporting your understanding and use of the system.
+
+### 🔧 Maintenance
+- **Testing Workflows**: We've aligned our testing workflows with the new security scanning configurations. This includes testing a new version of the pull request scan workflow, enhancing the vetting process for future changes to maintain high code quality and security.
+- **Release Management**: The CHANGELOG has been updated to clearly document recent changes and improvements, providing transparency and keeping you informed about the project's development progress.
+
+
 ## [v3.4.0-beta.24] - 2025-10-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.23...v3.4.0-beta.24)
