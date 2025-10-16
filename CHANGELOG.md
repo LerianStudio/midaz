@@ -1,3 +1,22 @@
+## [v3.4.0-beta.24] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.23...v3.4.0-beta.24)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Balance Tracking**: We've added `VersionBalance` and `VersionBalanceAfter` fields to operation queries, allowing you to track balance changes over time. This upgrade offers more detailed transaction histories and boosts auditing capabilities, ensuring you have comprehensive insights into your financial data.
+- **Granular Data Analysis**: The new `balance_version` columns in the operation table provide more precise tracking of balance changes, facilitating better historical data analysis and reporting.
+
+### 🐛 Bug Fixes
+- **Safe Database Migrations**: We've corrected the migration script to safely remove `balance_version` columns, preventing potential data loss during schema updates and ensuring smoother database migrations.
+
+### 🔧 Maintenance
+- **Dependency Updates**: We've updated project dependencies to their latest versions, enhancing compatibility and security. This ensures the software remains stable and protected against known vulnerabilities.
+- **Improved Code Readability**: Variable names related to balance version assignment have been clarified, making the codebase easier to understand and reducing developer onboarding time.
+- **Test Enhancements**: Asynchronous balance transaction tests now assert balance version fields and multiple operations, improving test coverage and reliability. This ensures new features work as intended and reduces the risk of future issues.
+- **API Documentation**: Updated API documentation and Swagger files to include the version field in the balance structure, ensuring developers have accurate and up-to-date information for integrating with the API.
+
+
 ## [v3.4.0-beta.23] - 2025-10-15
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.22...v3.4.0-beta.23)
