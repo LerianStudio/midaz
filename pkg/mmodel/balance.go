@@ -198,6 +198,9 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
+
+	// Unique key for the balance
+	Key string `json:"key"`
 }
 
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance

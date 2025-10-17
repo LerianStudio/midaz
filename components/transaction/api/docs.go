@@ -3596,6 +3596,12 @@ const docTemplate = `{
                     "type": "number",
                     "minimum": 0,
                     "example": 500
+                },
+                "version": {
+                    "description": "Balance version after the operation\nexample: 2\nminimum: 0",
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
                 }
             }
         },

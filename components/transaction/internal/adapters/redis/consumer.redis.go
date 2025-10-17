@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
@@ -23,14 +24,23 @@ import (
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
+//go:embed scripts/get_balances_near_expiration.lua
+var getBalancesNearExpirationLua string
+
+//go:embed scripts/unschedule_synced_balance.lua
+var unscheduleSyncedBalanceLua string
+
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
+//
+//go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
+	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
@@ -40,6 +50,8 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error)
+	RemoveBalanceSyncKey(ctx context.Context, member string) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -138,6 +150,59 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	return val, nil
 }
 
+// MGet retrieves multiple values from redis.
+func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.mget")
+	defer span.End()
+
+	if len(keys) == 0 {
+		libOpentelemetry.HandleSpanEvent(&span, "mget called with empty keys")
+
+		return map[string]string{}, nil
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis: %v", err)
+
+		return nil, err
+	}
+
+	res, err := rds.MGet(ctx, keys...).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
+
+		logger.Errorf("Failed to mget on redis: %v", err)
+
+		return nil, err
+	}
+
+	out := make(map[string]string, len(keys))
+
+	for i, v := range res {
+		if v == nil {
+			continue
+		}
+
+		switch vv := v.(type) {
+		case string:
+			out[keys[i]] = vv
+		case []byte:
+			out[keys[i]] = string(vv)
+		default:
+			out[keys[i]] = fmt.Sprint(v)
+		}
+	}
+
+	logger.Infof("mget retrieved %d/%d values", len(out), len(keys))
+
+	return out, nil
+}
+
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -232,6 +297,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			allowReceiving,
 			blcs.Balance.AssetCode,
 			blcs.Balance.AccountID,
+			blcs.Balance.Key,
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
@@ -251,9 +317,9 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	script := redis.NewScript(addSubLua)
 
-	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -481,6 +547,86 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	}
 
 	logger.Infof("Message with ID %s is removed from redis queue", key)
+
+	return nil
+}
+
+// FetchDueBalanceKeys returns due scheduled balance keys up to 'now' limited by 'limit'.
+func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		logger.Warnf("Failed to get redis client: %v", err)
+
+		return nil, err
+	}
+
+	script := redis.NewScript(getBalancesNearExpirationLua)
+
+	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
+	if err != nil {
+		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
+
+		return nil, err
+	}
+
+	var out []string
+	switch vv := res.(type) {
+	case []any:
+		out = make([]string, 0, len(vv))
+		for _, it := range vv {
+			switch s := it.(type) {
+			case string:
+				out = append(out, s)
+			case []byte:
+				out = append(out, string(s))
+			default:
+				out = append(out, fmt.Sprint(it))
+			}
+		}
+	case []string:
+		out = vv
+	default:
+		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
+
+		logger.Warnf("Warning: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("fetch_due returned %d keys", len(out))
+
+	return out, nil
+}
+
+// RemoveScheduledMember removes a single scheduled member from the ZSET.
+func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, member string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_key")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		logger.Warnf("Failed to get redis client: %v", err)
+
+		return err
+	}
+
+	script := redis.NewScript(unscheduleSyncedBalanceLua)
+
+	_, err = script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, member, utils.BalanceSyncLockPrefix).Result()
+	if err != nil {
+		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
+
+		return err
+	}
+
+	logger.Infof("Unscheduled synced balance: %s", member)
 
 	return nil
 }

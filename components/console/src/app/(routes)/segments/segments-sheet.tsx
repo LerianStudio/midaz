@@ -24,6 +24,7 @@ import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@lerianstudio/console-layout'
 import { SegmentDto } from '@/core/application/dto/segment-dto'
+import { useToast } from '@/hooks/use-toast'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
@@ -53,6 +54,7 @@ export const SegmentsSheet = ({
   ...others
 }: SegmentsSheetProps) => {
   const intl = useIntl()
+  const { toast } = useToast()
   const { currentOrganization } = useOrganization()
   const { isReadOnly } = useFormPermissions('segments')
 
@@ -61,12 +63,15 @@ export const SegmentsSheet = ({
     ledgerId,
     onSuccess: () => {
       onSuccess?.()
-      form.reset()
       onOpenChange?.(false)
-    },
-    onError: (error) => {
-      console.error('Failed to create segment:', error)
-      // The error will be handled by the mutation error state
+      toast({
+        description: intl.formatMessage({
+          id: 'success.segments.create',
+          defaultMessage: 'Segment successfully created'
+        }),
+        variant: 'success'
+      })
+      form.reset()
     }
   })
 
@@ -77,10 +82,13 @@ export const SegmentsSheet = ({
     onSuccess: () => {
       onSuccess?.()
       onOpenChange?.(false)
-    },
-    onError: (error) => {
-      console.error('Failed to update segment:', error)
-      // The error will be handled by the mutation error state
+      toast({
+        description: intl.formatMessage({
+          id: 'success.segments.update',
+          defaultMessage: 'Segment successfully updated'
+        }),
+        variant: 'success'
+      })
     }
   })
 
