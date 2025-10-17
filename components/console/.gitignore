@@ -68,8 +68,8 @@ node_modules/
 yalc.lock
 
 # Lerian Protocol
+CLAUDE.md
 .claude/
-protocol-assets/
+.protocol-assets/
+.protocol-backups/
 .mcp.json
-.lerian-config.json
-.backups

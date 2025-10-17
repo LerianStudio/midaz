@@ -104,7 +104,7 @@ export const useDeleteOrganization = ({
   const queryClient = useQueryClient()
   const layoutQueryClient = useLayoutQueryClient()
 
-  return useMutation({
+  return useMutation<any, any, any>({
     mutationKey: ['organizations'],
     mutationFn: deleteFetcher(`/api/organizations`),
     ...options,
