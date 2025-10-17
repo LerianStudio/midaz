@@ -26,6 +26,7 @@ export const CursorPagination: React.FC<CursorPaginationProps> = ({
         size="sm"
         onClick={onPrevious}
         disabled={isLoading || !hasPrev}
+        data-testid="prev-page"
       >
         <ChevronLeft className="h-4 w-4" />
         Previous
@@ -36,6 +37,7 @@ export const CursorPagination: React.FC<CursorPaginationProps> = ({
         size="sm"
         onClick={onNext}
         disabled={isLoading || !hasNext}
+        data-testid="next-page"
       >
         Next
         <ChevronRight className="h-4 w-4" />

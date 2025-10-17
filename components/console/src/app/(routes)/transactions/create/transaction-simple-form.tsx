@@ -54,7 +54,7 @@ export const TransactionSimpleForm = ({
       <div className="grid h-full grid-cols-3 gap-4">
         <div className="col-span-1">
           <SideControl>
-            <SideControlTitle>
+            <SideControlTitle data-testid="transaction-form-title">
               {intl.formatMessage({
                 id: 'transactions.create.mode.simple',
                 defaultMessage: 'New simple Transaction'
@@ -126,6 +126,7 @@ export const TransactionSimpleForm = ({
                   onRemove={removeSource}
                   control={form.control}
                   expand
+                  data-testid="source-account-search"
                 />
               </div>
               <div className="flex items-center justify-center">
@@ -137,6 +138,7 @@ export const TransactionSimpleForm = ({
                   onSubmit={addDestination}
                   onRemove={removeDestination}
                   control={form.control}
+                  data-testid="destination-account-search"
                 />
               </div>
             </div>
@@ -183,13 +185,18 @@ export const TransactionSimpleForm = ({
 
           <div className="mb-56 flex justify-end">
             <StepperContent active={currentStep < 2}>
-              <NextButton disabled={!enableNext} onClick={handleNextStep} />
+              <NextButton
+                disabled={!enableNext}
+                onClick={handleNextStep}
+                data-testid="transaction-next-button"
+              />
             </StepperContent>
             <StepperContent active={currentStep === 2}>
               <Button
                 icon={<ArrowRight />}
                 iconPlacement="end"
                 onClick={handleReview}
+                data-testid="transaction-review-button"
               >
                 {intl.formatMessage({
                   id: 'transactions.create.review.button',

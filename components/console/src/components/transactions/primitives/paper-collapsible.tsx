@@ -45,6 +45,7 @@ export const PaperCollapsibleTrigger = forwardRef<
       'transition-all hover:underline [&[data-state=open]>svg]:rotate-180',
       className
     )}
+    data-testid="paper-collapsible-trigger"
     {...props}
   >
     <ChevronDown className="shrink-0 transition-transform duration-200" />

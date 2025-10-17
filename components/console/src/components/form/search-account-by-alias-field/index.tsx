@@ -29,6 +29,7 @@ export interface SearchAccountByAliasFieldProps {
   className?: string
   onAccountSelect?: (account: AccountDto) => void
   onSearchChange?: (searchTerm: string) => void
+  'data-testid'?: string
 }
 
 export const SearchAccountByAliasField: React.FC<
@@ -46,7 +47,8 @@ export const SearchAccountByAliasField: React.FC<
   debounceDelay = 600,
   className = '',
   onAccountSelect,
-  onSearchChange
+  onSearchChange,
+  'data-testid': dataTestId
 }) => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
@@ -132,6 +134,7 @@ export const SearchAccountByAliasField: React.FC<
                     placeholder={placeholder || defaultPlaceholder}
                     disabled={disabled}
                     className={`w-full pr-10 ${fieldState.error ? 'border-red-500' : ''}`}
+                    data-testid={dataTestId}
                   />
                   {/* Loading Indicator */}
                   {accountsLoading && (

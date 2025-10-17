@@ -3,18 +3,20 @@ import Image from 'next/image'
 import NoResourceImage from '@/../public/images/no-resource.png'
 import { Separator } from '../ui/separator'
 
-export type EmptyResourceProps = React.PropsWithChildren & {
-  message?: string
-  extra?: string
-}
+export type EmptyResourceProps = React.PropsWithChildren &
+  React.HTMLAttributes<HTMLDivElement> & {
+    message?: string
+    extra?: string
+  }
 
 export const EmptyResource = ({
   message,
   extra,
-  children
+  children,
+  ...props
 }: EmptyResourceProps) => {
   return (
-    <Card className="gap-0 rounded-b-none p-0">
+    <Card className="gap-0 rounded-b-none p-0" {...props}>
       <CardContent className="p-6">
         <div className="flex flex-col items-center justify-center gap-4">
           <Image className="mb-2" src={NoResourceImage} alt="No Resource" />

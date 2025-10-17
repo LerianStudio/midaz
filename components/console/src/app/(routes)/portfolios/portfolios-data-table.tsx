@@ -57,7 +57,10 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
 
   return (
     <React.Fragment>
-      <TableRow key={portfolio.id}>
+      <TableRow
+        key={portfolio.id}
+        data-testid={`portfolio-row-${portfolio.original.id}`}
+      >
         <TableCell>{portfolio.original.name}</TableCell>
         <IdTableCell id={portfolio.original.id} />
         <TableCell>
@@ -78,12 +81,17 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
         <TableCell className="w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="h-auto w-max p-2">
+              <Button
+                variant="secondary"
+                className="h-auto w-max p-2"
+                data-testid={`portfolio-menu-trigger-${portfolio.original.id}`}
+              >
                 <MoreVertical size={16} onClick={() => {}} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                data-testid={`portfolio-details-${portfolio.original.id}`}
                 onClick={() =>
                   handleEdit({
                     ...portfolio.original,
@@ -98,6 +106,7 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
+                data-testid={`portfolio-delete-${portfolio.original.id}`}
                 onClick={() => {
                   handleDialogOpen(portfolio?.original?.id!)
                 }}
@@ -154,8 +163,9 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
               id: 'ledgers.portfolios.emptyResource',
               defaultMessage: "You haven't created any Portfolios yet"
             })}
+            data-testid="portfolios-empty-state"
           >
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} data-testid="new-portfolio">
               {intl.formatMessage({
                 id: 'ledgers.portfolio.sheet.title',
                 defaultMessage: 'New Portfolio'
@@ -164,7 +174,7 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="portfolios-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>

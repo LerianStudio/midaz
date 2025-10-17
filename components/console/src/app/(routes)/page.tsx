@@ -105,7 +105,10 @@ const Page = () => {
             <div className="bg-accent flex h-[262px] flex-col items-center gap-8 overflow-hidden">
               <div className="flex w-full gap-24 pr-24 pl-44">
                 <div className="flex flex-col gap-4 pt-24">
-                  <h1 className="text-4xl leading-[1.21] font-bold text-zinc-900">
+                  <h1
+                    className="text-4xl leading-[1.21] font-bold text-zinc-900"
+                    data-testid="page-header"
+                  >
                     {currentLedger?.name ?? <Skeleton className="h-11 w-64" />}
                   </h1>
                   <p className="text-sm leading-6 font-medium -tracking-[1.1%] text-zinc-800/80">
@@ -121,6 +124,8 @@ const Page = () => {
                   alt="Decorative Vector"
                   width={320.23}
                   height={306}
+                  priority
+                  fetchPriority="high"
                 />
               </div>
             </div>

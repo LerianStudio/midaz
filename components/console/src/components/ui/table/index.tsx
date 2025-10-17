@@ -14,9 +14,14 @@ function TableContainer({ className, ...props }: React.ComponentProps<'div'>) {
 
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
-    <div className="relative w-full overflow-auto">
+    <div
+      className="relative w-full overflow-auto"
+      role="region"
+      aria-label="Data table"
+    >
       <table
         data-slot="data-table"
+        role="table"
         className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
@@ -28,6 +33,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot="data-table-header"
+      role="rowgroup"
       className={cn('[&_tr]:border-b hover:[&_tr]:bg-transparent', className)}
       {...props}
     />
@@ -38,6 +44,7 @@ function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
   return (
     <tbody
       data-slot="data-table-body"
+      role="rowgroup"
       className={cn('', className)}
       {...props}
     />
@@ -66,6 +73,7 @@ function TableRow({ className, active, button, ...props }: TableRowProps) {
   return (
     <tr
       data-slot="data-table-row"
+      role="row"
       className={cn(
         'data-[state=selected]:bg-muted border-b transition-colors hover:bg-[#FAFAFA]',
         {
@@ -87,6 +95,7 @@ function TableHead({ className, align, ...props }: TableHeadProps) {
   return (
     <th
       data-slot="data-table-head"
+      role="columnheader"
       className={cn(
         'h-12 px-6 py-4 text-left align-middle font-medium text-[#52525B] [&:has([role=checkbox])]:pr-0',
         {
@@ -108,6 +117,7 @@ function TableCell({
   return (
     <td
       data-slot="data-table-cell"
+      role="cell"
       className={cn(
         'group/table-cell text-shadcn-600 px-6 py-4 align-middle text-sm font-normal [&:has([role=checkbox])]:pr-0',
         {

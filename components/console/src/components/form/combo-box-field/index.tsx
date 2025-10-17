@@ -32,6 +32,7 @@ export type ComboBoxFieldProps = React.PropsWithChildren & {
   disabled?: boolean
   readOnly?: boolean
   required?: boolean
+  dataTestId?: string
 }
 
 export const ComboBoxField = ({
@@ -42,6 +43,7 @@ export const ComboBoxField = ({
   required,
   children,
   readOnly,
+  dataTestId,
   ...others
 }: ComboBoxFieldProps) => {
   const intl = useIntl()
@@ -75,7 +77,7 @@ export const ComboBoxField = ({
       name={name}
       {...others}
       render={({ field }) => (
-        <FormItem required={required}>
+        <FormItem required={required} data-testid={dataTestId}>
           {label && <FormLabel>{label}</FormLabel>}
 
           <Popover

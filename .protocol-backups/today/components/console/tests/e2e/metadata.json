@@ -1,0 +1,31 @@
+{
+  "backup_created": "2025-10-07T18:05:40.992013",
+  "operation_type": "update",
+  "backup_info": {
+    "relative_path": "components/console/tests/e2e/portfolios-flow.spec.ts",
+    "working_directory": "/home/paulobarbosa/Documentos/www/midaz",
+    "git_repo": true
+  },
+  "hook_context": {
+    "tool_name": "Edit",
+    "hook_event": "PreToolUse",
+    "session_id": "3f2e1c02-af94-46e6-87b7-0ad82cca0c8c"
+  },
+  "system_info": {
+    "python_version": "3.10.12 (main, Aug 15 2025, 14:32:43) [GCC 11.4.0]",
+    "timestamp": "2025-10-07T18:05:40.991223"
+  },
+  "original_file": {
+    "path": "/home/paulobarbosa/Documentos/www/midaz/components/console/tests/e2e/portfolios-flow.spec.ts",
+    "name": "portfolios-flow.spec.ts",
+    "size": 9083,
+    "modified": "2025-10-07T17:57:28.764218",
+    "permissions": "664"
+  },
+  "tool_operation": {
+    "type": "Edit",
+    "old_string": "test('should delete portfolio with confirmation', async ({ page }) => {\n      await test.step('Create portfolio to delete', async () => {\n        await openPortfolioSheet(page)\n        await page.getB",
+    "new_string": "test('should delete portfolio with confirmation', async ({ page }) => {\n      await test.step('Create portfolio to delete', async () => {\n        await openPortfolioSheet(page)\n        await page.getB",
+    "content_preview": null
+  }
+}

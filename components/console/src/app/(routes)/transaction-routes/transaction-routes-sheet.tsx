@@ -216,7 +216,10 @@ export const TransactionRoutesSheet = ({
   return (
     <React.Fragment>
       <Sheet onOpenChange={onOpenChange} {...others}>
-        <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          data-testid="transaction-route-sheet"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           {mode === 'create' && (
             <SheetHeader>
               <SheetTitle>
@@ -392,6 +395,7 @@ export const TransactionRoutesSheet = ({
                   onClick={form.handleSubmit(handleSubmit)}
                   fullWidth
                   loading={createPending || updatePending}
+                  data-testid="save-button"
                 >
                   {intl.formatMessage({
                     id: 'common.save',

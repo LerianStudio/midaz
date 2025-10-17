@@ -74,6 +74,17 @@ export const PortfolioSheet = ({
           variant: 'success'
         })
         form.reset()
+      },
+      onError: (error: any) => {
+        toast({
+          description:
+            error?.message ||
+            intl.formatMessage({
+              id: 'error.portfolios.create',
+              defaultMessage: 'Failed to create portfolio'
+            }),
+          variant: 'destructive'
+        })
       }
     })
 
@@ -91,6 +102,17 @@ export const PortfolioSheet = ({
             defaultMessage: 'Portfolio changes saved successfully'
           }),
           variant: 'success'
+        })
+      },
+      onError: (error: any) => {
+        toast({
+          description:
+            error?.message ||
+            intl.formatMessage({
+              id: 'error.portfolios.update',
+              defaultMessage: 'Failed to update portfolio'
+            }),
+          variant: 'destructive'
         })
       }
     })
@@ -113,7 +135,10 @@ export const PortfolioSheet = ({
   return (
     <React.Fragment>
       <Sheet onOpenChange={onOpenChange} {...others}>
-        <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          data-testid="portfolio-sheet"
+        >
           {mode === 'create' && (
             <SheetHeader>
               <SheetTitle>
@@ -163,16 +188,23 @@ export const PortfolioSheet = ({
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
               className="flex grow flex-col"
+              data-testid="portfolios-form"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
-                  <TabsTrigger value="details">
+                  <TabsTrigger
+                    value="details"
+                    data-testid="portfolio-details-tab"
+                  >
                     {intl.formatMessage({
                       id: 'ledgers.portfolio.sheet.tabs.details',
                       defaultMessage: 'Portfolio Details'
                     })}
                   </TabsTrigger>
-                  <TabsTrigger value="metadata">
+                  <TabsTrigger
+                    value="metadata"
+                    data-testid="portfolio-metadata-tab"
+                  >
                     {intl.formatMessage({
                       id: 'common.metadata',
                       defaultMessage: 'Metadata'
@@ -190,6 +222,7 @@ export const PortfolioSheet = ({
                       control={form.control}
                       readOnly={isReadOnly}
                       required
+                      data-testid="portfolio-name-input"
                     />
 
                     {mode === 'create' && (
@@ -206,6 +239,7 @@ export const PortfolioSheet = ({
                         })}
                         control={form.control}
                         readOnly={isReadOnly}
+                        data-testid="portfolio-entity-id-input"
                       />
                     )}
                     <p className="text-shadcn-400 text-xs font-normal italic">
@@ -232,6 +266,7 @@ export const PortfolioSheet = ({
                     type="submit"
                     fullWidth
                     loading={createPending || updatePending}
+                    data-testid="portfolio-form-save-button"
                   >
                     {intl.formatMessage({
                       id: 'common.save',

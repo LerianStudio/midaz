@@ -100,12 +100,19 @@ const AccountRow: React.FC<AccountRowProps> = ({
         ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="h-auto w-max p-2">
+              <Button
+                variant="secondary"
+                className="h-auto w-max p-2"
+                data-testid="actions"
+              >
                 <MoreVertical size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleEdit(account.original)}>
+              <DropdownMenuItem
+                onClick={() => handleEdit(account.original)}
+                data-testid="edit"
+              >
                 {intl.formatMessage({
                   id: `common.details`,
                   defaultMessage: 'Details'
@@ -116,6 +123,7 @@ const AccountRow: React.FC<AccountRowProps> = ({
                 onClick={() => {
                   onDelete(account.original.id!, account.original)
                 }}
+                data-testid="delete"
               >
                 {intl.formatMessage({
                   id: `common.delete`,
@@ -225,7 +233,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
         </React.Fragment>
       ) : (
         <TableContainer>
-          <Table>
+          <Table data-testid="accounts-table">
             <TableHeader>
               <TableRow>
                 <TableHead>

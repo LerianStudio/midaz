@@ -32,6 +32,7 @@ type CurrencySelectProps = SelectProps &
     placeholder?: string
     emptyMessage?: string
     readOnly?: boolean
+    'data-testid'?: string
   }
 
 const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
@@ -43,6 +44,7 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
       onChange,
       emptyMessage,
       readOnly,
+      'data-testid': dataTestId,
       ..._others
     }: CurrencySelectProps,
     _ref
@@ -69,7 +71,7 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
         open={readOnly ? false : open}
         onOpenChange={readOnly ? () => {} : setOpen}
       >
-        <PopoverTrigger asChild>
+        <PopoverTrigger asChild data-testid={dataTestId}>
           <Button
             variant="outline"
             role="combobox"
@@ -140,6 +142,7 @@ CurrencyComboBox.displayName = 'CurrencySelect'
 export type CurrencyFieldProps = Omit<SelectFieldProps, 'children'> & {
   emptyMessage?: string
   readOnly?: boolean
+  'data-testid'?: string
 }
 
 export const CurrencyField = ({
@@ -148,6 +151,7 @@ export const CurrencyField = ({
   emptyMessage,
   required,
   readOnly,
+  'data-testid': dataTestId,
   ...others
 }: CurrencyFieldProps) => {
   return (
@@ -160,6 +164,7 @@ export const CurrencyField = ({
             placeholder={placeholder}
             emptyMessage={emptyMessage}
             readOnly={readOnly}
+            data-testid={dataTestId}
             {...field}
           />
           <FormMessage />

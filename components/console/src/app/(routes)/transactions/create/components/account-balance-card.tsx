@@ -80,6 +80,7 @@ export const AccountBalanceCard = ({
       className={className}
       open={_open}
       onOpenChange={handleOpen}
+      data-testid="account-balance-card"
     >
       <AccountBalanceCardHeader>
         {icon && <AccountBalanceCardIcon />}

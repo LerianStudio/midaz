@@ -37,13 +37,15 @@ type AccountSearchFieldProps = {
   errors?: CustomFormErrors
   onSelect?: (accountId: string, account: AccountDto) => void
   onClear?: () => void
+  'data-testid'?: string
 }
 
 export const AccountSearchField = ({
   className,
   errors,
   onSelect,
-  onClear
+  onClear,
+  'data-testid': dataTestId
 }: AccountSearchFieldProps) => {
   const intl = useIntl()
   const [selected, setSelected] = useState('')
@@ -118,6 +120,7 @@ export const AccountSearchField = ({
                       })}
                       value={value}
                       onValueChange={onChange}
+                      data-testid={dataTestId}
                       {...fieldOthers}
                     />
                   </AutocompleteTrigger>
@@ -156,6 +159,7 @@ export const AccountSearchField = ({
             className="bg-shadcn-600 disabled:bg-shadcn-200 h-9 w-9 self-end rounded-full"
             onClick={handleSubmit}
             disabled={loading || !selected}
+            data-testid={dataTestId ? `${dataTestId}-add-button` : undefined}
           >
             <Plus className="h-4 w-4 shrink-0" />
           </Button>

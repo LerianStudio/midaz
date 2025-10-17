@@ -11,7 +11,7 @@ export class SegmentMapper {
   static toDomain(dto: CreateSegmentDto | UpdateSegmentDto): SegmentEntity {
     return {
       name: dto.name!,
-      metadata: dto.metadata!
+      metadata: dto.metadata ?? {}
     }
   }
 

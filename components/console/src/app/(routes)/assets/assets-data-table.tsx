@@ -77,7 +77,7 @@ const AssetRow: React.FC<AssetRowProps> = ({
   })
 
   return (
-    <TableRow key={asset.id}>
+    <TableRow key={asset.id} data-testid={`asset-row-${asset.original.id}`}>
       <TableCell>{asset.original.name}</TableCell>
       <TableCell>
         {capitalizeFirstLetter(
@@ -104,12 +104,19 @@ const AssetRow: React.FC<AssetRowProps> = ({
       <TableCell align="center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="h-auto w-max p-2">
+            <Button
+              variant="secondary"
+              className="h-auto w-max p-2"
+              data-testid={`asset-menu-trigger-${asset.original.id}`}
+            >
               <MoreVertical size={16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(asset.original)}>
+            <DropdownMenuItem
+              onClick={() => handleEdit(asset.original)}
+              data-testid={`asset-details-${asset.original.id}`}
+            >
               {intl.formatMessage({
                 id: `common.details`,
                 defaultMessage: 'Details'
@@ -117,6 +124,7 @@ const AssetRow: React.FC<AssetRowProps> = ({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              data-testid={`asset-delete-${asset.original.id}`}
               onClick={() =>
                 handleDialogOpen(
                   asset.original.id || '',
@@ -163,6 +171,7 @@ export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
               id: 'ledgers.assets.emptyResource',
               defaultMessage: 'You have not created any assets yet.'
             })}
+            data-testid="assets-empty-state"
           >
             <Button variant="default" onClick={handleCreate}>
               {intl.formatMessage({

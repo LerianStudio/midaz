@@ -42,7 +42,13 @@ const ValueField = ({ name, error, control }: ValueFieldProps) => {
             <Tooltip disabled={!error} delayDuration={50}>
               <TooltipTrigger>
                 <FormControl>
-                  <Input type="number" className="" {...field} min={0} />
+                  <Input
+                    type="number"
+                    className=""
+                    {...field}
+                    min={0}
+                    data-testid="operation-value-input"
+                  />
                 </FormControl>
               </TooltipTrigger>
               <TooltipContent>{error}</TooltipContent>
@@ -135,6 +141,7 @@ export const OperationAccordion = ({
                     'text-red-500': type === 'debit',
                     'text-green-500': type === 'credit'
                   })}
+                  data-testid="operation-value-display"
                 >
                   {intl.formatNumber(values.value, {
                     roundingPriority: 'morePrecision'

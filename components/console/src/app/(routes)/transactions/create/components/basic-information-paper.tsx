@@ -22,7 +22,8 @@ export const BasicInformationPaper = ({
 
   const { data: assets } = useListAssets({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id!
+    ledgerId: currentLedger.id!,
+    limit: 100
   })
 
   return (
@@ -30,6 +31,7 @@ export const BasicInformationPaper = ({
       <div className="grid grid-cols-2 gap-5 p-6">
         <InputField
           name="description"
+          data-testid="transaction-description"
           label={intl.formatMessage({
             id: 'transactions.field.description',
             defaultMessage: 'Transaction description'
@@ -45,6 +47,7 @@ export const BasicInformationPaper = ({
         />
         <InputField
           name="chartOfAccountsGroupName"
+          data-testid="chart-of-accounts-group"
           label={intl.formatMessage({
             id: 'transactions.create.field.chartOfAccountsGroupName',
             defaultMessage: 'Accounting route group'
@@ -60,6 +63,7 @@ export const BasicInformationPaper = ({
       <div className="grid grid-cols-4 gap-5 p-6">
         <SelectField
           name="asset"
+          data-testid="transaction-asset"
           label={intl.formatMessage({
             id: 'entity.transaction.asset',
             defaultMessage: 'Asset'
@@ -75,6 +79,7 @@ export const BasicInformationPaper = ({
         <div className="col-span-2">
           <InputField
             name="value"
+            data-testid="transaction-value"
             type="number"
             label={intl.formatMessage({
               id: 'common.value',

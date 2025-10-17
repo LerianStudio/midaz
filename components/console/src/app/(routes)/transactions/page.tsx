@@ -81,6 +81,7 @@ export default function TransactionsPage() {
       <PageHeader.Root>
         <PageHeader.Wrapper>
           <PageHeader.InfoTitle
+            data-testid="title"
             title={intl.formatMessage({
               id: 'common.transactions',
               defaultMessage: 'Transactions'

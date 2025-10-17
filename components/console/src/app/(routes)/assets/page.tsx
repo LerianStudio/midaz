@@ -36,6 +36,9 @@ const Page = () => {
 
   const { form, searchValues, pagination } = useQueryParams({ total })
 
+  // Safety check: Assets page requires an active ledger
+  const hasRequiredContext = currentOrganization?.id && currentLedger?.id
+
   const {
     data: assets,
     refetch,
@@ -112,7 +115,7 @@ const Page = () => {
   }
 
   return (
-    <React.Fragment>
+    <div data-testid="assets-tab-content">
       <Breadcrumb paths={breadcrumbPaths} />
 
       <PageHeader.Root>
@@ -137,7 +140,7 @@ const Page = () => {
               })}
             />
 
-            <Button onClick={handleCreate} data-testid="new-ledger">
+            <Button onClick={handleCreate} data-testid="new-asset">
               {intl.formatMessage({
                 id: 'ledgers.assets.sheet.title',
                 defaultMessage: 'New Asset'
@@ -179,17 +182,29 @@ const Page = () => {
       />
 
       <AssetsSheet
-        ledgerId={currentLedger.id}
+        ledgerId={currentLedger?.id}
         onSuccess={refetch}
         {...sheetProps}
       />
 
       <div className="mt-10">
-        {isLoading && <AssetsSkeleton />}
+        {!hasRequiredContext && (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-muted-foreground text-lg">
+              {intl.formatMessage({
+                id: 'assets.noLedger',
+                defaultMessage:
+                  'Please select a ledger to view and manage assets.'
+              })}
+            </p>
+          </div>
+        )}
 
-        {assets && <AssetsDataTable {...assetsProps} />}
+        {hasRequiredContext && isLoading && <AssetsSkeleton />}
+
+        {hasRequiredContext && assets && <AssetsDataTable {...assetsProps} />}
       </div>
-    </React.Fragment>
+    </div>
   )
 }
 

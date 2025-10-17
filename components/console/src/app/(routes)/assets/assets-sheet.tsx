@@ -171,6 +171,7 @@ export const AssetsSheet = ({
           <form
             className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
+            data-testid="assets-form"
           >
             <Tabs defaultValue="details" className="mt-0">
               <TabsList className="mb-8 px-0">
@@ -202,6 +203,7 @@ export const AssetsSheet = ({
                     control={form.control}
                     readOnly={mode === 'edit' || isReadOnly}
                     required
+                    data-testid="asset-type-select"
                   >
                     <SelectItem value="crypto">
                       {intl.formatMessage({
@@ -238,6 +240,7 @@ export const AssetsSheet = ({
                     control={form.control}
                     readOnly={isReadOnly}
                     required
+                    data-testid="asset-name-input"
                   />
 
                   {type === 'currency' ? (
@@ -250,6 +253,7 @@ export const AssetsSheet = ({
                       control={form.control}
                       readOnly={isReadOnly}
                       required
+                      data-testid="asset-code-input"
                     />
                   ) : (
                     <InputField
@@ -261,6 +265,7 @@ export const AssetsSheet = ({
                       control={form.control}
                       readOnly={isReadOnly}
                       required
+                      data-testid="asset-code-input"
                     />
                   )}
 
@@ -288,6 +293,7 @@ export const AssetsSheet = ({
                   type="submit"
                   fullWidth
                   loading={createPending || updatePending}
+                  data-testid="asset-form-save-button"
                 >
                   {intl.formatMessage({
                     id: 'common.save',

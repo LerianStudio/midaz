@@ -31,15 +31,24 @@ export const TransactionModeModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-max p-12 sm:max-w-max">
+      <DialogContent
+        className="w-max p-12 sm:max-w-max"
+        data-testid="transaction-mode-modal"
+      >
         <DialogHeader>
-          <DialogTitle className="font-medium">
+          <DialogTitle
+            className="font-medium"
+            data-testid="transaction-mode-modal-title"
+          >
             {intl.formatMessage({
               id: 'transactions.create.title',
               defaultMessage: 'New Transaction'
             })}
           </DialogTitle>
-          <DialogDescription className="mb-8 text-sm font-medium text-zinc-400">
+          <DialogDescription
+            className="mb-8 text-sm font-medium text-zinc-400"
+            data-testid="transaction-mode-modal-description"
+          >
             {intl.formatMessage({
               id: 'transactions.create.mode.description',
               defaultMessage:
@@ -48,6 +57,7 @@ export const TransactionModeModal = ({
           </DialogDescription>
           <div className="grid grid-cols-2 gap-6">
             <CardButton
+              data-testid="simple-mode"
               icon={
                 <GitCompare
                   className="h-8 w-8 -scale-x-100 rotate-90"
@@ -66,6 +76,7 @@ export const TransactionModeModal = ({
               onClick={() => handleSelect(TransactionMode.SIMPLE)}
             />
             <CardButton
+              data-testid="advanced-mode"
               icon={<GitFork className="h-8 w-8 rotate-90" strokeWidth={1} />}
               title={intl.formatMessage({
                 id: 'transactions.create.mode.complex.title',

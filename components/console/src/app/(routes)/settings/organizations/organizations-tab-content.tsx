@@ -90,7 +90,7 @@ export const OrganizationsTabContent = () => {
   }
 
   return (
-    <div>
+    <div data-testid="organizations-tab-content">
       <ConfirmationDialog
         title={intl.formatMessage({
           id: 'common.confirmDeletion',
@@ -132,11 +132,15 @@ export const OrganizationsTabContent = () => {
                 defaultMessage: 'Search by ID...'
               })}
               control={form.control}
+              data-testid="organizations-search-input"
             />
           </div>
           <EntityBox.Actions>
             <PaginationLimitField control={form.control} />
-            <Button onClick={handleCreateOrganization}>
+            <Button
+              onClick={handleCreateOrganization}
+              data-testid="organizations-create-button"
+            >
               {intl.formatMessage({
                 id: 'common.create',
                 defaultMessage: 'Create'
@@ -151,6 +155,7 @@ export const OrganizationsTabContent = () => {
               id: 'organizations.emptyResource',
               defaultMessage: "You haven't created any Organization yet"
             })}
+            data-testid="organizations-empty-state"
           >
             <Button variant="outline" onClick={handleCreateOrganization}>
               {intl.formatMessage({
@@ -162,7 +167,10 @@ export const OrganizationsTabContent = () => {
         )}
 
         {isLoading && (
-          <Skeleton className="mt-4 h-[390px] w-full bg-zinc-200" />
+          <Skeleton
+            className="mt-4 h-[390px] w-full bg-zinc-200"
+            data-testid="organizations-loading"
+          />
         )}
 
         {!isLoading && data?.items && data.items.length > 0 && (
@@ -205,7 +213,10 @@ export const OrganizationsTabContent = () => {
                 </TableHeader>
                 <TableBody>
                   {data.items.map((organization) => (
-                    <TableRow key={organization.id}>
+                    <TableRow
+                      key={organization.id}
+                      data-testid={`organization-row-${organization.id}`}
+                    >
                       <TableCell>{organization.legalName}</TableCell>
                       <IdTableCell id={organization.id} />
                       <TableCell>{organization.doingBusinessAs}</TableCell>
@@ -216,6 +227,7 @@ export const OrganizationsTabContent = () => {
                             <Button
                               variant="secondary"
                               className="h-auto w-max p-2"
+                              data-testid={`organization-menu-trigger-${organization.id}`}
                             >
                               <MoreVertical size={16} onClick={() => {}} />
                             </Button>
@@ -223,6 +235,7 @@ export const OrganizationsTabContent = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={() => handleEdit(organization)}
+                              data-testid={`organization-edit-${organization.id}`}
                             >
                               {intl.formatMessage({
                                 id: 'common.edit',
@@ -246,6 +259,7 @@ export const OrganizationsTabContent = () => {
                             )}
                             <DropdownMenuItem
                               onClick={() => handleDialogOpen(organization.id!)}
+                              data-testid={`organization-delete-${organization.id}`}
                             >
                               {intl.formatMessage({
                                 id: 'common.delete',

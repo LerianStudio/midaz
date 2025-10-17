@@ -58,7 +58,7 @@ export const TransactionComplexForm = ({
       <div className="grid h-full grid-cols-3 gap-4">
         <div className="col-span-1">
           <SideControl>
-            <SideControlTitle>
+            <SideControlTitle data-testid="transaction-form-title">
               {intl.formatMessage({
                 id: 'transactions.create.mode.complex',
                 defaultMessage: 'New complex Transaction'
@@ -128,12 +128,14 @@ export const TransactionComplexForm = ({
                   className="mb-4"
                   errors={errors}
                   onSelect={addSource}
+                  data-testid="complex-source-account-search"
                 />
               </div>
               <div className="col-span-5 col-start-7 flex items-center justify-center">
                 <AccountSearchField
                   className="mb-4"
                   onSelect={addDestination}
+                  data-testid="complex-destination-account-search"
                 />
               </div>
               <div className="col-span-5">
@@ -250,13 +252,18 @@ export const TransactionComplexForm = ({
 
           <div className="mb-56 flex justify-end">
             <StepperContent active={currentStep < 2}>
-              <NextButton disabled={!enableNext} onClick={handleNextStep} />
+              <NextButton
+                disabled={!enableNext}
+                onClick={handleNextStep}
+                data-testid="transaction-next-button"
+              />
             </StepperContent>
             <StepperContent active={currentStep === 2}>
               <Button
                 icon={<ArrowRight />}
                 iconPlacement="end"
                 onClick={handleReview}
+                data-testid="transaction-review-button"
               >
                 {intl.formatMessage({
                   id: 'transactions.create.review.button',

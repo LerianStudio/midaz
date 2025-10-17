@@ -1,0 +1,31 @@
+name: midaz-test
+
+services:
+  console:
+    container_name: midaz-console-test
+    build:
+      context: ../..
+      dockerfile: components/console/Dockerfile.test
+    ports:
+      - '${MIDAZ_CONSOLE_PORT}:${MIDAZ_CONSOLE_PORT}'
+    env_file:
+      - .env
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'curl',
+          '-f',
+          'http://localhost:${MIDAZ_CONSOLE_PORT}/api/admin/health/ready'
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - midaz-test-network
+
+networks:
+  midaz-test-network:
+    name: midaz-test-network
+    driver: bridge
+    external: true

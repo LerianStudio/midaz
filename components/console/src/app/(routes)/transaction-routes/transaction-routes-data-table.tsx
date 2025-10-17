@@ -132,12 +132,17 @@ const TransactionRoutesRow: React.FC<TransactionRoutesRowProps> = ({
         <TableCell className="w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="h-auto w-max p-2">
+              <Button
+                variant="secondary"
+                className="h-auto w-max p-2"
+                data-testid="actions"
+              >
                 <MoreVertical size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                data-testid="edit"
                 onClick={() =>
                   handleEdit({
                     ...transactionRoute.original,
@@ -151,6 +156,7 @@ const TransactionRoutesRow: React.FC<TransactionRoutesRowProps> = ({
                 })}
               </DropdownMenuItem>
               <DropdownMenuItem
+                data-testid="delete"
                 onClick={() =>
                   onDelete(
                     transactionRoute.original.id,
@@ -221,7 +227,7 @@ export const TransactionRoutesDataTable: React.FC<
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="transaction-routes-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>

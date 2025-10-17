@@ -154,7 +154,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
 
   return (
     <React.Fragment>
-      <TableRow key={transaction.id}>
+      <TableRow key={transaction.id} data-testid="transaction-row">
         <TableCell>{dayjs(createdAt).format('L HH:mm')}</TableCell>
         <IdTableCell id={transaction.original.id} />
         <TableCell>{renderSource}</TableCell>
@@ -247,7 +247,7 @@ export const TransactionsDataTable = ({
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="transactions-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>

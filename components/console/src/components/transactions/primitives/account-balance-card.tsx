@@ -229,6 +229,7 @@ export const AccountBalanceCardUpdateButton = React.forwardRef<
             className="h-3 p-0"
             onClick={onRefresh}
             disabled={loading}
+            data-testid="account-balance-refresh"
             {...props}
           >
             <RefreshCw className="h-4 w-4" />
@@ -253,6 +254,7 @@ export const AccountBalanceCardTrigger = React.forwardRef<
         ref={ref}
         variant="link"
         className={cn('h-4 p-0 text-xs text-zinc-600', className)}
+        data-testid="account-balance-toggle"
         {...props}
       >
         {!open
