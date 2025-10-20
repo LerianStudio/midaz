@@ -105,7 +105,7 @@
     "@formatjs/cli": "^6.7.1",
     "@formatjs/cli-lib": "^7.4.1",
     "@lhci/cli": "^0.14.0",
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.56.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
