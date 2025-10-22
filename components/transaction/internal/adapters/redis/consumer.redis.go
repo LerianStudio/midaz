@@ -24,6 +24,12 @@ import (
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
+//go:embed scripts/get_balances_near_expiration.lua
+var getBalancesNearExpirationLua string
+
+//go:embed scripts/unschedule_synced_balance.lua
+var unscheduleSyncedBalanceLua string
+
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisRepository provides an interface for redis.
@@ -44,6 +50,8 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error)
+	RemoveBalanceSyncKey(ctx context.Context, member string) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -289,6 +297,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			allowReceiving,
 			blcs.Balance.AssetCode,
 			blcs.Balance.AccountID,
+			blcs.Balance.Key,
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
@@ -310,7 +319,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -538,6 +547,86 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	}
 
 	logger.Infof("Message with ID %s is removed from redis queue", key)
+
+	return nil
+}
+
+// FetchDueBalanceKeys returns due scheduled balance keys up to 'now' limited by 'limit'.
+func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		logger.Warnf("Failed to get redis client: %v", err)
+
+		return nil, err
+	}
+
+	script := redis.NewScript(getBalancesNearExpirationLua)
+
+	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
+	if err != nil {
+		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
+
+		return nil, err
+	}
+
+	var out []string
+	switch vv := res.(type) {
+	case []any:
+		out = make([]string, 0, len(vv))
+		for _, it := range vv {
+			switch s := it.(type) {
+			case string:
+				out = append(out, s)
+			case []byte:
+				out = append(out, string(s))
+			default:
+				out = append(out, fmt.Sprint(it))
+			}
+		}
+	case []string:
+		out = vv
+	default:
+		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
+
+		logger.Warnf("Warning: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("fetch_due returned %d keys", len(out))
+
+	return out, nil
+}
+
+// RemoveScheduledMember removes a single scheduled member from the ZSET.
+func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, member string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_key")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		logger.Warnf("Failed to get redis client: %v", err)
+
+		return err
+	}
+
+	script := redis.NewScript(unscheduleSyncedBalanceLua)
+
+	_, err = script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, member, utils.BalanceSyncLockPrefix).Result()
+	if err != nil {
+		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
+
+		return err
+	}
+
+	logger.Infof("Unscheduled synced balance: %s", member)
 
 	return nil
 }

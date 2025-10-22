@@ -100,6 +100,21 @@ func (mr *MockRedisRepositoryMockRecorder) Get(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), arg0, arg1)
 }
 
+// GetBalanceSyncKeys mocks base method.
+func (m *MockRedisRepository) GetBalanceSyncKeys(arg0 context.Context, arg1, arg2 int64) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalanceSyncKeys", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalanceSyncKeys indicates an expected call of GetBalanceSyncKeys.
+func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), arg0, arg1, arg2)
+}
+
 // GetBytes mocks base method.
 func (m *MockRedisRepository) GetBytes(arg0 context.Context, arg1 string) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -172,6 +187,20 @@ func (m *MockRedisRepository) ReadMessageFromQueue(arg0 context.Context, arg1 st
 func (mr *MockRedisRepositoryMockRecorder) ReadMessageFromQueue(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadMessageFromQueue), arg0, arg1)
+}
+
+// RemoveBalanceSyncKey mocks base method.
+func (m *MockRedisRepository) RemoveBalanceSyncKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveBalanceSyncKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveBalanceSyncKey indicates an expected call of RemoveBalanceSyncKey.
+func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKey(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBalanceSyncKey", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBalanceSyncKey), arg0, arg1)
 }
 
 // RemoveMessageFromQueue mocks base method.

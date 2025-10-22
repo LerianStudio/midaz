@@ -1,3 +1,95 @@
+## [v3.4.0-beta.26] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.25...v3.4.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Transaction Management**: Improved transaction processing by adding a 'Key' field to `BalanceRedis` and updating related Redis scripts. This fix resolves issues where transactions could fail due to missing key references, enhancing reliability and user trust in transaction handling.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect recent changes and improvements, ensuring users have access to the latest information about updates and fixes, enhancing transparency and communication.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Regular updates to the changelog to ensure it accurately reflects the current state of the software, supporting user awareness and engagement.
+
+
+## [v3.4.0-beta.25] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.24...v3.4.0-beta.25)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 🔄 Changes
+- **Authentication & Configuration**: We've upgraded the security scanning process by updating the Trivy scan version and configuring Docker parameters. This enhancement provides more accurate vulnerability detection, ensuring your data remains secure and compliant with the latest standards.
+
+### 📚 Documentation
+- Updated project documentation to reflect the latest security scanning configurations. This ensures you have access to the most current information, supporting your understanding and use of the system.
+
+### 🔧 Maintenance
+- **Testing Workflows**: We've aligned our testing workflows with the new security scanning configurations. This includes testing a new version of the pull request scan workflow, enhancing the vetting process for future changes to maintain high code quality and security.
+- **Release Management**: The CHANGELOG has been updated to clearly document recent changes and improvements, providing transparency and keeping you informed about the project's development progress.
+
+
+## [v3.4.0-beta.24] - 2025-10-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.23...v3.4.0-beta.24)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Balance Tracking**: We've added `VersionBalance` and `VersionBalanceAfter` fields to operation queries, allowing you to track balance changes over time. This upgrade offers more detailed transaction histories and boosts auditing capabilities, ensuring you have comprehensive insights into your financial data.
+- **Granular Data Analysis**: The new `balance_version` columns in the operation table provide more precise tracking of balance changes, facilitating better historical data analysis and reporting.
+
+### 🐛 Bug Fixes
+- **Safe Database Migrations**: We've corrected the migration script to safely remove `balance_version` columns, preventing potential data loss during schema updates and ensuring smoother database migrations.
+
+### 🔧 Maintenance
+- **Dependency Updates**: We've updated project dependencies to their latest versions, enhancing compatibility and security. This ensures the software remains stable and protected against known vulnerabilities.
+- **Improved Code Readability**: Variable names related to balance version assignment have been clarified, making the codebase easier to understand and reducing developer onboarding time.
+- **Test Enhancements**: Asynchronous balance transaction tests now assert balance version fields and multiple operations, improving test coverage and reliability. This ensures new features work as intended and reduces the risk of future issues.
+- **API Documentation**: Updated API documentation and Swagger files to include the version field in the balance structure, ensuring developers have accurate and up-to-date information for integrating with the API.
+
+
+## [v3.4.0-beta.23] - 2025-10-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.22...v3.4.0-beta.23)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### ✨ Features
+- **Enhanced Search Functionality**: We've added a new `sortOrder` property to the `SegmentSearchEntity`. This feature allows you to specify the order of search results, providing a more tailored and efficient search experience. Whether you're looking for the most recent, most relevant, or other criteria-based results, you now have the flexibility to find information faster and more intuitively.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to accurately reflect the latest changes and improvements. This ensures that all users and developers have easy access to the most current information about updates, enhancing understanding and communication across the board.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Continued efforts to keep our documentation up-to-date, ensuring transparency and clarity for all users. This helps maintain a seamless experience when navigating through project updates.
+
+
+## [v3.4.0-beta.22] - 2025-10-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.21...v3.4.0-beta.22)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Transaction Synchronization**: Introduced a new balance synchronization worker that ensures consistent and accurate balance data across the system. This improvement enhances reliability for users managing financial transactions, reducing discrepancies and improving data integrity.
+
+### 🐛 Bug Fixes
+- **Redis Integration**: Fixed an issue with Redis result types in the `GetBalanceSyncKeys` function, preventing errors and reducing potential downtime. This fix ensures smoother operation and enhances system reliability.
+- **Type Safety**: Improved type safety in transaction processing by updating type assertions, which prevents runtime errors and enhances overall system stability.
+
+### ⚡ Performance
+- **Transaction Processing**: Updated Redis scripts to improve balance expiration checks using current time, enhancing accuracy and reducing discrepancies in balance management.
+
+### 🔄 Changes
+- **Error Handling**: Enhanced error handling by removing unparsable keys from Redis, which increases system robustness and prevents potential data corruption.
+- **Code Quality**: Refactored Redis script logic for better maintainability and performance, streamlining the code and improving system efficiency.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the changelog to reflect recent changes, ensuring all modifications are clearly documented for future reference.
+
+### 🔧 Maintenance
+- **Testing Enhancements**: Added comprehensive unit tests for the balance synchronization use case, ensuring new changes do not introduce regressions and that the system behaves as expected.
+- **Mocking Improvements**: Introduced mock methods for balance synchronization in Postgres and Redis, facilitating more effective testing and development workflows.
+
+
 ## [v3.4.0-beta.21] - 2025-10-13
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.20...v3.4.0-beta.21)
