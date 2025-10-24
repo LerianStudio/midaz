@@ -1,3 +1,22 @@
+## [v3.4.0-beta.27] - 2025-10-24
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.26...v3.4.0-beta.27)
+Contributors: Gabriel Castro, lerian-studio
+
+### 🐛 Bug Fixes
+- **Dependency Updates**: Updated to the latest versions of several dependencies. This addresses potential security vulnerabilities and ensures compatibility with the latest features, enhancing the security and stability of your application.
+
+### 🔄 Changes
+- **Environment Configuration**: The environment configuration has been refactored to simplify the setup process and improve maintainability. This change reduces the risk of configuration errors, making it easier for developers to get started quickly.
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to provide users with the latest information on project developments, ensuring you have access to the most current changes and improvements.
+
+### 🔧 Maintenance
+- **Backend Configuration Cleanup**: Removed a duplicate `MIDAZ_CONSOLE_SERVICE_PORT` environment variable, reducing potential conflicts and confusion in your environment setup.
+- **Codebase Optimization**: Implemented general codebase improvements with a net change of +1986 additions and -1760 deletions, focusing on optimizing performance and enhancing code readability.
+
+
 ## [v3.4.0-beta.26] - 2025-10-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.25...v3.4.0-beta.26)
