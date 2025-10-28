@@ -64,7 +64,7 @@ services:
 
   midaz-postgres-primary:
     container_name: midaz-postgres-primary-test
-    image: postgres:latest
+    image: postgres:17
     user: ${USER_EXECUTE_COMMAND}
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]

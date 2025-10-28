@@ -59,7 +59,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
 
         // Continue to next step
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Step 2: Fill address information', async () => {
@@ -67,7 +67,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
 
         // Continue to next step
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Step 3: Configure theme (optional)', async () => {
@@ -87,7 +87,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           .getByRole('button', { name: /finish|complete|submit/i })
           .first()
           .click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Verify successful onboarding completion', async () => {
@@ -107,14 +107,14 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Fill minimal address - Step 2', async () => {
         await fillFormStep2(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Skip optional theme - Step 3', async () => {
@@ -126,7 +126,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
             name: /Yes, I will configure it later|Sim, vou configurar depois/i
           })
           .click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Verify completion', async () => {
@@ -145,7 +145,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Go back to first step', async () => {
@@ -154,7 +154,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           .first()
         if (await backButton.isVisible()) {
           await backButton.click()
-          await CommonHelpers.waitForNetworkIdle(page)
+          await page.waitForLoadState('domcontentloaded')
 
           // Verify we're back at step 1
           await expect(page.locator('input[name="legalName"]')).toBeVisible()
@@ -209,7 +209,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Try to continue without address', async () => {
@@ -230,7 +230,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Enter invalid zipCode', async () => {
@@ -265,7 +265,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
       await test.step('Fill step 1 and continue', async () => {
         await fillFormStep1(page, testData, formData)
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Fill step 2 and go back', async () => {
@@ -278,7 +278,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           .first()
         if (await backButton.isVisible()) {
           await backButton.click()
-          await CommonHelpers.waitForNetworkIdle(page)
+          await page.waitForLoadState('domcontentloaded')
         }
       })
 
@@ -322,7 +322,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Verify step 1 marked as complete', async () => {
@@ -345,13 +345,10 @@ test.describe('Onboarding Flow - E2E Tests', () => {
     test('should disable next button until required fields filled', async ({
       page
     }) => {
-      const nextButton = page.getByRole('button', { name: /next|continue/i })
+      const nextButton = page.getByTestId('next-button')
 
       await test.step('Verify button state without data', async () => {
-        const isDisabled = await nextButton.isDisabled().catch(() => false)
-        // Button might be enabled but validation happens on click
-        // So we just check if it exists
-        await expect(nextButton).toBeVisible()
+        await expect(nextButton).not.toBeVisible()
       })
     })
 
@@ -379,12 +376,12 @@ test.describe('Onboarding Flow - E2E Tests', () => {
         await fillFormStep1(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
 
         await fillFormStep2(page, testData)
 
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Submit and check loading state', async () => {
@@ -412,11 +409,11 @@ test.describe('Onboarding Flow - E2E Tests', () => {
       await test.step('Create organization', async () => {
         await fillFormStep1(page, testData)
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
 
         await fillFormStep2(page, testData)
         await page.getByTestId('next-button').click()
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
 
         await page
           .getByRole('button', {
@@ -441,7 +438,7 @@ test.describe('Onboarding Flow - E2E Tests', () => {
           })
           .click()
 
-        await CommonHelpers.waitForNetworkIdle(page)
+        await page.waitForLoadState('domcontentloaded')
       })
 
       await test.step('Verify ledger created', async () => {
