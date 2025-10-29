@@ -1,3 +1,12 @@
+## [v3.4.0-beta.29] - 2025-10-29
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.28...v3.4.0-beta.29)
+Contributors: Fabricio Carneiro
+
+### 🐛 Bug Fixes
+- **Accurate Data Display in Ledgers**: Resolved an issue where incorrect references in the ledgers data table could lead to potential user confusion. This fix ensures that users see the correct information, enhancing the reliability and trustworthiness of the console interface.
+
+
 ## [v3.4.0-beta.27] - 2025-10-24
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.26...v3.4.0-beta.27)
