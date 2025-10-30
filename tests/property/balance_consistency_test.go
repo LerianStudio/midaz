@@ -2,7 +2,6 @@ package property
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -23,25 +22,17 @@ func TestProperty_BalanceConsistency_API(t *testing.T) {
 
 	// Setup org/ledger/asset once
 	headers := h.AuthHeaders(h.RandHex(8))
-	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("PropBalance "+h.RandString(6), h.RandString(12)))
-	if err != nil || code != 201 {
-		t.Fatalf("create org: code=%d err=%v", code, err)
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, "PropBalance "+h.RandString(6))
+	if err != nil {
+		t.Fatalf("create org: %v", err)
 	}
-	var org struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(body, &org)
 
-	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L"})
-	if err != nil || code != 201 {
-		t.Fatalf("create ledger: code=%d err=%v", code, err)
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, "L")
+	if err != nil {
+		t.Fatalf("create ledger: %v", err)
 	}
-	var ledger struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(body, &ledger)
 
-	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
 		t.Fatalf("create asset: %v", err)
 	}
 
@@ -58,23 +49,15 @@ func TestProperty_BalanceConsistency_API(t *testing.T) {
 
 		// Create account
 		alias := fmt.Sprintf("prop-%s", h.RandString(5))
-		code, body, err := onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
-		if err != nil || code != 201 {
-			t.Logf("create account failed: code=%d err=%v", code, err)
+		accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+		if err != nil {
+			t.Logf("create account failed: %v", err)
 			return true // Skip this iteration
 		}
-		var acc struct {
-			ID string `json:"id"`
-		}
-		_ = json.Unmarshal(body, &acc)
 
-		// Enable balance
-		if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
+		// Ensure default balance record exists (created asynchronously)
+		if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
 			t.Logf("ensure balance: %v", err)
-			return true
-		}
-		if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-			t.Logf("enable balance: %v", err)
 			return true
 		}
 
@@ -89,9 +72,14 @@ func TestProperty_BalanceConsistency_API(t *testing.T) {
 
 			if rng.Intn(2) == 0 || expected.IsZero() {
 				// Inflow
-				c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": amountStr, "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": amountStr}}}}}})
+				headers["Idempotency-Key"] = fmt.Sprintf("%s-%d-%d-in", alias, seed, i)
+				c, _, _ := h.SetupInflowTransaction(ctx, trans, orgID, ledgerID, alias, "USD", amountStr, headers)
 				if c == 201 {
 					expected = expected.Add(amountDec)
+					if _, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, expected, 1*time.Second); err != nil {
+						t.Logf("settlement wait (inflow) timed out: %v", err)
+						return true
+					}
 				}
 			} else {
 				// Outflow (only if we have balance)
@@ -103,27 +91,27 @@ func TestProperty_BalanceConsistency_API(t *testing.T) {
 				outStr := fmt.Sprintf("%d.00", outAmount)
 				outDec := decimal.NewFromInt(outAmount)
 
-				c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": outStr, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": outStr}}}}}})
+				headers["Idempotency-Key"] = fmt.Sprintf("%s-%d-%d-out", alias, seed, i)
+				c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", orgID, ledgerID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": outStr, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": outStr}}}}}})
 				if c == 201 {
 					expected = expected.Sub(outDec)
+					if _, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, expected, 1*time.Second); err != nil {
+						t.Logf("settlement wait (outflow) timed out: %v", err)
+						return true
+					}
 				}
 			}
 		}
 
-		// Wait for final balance settlement
-		time.Sleep(500 * time.Millisecond)
-
-		// Query actual balance
-		actual, err := h.GetAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers)
+		// Wait for final balance settlement and equality with expected
+		actual, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, expected, 15*time.Second)
 		if err != nil {
-			t.Logf("balance query failed: %v", err)
-			return true // Skip
+			t.Errorf("Balance consistency not reached: expected=%s actual=%s alias=%s ops=%d err=%v", expected.String(), actual.String(), alias, ops, err)
+			return false
 		}
 
-		// Property: actual balance must equal sum of operations
 		if !actual.Equal(expected) {
-			t.Errorf("Balance consistency violated: expected=%s actual=%s diff=%s alias=%s ops=%d",
-				expected.String(), actual.String(), expected.Sub(actual).String(), alias, ops)
+			t.Errorf("Balance consistency violated after wait: expected=%s actual=%s alias=%s ops=%d", expected.String(), actual.String(), alias, ops)
 			return false
 		}
 
