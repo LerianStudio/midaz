@@ -178,16 +178,16 @@ test-property:
 	$(call print_title,Running property-based model tests)
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/property; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property || { \
+	  gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property.xml -- -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying property tests once..."; \
-	      gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property-rerun.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
+	      gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property-rerun.xml -- -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  go test -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
+	  go test -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
 	fi
 
 # Chaos tests
