@@ -184,7 +184,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		return
 	}
 
-	if ttl == -2*time.Second {
+	if ttl == -2 {
 		w.logger.Warnf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member)
 
 		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
