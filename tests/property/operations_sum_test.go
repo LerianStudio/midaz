@@ -23,25 +23,17 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 
 	// Setup org/ledger/asset once
 	headers := h.AuthHeaders(h.RandHex(8))
-	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("PropOps "+h.RandString(6), h.RandString(12)))
-	if err != nil || code != 201 {
-		t.Fatalf("create org: code=%d err=%v", code, err)
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, "PropOps "+h.RandString(6))
+	if err != nil {
+		t.Fatalf("create org: %v", err)
 	}
-	var org struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(body, &org)
 
-	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L"})
-	if err != nil || code != 201 {
-		t.Fatalf("create ledger: code=%d err=%v", code, err)
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, "L")
+	if err != nil {
+		t.Fatalf("create ledger: %v", err)
 	}
-	var ledger struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(body, &ledger)
 
-	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
 		t.Fatalf("create asset: %v", err)
 	}
 
@@ -58,23 +50,15 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 
 		// Create account
 		alias := fmt.Sprintf("ops-%s", h.RandString(5))
-		code, body, err := onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
-		if err != nil || code != 201 {
-			t.Logf("create account: code=%d", code)
+		accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+		if err != nil {
+			t.Logf("create account: %v", err)
 			return true
 		}
-		var acc struct {
-			ID string `json:"id"`
-		}
-		_ = json.Unmarshal(body, &acc)
 
-		// Enable balance
-		if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
+		// Ensure default balance exists (created asynchronously)
+		if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
 			t.Logf("ensure balance: %v", err)
-			return true
-		}
-		if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-			t.Logf("enable balance: %v", err)
 			return true
 		}
 
@@ -88,7 +72,8 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 
 			if rng.Intn(3) < 2 || currentBalance.IsZero() {
 				// 2/3 inflows
-				c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": amountStr, "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": amountStr}}}}}})
+				headers["Idempotency-Key"] = fmt.Sprintf("%s-%d-%d-in", alias, seed, i)
+				c, _, _ := h.SetupInflowTransaction(ctx, trans, orgID, ledgerID, alias, "USD", amountStr, headers)
 				if c == 201 {
 					currentBalance = currentBalance.Add(decimal.NewFromInt(int64(amount)))
 				}
@@ -102,66 +87,71 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 					outAmount := rng.Int63n(maxOut) + 1
 					outStr := fmt.Sprintf("%d.00", outAmount)
 
-					c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": outStr, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": outStr}}}}}})
+					headers["Idempotency-Key"] = fmt.Sprintf("%s-%d-%d-out", alias, seed, i)
+					c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", orgID, ledgerID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": outStr, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": outStr}}}}}})
 					if c == 201 {
 						currentBalance = currentBalance.Sub(decimal.NewFromInt(outAmount))
 					}
 				}
 			}
-
-			time.Sleep(30 * time.Millisecond)
 		}
-
-		// Wait for settlement
-		time.Sleep(1 * time.Second)
 
 		// Get account operations from API
-		code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations", org.ID, ledger.ID, acc.ID), headers, nil)
-		if err != nil || code != 200 {
-			t.Logf("get operations: code=%d err=%v", code, err)
-			return true
-		}
 
-		var opsResp struct {
-			Items []struct {
-				Type   string `json:"type"`
-				Amount struct {
-					Value string `json:"value"`
-				} `json:"amount"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal(body, &opsResp); err != nil {
-			t.Logf("unmarshal operations: %v", err)
-			return true
-		}
-
-		// Calculate sum from operations (credit - debit)
-		opsSum := decimal.Zero
-		for _, op := range opsResp.Items {
-			amount, err := decimal.NewFromString(op.Amount.Value)
-			if err != nil {
-				t.Logf("parse operation amount: %v", err)
-				continue
+		// Poll until operations sum equals current balance (eventual consistency)
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			code, body, err := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/operations?limit=100", orgID, ledgerID, accountID), headers, nil)
+			if err != nil || code != 200 {
+				t.Logf("get operations: code=%d err=%v", code, err)
+				return true
 			}
-			if op.Type == "CREDIT" {
-				opsSum = opsSum.Add(amount)
-			} else if op.Type == "DEBIT" {
-				opsSum = opsSum.Sub(amount)
+
+			var opsResp struct {
+				Items []struct {
+					Type            string `json:"type"`
+					BalanceAffected bool   `json:"balanceAffected"`
+					Status          struct {
+						Code string `json:"code"`
+					} `json:"status"`
+					Amount struct {
+						Value string `json:"value"`
+					} `json:"amount"`
+				} `json:"items"`
 			}
-		}
+			if err := json.Unmarshal(body, &opsResp); err != nil {
+				t.Logf("unmarshal operations: %v", err)
+				return true
+			}
 
-		// Get current balance
-		actualBalance, err := h.GetAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers)
-		if err != nil {
-			t.Logf("get balance: %v", err)
-			return true
-		}
+			opsSum := decimal.Zero
+			for _, op := range opsResp.Items {
+				if !op.BalanceAffected {
+					continue
+				}
+				amount, err := decimal.NewFromString(op.Amount.Value)
+				if err != nil {
+					continue
+				}
+				if op.Type == "CREDIT" {
+					opsSum = opsSum.Add(amount)
+				} else if op.Type == "DEBIT" {
+					opsSum = opsSum.Sub(amount)
+				}
+			}
 
-		// Property: Operations sum must equal current balance
-		if !opsSum.Equal(actualBalance) {
-			t.Errorf("Operations sum inconsistency: opsSum=%s balance=%s diff=%s alias=%s numOps=%d",
-				opsSum.String(), actualBalance.String(), opsSum.Sub(actualBalance).String(), alias, len(opsResp.Items))
-			return false
+			actualBalance, err := h.GetAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers)
+			if err == nil && opsSum.Equal(actualBalance) {
+				break
+			}
+
+			if time.Now().After(deadline) {
+				t.Errorf("Operations sum inconsistency: opsSum=%s balance=%s diff=%s alias=%s numOps=%d",
+					opsSum.String(), actualBalance.String(), opsSum.Sub(actualBalance).String(), alias, len(opsResp.Items))
+				return false
+			}
+
+			time.Sleep(150 * time.Millisecond)
 		}
 
 		return true
