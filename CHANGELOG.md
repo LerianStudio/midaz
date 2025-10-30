@@ -6,6 +6,20 @@ Contributors: Fabricio Carneiro
 ### 🐛 Bug Fixes
 - **Accurate Data Display in Ledgers**: Resolved an issue where incorrect references in the ledgers data table could lead to potential user confusion. This fix ensures that users see the correct information, enhancing the reliability and trustworthiness of the console interface.
 
+## [v3.4.0-beta.28] - 2025-10-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.27...v3.4.0-beta.28)
+Contributors: Gabriel Castro, lerian-studio
+
+### 🐛 Bug Fixes
+- **Standardized Environment Variables:** We've standardized the naming conventions for environment variables related to the console host. This change reduces configuration errors and enhances the reliability of environment-specific deployments, ensuring your application runs smoothly regardless of the environment.
+- **Corrected BASE_PATH URLs:** Fixed issues with incorrect environment variable references in BASE_PATH URLs. This resolves problems with resource loading and routing, leading to improved stability and correctness in URL handling.
+
+### 📚 Documentation
+- **Updated Changelog:** We've updated the CHANGELOG to include the latest changes and improvements, ensuring you have access to the most current information about updates and fixes. This transparency supports better user awareness and project engagement.
+
+### 🔧 Maintenance
+- **Documentation Maintenance:** Regular updates to documentation ensure clarity and accuracy, helping users stay informed about the latest developments and changes in the project.
 
 ## [v3.4.0-beta.27] - 2025-10-24
 
