@@ -50,7 +50,7 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
-	GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error)
+	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
 }
 
@@ -551,8 +551,8 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	return nil
 }
 
-// FetchDueBalanceKeys returns due scheduled balance keys up to 'now' limited by 'limit'.
-func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, now int64, limit int64) ([]string, error) {
+// GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.
+func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")

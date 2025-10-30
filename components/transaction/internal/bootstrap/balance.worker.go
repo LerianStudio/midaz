@@ -85,9 +85,7 @@ func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
 }
 
 func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds redis.UniversalClient) bool {
-	now := time.Now().Unix()
-
-	members, err := w.useCase.RedisRepo.GetBalanceSyncKeys(ctx, now, w.batchSize)
+	members, err := w.useCase.RedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
 	if err != nil {
 		if !errors.Is(err, redis.Nil) {
 			w.logger.Warnf("BalanceSyncWorker: get balance sync keys error: %v", err)

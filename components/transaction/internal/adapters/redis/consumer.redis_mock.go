@@ -101,18 +101,18 @@ func (mr *MockRedisRepositoryMockRecorder) Get(arg0, arg1 any) *gomock.Call {
 }
 
 // GetBalanceSyncKeys mocks base method.
-func (m *MockRedisRepository) GetBalanceSyncKeys(arg0 context.Context, arg1, arg2 int64) ([]string, error) {
+func (m *MockRedisRepository) GetBalanceSyncKeys(arg0 context.Context, arg1 int64) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBalanceSyncKeys", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetBalanceSyncKeys", arg0, arg1)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetBalanceSyncKeys indicates an expected call of GetBalanceSyncKeys.
-func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), arg0, arg1)
 }
 
 // GetBytes mocks base method.
