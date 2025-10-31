@@ -131,7 +131,6 @@ type UpdateAccountInput struct {
 
 	// Whether the account should be blocked
 	// required: false
-	// default: false
 	Blocked *bool `json:"blocked"`
 
 	// Updated custom key-value pairs for extending the account information

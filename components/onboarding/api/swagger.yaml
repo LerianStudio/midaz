@@ -939,7 +939,6 @@ definitions:
         description: |-
           Whether the account should be blocked
           required: false
-          default: false
         type: boolean
       entityId:
         description: |-

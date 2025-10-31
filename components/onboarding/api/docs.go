@@ -4842,7 +4842,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "blocked": {
-                    "description": "Whether the account should be blocked\nrequired: false\ndefault: false",
+                    "description": "Whether the account should be blocked\nrequired: false",
                     "type": "boolean"
                 },
                 "entityId": {
