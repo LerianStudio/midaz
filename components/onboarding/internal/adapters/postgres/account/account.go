@@ -23,6 +23,7 @@ type AccountPostgreSQLModel struct {
 	StatusDescription *string
 	Alias             *string
 	Type              string
+	Blocked           bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
@@ -49,6 +50,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Status:          status,
 		Alias:           t.Alias,
 		Type:            t.Type,
+		Blocked:         &t.Blocked,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -84,6 +86,10 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		Type:              account.Type,
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
+	}
+
+	if account.Blocked != nil {
+		t.Blocked = *account.Blocked
 	}
 
 	if !libCommons.IsNilOrEmpty(account.PortfolioID) {

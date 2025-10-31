@@ -23,6 +23,9 @@ definitions:
         example: USD
         maxLength: 100
         type: string
+      blocked:
+        description: Indicates if the account is blocked
+        type: boolean
       createdAt:
         description: |-
           Timestamp when the account was created (RFC3339 format)
@@ -316,6 +319,12 @@ definitions:
         example: USD
         maxLength: 100
         type: string
+      blocked:
+        description: |-
+          Whether the account should start blocked
+          required: false
+          default: false
+        type: boolean
       entityId:
         description: |-
           Optional external identifier for linking to external systems
@@ -926,6 +935,11 @@ definitions:
       unchanged. This allows partial updates to account properties such as name, status,
       portfolio, segment, and metadata.
     properties:
+      blocked:
+        description: |-
+          Whether the account should be blocked
+          required: false
+        type: boolean
       entityId:
         description: |-
           Optional external identifier for linking to external systems
