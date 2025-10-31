@@ -182,7 +182,8 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		return
 	}
 
-	if ttl == -2 {
+	// Handle missing key regardless of TTL sentinel representation (-2 or -2s)
+	if ttl == -2 || ttl == -2*time.Second {
 		w.logger.Warnf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member)
 
 		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
@@ -194,7 +195,15 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	val, err := rds.Get(ctx, member).Result()
 	if err != nil {
-		w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
+		if errors.Is(err, redis.Nil) {
+			w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
+
+			if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+				w.logger.Warnf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr)
+			}
+		} else {
+			w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
+		}
 
 		return
 	}
