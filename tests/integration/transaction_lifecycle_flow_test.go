@@ -120,15 +120,20 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 			gdl = time.Now().Add(d)
 		}
 	}
+	ready := false
 	for {
 		c, _, e := trans.Request(ctx, "GET", getPath, headers, nil)
 		if e == nil && c == 200 {
+			ready = true
 			break
 		}
 		if time.Now().After(gdl) {
 			break
 		}
 		time.Sleep(75 * time.Millisecond)
+	}
+	if !ready {
+		t.Fatalf("transaction not retrievable before commit")
 	}
 
 	// Commit
@@ -146,10 +151,17 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 		t.Fatalf("expected APPROVED after commit, got %s", txCommitResp.Status.Code)
 	}
 
-	afterCommit := sumAvail()
+	// After commit, wait until availability reflects 7.00
 	wantCommit, _ := decimal.NewFromString("7.00") // 10 - 3
-	if !afterCommit.Equal(wantCommit) {
-		t.Fatalf("after commit want %s got %s", wantCommit, afterCommit)
+	timeout := 5 * time.Second
+	if td, ok := t.Deadline(); ok {
+		if d := time.Until(td) / 2; d < timeout {
+			timeout = d
+		}
+	}
+	afterCommit, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, timeout)
+	if err != nil {
+		t.Fatalf("after commit availability not observed: %v", err)
 	}
 
 	// Cancel another pending should not affect available
@@ -178,9 +190,11 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 			gdl2 = time.Now().Add(d)
 		}
 	}
+	ready2 := false
 	for {
 		c, _, e := trans.Request(ctx, "GET", getPath2, headers, nil)
 		if e == nil && c == 200 {
+			ready2 = true
 			break
 		}
 		if time.Now().After(gdl2) {
@@ -188,12 +202,19 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 		}
 		time.Sleep(75 * time.Millisecond)
 	}
+	if !ready2 {
+		t.Fatalf("transaction not retrievable before cancel")
+	}
 
 	code, body, err = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/cancel", orgID, ledgerID, tx2.ID), headers, nil)
 	if err != nil || code != 201 {
 		t.Fatalf("cancel: code=%d err=%v body=%s", code, err, string(body))
 	}
-	afterCancel := sumAvail()
+	// After cancel, availability should remain equal to post-commit value (7.00)
+	afterCancel, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, timeout)
+	if err != nil {
+		t.Fatalf("after cancel availability not restored: %v", err)
+	}
 	if !afterCancel.Equal(afterCommit) {
 		t.Fatalf("cancel should not change available: before %s after %s", afterCommit, afterCancel)
 	}
@@ -206,7 +227,11 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 	if err != nil || (code != 201 && code != 200) {
 		t.Fatalf("revert: code=%d err=%v body=%s", code, err, string(body))
 	}
-	reverted := sumAvail()
+	// After revert, wait until availability returns to base
+	reverted, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, base, timeout)
+	if err != nil {
+		t.Fatalf("after revert base not restored: %v", err)
+	}
 	if !reverted.Equal(base) {
 		t.Fatalf("revert should restore base: base %s got %s", base, reverted)
 	}
