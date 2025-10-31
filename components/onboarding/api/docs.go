@@ -3944,6 +3944,10 @@ const docTemplate = `{
                     "maxLength": 100,
                     "example": "USD"
                 },
+                "blocked": {
+                    "description": "Indicates if the account is blocked",
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "description": "Timestamp when the account was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
@@ -4223,6 +4227,10 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "USD"
+                },
+                "blocked": {
+                    "description": "Whether the account should start blocked\nrequired: false\ndefault: false",
+                    "type": "boolean"
                 },
                 "entityId": {
                     "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
@@ -4833,6 +4841,10 @@ const docTemplate = `{
             "description": "Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.",
             "type": "object",
             "properties": {
+                "blocked": {
+                    "description": "Whether the account should be blocked\nrequired: false\ndefault: false",
+                    "type": "boolean"
+                },
                 "entityId": {
                     "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
