@@ -153,13 +153,21 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 
 	// After commit, wait until availability reflects 7.00
 	wantCommit, _ := decimal.NewFromString("7.00") // 10 - 3
-	timeout := 5 * time.Second
-	if td, ok := t.Deadline(); ok {
-		if d := time.Until(td) / 2; d < timeout {
-			timeout = d
+	// Recalculate timeout against current test deadline before each wait to avoid stale values
+	calcTimeout := func(base time.Duration) time.Duration {
+		if td, ok := t.Deadline(); ok {
+			remaining := time.Until(td)
+			// If deadline already passed, use tiny positive duration to avoid ticker panics
+			if remaining <= 0 {
+				return 1 * time.Millisecond
+			}
+			if d := remaining / 2; d < base {
+				return d
+			}
 		}
+		return base
 	}
-	afterCommit, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, timeout)
+	afterCommit, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, calcTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("after commit availability not observed: %v", err)
 	}
@@ -211,7 +219,7 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 		t.Fatalf("cancel: code=%d err=%v body=%s", code, err, string(body))
 	}
 	// After cancel, availability should remain equal to post-commit value (7.00)
-	afterCancel, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, timeout)
+	afterCancel, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, wantCommit, calcTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("after cancel availability not restored: %v", err)
 	}
@@ -228,7 +236,7 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 		t.Fatalf("revert: code=%d err=%v body=%s", code, err, string(body))
 	}
 	// After revert, wait until availability returns to base
-	reverted, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, base, timeout)
+	reverted, err := h.WaitForAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers, base, calcTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("after revert base not restored: %v", err)
 	}

@@ -153,7 +153,12 @@ func TestIntegration_CoreOrgLedgerAccountAndTransactions(t *testing.T) {
 	expected, _ := decimal.NewFromString("60.00")
 	timeout := 5 * time.Second
 	if td, ok := t.Deadline(); ok {
-		if d := time.Until(td) / 2; d < timeout {
+		remaining := time.Until(td)
+		// If deadline already passed, fail fast and avoid negative durations
+		// to prevent panics in helpers that use time.NewTicker.
+		if remaining <= 0 {
+			timeout = 1 * time.Millisecond
+		} else if d := remaining / 2; d < timeout {
 			timeout = d
 		}
 	}
