@@ -50,7 +50,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Status:          status,
 		Alias:           t.Alias,
 		Type:            t.Type,
-		Blocked:         t.Blocked,
+		Blocked:         &t.Blocked,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -84,9 +84,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
 		Type:              account.Type,
-		Blocked:           account.Blocked,
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
+	}
+
+	if account.Blocked != nil {
+		t.Blocked = *account.Blocked
 	}
 
 	if !libCommons.IsNilOrEmpty(account.PortfolioID) {

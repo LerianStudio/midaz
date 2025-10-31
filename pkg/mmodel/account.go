@@ -129,6 +129,11 @@ type UpdateAccountInput struct {
 	// required: false
 	Status Status `json:"status"`
 
+	// Whether the account should be blocked
+	// required: false
+	// default: false
+	Blocked *bool `json:"blocked"`
+
 	// Updated custom key-value pairs for extending the account information
 	// required: false
 	// example: {"department": "Global Treasury", "purpose": "Primary Operations", "region": "Global"}
@@ -220,7 +225,7 @@ type Account struct {
 	Type string `json:"type" example:"deposit"`
 
 	// Indicates if the account is blocked
-	Blocked bool `json:"blocked"`
+	Blocked *bool `json:"blocked"`
 
 	// Timestamp when the account was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z

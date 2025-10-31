@@ -84,30 +84,30 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-    result, err := db.ExecContext(ctx, `INSERT INTO account (
+	result, err := db.ExecContext(ctx, `INSERT INTO account (
             id, name, parent_account_id, entity_id, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, status_description, alias, type, created_at, updated_at, deleted_at, blocked
         ) VALUES 
         (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
         )`,
-        record.ID,
-        record.Name,
-        record.ParentAccountID,
-        record.EntityID,
-        record.AssetCode,
-        record.OrganizationID,
-        record.LedgerID,
-        record.PortfolioID,
-        record.SegmentID,
-        record.Status,
-        record.StatusDescription,
-        record.Alias,
-        record.Type,
-        record.CreatedAt,
-        record.UpdatedAt,
-        record.DeletedAt,
-        record.Blocked,
-    )
+		record.ID,
+		record.Name,
+		record.ParentAccountID,
+		record.EntityID,
+		record.AssetCode,
+		record.OrganizationID,
+		record.LedgerID,
+		record.PortfolioID,
+		record.SegmentID,
+		record.Status,
+		record.StatusDescription,
+		record.Alias,
+		record.Type,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+		record.Blocked,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -713,6 +713,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if !libCommons.IsNilOrEmpty(acc.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
+	}
+
+	if acc.Blocked != nil {
+		updates = append(updates, "blocked = $"+strconv.Itoa(len(args)+1))
+		args = append(args, *acc.Blocked)
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.SegmentID) {

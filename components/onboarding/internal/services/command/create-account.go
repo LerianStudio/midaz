@@ -123,7 +123,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		Alias:           alias,
 		Name:            cai.Name,
 		Type:            cai.Type,
-		Blocked:         blocked,
+		Blocked:         &blocked,
 		ParentAccountID: cai.ParentAccountID,
 		SegmentID:       cai.SegmentID,
 		OrganizationID:  organizationID.String(),
