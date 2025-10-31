@@ -82,7 +82,7 @@
     "lucide-react": "^0.511.0",
     "mongoose": "^8.15.1",
     "next": "^15.5.2",
-    "next-auth": "^4.24.11",
+    "next-auth": "^4.24.13",
     "path-to-regexp": "^8.2.0",
     "react": "^19.1.0",
     "react-color": "^2.19.3",
