@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUseCase_GetAccountByAlias(t *testing.T) {
@@ -43,9 +44,10 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			alias:          "case01",
 			mockSetup: func() {
 				accountID := uuid.New()
+				b := true
 				mockAccountRepo.EXPECT().
 					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
+					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}, Blocked: &b}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
@@ -56,6 +58,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 				Name:     "Test Account",
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
+				Blocked:  func() *bool { x := true; return &x }(),
 			},
 		},
 		{
@@ -105,6 +108,12 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
+				if tt.expectedResult != nil && tt.expectedResult.Blocked != nil {
+					if result.Blocked == nil {
+						t.Fatalf("expected blocked to be non-nil")
+					}
+					assert.Equal(t, *tt.expectedResult.Blocked, *result.Blocked)
+				}
 			}
 		})
 	}
