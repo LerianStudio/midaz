@@ -1124,7 +1124,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		t.Fatalf("expected account, got nil")
 	}
 
-	if !acc.Blocked {
+	if acc.Blocked == nil || !*acc.Blocked {
 		t.Fatalf("expected account.Blocked to be true, got false")
 	}
 }
