@@ -234,6 +234,7 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 
     inp := &mmodel.UpdateAccountInput{
         Name:     "Updated Account",
+        Status:   mmodel.Status{Code: "active"},
         Metadata: map[string]any{"key": "value"},
         // Blocked omitted
     }
