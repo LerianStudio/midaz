@@ -2564,6 +2564,12 @@
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2643,6 +2649,12 @@
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -2732,6 +2744,12 @@
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2817,6 +2835,12 @@
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2898,6 +2922,12 @@
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3464,6 +3494,12 @@
                     },
                     "409": {
                         "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }

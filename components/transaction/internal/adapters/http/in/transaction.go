@@ -52,6 +52,7 @@ type TransactionHandler struct {
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
@@ -97,6 +98,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation [post]
 func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
@@ -132,6 +134,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
@@ -174,6 +177,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
@@ -219,6 +223,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
@@ -383,6 +388,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Transaction not found"
 //	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
