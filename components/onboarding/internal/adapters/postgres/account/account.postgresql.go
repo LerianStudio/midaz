@@ -84,28 +84,30 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO account VALUES 
+    result, err := db.ExecContext(ctx, `INSERT INTO account (
+            id, name, parent_account_id, entity_id, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, status_description, alias, type, created_at, updated_at, deleted_at, blocked
+        ) VALUES 
         (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-        )
-		RETURNING *`,
-		record.ID,
-		record.Name,
-		record.ParentAccountID,
-		record.EntityID,
-		record.AssetCode,
-		record.OrganizationID,
-		record.LedgerID,
-		record.PortfolioID,
-		record.SegmentID,
-		record.Status,
-		record.StatusDescription,
-		record.Alias,
-		record.Type,
-		record.CreatedAt,
-		record.UpdatedAt,
-		record.DeletedAt,
-	)
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+        )`,
+        record.ID,
+        record.Name,
+        record.ParentAccountID,
+        record.EntityID,
+        record.AssetCode,
+        record.OrganizationID,
+        record.LedgerID,
+        record.PortfolioID,
+        record.SegmentID,
+        record.Status,
+        record.StatusDescription,
+        record.Alias,
+        record.Type,
+        record.CreatedAt,
+        record.UpdatedAt,
+        record.DeletedAt,
+        record.Blocked,
+    )
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -227,6 +229,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
+			&acc.Blocked,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -299,6 +302,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
+		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
@@ -372,6 +376,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
+		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
@@ -445,6 +450,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
+		&acc.Blocked,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
