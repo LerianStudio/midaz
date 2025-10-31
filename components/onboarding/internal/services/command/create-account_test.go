@@ -1044,3 +1044,87 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
+func TestCreateAccountBlockedFlag(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+	os.Setenv("ACCOUNT_TYPE_VALIDATION", "")
+	defer func() {
+		os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
+	}()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAssetRepo := asset.NewMockRepository(ctrl)
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRepo:       mockAssetRepo,
+		PortfolioRepo:   mockPortfolioRepo,
+		AccountRepo:     mockAccountRepo,
+		RabbitMQRepo:    mockRabbitMQ,
+		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo: mockAccountTypeRepo,
+	}
+
+	// Expectations
+	mockRabbitMQ.EXPECT().
+		CheckRabbitMQHealth().
+		Return(true).
+		Times(1)
+
+	mockAssetRepo.EXPECT().
+		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).AnyTimes()
+
+	mockAccountRepo.EXPECT().
+		FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	mockAccountRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
+			acc.ID = uuid.New().String()
+			return acc, nil
+		}).AnyTimes()
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
+
+	mockRabbitMQ.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
+
+	// Input with blocked=true
+	blocked := true
+	input := &mmodel.CreateAccountInput{
+		Name:      "Blocked Account",
+		Type:      "deposit",
+		AssetCode: "USD",
+		Blocked:   &blocked,
+	}
+
+	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if acc == nil {
+		t.Fatalf("expected account, got nil")
+	}
+
+	if !acc.Blocked {
+		t.Fatalf("expected account.Blocked to be true, got false")
+	}
+}
