@@ -3465,6 +3465,10 @@ paths:
           description: Transaction already has a parent transaction
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3522,6 +3526,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3576,6 +3584,10 @@ paths:
             $ref: '#/definitions/Error'
         "403":
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -3635,6 +3647,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3692,6 +3708,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3747,6 +3767,10 @@ paths:
             $ref: '#/definitions/Error'
         "403":
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
           schema:
             $ref: '#/definitions/Error'
         "500":
