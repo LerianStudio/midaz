@@ -37,7 +37,7 @@ func TestGetAllAccount(t *testing.T) {
 		Page:  1,
 	}
 
-	tests := []struct {
+    tests := []struct {
 		name             string
 		setupMocks       func()
 		expectedErr      error
@@ -46,12 +46,14 @@ func TestGetAllAccount(t *testing.T) {
 		{
 			name: "success - accounts retrieved with metadata",
 			setupMocks: func() {
+                bFalse := false
+                bTrue := true
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
-					Return([]*mmodel.Account{
-						{ID: "acc1"},
-						{ID: "acc2"},
-					}, nil).
+                    Return([]*mmodel.Account{
+                        {ID: "acc1", Blocked: &bFalse},
+                        {ID: "acc2", Blocked: &bTrue},
+                    }, nil).
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
@@ -63,10 +65,10 @@ func TestGetAllAccount(t *testing.T) {
 					Times(1)
 			},
 			expectedErr: nil,
-			expectedAccounts: []*mmodel.Account{
-				{ID: "acc1", Metadata: map[string]any{"key1": "value1"}},
-				{ID: "acc2", Metadata: map[string]any{"key2": "value2"}},
-			},
+            expectedAccounts: []*mmodel.Account{
+                func() *mmodel.Account { b := false; return &mmodel.Account{ID: "acc1", Metadata: map[string]any{"key1": "value1"}, Blocked: &b} }(),
+                func() *mmodel.Account { b := true; return &mmodel.Account{ID: "acc2", Metadata: map[string]any{"key2": "value2"}, Blocked: &b} }(),
+            },
 		},
 		{
 			name: "failure - accounts not found",
@@ -117,7 +119,7 @@ func TestGetAllAccount(t *testing.T) {
 
 			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, filter)
 
-			if tt.expectedErr != nil {
+            if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
@@ -128,6 +130,13 @@ func TestGetAllAccount(t *testing.T) {
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].ID, account.ID)
 					assert.Equal(t, tt.expectedAccounts[i].Metadata, account.Metadata)
+                    // Assert blocked presence and value
+                    if tt.expectedAccounts[i].Blocked != nil {
+                        if account.Blocked == nil {
+                            t.Fatalf("expected blocked to be non-nil for account %s", account.ID)
+                        }
+                        assert.Equal(t, *tt.expectedAccounts[i].Blocked, *account.Blocked)
+                    }
 				}
 			}
 		})
