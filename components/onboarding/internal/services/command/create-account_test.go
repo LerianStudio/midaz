@@ -83,9 +83,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -132,9 +133,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -178,9 +180,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -224,9 +227,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -309,9 +313,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -351,9 +356,10 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -537,9 +543,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -613,9 +620,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -714,9 +722,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -751,9 +760,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -796,9 +806,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -913,9 +924,10 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -963,9 +975,10 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
-						account.ID = uuid.New().String()
-						return account, nil
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = uuid.New().String()
+						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
@@ -1092,9 +1105,10 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 
 	mockAccountRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
-			acc.ID = uuid.New().String()
-			return acc, nil
+		DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+			out := *in
+			out.ID = uuid.New().String()
+			return &out, nil
 		}).AnyTimes()
 
 	mockMetadataRepo.EXPECT().
