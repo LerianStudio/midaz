@@ -132,5 +132,5 @@ var (
 	ErrInvalidPendingFutureTransactionDate      = errors.New("0122")
 	ErrDuplicatedAliasKeyValue                  = errors.New("0123")
 	ErrAdditionalBalanceNotAllowed              = errors.New("0124")
-	ErrInvalidTransactionZeroValue              = errors.New("0125")
+	ErrInvalidTransactionNonPositiveValue       = errors.New("0125")
 )

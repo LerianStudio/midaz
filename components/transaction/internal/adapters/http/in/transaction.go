@@ -873,10 +873,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		logger.Errorf("Failed to convert transaction to JSON string, Error: %s", err.Error())
 	}
 
-	if parserDSL.Send.Value.IsZero() {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionZeroValue, reflect.TypeOf(transaction.Transaction{}).Name())
+	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction with zero value", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction with non-positive value", err)
 
 		logger.Warnf("Transaction value must be greater than zero")
 

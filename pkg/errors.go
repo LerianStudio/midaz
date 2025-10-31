@@ -955,11 +955,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Route ID",
 			Message:    "The provided transaction route ID is not a valid UUID format. Please provide a valid UUID for the transaction route.",
 		},
-		constant.ErrInvalidTransactionZeroValue: UnprocessableOperationError{
+		constant.ErrInvalidTransactionNonPositiveValue: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       constant.ErrInvalidTransactionZeroValue.Error(),
+			Code:       constant.ErrInvalidTransactionNonPositiveValue.Error(),
 			Title:      "Invalid Transaction Value",
-			Message:    "Zero-amount transactions are not allowed. The 'send.value' must be greater than zero.",
+			Message:    "Negative or zero transaction values are not allowed. The 'send.value' must be greater than zero.",
 		},
 		constant.ErrAccountingRouteCountMismatch: ValidationError{
 			EntityType: entityType,
