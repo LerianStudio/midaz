@@ -366,3 +366,4 @@ func TestIsDecimalEqual(t *testing.T) {
 		})
 	}
 }
+
