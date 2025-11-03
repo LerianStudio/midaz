@@ -112,12 +112,18 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		alias = &ID
 	}
 
+	blocked := false
+	if cai.Blocked != nil {
+		blocked = *cai.Blocked
+	}
+
 	account := &mmodel.Account{
 		ID:              ID,
 		AssetCode:       cai.AssetCode,
 		Alias:           alias,
 		Name:            cai.Name,
 		Type:            cai.Type,
+		Blocked:         &blocked,
 		ParentAccountID: cai.ParentAccountID,
 		SegmentID:       cai.SegmentID,
 		OrganizationID:  organizationID.String(),

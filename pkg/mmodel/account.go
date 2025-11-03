@@ -1,8 +1,9 @@
 package mmodel
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreateAccountInput is a struct designed to encapsulate request create payload data.
@@ -74,6 +75,11 @@ type CreateAccountInput struct {
 	// maxLength: 256
 	Type string `json:"type" validate:"required,max=256,invalidstrings=external" example:"deposit"`
 
+	// Whether the account should start blocked
+	// required: false
+	// default: false
+	Blocked *bool `json:"blocked"`
+
 	// Custom key-value pairs for extending the account information
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
@@ -122,6 +128,10 @@ type UpdateAccountInput struct {
 	// Updated status of the account
 	// required: false
 	Status Status `json:"status"`
+
+	// Whether the account should be blocked
+	// required: false
+	Blocked *bool `json:"blocked"`
 
 	// Updated custom key-value pairs for extending the account information
 	// required: false
@@ -212,6 +222,9 @@ type Account struct {
 	// Type of the account.
 	// example: deposit
 	Type string `json:"type" example:"deposit"`
+
+	// Indicates if the account is blocked
+	Blocked *bool `json:"blocked"`
 
 	// Timestamp when the account was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
