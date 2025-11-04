@@ -60,7 +60,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
 
-		logger.Errorf("Failed to marshal queue message struct")
+		logger.Errorf("Failed to marshal queue message struct: %v", err)
 
 		return nil, err
 	}
