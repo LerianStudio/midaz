@@ -113,7 +113,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		if attempt == utils.MaxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
 
-			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
+			logger.Errorf("Giving up after %d attempts: %v", utils.MaxRetries+1, err)
 
 			return nil, err
 		}
