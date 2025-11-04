@@ -74,7 +74,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
 		if attempt > 0 {
 			sleepDuration := utils.FullJitter(backoff)
-			logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
+			logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+1)
 
 			select {
 			case <-ctx.Done():
