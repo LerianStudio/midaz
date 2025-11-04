@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
 
@@ -28,9 +29,21 @@ func TestIntegration_TransactionJSON_OversizedMetadataValue_Should400(t *testing
 		t.Fatalf("setup ledger: %v", err)
 	}
 
+	// Ensure USD asset exists and create accounts for aliases used in payload
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+		t.Fatalf("create USD asset: %v", err)
+	}
+
 	aliasA := fmt.Sprintf("acc-%s", h.RandString(4))
+	if _, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, aliasA, "USD"); err != nil {
+		t.Fatalf("setup account A: %v", err)
+	}
 	aliasB := fmt.Sprintf("acc-%s", h.RandString(4))
-	longVal := strings.Repeat("x", 2001)
+	if _, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, aliasB, "USD"); err != nil {
+		t.Fatalf("setup account B: %v", err)
+	}
+
+	longVal := strings.Repeat("x", 2000+1)
 
 	payload := map[string]any{
 		"metadata": map[string]any{"note": longVal},
@@ -55,8 +68,8 @@ func TestIntegration_TransactionJSON_OversizedMetadataValue_Should400(t *testing
 	if err := json.Unmarshal(body, &res); err != nil {
 		t.Fatalf("unmarshal error body: %v body=%s", err, string(body))
 	}
-	if v, ok := res["code"].(string); !ok || v != "0051" {
-		t.Fatalf("expected error code 0051 (Metadata Value Length Exceeded), got %v body=%s", res["code"], string(body))
+	if v, ok := res["code"].(string); !ok || v != constant.ErrMetadataValueLengthExceeded.Error() {
+		t.Fatalf("expected error code %s (Metadata Value Length Exceeded), got %v body=%s", constant.ErrMetadataValueLengthExceeded.Error(), res["code"], string(body))
 	}
 }
 
@@ -78,8 +91,17 @@ func TestIntegration_TransactionInflow_OversizedMetadataValue_Should400(t *testi
 		t.Fatalf("setup ledger: %v", err)
 	}
 
+	// Ensure USD asset exists and create the account used in payload
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+		t.Fatalf("create USD asset: %v", err)
+	}
+
 	alias := fmt.Sprintf("acc-%s", h.RandString(4))
-	longVal := strings.Repeat("y", 2001)
+	if _, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD"); err != nil {
+		t.Fatalf("setup account: %v", err)
+	}
+
+	longVal := strings.Repeat("y", 2000+1)
 
 	payload := map[string]any{
 		"metadata": map[string]any{"desc": longVal},
@@ -108,7 +130,7 @@ func TestIntegration_TransactionInflow_OversizedMetadataValue_Should400(t *testi
 	if err := json.Unmarshal(body, &res); err != nil {
 		t.Fatalf("unmarshal error body: %v body=%s", err, string(body))
 	}
-	if v, ok := res["code"].(string); !ok || v != "0051" {
-		t.Fatalf("expected error code 0051 (Metadata Value Length Exceeded), got %v body=%s", res["code"], string(body))
+	if v, ok := res["code"].(string); !ok || v != constant.ErrMetadataValueLengthExceeded.Error() {
+		t.Fatalf("expected error code %s (Metadata Value Length Exceeded), got %v body=%s", constant.ErrMetadataValueLengthExceeded.Error(), res["code"], string(body))
 	}
 }
