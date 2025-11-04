@@ -103,9 +103,10 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 				Body:         message,
 			},
 		)
+
 		if err == nil {
 			logger.Infof("Message sent successfully to exchange: %s, key: %s", exchange, key)
-			return &reqId, nil
+			break
 		}
 
 		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
@@ -117,8 +118,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 			return nil, err
 		}
-
 	}
 
-	return nil, err
+	return &reqId, nil
 }
