@@ -766,7 +766,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			},
 			expectedErr:  "",
 			expectedName: "Test Account",
-			expectError:  false, // RabbitMQ errors don't fail the account creation
+			expectError:  true,
 		},
 		{
 			name: "with metadata",

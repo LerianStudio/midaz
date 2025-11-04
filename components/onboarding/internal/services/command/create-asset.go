@@ -164,7 +164,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
 		logger.Infof("Sending external account to transaction queue...")
-		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+		err = uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send external account to transaction queue", err)
+
+			logger.Errorf("Error sending external account to transaction queue: %v", err)
+			return nil, err
+		}
 	}
 
 	return inst, nil

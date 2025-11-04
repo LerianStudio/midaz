@@ -2,14 +2,18 @@ package command
 
 import (
 	"context"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	// "github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"os"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestSendAccountQueueTransaction(t *testing.T) {
@@ -66,9 +70,7 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 			Times(1)
 
 		// Call the function
-		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, account)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
+		err := uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, account)
+		require.NoError(t, err)
 	})
 }
