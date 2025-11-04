@@ -61,12 +61,6 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	if t.Metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)
-
-			return nil, err
-		}
-
 		meta := mongodb.Metadata{
 			EntityID:   tran.ID,
 			EntityName: reflect.TypeOf(transaction.Transaction{}).Name(),
