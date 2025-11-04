@@ -49,7 +49,7 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
-	logger.Infof("Init sent message")
+	logger.Infof("Starting message publication")
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
