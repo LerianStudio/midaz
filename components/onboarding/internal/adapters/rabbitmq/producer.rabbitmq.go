@@ -74,15 +74,22 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
-		if err = prmq.conn.EnsureChannel(); err != nil {
-			logger.Errorf("Failed to reopen channel: %v", err)
-
+		if attempt > 0 {
 			sleepDuration := utils.FullJitter(backoff)
-			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
-			time.Sleep(sleepDuration)
+			logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
+
+			select {
+			case <-ctx.Done():
+				logger.Warnf("Context canceled while waiting to retry: %v", ctx.Err())
+				return nil, ctx.Err()
+			case <-time.After(sleepDuration):
+			}
 
 			backoff = utils.NextBackoff(backoff)
+		}
 
+		if err = prmq.conn.EnsureChannel(); err != nil {
+			logger.Errorf("Failed to reopen channel: %v", err)
 			continue
 		}
 
@@ -114,11 +121,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			return nil, err
 		}
 
-		sleepDuration := utils.FullJitter(backoff)
-		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
-		time.Sleep(sleepDuration)
-
-		backoff = utils.NextBackoff(backoff)
 	}
 
 	return nil, err
