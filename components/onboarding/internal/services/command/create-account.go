@@ -158,7 +158,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	logger.Infof("Account created successfully: %v", acc)
 
 	return acc, nil
 }
