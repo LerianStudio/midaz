@@ -111,7 +111,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 
-		if attempt >= utils.MaxRetries {
+		if attempt == utils.MaxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
 
 			logger.Errorf("Giving up after %d attempts: %v", utils.MaxRetries+1, err)
