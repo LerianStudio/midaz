@@ -14,6 +14,7 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
@@ -105,6 +106,7 @@ type Config struct {
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                 string `env:"PROTO_ADDRESS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -292,11 +294,15 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
+	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
+
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 	balanceSyncWorker := NewBalanceSyncWorker(redisConnection, logger, useCase)
 
 	return &Service{
 		Server:             server,
+		ServerGRPC:         serverGRPC,
 		MultiQueueConsumer: multiQueueConsumer,
 		RedisQueueConsumer: redisConsumer,
 		BalanceSyncWorker:  balanceSyncWorker,
