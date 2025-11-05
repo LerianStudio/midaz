@@ -120,5 +120,5 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		}
 	}
 
-	return &reqId, nil
+	return nil, nil
 }
