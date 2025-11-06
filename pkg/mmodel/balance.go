@@ -137,6 +137,56 @@ type UpdateBalance struct {
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
 } // @name UpdateBalance
 
+// CreateBalanceInput is the input model used by services to create a balance synchronously.
+//
+// It centralizes all properties required to perform validations and persist the new balance,
+// keeping call sites simple and reducing the chance of inconsistent argument ordering.
+type CreateBalanceInput struct {
+	// Organization that owns this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	OrganizationID uuid.UUID
+
+	// Ledger containing the account this balance belongs to
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	LedgerID uuid.UUID
+
+	// Account that holds this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	AccountID uuid.UUID
+
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string
+
+	// Unique key for the balance
+	// example: asset-freeze
+	// maxLength: 100
+	Key string
+
+	// Asset code identifying the currency or asset type of this balance
+	// example: USD
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string
+
+	// Type of account holding this balance
+	// example: creditCard
+	// maxLength: 50
+	AccountType string
+
+	// Whether the account should be allowed to send funds from this balance
+	// example: true
+	AllowSending bool
+
+	// Whether the account should be allowed to receive funds to this balance
+	// example: true
+	AllowReceiving bool
+}
+
 // IDtoUUID is a func that convert UUID string to uuid.UUID
 func (b *Balance) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(b.ID)

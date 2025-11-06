@@ -1020,6 +1020,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Field for Pending Transaction Error",
 			Message:    "Pending transactions do not support the 'transactionDate' field. To proceed, please remove it from your request.",
 		},
+		constant.ErrDefaultBalanceNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrDefaultBalanceNotFound.Error(),
+			Title:      "Default Balance Not Found",
+			Message:    "Default balance must be created first for this account.",
+		},
 		constant.ErrDuplicatedAliasKeyValue: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicatedAliasKeyValue.Error(),
@@ -1031,6 +1037,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAdditionalBalanceNotAllowed.Error(),
 			Title:      "Additional Balance Creation Not Allowed",
 			Message:    "Additional balances are not allowed for external account type.",
+		},
+		constant.ErrAccountCreationFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountCreationFailed.Error(),
+			Title:      "Account Creation Failed",
+			Message:    "The account could not be created because the default balance could not be created. Please try again.",
 		},
 	}
 
