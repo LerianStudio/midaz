@@ -31,7 +31,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", req)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
 		return nil, err
 	}
