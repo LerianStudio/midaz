@@ -68,7 +68,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
+	token := c.Get("Authorization")
+	account, err := handler.Command.CreateAccountSync(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Account on command", err)
 
