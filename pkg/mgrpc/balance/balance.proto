@@ -50,13 +50,14 @@ message BalanceRequest {
 
 // Response payload with a reduced view of balance fields
 message BalanceResponse {
-  string alias = 1;
-  string key = 2;
-  string asset_code = 3;
-  string available = 4;
-  string on_hold = 5;
-  bool allow_sending = 6;
-  bool allow_receiving = 7;
+  string id = 1;
+  string alias = 2;
+  string key = 3;
+  string asset_code = 4;
+  string available = 5;
+  string on_hold = 6;
+  bool allow_sending = 7;
+  bool allow_receiving = 8;
 }
 
 service BalanceProto {

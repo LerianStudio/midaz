@@ -22,24 +22,22 @@ const (
 
 // Balance corresponds to pkg/mmodel.Balance
 type Balance struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUIDs are represented as strings
-	Id             string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	OrganizationId string `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	LedgerId       string `protobuf:"bytes,3,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
-	AccountId      string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Alias          string `protobuf:"bytes,5,opt,name=alias,proto3" json:"alias,omitempty"`
-	Key            string `protobuf:"bytes,6,opt,name=key,proto3" json:"key,omitempty"`
-	AssetCode      string `protobuf:"bytes,7,opt,name=asset_code,json=assetCode,proto3" json:"asset_code,omitempty"`
-	// Decimal values are encoded as strings to preserve precision
-	Available      string `protobuf:"bytes,8,opt,name=available,proto3" json:"available,omitempty"`
-	OnHold         string `protobuf:"bytes,9,opt,name=on_hold,json=onHold,proto3" json:"on_hold,omitempty"`
-	Version        int64  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
-	AccountType    string `protobuf:"bytes,11,opt,name=account_type,json=accountType,proto3" json:"account_type,omitempty"`
-	AllowSending   bool   `protobuf:"varint,12,opt,name=allow_sending,json=allowSending,proto3" json:"allow_sending,omitempty"`
-	AllowReceiving bool   `protobuf:"varint,13,opt,name=allow_receiving,json=allowReceiving,proto3" json:"allow_receiving,omitempty"`
-	CreatedAt      string `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt      string `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	OrganizationId string                 `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	LedgerId       string                 `protobuf:"bytes,3,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
+	AccountId      string                 `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Alias          string                 `protobuf:"bytes,5,opt,name=alias,proto3" json:"alias,omitempty"`
+	Key            string                 `protobuf:"bytes,6,opt,name=key,proto3" json:"key,omitempty"`
+	AssetCode      string                 `protobuf:"bytes,7,opt,name=asset_code,json=assetCode,proto3" json:"asset_code,omitempty"`
+	Available      string                 `protobuf:"bytes,8,opt,name=available,proto3" json:"available,omitempty"`
+	OnHold         string                 `protobuf:"bytes,9,opt,name=on_hold,json=onHold,proto3" json:"on_hold,omitempty"`
+	Version        int64                  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	AccountType    string                 `protobuf:"bytes,11,opt,name=account_type,json=accountType,proto3" json:"account_type,omitempty"`
+	AllowSending   bool                   `protobuf:"varint,12,opt,name=allow_sending,json=allowSending,proto3" json:"allow_sending,omitempty"`
+	AllowReceiving bool                   `protobuf:"varint,13,opt,name=allow_receiving,json=allowReceiving,proto3" json:"allow_receiving,omitempty"`
+	CreatedAt      string                 `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      string                 `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// Null when not deleted
 	DeletedAt     string    `protobuf:"bytes,16,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
 	Metadata      *Metadata `protobuf:"bytes,17,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -352,13 +350,14 @@ func (x *BalanceRequest) GetAllowReceiving() bool {
 // Response payload with a reduced view of balance fields
 type BalanceResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Alias          string                 `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
-	Key            string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	AssetCode      string                 `protobuf:"bytes,3,opt,name=asset_code,json=assetCode,proto3" json:"asset_code,omitempty"`
-	Available      string                 `protobuf:"bytes,4,opt,name=available,proto3" json:"available,omitempty"`
-	OnHold         string                 `protobuf:"bytes,5,opt,name=on_hold,json=onHold,proto3" json:"on_hold,omitempty"`
-	AllowSending   bool                   `protobuf:"varint,6,opt,name=allow_sending,json=allowSending,proto3" json:"allow_sending,omitempty"`
-	AllowReceiving bool                   `protobuf:"varint,7,opt,name=allow_receiving,json=allowReceiving,proto3" json:"allow_receiving,omitempty"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Alias          string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
+	Key            string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	AssetCode      string                 `protobuf:"bytes,4,opt,name=asset_code,json=assetCode,proto3" json:"asset_code,omitempty"`
+	Available      string                 `protobuf:"bytes,5,opt,name=available,proto3" json:"available,omitempty"`
+	OnHold         string                 `protobuf:"bytes,6,opt,name=on_hold,json=onHold,proto3" json:"on_hold,omitempty"`
+	AllowSending   bool                   `protobuf:"varint,7,opt,name=allow_sending,json=allowSending,proto3" json:"allow_sending,omitempty"`
+	AllowReceiving bool                   `protobuf:"varint,8,opt,name=allow_receiving,json=allowReceiving,proto3" json:"allow_receiving,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -391,6 +390,13 @@ func (x *BalanceResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use BalanceResponse.ProtoReflect.Descriptor instead.
 func (*BalanceResponse) Descriptor() ([]byte, []int) {
 	return file_balance_balance_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *BalanceResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
 }
 
 func (x *BalanceResponse) GetAlias() string {
@@ -507,19 +513,20 @@ var file_balance_balance_proto_rawDesc = []byte{
 	0x53, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x27, 0x0a, 0x0f, 0x61, 0x6c, 0x6c, 0x6f, 0x77,
 	0x5f, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x69, 0x6e, 0x67, 0x18, 0x09, 0x20, 0x01, 0x28, 0x08,
 	0x52, 0x0e, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x69, 0x6e, 0x67,
-	0x22, 0xdd, 0x01, 0x0a, 0x0f, 0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x61, 0x6c, 0x69, 0x61, 0x73, 0x18, 0x01, 0x20,
+	0x22, 0xed, 0x01, 0x0a, 0x0f, 0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x02, 0x69, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x61, 0x6c, 0x69, 0x61, 0x73, 0x18, 0x02, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x05, 0x61, 0x6c, 0x69, 0x61, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
-	0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x1d, 0x0a, 0x0a,
-	0x61, 0x73, 0x73, 0x65, 0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
+	0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x1d, 0x0a, 0x0a,
+	0x61, 0x73, 0x73, 0x65, 0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x09, 0x61, 0x73, 0x73, 0x65, 0x74, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x61,
-	0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09,
+	0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09,
 	0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x17, 0x0a, 0x07, 0x6f, 0x6e, 0x5f,
-	0x68, 0x6f, 0x6c, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6f, 0x6e, 0x48, 0x6f,
+	0x68, 0x6f, 0x6c, 0x64, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6f, 0x6e, 0x48, 0x6f,
 	0x6c, 0x64, 0x12, 0x23, 0x0a, 0x0d, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x5f, 0x73, 0x65, 0x6e, 0x64,
-	0x69, 0x6e, 0x67, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x61, 0x6c, 0x6c, 0x6f, 0x77,
+	0x69, 0x6e, 0x67, 0x18, 0x07, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x61, 0x6c, 0x6c, 0x6f, 0x77,
 	0x53, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x27, 0x0a, 0x0f, 0x61, 0x6c, 0x6c, 0x6f, 0x77,
-	0x5f, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x69, 0x6e, 0x67, 0x18, 0x07, 0x20, 0x01, 0x28, 0x08,
+	0x5f, 0x72, 0x65, 0x63, 0x65, 0x69, 0x76, 0x69, 0x6e, 0x67, 0x18, 0x08, 0x20, 0x01, 0x28, 0x08,
 	0x52, 0x0e, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x69, 0x6e, 0x67,
 	0x32, 0x54, 0x0a, 0x0c, 0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63, 0x65, 0x50, 0x72, 0x6f, 0x74, 0x6f,
 	0x12, 0x44, 0x0a, 0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x42, 0x61, 0x6c, 0x61, 0x6e, 0x63,

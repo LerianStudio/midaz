@@ -91,6 +91,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 	logger.Infof("Successfully created balance")
 
 	resp := &balance.BalanceResponse{
+		Id:             created.ID,
 		Alias:          created.Alias,
 		Key:            created.Key,
 		AssetCode:      created.AssetCode,
