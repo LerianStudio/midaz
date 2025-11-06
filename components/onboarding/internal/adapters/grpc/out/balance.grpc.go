@@ -2,14 +2,12 @@ package out
 
 import (
 	"context"
-	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	proto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
-	"google.golang.org/grpc/metadata"
 )
 
 // Repository provides an interface for gRPC operations related to balance in the Transaction component.
@@ -59,10 +57,8 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 		return nil, err
 	}
 
-	if strings.TrimSpace(token) != "" {
-		md := metadata.Pairs("authorization", token)
-		ctxReq = metadata.NewOutgoingContext(ctxReq, md)
-	}
+	// Inject trace context and propagate request_id and authorization (if provided)
+	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	resp, err := client.CreateBalance(ctxReq, req)
 

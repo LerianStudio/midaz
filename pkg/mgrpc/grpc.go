@@ -1,11 +1,17 @@
 package mgrpc
 
 import (
+	"context"
 	"log"
+	"strings"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	cn "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
@@ -42,4 +48,25 @@ func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 	}
 
 	return c.Conn, nil
+}
+
+// ContextMetadataInjection injects OpenTelemetry trace context and request-scoped metadata
+// into the outgoing gRPC context. It preserves existing metadata and appends:
+// - traceparent/tracestate (W3C propagated via OpenTelemetry)
+// - metadata_id (request correlation id)
+// - authorization (JWT), when provided
+func (c *GRPCConnection) ContextMetadataInjection(ctx context.Context, token string) context.Context {
+	// Inject W3C trace context into gRPC metadata
+	ctx = libOpentelemetry.InjectGRPCContext(ctx)
+
+	// Propagate request correlation id (X-Request-Id equivalent for gRPC)
+	_, _, requestID, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	pairs := []string{cn.MetadataID, requestID}
+
+	// Optionally propagate authorization token
+	if strings.TrimSpace(token) != "" {
+		pairs = append(pairs, "authorization", token)
+	}
+
+	return metadata.AppendToOutgoingContext(ctx, pairs...)
 }
