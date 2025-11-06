@@ -52,9 +52,12 @@ func TestIntegration_ReadReplicaAwareness_ReadsSucceedWithReplica(t *testing.T) 
 	}
 
 	// Seed funds so reads have substance
-	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers,
+	code, body, err = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers,
 		map[string]any{"send": map[string]any{"asset": "USD", "value": "42.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "42.00"}}}}}},
 	)
+	if err != nil || code < 200 || code >= 300 {
+		t.Fatalf("seed funds (inflow): code=%d err=%v body=%s", code, err, string(body))
+	}
 	if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("42.00"), 10*time.Second); err != nil {
 		t.Fatalf("seed wait for available=42.00: %v", err)
 	}
