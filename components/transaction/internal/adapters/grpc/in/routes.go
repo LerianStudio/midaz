@@ -29,7 +29,6 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 				},
 				SubResolver: func(ctx context.Context, _ string, _ any) (string, error) { return midazName, nil },
 			}),
-			tlMid.EndTracingSpansInterceptor(),
 		),
 	)
 
