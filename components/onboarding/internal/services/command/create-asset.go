@@ -45,20 +45,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	if err := libCommons.ValidateCode(cii.Code); err != nil {
-		if err.Error() == constant.ErrInvalidCodeFormat.Error() {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", err)
-
-			return nil, err
-		} else if err.Error() == constant.ErrCodeUppercaseRequirement.Error() {
-			err := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", err)
-
-			return nil, err
-		}
+	if err := uc.validateAssetCode(ctx, cii.Code); err != nil {
+		return nil, err
 	}
 
 	if cii.Type == "currency" {
@@ -198,4 +186,33 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	return inst, nil
+}
+
+// validateAssetCode checks the provided asset code and maps validation errors to business errors.
+func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "command.validate_asset_code")
+	defer span.End()
+
+	logger.Infof("Validating asset code: %s", code)
+
+	if err := libCommons.ValidateCode(code); err != nil {
+		switch err.Error() {
+		case constant.ErrInvalidCodeFormat.Error():
+			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
+
+			return mapped
+		case constant.ErrCodeUppercaseRequirement.Error():
+			mapped := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
+
+			return mapped
+		}
+	}
+
+	return nil
 }
