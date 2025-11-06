@@ -163,13 +163,6 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 			logger.Errorf("Failed to create default balance via gRPC: %v", err)
 
-			var portfolioUUID uuid.UUID
-
-			delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(acc.ID))
-			if delErr != nil {
-				logger.Errorf("Failed to delete external account during compensation: %v", delErr)
-			}
-
 			var (
 				unauthorized pkg.UnauthorizedError
 				forbidden    pkg.ForbiddenError

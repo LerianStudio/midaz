@@ -187,11 +187,6 @@ func TestCreateAsset(t *testing.T) {
 					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("grpc create balance error")).
 					Times(1)
-
-				mockAccountRepo.EXPECT().
-					Delete(gomock.Any(), organizationID, ledgerID, gomock.Any(), gomock.Any()).
-					Return(nil).
-					Times(1)
 			},
 			expectedErr: errors.New("default balance could not be created"),
 			expectedRes: nil,
