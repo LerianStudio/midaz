@@ -66,7 +66,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	token := c.Get("Authorization")
 
-	asset, err := handler.Command.CreateAssetSync(ctx, organizationID, ledgerID, payload, token)
+	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Asset on command", err)
 
