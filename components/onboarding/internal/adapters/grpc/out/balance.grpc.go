@@ -65,7 +65,9 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	}
 
 	resp, err := client.CreateBalance(ctxReq, req)
+
 	spanClientReq.End()
+
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountCreationFailed.Error(), "Account Creation Failed", "Account could not be created")
 		if mapped != err {
@@ -74,6 +76,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to create balance", err)
 		logger.Errorf("gRPC CreateBalance error: %v", err)
+
 		return nil, err
 	}
 
