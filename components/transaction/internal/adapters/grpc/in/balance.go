@@ -77,7 +77,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		AllowReceiving: req.GetAllowReceiving(),
 	}
 
-	logger.Infof("Request to create a Balance with details: %#v", input)
+	logger.Infof("Request to create a Balance alias=%s key=%s asset_code=%s", input.Alias, input.Key, input.AssetCode)
 
 	created, err := b.Command.CreateBalanceSync(ctx, input)
 	if err != nil {
