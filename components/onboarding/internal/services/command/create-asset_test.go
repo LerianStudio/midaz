@@ -10,7 +10,6 @@ import (
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,13 +22,11 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 	mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:       mockAssetRepo,
 		AccountRepo:     mockAccountRepo,
-		RabbitMQRepo:    mockRabbitMQ,
 		BalanceGRPCRepo: mockBalanceGRPC,
 	}
 
