@@ -1,6 +1,7 @@
 package command
 
 import (
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
@@ -44,4 +45,7 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// BalanceGRPCRepo provides an abstraction on top of the balance gRPC client.
+	BalanceGRPCRepo out.BalanceGRPCRepository
 }
