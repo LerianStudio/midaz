@@ -156,7 +156,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	acc.Metadata = metadata
 
 	logger.Infof("Sending account to transaction queue...")
-	uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+	err = uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send account to transaction queue", err)
+
+		logger.Errorf("Error sending account to transaction queue: %v", err)
+		return nil, err
+	}
+
 
 	return acc, nil
 }
