@@ -227,7 +227,7 @@ func InitServers() *Service {
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
-		BalanceGRPCRepo:  *balanceGRPCRepository,
+		BalanceGRPCRepo:  balanceGRPCRepository,
 	}
 
 	queryUseCase := &query.UseCase{

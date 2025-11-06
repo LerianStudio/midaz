@@ -47,5 +47,5 @@ type UseCase struct {
 	RedisRepo redis.RedisRepository
 
 	// BalanceGRPCRepo provides an abstraction on top of the balance gRPC client.
-	BalanceGRPCRepo out.BalanceGRPCRepository
+	BalanceGRPCRepo out.Repository
 }
