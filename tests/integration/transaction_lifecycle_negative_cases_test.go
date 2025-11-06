@@ -51,12 +51,6 @@ func TestIntegration_Transactions_CommitOnNonPending_Should4xx(t *testing.T) {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(body, &account)
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
 
 	inf := map[string]any{
 		"code": iso.UniqueTransactionCode("INF"),
@@ -139,12 +133,6 @@ func TestIntegration_Transactions_RevertOnNonApproved_Should4xx(t *testing.T) {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(body, &account2)
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account2.ID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
 
 	seed := map[string]any{"code": iso.UniqueTransactionCode("SEED"), "send": map[string]any{"asset": "USD", "value": "2.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "2.00"}}}}}}
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, seed)

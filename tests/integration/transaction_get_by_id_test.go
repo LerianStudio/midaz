@@ -34,15 +34,9 @@ func TestIntegration_Transaction_GetByID(t *testing.T) {
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("tget")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// create inflow with unique code

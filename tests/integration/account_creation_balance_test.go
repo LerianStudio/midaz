@@ -42,12 +42,7 @@ func TestIntegration_AccountCreation_DefaultBalanceExistsByAccountID(t *testing.
 		t.Fatalf("create account: %v", err)
 	}
 
-	// 3) Wait until default balance exists for the account
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("default balance not ready: %v", err)
-	}
-
-	// 4) GET balances by account ID and assert presence of default with asset USD
+	// 3) GET balances by account ID and assert presence of default with asset USD
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID)
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != 200 {
@@ -108,17 +103,12 @@ func TestIntegration_AccountCreation_DefaultBalanceVisibleByAlias(t *testing.T) 
 
 	// 2) Create account (deposit, USD) with unique alias
 	alias := iso.UniqueAccountAlias("acc")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
 
-	// 3) Wait until default balance exists for the account
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("default balance not ready: %v", err)
-	}
-
-	// 4) GET balances by alias and assert presence of default with asset USD
+	// 3) GET balances by alias and assert presence of default with asset USD
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias)
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != 200 {

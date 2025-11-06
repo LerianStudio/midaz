@@ -13,7 +13,6 @@ import (
 )
 
 // Database success, full cache overlay for a single account.
-// - Enable default balance for the account.
 // - Perform a credit inflow to the alias to ensure cache entry exists.
 // - GET /accounts/{account_id}/balances and assert the available reflects the inflow amount.
 func TestIntegration_GetAllBalancesByAccount_FullCacheOverlay(t *testing.T) {
@@ -43,12 +42,6 @@ func TestIntegration_GetAllBalancesByAccount_FullCacheOverlay(t *testing.T) {
 	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// Perform inflow to create/update cache entry with a known value
@@ -119,12 +112,6 @@ func TestIntegration_GetAllBalancesByAccount_VeryLargePrecisionOverlay(t *testin
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
 
 	largeAmount := "123456789012345678901234567890.123456789012345678901234567890"
 	code, body, err := h.SetupInflowTransaction(ctx, trans, orgID, ledgerID, alias, "USD", largeAmount, headers)
@@ -192,9 +179,6 @@ func TestIntegration_GetAllBalancesByAccount_FilteringByDate(t *testing.T) {
 	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
 	}
 
 	// Past-only window: expect zero items
@@ -264,9 +248,6 @@ func TestIntegration_GetAllBalancesByAccount_Pagination(t *testing.T) {
 	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
 	}
 
 	// Create N additional balances > limit

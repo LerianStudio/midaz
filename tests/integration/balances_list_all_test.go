@@ -13,7 +13,6 @@ import (
 )
 
 // Database success, full cache overlay.
-// - Enable default balance.
 // - Perform a credit inflow to the alias to ensure cache entry exists.
 // - GET /balances and assert the available value eventually reflects the inflow amount.
 func TestIntegration_GetAllBalances_FullCacheOverlay(t *testing.T) {
@@ -28,7 +27,7 @@ func TestIntegration_GetAllBalances_FullCacheOverlay(t *testing.T) {
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()
 
-	// Setup separately: org -> ledger -> asset -> account -> wait default balance -> enable default balance
+	// Setup separately: org -> ledger -> asset -> account
 	orgID2, err := h.SetupOrganization(ctx, onboard, headers, iso.UniqueOrgName("Org"))
 	if err != nil {
 		t.Fatalf("create org: %v", err)
@@ -41,15 +40,9 @@ func TestIntegration_GetAllBalances_FullCacheOverlay(t *testing.T) {
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("acc")
-	accountID2, err := h.SetupAccount(ctx, onboard, headers, orgID2, ledgerID2, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID2, ledgerID2, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID2, ledgerID2, accountID2, headers); err != nil {
-		t.Fatalf("ensure default: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID2, ledgerID2, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// 4) Perform inflow to create/update cache entry with a known value
@@ -107,7 +100,7 @@ func TestIntegration_GetAllBalances_VeryLargePrecisionOverlay(t *testing.T) {
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()
 
-	// Setup separately: org -> ledger -> asset -> account -> wait default balance -> enable default balance
+	// Setup separately: org -> ledger -> asset -> account
 	orgID, err := h.SetupOrganization(ctx, onboard, headers, iso.UniqueOrgName("Org"))
 	if err != nil {
 		t.Fatalf("create org: %v", err)
@@ -120,15 +113,9 @@ func TestIntegration_GetAllBalances_VeryLargePrecisionOverlay(t *testing.T) {
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("acc")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// Perform inflow to create/update cache entry with a very large amount
