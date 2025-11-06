@@ -99,7 +99,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		if input.AccountType == constant.ExternalAccountType {
 			err := pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), input.Alias)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", nil)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", err)
 
 			logger.Errorf("Additional balance not allowed for external account type: %v", err)
 
@@ -119,7 +119,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	if existsKey {
 		err := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance key already exists", nil)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance key already exists", err)
 
 		logger.Errorf("Balance key already exists: %v", err)
 
