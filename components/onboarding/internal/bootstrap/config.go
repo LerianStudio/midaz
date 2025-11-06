@@ -10,7 +10,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
@@ -23,7 +22,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
@@ -60,15 +58,6 @@ type Config struct {
 	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                    string `env:"RABBITMQ_URI"`
-	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQExchange             string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQKey                  string `env:"RABBITMQ_KEY"`
 	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -157,19 +146,6 @@ func InitServers() *Service {
 		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		Logger:                 logger,
-	}
-
 	redisConnection := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
@@ -212,8 +188,6 @@ func InitServers() *Service {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-
 	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
 
 	commandUseCase := &command.UseCase{
@@ -225,7 +199,6 @@ func InitServers() *Service {
 		AssetRepo:        assetPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
-		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
 		BalanceGRPCRepo:  balanceGRPCRepository,
 	}

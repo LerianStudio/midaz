@@ -10,7 +10,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 )
 
@@ -39,9 +38,6 @@ type UseCase struct {
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
-
-	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
-	RabbitMQRepo rabbitmq.ProducerRepository
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
