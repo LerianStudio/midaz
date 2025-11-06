@@ -7,6 +7,7 @@ import (
 	"time"
 
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
@@ -23,11 +24,13 @@ func TestCreateAsset(t *testing.T) {
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
+	mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AssetRepo:    mockAssetRepo,
-		AccountRepo:  mockAccountRepo,
-		RabbitMQRepo: mockRabbitMQ,
+		AssetRepo:       mockAssetRepo,
+		AccountRepo:     mockAccountRepo,
+		RabbitMQRepo:    mockRabbitMQ,
+		BalanceGRPCRepo: mockBalanceGRPC,
 	}
 
 	ctx := context.Background()
@@ -59,11 +62,6 @@ func TestCreateAsset(t *testing.T) {
 				Metadata: nil,
 			},
 			mockSetup: func() {
-				mockRabbitMQ.EXPECT().
-					CheckRabbitMQHealth().
-					Return(true).
-					Times(1)
-
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -99,8 +97,8 @@ func TestCreateAsset(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				mockRabbitMQ.EXPECT().
-					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				mockBalanceGRPC.EXPECT().
+					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil).
 					Times(1)
 			},
@@ -121,12 +119,7 @@ func TestCreateAsset(t *testing.T) {
 				Type: "invalidType",
 				Code: "INV",
 			},
-			mockSetup: func() {
-				mockRabbitMQ.EXPECT().
-					CheckRabbitMQHealth().
-					Return(true).
-					Times(1)
-			},
+			mockSetup: func() {},
 
 			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type."),
 			expectedRes: nil,
@@ -139,11 +132,6 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 			},
 			mockSetup: func() {
-				mockRabbitMQ.EXPECT().
-					CheckRabbitMQHealth().
-					Return(true).
-					Times(1)
-
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -157,17 +145,72 @@ func TestCreateAsset(t *testing.T) {
 			expectedErr: errors.New("failed to create asset"),
 			expectedRes: nil,
 		},
+		{
+			name: "grpc failure - default balance creation fails",
+			input: &mmodel.CreateAssetInput{
+				Name: "USD Dollar",
+				Type: "currency",
+				Code: "USD",
+			},
+			mockSetup: func() {
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
+					Return(false, nil).
+					Times(1)
+
+				mockAssetRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(&mmodel.Asset{
+						ID:        uuid.New().String(),
+						Name:      "USD Dollar",
+						Type:      "currency",
+						Code:      "USD",
+						Status:    mmodel.Status{Code: "ACTIVE"},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					}, nil).
+					Times(1)
+
+				mockAccountRepo.EXPECT().
+					ListAccountsByAlias(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+
+				var createdAccountID = uuid.New().String()
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+						out := *in
+						out.ID = createdAccountID
+						return &out, nil
+					}).
+					Times(1)
+
+				mockBalanceGRPC.EXPECT().
+					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("grpc create balance error")).
+					Times(1)
+
+				mockAccountRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, gomock.Any(), gomock.Any()).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: errors.New("default balance could not be created"),
+			expectedRes: nil,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockSetup()
 
-			result, err := uc.CreateAsset(ctx, organizationID, ledgerID, tt.input)
+			token := "Bearer test-token"
+			result, err := uc.CreateAsset(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
