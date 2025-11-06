@@ -20,7 +20,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "mgrpc.map_auth_grpc_error")
+	_, span := tracer.Start(ctx, "mgrpc.map_auth_grpc_error")
 	defer span.End()
 
 	switch grpcstatus.Code(err) {
