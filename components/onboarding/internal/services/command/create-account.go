@@ -288,9 +288,10 @@ func (uc *UseCase) CreateAccountSync(ctx context.Context, organizationID, ledger
 			logger.Errorf("Failed to delete account during compensation: %v", delErr)
 		}
 
-		var unauthorized pkg.UnauthorizedError
-
-		var forbidden pkg.ForbiddenError
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
 
 		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
 			return nil, err
