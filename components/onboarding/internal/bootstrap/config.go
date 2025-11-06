@@ -171,6 +171,10 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
+	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
+		logger.Fatal("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
+	}
+
 	grpcConnection := &mgrpc.GRPCConnection{
 		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
 		Logger: logger,
