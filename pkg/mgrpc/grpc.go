@@ -27,8 +27,8 @@ type GRPCConnection struct {
 func (c *GRPCConnection) Connect() error {
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal("Failed to connect on gRPC", zap.Error(err))
-		return nil
+		c.Logger.Error("Failed to connect on gRPC", zap.Error(err))
+		return err
 	}
 
 	c.Logger.Info("Connected to gRPC ✅ ")
