@@ -14,7 +14,7 @@ import (
 
 // Repository provides an interface for gRPC operations related to balance in the Transaction component.
 //
-//go:generate mockgen --destination=balance.mock.go --package=out . Repository
+//go:generate mockgen --destination=balance.grpc_mock.go --package=out . Repository
 type Repository interface {
 	CreateBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
 }
