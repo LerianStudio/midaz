@@ -48,12 +48,6 @@ func TestIntegration_Idempotency_Outflow(t *testing.T) {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(body, &acct)
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acct.ID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
 
 	// Ensure some funds exist by an inflow
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "5.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "5.00"}}}}}})
@@ -134,18 +128,6 @@ func TestIntegration_Idempotency_JSON(t *testing.T) {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(body, &accB)
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, accA.ID, headers); err != nil {
-		t.Fatalf("ensure default A ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasA, headers); err != nil {
-		t.Fatalf("enable default A: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, accB.ID, headers); err != nil {
-		t.Fatalf("ensure default B ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasB, headers); err != nil {
-		t.Fatalf("enable default B: %v", err)
-	}
 
 	// Seed funds to A
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "9.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": aliasA, "amount": map[string]any{"asset": "USD", "value": "9.00"}}}}}})

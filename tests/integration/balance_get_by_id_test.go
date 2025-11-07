@@ -58,14 +58,6 @@ func TestIntegration_Balance_GetByID_NoCacheAndOverlay(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &acct)
 
-	// Wait default balance and enable
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acct.ID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
-
 	// List balances by account to get the default balance ID (no overlay yet expected)
 	code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", org.ID, ledger.ID, acct.ID), headers, nil)
 	if err != nil || code != 200 {

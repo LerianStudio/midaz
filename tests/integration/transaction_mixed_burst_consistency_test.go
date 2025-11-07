@@ -25,7 +25,7 @@ func TestIntegration_Transactions_MixedBurstFinalBalanceConsistent(t *testing.T)
 	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
 	headers := iso.MakeTestHeaders()
 
-	// Setup: org -> ledger -> USD asset -> account -> ensure default -> enable default
+	// Setup: org -> ledger -> USD asset -> account
 	orgID, err := h.SetupOrganization(ctx, onboard, headers, iso.UniqueOrgName("Org"))
 	if err != nil {
 		t.Fatalf("create org: %v", err)
@@ -38,15 +38,9 @@ func TestIntegration_Transactions_MixedBurstFinalBalanceConsistent(t *testing.T)
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("diagC")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// Seed 100 with unique transaction code and wait briefly until observed
