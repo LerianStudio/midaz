@@ -1,11 +1,10 @@
-FROM node:22-bookworm-slim
+FROM node:22-alpine
 
 WORKDIR /usr/src/app
 COPY components/console/package*.json ./
 
 RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
-    apt-get update && apt-get install -y --no-install-recommends bash ca-certificates && \
-    rm -rf /var/lib/apt/lists/* && \
+    apk update && apk add bash && \
     npm install && \
     npm cache clean --force && \
     rm -f ~/.npmrc
