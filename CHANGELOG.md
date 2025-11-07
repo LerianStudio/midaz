@@ -1,3 +1,13 @@
+## [v3.4.0-beta.38] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.37...v3.4.0-beta.38)
+Contributors: lerian-studio, paulo
+
+### 🔧 Maintenance
+- **Dependencies Update**: We've updated several library dependencies to their latest versions. This ensures improved security and compatibility with the latest industry standards, providing a more stable and secure experience for all users.
+- **Frontend Enhancements**: Our frontend stack has been refreshed with updated libraries and tools. This update is designed to enhance the development workflow and ensure that the user interface remains responsive and reliable across modern browsers and devices. Users can expect a smoother and more consistent experience.
+
+
 ## [v3.4.0-beta.37] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.36...v3.4.0-beta.37)
