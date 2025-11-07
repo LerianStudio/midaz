@@ -1,3 +1,12 @@
+## [v3.4.0-beta.37] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.36...v3.4.0-beta.37)
+Contributors: Clara Tersi
+
+### 🔧 Maintenance
+- **Dependency Update**: We have upgraded the `lib-commons` library from version 2.4.0 to 2.5.0. This update ensures that the application remains compatible with the latest standards and benefits from recent security patches and enhancements. Users will experience improved application stability and security without needing to take any action.
+
+
 ## [v3.4.0-beta.29] - 2025-10-29
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.28...v3.4.0-beta.29)
