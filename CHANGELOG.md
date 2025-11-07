@@ -1,3 +1,15 @@
+## [v3.4.0-beta.40] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.39...v3.4.0-beta.40)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Improved Connectivity for Transaction Services**: The Docker configuration now exposes an additional port (3011) for the transaction component. This fix resolves issues where users were previously unable to access transaction services due to port restrictions, ensuring reliable and seamless transaction handling.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been revised to include the most recent updates and improvements. This ensures that users have immediate access to the latest information about the software's evolution, helping them stay informed about new features, fixes, and maintenance updates.
+
+
 ## [v3.4.0-beta.39] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.38...v3.4.0-beta.39)
