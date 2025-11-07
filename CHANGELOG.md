@@ -1,3 +1,15 @@
+## [v3.4.0-beta.39] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.38...v3.4.0-beta.39)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: The changelog now accurately reflects the latest updates and improvements, providing users with a clear history of changes and enhancing transparency.
+
+### 🔧 Maintenance
+- **Version Consistency**: Updated the application version to v3.4.0 across all configuration files and documentation. This ensures that all references are up-to-date, reducing confusion and aiding in effective version tracking.
+
+
 ## [v3.4.0-beta.38] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.37...v3.4.0-beta.38)
