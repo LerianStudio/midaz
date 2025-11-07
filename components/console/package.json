@@ -151,7 +151,7 @@
     "shx": "^0.4.0",
     "start-server-and-test": "^2.0.12",
     "storybook": "^9.1.0-alpha.1",
-    "tailwindcss": "^4.1.8",
+    "tailwindcss": "4.1.16",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
@@ -163,6 +163,7 @@
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",
     "tar-fs": "^3.1.1",
-    "tmp": "^0.2.4"
+    "tmp": "^0.2.4",
+    "sharp": "0.33.5"
   }
 }
