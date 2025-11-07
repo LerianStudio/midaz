@@ -21,6 +21,7 @@ RUN npm run set-env
 COPY components/console/ .
 
 RUN npm run build
+
 EXPOSE 8081
 
 ENTRYPOINT ["/scripts/entrypoint.sh"]
