@@ -1,3 +1,15 @@
+## [v3.4.0-beta.45] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.44...v3.4.0-beta.45)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been refreshed to include recent updates and improvements. This ensures that all stakeholders have access to the latest information, promoting transparency and effective communication.
+
+### 🔧 Maintenance
+- **Build/Config**: The QEMU setup has been removed from the GitHub Actions workflow. This update simplifies the CI/CD process, potentially reducing build times and easing maintenance efforts, leading to a more efficient development environment.
+
+
 ## [v3.4.0-beta.44] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.43...v3.4.0-beta.44)
