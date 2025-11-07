@@ -1,3 +1,15 @@
+## [v3.4.0-beta.43] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.42...v3.4.0-beta.43)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: We've refreshed our CHANGELOG to accurately reflect the latest project updates and improvements. This ensures that both users and developers have easy access to the most current information, facilitating better understanding and engagement with the project's progress.
+
+### 🔧 Maintenance
+- **Console Cleanup**: An unnecessary newline was removed from the console Dockerfile. While this change does not affect functionality, it helps maintain a clean and consistent codebase, contributing to overall code quality.
+
+
 ## [v3.4.0-beta.42] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.41...v3.4.0-beta.42)
