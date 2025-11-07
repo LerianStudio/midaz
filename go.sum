@@ -17,6 +17,8 @@ github.com/LerianStudio/lib-auth/v2 v2.3.0-beta.1 h1:GpwZRuu1egTrcSNNxmSFuaQJ04m
 github.com/LerianStudio/lib-auth/v2 v2.3.0-beta.1/go.mod h1:SBu9aj37eB1ogARnUY7PRKZppHt/YpMwrfcwsm6EoWU=
 github.com/LerianStudio/lib-commons/v2 v2.4.0 h1:fGvuumtpjn4L7w456b7UfQbB3L5C7Y6CyIChGmaEkH8=
 github.com/LerianStudio/lib-commons/v2 v2.4.0/go.mod h1:vzU0pIkYsww8gya7OD5+sjh2yS/u2TWLGrOfJajB4nQ=
+github.com/LerianStudio/lib-commons/v2 v2.5.0 h1:dVRTSEM1EaGceEKS5P44ETI7KxVJcdq1g9Co094KWXQ=
+github.com/LerianStudio/lib-commons/v2 v2.5.0/go.mod h1:vzU0pIkYsww8gya7OD5+sjh2yS/u2TWLGrOfJajB4nQ=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
