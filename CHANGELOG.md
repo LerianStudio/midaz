@@ -1,3 +1,17 @@
+## [v3.4.0-beta.41] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.40...v3.4.0-beta.41)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- Improved console output readability by adding a newline. This enhancement makes it easier for users to quickly interpret console logs, improving overall user experience.
+
+### 🔧 Maintenance
+- Updated the `lib-auth` dependency to version 2.3.0. This ensures compatibility with the latest features and security updates, providing a more secure and reliable authentication process.
+- Removed the deprecated `lib-auth` version 2.3.0-beta.1 from the `go.sum` file, reducing potential conflicts and ensuring the use of stable, supported library versions.
+- Updated the CHANGELOG to reflect recent changes, helping users track the software's evolution and understand the context of updates.
+
+
 ## [v3.4.0-beta.40] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.39...v3.4.0-beta.40)
