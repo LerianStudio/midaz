@@ -1,3 +1,18 @@
+## [v3.4.0-beta.42] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.41...v3.4.0-beta.42)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Multi-Architecture Build Support**: The build process now supports multiple architectures, allowing for seamless development and deployment across different platforms. This enhancement reduces the time and potential errors associated with cross-platform development, making the process more efficient and reliable.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to accurately reflect recent improvements and modifications. This ensures that users and developers can easily track project progress and stay informed about the latest changes.
+
+### 🔧 Maintenance
+- **Release Management Improvements**: Behind-the-scenes updates to the release management process enhance transparency and facilitate smoother project tracking, indirectly benefiting users by ensuring a more organized development workflow.
+
+
 ## [v3.4.0-beta.41] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.40...v3.4.0-beta.41)
