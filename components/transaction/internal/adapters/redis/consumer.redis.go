@@ -349,6 +349,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
 
 	var balanceJSON []byte
+
 	switch v := result.(type) {
 	case string:
 		balanceJSON = []byte(v)
@@ -575,6 +576,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	}
 
 	var out []string
+
 	switch vv := res.(type) {
 	case []any:
 		out = make([]string, 0, len(vv))

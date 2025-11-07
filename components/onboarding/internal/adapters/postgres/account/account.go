@@ -2,6 +2,7 @@ package account
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -83,7 +84,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
-		Type:              account.Type,
+		Type:              strings.ToLower(account.Type),
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
 	}
