@@ -1,3 +1,15 @@
+## [v3.4.0-beta.44] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.43...v3.4.0-beta.44)
+Contributors: Clara Tersi
+
+### 📚 Documentation
+- **Improved Documentation Build Process**: The Dockerfile for documentation has been updated to streamline the build and deployment process. This ensures that the latest documentation updates are consistently available, enhancing the reliability and accessibility of information for users.
+
+### 🔧 Maintenance
+- **Dockerfile Optimization**: The maintenance update to the Dockerfile improves the efficiency of documentation management. While this change is behind-the-scenes, it plays a crucial role in maintaining up-to-date documentation without user intervention.
+
+
 ## [v3.4.0-beta.42] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.41...v3.4.0-beta.42)
