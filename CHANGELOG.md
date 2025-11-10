@@ -1,3 +1,18 @@
+## [v3.4.0-rc.2] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.1...v3.4.0-rc.2)
+Contributors: Clara Tersi, lerian-studio
+
+### ⚡ Performance
+- **Build System Optimization**: The `analyze_accepted` script has been refined to enhance clarity and efficiency. This improvement results in faster build times and more reliable script execution, streamlining the development workflow for users.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements. This ensures users have access to the most current information about the project's evolution, aiding in tracking updates and enhancements.
+
+### 🔧 Maintenance
+- **Internal Process Refinement**: While this release does not introduce new features or bug fixes, the focus on refining internal processes and documentation indirectly benefits users by ensuring a more stable and well-documented project environment.
+
+
 ## [v3.4.0-rc.1] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.3...v3.4.0-rc.1)
