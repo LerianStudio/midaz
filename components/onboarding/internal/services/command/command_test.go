@@ -1,6 +1,8 @@
 package command
 
 import (
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
@@ -8,11 +10,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestNewUseCase(t *testing.T) {
@@ -27,7 +27,6 @@ func TestNewUseCase(t *testing.T) {
 	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Create the UseCase instance
@@ -39,7 +38,6 @@ func TestNewUseCase(t *testing.T) {
 		AccountRepo:      mockAccountRepo,
 		AssetRepo:        mockAssetRepo,
 		MetadataRepo:     mockMetadataRepo,
-		RabbitMQRepo:     mockRabbitMQRepo,
 		RedisRepo:        mockRedisRepo,
 	}
 
@@ -52,6 +50,5 @@ func TestNewUseCase(t *testing.T) {
 	assert.Equal(t, mockAccountRepo, uc.AccountRepo)
 	assert.Equal(t, mockAssetRepo, uc.AssetRepo)
 	assert.Equal(t, mockMetadataRepo, uc.MetadataRepo)
-	assert.Equal(t, mockRabbitMQRepo, uc.RabbitMQRepo)
 	assert.Equal(t, mockRedisRepo, uc.RedisRepo)
 }

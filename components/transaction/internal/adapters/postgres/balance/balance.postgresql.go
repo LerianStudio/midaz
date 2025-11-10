@@ -31,6 +31,7 @@ type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) error
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
 	FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error)
+	ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error)
 	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
@@ -39,6 +40,7 @@ type Repository interface {
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -897,6 +899,60 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 	return balance.ToEntity(), nil
 }
 
+// ExistsByAccountIDAndKey returns true if a balance exists for the given accountID and key within the specified organization and ledger.
+func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.exists_balance_by_account_id_and_key")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return false, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.exists.query")
+
+	existsQuery := squirrel.Select("1").
+		Prefix("SELECT EXISTS (").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("account_id = ?", accountID)).
+		Where(squirrel.Expr("key = ?", key)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Suffix(")").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := existsQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return false, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	spanQuery.End()
+
+	var exists bool
+	if err := row.Scan(&exists); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		logger.Errorf("Failed to scan row: %v", err)
+
+		return false, err
+	}
+
+	return exists, nil
+}
+
 // Delete marks a balance as deleted in the database using the ID provided
 func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -1018,4 +1074,53 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.sync_balance")
+	defer span.End()
+
+	id, err := uuid.Parse(b.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "invalid balance ID", err)
+
+		logger.Errorf("invalid balance ID: %v", err)
+
+		return false, err
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return false, err
+	}
+
+	res, err := db.ExecContext(ctx, `
+		UPDATE balance
+		SET available = $1, on_hold = $2, version = $3, updated_at = $4
+		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
+	`, b.Available, b.OnHold, b.Version, time.Now(), organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update balance from redis", err)
+
+		logger.Errorf("Failed to update balance from redis: %v", err)
+
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to read rows affected", err)
+
+		logger.Errorf("Failed to read rows affected: %v", err)
+
+		return false, err
+	}
+
+	return affected > 0, nil
 }

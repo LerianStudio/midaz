@@ -10,6 +10,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -66,7 +67,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	newAliases := make([]string, 0)
 
 	for _, alias := range aliases {
-		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, alias)
+		internalKey := utils.TransactionInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
 		if !libCommons.IsNilOrEmpty(&value) {
@@ -115,7 +116,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	for _, balance := range balances {
 		aliasKey := balance.Alias + "#" + balance.Key
-		internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), aliasKey)
+		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
 
 		for k, v := range validate.From {
 			if libTransaction.SplitAliasWithKey(k) == aliasKey {

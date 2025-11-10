@@ -1,4 +1,5 @@
 import { inject } from 'inversify'
+import { NextResponse } from 'next/server'
 import { UpdateSegmentUseCase } from '../use-cases/segment/update-segment-use-case'
 import { z } from 'zod'
 import { FetchAllSegmentsUseCase } from '../use-cases/segment/fetch-all-segments-use-case'
@@ -109,10 +110,12 @@ export class SegmentController extends BaseController {
     @Param('ledgerId') ledgerId: string,
     @Param('segmentId') segmentId: string
   ) {
-    return await this.deleteSegmentUseCase.execute(
+    await this.deleteSegmentUseCase.execute(
       organizationId,
       ledgerId,
       segmentId!
     )
+
+    return NextResponse.json({}, { status: 200 })
   }
 }

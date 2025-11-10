@@ -146,6 +146,7 @@ Outer:
 					AllowSending:   balance.AllowSending == 1,
 					AllowReceiving: balance.AllowReceiving == 1,
 					AssetCode:      balance.AssetCode,
+					Key:            balance.Key,
 					OrganizationID: m.OrganizationID.String(),
 					LedgerID:       m.LedgerID.String(),
 				})

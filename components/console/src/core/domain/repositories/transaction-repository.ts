@@ -8,7 +8,8 @@ export abstract class TransactionRepository {
   abstract create: (
     organizationId: string,
     ledgerId: string,
-    transaction: TransactionEntity
+    transaction: TransactionEntity,
+    idempotencyKey: string
   ) => Promise<TransactionEntity>
   abstract fetchAll: (
     organizationId: string,

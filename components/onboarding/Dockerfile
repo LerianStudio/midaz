@@ -29,7 +29,6 @@ COPY --from=builder /app /app
 # Copy the migration files required at runtime
 COPY --from=builder /onboarding-app/components/onboarding/migrations /components/onboarding/migrations
 
-# Expose application port
 EXPOSE 3000
 
 # Set entrypoint to the compiled binary
