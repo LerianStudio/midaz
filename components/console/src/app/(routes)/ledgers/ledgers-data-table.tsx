@@ -308,8 +308,10 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                   'Showing {count} {number, plural, =0 {ledgers} one {ledger} other {ledgers}}.'
               },
               {
-                number: items?.length,
-                count: <span className="font-bold">{items?.length}</span>
+                number: ledgers?.items?.length,
+                count: (
+                  <span className="font-bold">{ledgers?.items?.length}</span>
+                )
               }
             )}
           </EntityDataTable.FooterText>

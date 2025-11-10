@@ -1,0 +1,7 @@
+{
+  "legalName": "Test Org",
+  "legalDocument": "1234567890",
+  "metadata": {
+    "env": "test"
+  }
+}

@@ -82,7 +82,7 @@
     "lucide-react": "^0.511.0",
     "mongoose": "^8.15.1",
     "next": "^15.5.2",
-    "next-auth": "^4.24.11",
+    "next-auth": "^4.24.13",
     "path-to-regexp": "^8.2.0",
     "react": "^19.1.0",
     "react-color": "^2.19.3",
@@ -105,7 +105,7 @@
     "@formatjs/cli": "^6.7.1",
     "@formatjs/cli-lib": "^7.4.1",
     "@lhci/cli": "^0.14.0",
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.56.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
@@ -125,7 +125,6 @@
     "@types/lodash": "^4.17.17",
     "@types/node": "^22.15.28",
     "@types/node-fetch": "^2.6.12",
-    "@types/pino": "^7.0.5",
     "@types/react": "19.1.6",
     "@types/react-color": "^3.0.13",
     "@types/react-dom": "19.1.5",
@@ -152,7 +151,7 @@
     "shx": "^0.4.0",
     "start-server-and-test": "^2.0.12",
     "storybook": "^9.1.0-alpha.1",
-    "tailwindcss": "^4.1.8",
+    "tailwindcss": "4.1.16",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
@@ -164,6 +163,7 @@
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",
     "tar-fs": "^3.1.1",
-    "tmp": "^0.2.4"
+    "tmp": "^0.2.4",
+    "sharp": "0.33.5"
   }
 }

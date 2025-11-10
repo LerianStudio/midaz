@@ -64,7 +64,9 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
+	token := c.Get("Authorization")
+
+	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Asset on command", err)
 

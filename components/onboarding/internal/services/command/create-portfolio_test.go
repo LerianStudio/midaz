@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -232,7 +231,6 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 		AccountRepo      account.Repository
 		AssetRepo        asset.Repository
 		MetadataRepo     mongodb.Repository
-		RabbitMQRepo     rabbitmq.ProducerRepository
 		RedisRepo        redis.RedisRepository
 	}
 	type args struct {
@@ -260,7 +258,6 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 				AccountRepo:      tt.fields.AccountRepo,
 				AssetRepo:        tt.fields.AssetRepo,
 				MetadataRepo:     tt.fields.MetadataRepo,
-				RabbitMQRepo:     tt.fields.RabbitMQRepo,
 				RedisRepo:        tt.fields.RedisRepo,
 			}
 			got, err := uc.CreatePortfolio(tt.args.ctx, tt.args.organizationID, tt.args.ledgerID, tt.args.cpi)

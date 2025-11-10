@@ -13,31 +13,21 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
-// CreateAccount creates a new account persists data in the repository.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput) (*mmodel.Account, error) {
+// CreateAccountSync creates an account and metadata, then synchronously creates the default balance via gRPC.
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
 
-	logger.Infof("Trying to create account: %v", cai)
+	logger.Infof("Trying to create account (sync): %v", cai)
 
-	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Message Broker is unavailable", err)
-
-		logger.Errorf("Message Broker is unavailable: %v", err)
-
-		return nil, err
-	}
-
-	err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type)
-	if err != nil {
+	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting validations failed", err)
 
 		logger.Errorf("Accounting validations failed: %v", err)
@@ -54,7 +44,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
 		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset", err)
 
 		return nil, err
@@ -68,7 +57,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find portfolio", err)
-
 			logger.Errorf("Error find portfolio to get Entity ID: %v", err)
 
 			return nil, err
@@ -81,7 +69,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
-
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find parent account", err)
 
 			return nil, err
@@ -89,7 +76,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 		if acc.AssetCode != cai.AssetCode {
 			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
-
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate parent account", err)
 
 			return nil, err
@@ -98,18 +84,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	ID := libCommons.GenerateUUIDv7().String()
 
-	var alias *string
-	if !libCommons.IsNilOrEmpty(cai.Alias) {
-		alias = cai.Alias
+	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
+		return nil, err
+	}
 
-		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
-
-			return nil, err
-		}
-	} else {
-		alias = &ID
+	blocked := false
+	if cai.Blocked != nil {
+		blocked = *cai.Blocked
 	}
 
 	account := &mmodel.Account{
@@ -118,6 +101,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		Alias:           alias,
 		Name:            cai.Name,
 		Type:            cai.Type,
+		Blocked:         &blocked,
 		ParentAccountID: cai.ParentAccountID,
 		SegmentID:       cai.SegmentID,
 		OrganizationID:  organizationID.String(),
@@ -138,7 +122,41 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
+	balanceReq := &balanceproto.BalanceRequest{
+		OrganizationId: organizationID.String(),
+		LedgerId:       ledgerID.String(),
+		AccountId:      acc.ID,
+		Alias:          *alias,
+		Key:            constant.DefaultBalanceKey,
+		AssetCode:      cai.AssetCode,
+		AccountType:    cai.Type,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	_, err = uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance via gRPC", err)
+		logger.Errorf("Failed to create default balance via gRPC: %v", err)
+
+		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(acc.ID))
+		if delErr != nil {
+			logger.Errorf("Failed to delete account during compensation: %v", delErr)
+		}
+
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
+
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+			return nil, err
+		}
+
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	metadataDoc, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account metadata", err)
 
@@ -147,12 +165,26 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	acc.Metadata = metadata
+	acc.Metadata = metadataDoc
 
-	logger.Infof("Sending account to transaction queue...")
-	uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+	logger.Infof("Account created synchronously with default balance")
 
 	return acc, nil
+}
+
+// resolveAccountAlias resolves and validates the account alias.
+// Returns provided alias when present and valid; otherwise falls back to generated ID.
+func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string) (*string, error) {
+	if !libCommons.IsNilOrEmpty(cai.Alias) {
+		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
+		if err != nil {
+			return nil, err
+		}
+
+		return cai.Alias, nil
+	}
+
+	return &generatedID, nil
 }
 
 // determineStatus determines the status of the account.

@@ -17,10 +17,14 @@ import { OrganizationAvatarDocument } from '../models/organization-avatar'
 export class OrganizationAvatarMapper {
   /**
    * Converts a MongoDB document to a domain entity
-   * @param doc - The MongoDB document containing organization avatar data
+   * @param doc - The MongoDB document or lean object containing organization avatar data
    * @returns A clean domain entity with only the properties defined in the domain model
    */
-  static toEntity(doc: OrganizationAvatarDocument): OrganizationAvatarEntity {
+  static toEntity(
+    doc:
+      | OrganizationAvatarDocument
+      | Pick<OrganizationAvatarEntity, 'organizationId' | 'avatar'>
+  ): OrganizationAvatarEntity {
     return {
       organizationId: doc.organizationId,
       avatar: doc.avatar

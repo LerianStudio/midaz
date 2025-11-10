@@ -1,12 +1,11 @@
 FROM node:22-alpine
 
 WORKDIR /usr/src/app
-
 COPY components/console/package*.json ./
 
 RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
     apk update && apk add bash && \
-    npm install && \
+    npm ci && \
     npm cache clean --force && \
     rm -f ~/.npmrc
 
@@ -21,6 +20,7 @@ RUN npm run set-env
 COPY components/console/ .
 
 RUN npm run build
+
 EXPOSE 8081
 
 ENTRYPOINT ["/scripts/entrypoint.sh"]
