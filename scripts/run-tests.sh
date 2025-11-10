@@ -37,15 +37,6 @@ if [ -d "components/console" ]; then
     }
 fi
 
-# Test mdz component
-echo -e "\nTesting mdz component..."
-if [ -d "components/mdz" ]; then
-    (cd components/mdz && make test) || {
-        overall_exit_code=1
-        echo "[error] MDZ component tests failed."
-    }
-fi
-
 # Test onboarding component
 echo -e "\nTesting onboarding component..."
 if [ -d "components/onboarding" ]; then

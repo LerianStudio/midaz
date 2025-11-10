@@ -3,7 +3,7 @@ package mmodel
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestStatus_IsEmpty(t *testing.T) {
@@ -36,7 +36,7 @@ func TestStatus_IsEmpty(t *testing.T) {
 			name: "case 03",
 			fields: fields{
 				Code:        "1",
-				Description: ptr.StringPtr("a"),
+				Description: utils.StringPtr("a"),
 			},
 			want: false,
 		},

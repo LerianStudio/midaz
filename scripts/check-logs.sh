@@ -18,7 +18,7 @@ echo "${CYAN}----------------------------------------------${NC}"
 echo "${CYAN}Checking for proper error logging in usecases...${NC}"
 
 # Define directories to check
-COMPONENTS=("./components/mdz" "./components/onboarding" "./components/transaction")
+COMPONENTS=("./components/onboarding" "./components/transaction")
 
 # Define patterns to search for
 MISSING_LOG_PATTERN="return err"

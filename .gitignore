@@ -16,7 +16,6 @@ CLAUDE.md
 
 # Build and binary files
 *__debug_bin1675735721
-components/mdz/bin/mdz
 dist/
 coverage.out
 scripts/coverage_ignore.txt
