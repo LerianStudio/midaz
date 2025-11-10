@@ -1,3 +1,33 @@
+## [v3.4.0-rc.1] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.3...v3.4.0-rc.1)
+Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **API Documentation Update**: The default value has been removed from the 'Blocked' field in the account API documentation. This change may impact integrations that depend on the previous default behavior. Users must update their API clients to accommodate this change. Ensure your integration handles the absence of a default value appropriately.
+
+### ✨ Features
+- **Streamlined Onboarding**: Synchronous asset creation and default balance setup are now automated, drastically reducing manual setup time and simplifying the onboarding process for new accounts.
+- **Efficient Transaction Processing**: A new gRPC server implementation for balance operations enhances transaction processing, offering improved scalability and efficiency through gRPC calls.
+
+### 🐛 Bug Fixes
+- **Docker Connectivity**: An additional port has been exposed for the transaction component, resolving previous connectivity issues and enhancing deployment flexibility.
+- **Improved Error Handling**: Enhanced error logging across components, including balance creation and transaction processing, provides more detailed telemetry to aid troubleshooting.
+
+### ⚡ Performance
+- **Optimized Balance Retrieval**: Redis caching is now utilized for balance queries, significantly reducing database load and latency, resulting in faster response times.
+
+### 🔄 Changes
+- **Enhanced Account Management**: The 'Blocked' field is now included in account creation and update functionalities, offering more granular control over account states.
+
+### 📚 Documentation
+- **Expanded API Guidelines**: API documentation has been updated to include new fields and error responses, providing clearer guidelines for developers and reducing potential integration issues.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Key dependencies, including 'lib-auth' and 'lib-commons', have been updated to their latest versions, improving security and compatibility.
+- **Testing Enhancements**: The testing suite now includes chaos, fuzz, property, and E2E testing, ensuring robust application behavior under various scenarios.
+
+
 ## [v3.4.0-beta.46] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.45...v3.4.0-beta.46)
