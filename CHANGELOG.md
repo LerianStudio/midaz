@@ -1,3 +1,18 @@
+## [v3.4.0-beta.48] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.47...v3.4.0-beta.48)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Improved Code Readability**: We've refined the frontend code by adding missing newlines in error handling and JSON processing functions. This enhancement makes the code easier to read and maintain, which supports faster debugging and more efficient future development.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring that users have a clear understanding of the project's evolution. This transparency aids in tracking project history and understanding the context of updates.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: By keeping the documentation current, we enhance the project's usability and facilitate better communication with users about ongoing developments.
+
+
 ## [v3.4.0-rc.2] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.1...v3.4.0-rc.2)
