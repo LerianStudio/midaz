@@ -13,7 +13,6 @@ import (
 )
 
 // Database success, full cache overlay for alias listing.
-// - Enable default balance for the alias.
 // - Perform a credit inflow to ensure cache entry exists.
 // - GET /accounts/alias/{alias}/balances and assert the available reflects the inflow amount.
 func TestIntegration_GetAllBalancesByAlias_FullCacheOverlay(t *testing.T) {
@@ -40,15 +39,9 @@ func TestIntegration_GetAllBalancesByAlias_FullCacheOverlay(t *testing.T) {
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("acc")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	// Perform inflow to create/update cache entry with a known value
@@ -115,15 +108,9 @@ func TestIntegration_GetAllBalancesByAlias_VeryLargePrecisionOverlay(t *testing.
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := iso.UniqueAccountAlias("acc")
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
+	_, err = h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 	if err != nil {
 		t.Fatalf("create account: %v", err)
-	}
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, orgID, ledgerID, accountID, headers); err != nil {
-		t.Fatalf("ensure default: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, orgID, ledgerID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
 	}
 
 	largeAmount := "123456789012345678901234567890.123456789012345678901234567890"
@@ -163,4 +150,3 @@ func TestIntegration_GetAllBalancesByAlias_VeryLargePrecisionOverlay(t *testing.
 		time.Sleep(150 * time.Millisecond)
 	}
 }
-

@@ -1,3 +1,46 @@
+## [v3.4.0-beta.40] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.39...v3.4.0-beta.40)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Improved Connectivity for Transaction Services**: The Docker configuration now exposes an additional port (3011) for the transaction component. This fix resolves issues where users were previously unable to access transaction services due to port restrictions, ensuring reliable and seamless transaction handling.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been revised to include the most recent updates and improvements. This ensures that users have immediate access to the latest information about the software's evolution, helping them stay informed about new features, fixes, and maintenance updates.
+
+
+## [v3.4.0-beta.39] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.38...v3.4.0-beta.39)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: The changelog now accurately reflects the latest updates and improvements, providing users with a clear history of changes and enhancing transparency.
+
+### 🔧 Maintenance
+- **Version Consistency**: Updated the application version to v3.4.0 across all configuration files and documentation. This ensures that all references are up-to-date, reducing confusion and aiding in effective version tracking.
+
+
+## [v3.4.0-beta.38] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.37...v3.4.0-beta.38)
+Contributors: lerian-studio, paulo
+
+### 🔧 Maintenance
+- **Dependencies Update**: We've updated several library dependencies to their latest versions. This ensures improved security and compatibility with the latest industry standards, providing a more stable and secure experience for all users.
+- **Frontend Enhancements**: Our frontend stack has been refreshed with updated libraries and tools. This update is designed to enhance the development workflow and ensure that the user interface remains responsive and reliable across modern browsers and devices. Users can expect a smoother and more consistent experience.
+
+
+## [v3.4.0-beta.37] - 2025-11-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.36...v3.4.0-beta.37)
+Contributors: Clara Tersi
+
+### 🔧 Maintenance
+- **Dependency Update**: We have upgraded the `lib-commons` library from version 2.4.0 to 2.5.0. This update ensures that the application remains compatible with the latest standards and benefits from recent security patches and enhancements. Users will experience improved application stability and security without needing to take any action.
+
+
 ## [v3.4.0-beta.29] - 2025-10-29
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.28...v3.4.0-beta.29)

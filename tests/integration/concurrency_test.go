@@ -61,14 +61,6 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &acc)
 
-	// Wait for default balance and ensure permissions are enabled
-	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
-		t.Fatalf("ensure default balance ready: %v", err)
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default balance: %v", err)
-	}
-
 	// Create balance tracker
 	tracker, err := h.NewOperationTracker(ctx, trans, org.ID, ledger.ID, alias, "USD", headers)
 	if err != nil {
@@ -223,12 +215,6 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 			ID string `json:"id"`
 		}
 		_ = json.Unmarshal(body, &acc)
-		if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
-			t.Fatalf("ensure balance %s ready: %v", alias, err)
-		}
-		if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-			t.Fatalf("enable balance %s: %v", alias, err)
-		}
 	}
 
 	// Create balance trackers for both accounts
