@@ -1,3 +1,35 @@
+## [v3.4.0] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
+Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **API Documentation Update**: The 'Blocked' field in the account API documentation no longer has a default value. This change may impact integrations that relied on the previous default behavior. Ensure your API clients handle this change by explicitly setting the 'Blocked' field as needed.
+
+### ✨ Features
+- **Enhanced Onboarding Experience**: Onboarding now includes synchronous asset creation with external accounts and default balance setup via gRPC, providing users with immediate asset availability and a smoother start.
+- **Improved Transaction Management**: A new gRPC server implementation for balance operations enhances transaction processing efficiency and scalability.
+- **Faster Balance Queries**: Integration of Redis caching for balance retrieval significantly boosts performance, reducing response times for users.
+- **Account Security Controls**: The addition of a 'Blocked' field during account creation and updates allows for more granular control over account statuses, enhancing security management.
+
+### 🐛 Bug Fixes
+- **Docker Connectivity**: Resolved connectivity issues in multi-container deployments by exposing additional ports for transaction components.
+- **Consistent Environment Configuration**: Standardized environment variable naming across the console and backend, minimizing configuration errors and improving deployment consistency.
+- **Accurate Balance States**: Fixed issues with balance expiration handling in Redis, ensuring users always see up-to-date balance information.
+- **Robust Error Handling**: Improved error handling across gRPC connections and transaction processing to prevent crashes and enhance system stability.
+
+### ⚡ Performance
+- **Optimized Balance Retrieval**: By integrating Redis caching, balance retrieval processes are now faster, reducing load times and improving the overall user experience.
+
+### 📚 Documentation
+- **Updated API Documentation**: Comprehensive updates to API documentation reflect recent changes, ensuring developers have accurate information for seamless integration.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated key dependencies like lib-auth and lib-commons to their latest versions, ensuring compatibility and access to new features.
+- **Testing Enhancements**: Transitioned to Apidog CLI for end-to-end tests and expanded the testing framework with chaos, fuzz, and property testing for improved coverage and reliability.
+- **Code Refactoring**: Streamlined code across multiple components, removing deprecated methods to enhance readability and maintainability.
+
+
 ## [v3.4.0-rc.3] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.2...v3.4.0-rc.3)
