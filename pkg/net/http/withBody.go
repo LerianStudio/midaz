@@ -565,6 +565,7 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 // jsonFieldName returns the effective JSON field name for a struct field.
 func jsonFieldName(f reflect.StructField) string {
 	tag := f.Tag.Get("json")
+
 	name := strings.Split(tag, ",")[0]
 	if name == "" {
 		return f.Name
