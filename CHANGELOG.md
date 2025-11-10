@@ -1,3 +1,18 @@
+## [v3.4.0-rc.3] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.2...v3.4.0-rc.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Frontend**: Improved code readability by adding newlines in error handling functions and the `jsonFieldName` function. This enhancement makes the code easier to understand and manage, benefiting developers by simplifying future updates and debugging.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring that both developers and users have access to a clear and current history of modifications. This aids in tracking updates and understanding the evolution of the project.
+
+### 🔧 Maintenance
+- Focused on maintaining a clean and navigable codebase, these changes support ongoing development efforts by ensuring that the system remains easy to work with and extend.
+
+
 ## [v3.4.0-beta.48] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.47...v3.4.0-beta.48)
