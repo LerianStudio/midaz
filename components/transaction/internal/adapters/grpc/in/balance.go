@@ -189,6 +189,7 @@ func (b *BalanceProto) DeleteBalance(ctx context.Context, req *balance.DeleteBal
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid organization_id", err)
 
 		logger.Errorf("Invalid organization_id, Error: %s", err.Error())
+
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "organizationId")
 	}
 
@@ -197,20 +198,25 @@ func (b *BalanceProto) DeleteBalance(ctx context.Context, req *balance.DeleteBal
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ledger_id", err)
 
 		logger.Errorf("Invalid ledger_id, Error: %s", err.Error())
+
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "ledgerId")
 	}
 
 	balanceID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid balance_id", err)
+
 		logger.Errorf("Invalid balance_id, Error: %s", err.Error())
+
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "balanceId")
 	}
 
 	err = b.Command.DeleteBalance(ctx, orgID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance on command", err)
+
 		logger.Errorf("Failed to delete balance, Error: %s", err.Error())
+
 		return nil, err
 	}
 
