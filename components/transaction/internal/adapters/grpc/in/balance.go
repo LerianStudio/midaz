@@ -161,8 +161,10 @@ func (b *BalanceProto) GetBalance(ctx context.Context, req *balance.BalanceReque
 	}
 	for i, bln := range balances {
 		resp.Balances[i] = &balance.BalanceResponse{
-			Id:  bln.ID,
-			Key: bln.Key,
+			Id:        bln.ID,
+			Key:       bln.Key,
+			Available: bln.Available.String(),
+			OnHold:    bln.OnHold.String(),
 		}
 	}
 
