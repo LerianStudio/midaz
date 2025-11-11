@@ -99,7 +99,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			tt.setupMocks()
 
 			// Executa a função
-			err := uc.DeleteAccountByID(ctx, organizationID, ledgerID, tt.portfolioID, accountID)
+			err := uc.DeleteAccountByID(ctx, organizationID, ledgerID, tt.portfolioID, accountID, "token")
 
 			// Validações
 			if tt.expectedErr != nil {

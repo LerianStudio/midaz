@@ -15,7 +15,8 @@ import (
 //go:generate mockgen --destination=balance.grpc_mock.go --package=out . Repository
 type Repository interface {
 	CreateBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
-	GetBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
+	GetBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.GetBalanceResponse, error)
+	DeleteBalance(ctx context.Context, token string, req *proto.DeleteBalanceRequest) error
 }
 
 // BalanceGRPCRepository is a gRPC implementation for balance.proto
@@ -33,47 +34,6 @@ func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
 	}
 
 	return agrpc
-}
-
-// GetBalance gets a balance via gRPC using the provided request.
-func (b *BalanceGRPCRepository) GetBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "grpc.get_balance")
-	defer span.End()
-
-	conn, err := b.conn.GetNewClient()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
-		return nil, err
-	}
-
-	client := proto.NewBalanceProtoClient(conn)
-
-	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.get_balance.client_request")
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
-		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
-		return nil, err
-	}
-
-	// Inject trace context and propagate request_id and authorization (if provided)
-	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
-
-	resp, err := client.GetBalance(ctxReq, req)
-	spanClientReq.End()
-	if err != nil {
-		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrNoBalancesFound.Error(), "Balance Not Found", "Balance could not be found")
-		if mapped != err {
-			return nil, mapped
-		}
-
-		libOpentelemetry.HandleSpanError(&span, "Failed to get balance", err)
-		logger.Errorf("gRPC GetBalance error: %v", err)
-
-		return nil, err
-	}
-
-	return resp, nil
 }
 
 // CreateBalance creates a balance via gRPC using the provided request.
@@ -119,4 +79,85 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	}
 
 	return resp, nil
+}
+
+// GetBalance gets a balance via gRPC using the provided request.
+func (b *BalanceGRPCRepository) GetBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.GetBalanceResponse, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.get_balance")
+	defer span.End()
+
+	conn, err := b.conn.GetNewClient()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+		return nil, err
+	}
+
+	client := proto.NewBalanceProtoClient(conn)
+
+	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.get_balance.client_request")
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
+		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
+		return nil, err
+	}
+
+	// Inject trace context and propagate request_id and authorization (if provided)
+	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
+
+	resp, err := client.GetBalance(ctxReq, req)
+	spanClientReq.End()
+	if err != nil {
+		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrNoBalancesFound.Error(), "Balance Not Found", "Balance could not be found")
+		if mapped != err {
+			return nil, mapped
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance", err)
+		logger.Errorf("gRPC GetBalance error: %v", err)
+
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// DeleteBalance deletes a balance via gRPC using the provided request.
+func (b *BalanceGRPCRepository) DeleteBalance(ctx context.Context, token string, req *proto.DeleteBalanceRequest) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.delete_balance")
+	defer span.End()
+
+	conn, err := b.conn.GetNewClient()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+		return err
+	}
+
+	client := proto.NewBalanceProtoClient(conn)
+
+	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_balance.client_request")
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
+		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
+		return err
+	}
+
+	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
+
+	_, err = client.DeleteBalance(ctxReq, req)
+	spanClientReq.End()
+	if err != nil {
+		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "Balance Deletion Failed", "Balance could not be deleted")
+		if mapped != err {
+			return mapped
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete balance", err)
+		logger.Errorf("gRPC DeleteBalance error: %v", err)
+
+		return err
+	}
+
+	return nil
 }
