@@ -54,3 +54,18 @@ func (mr *MockRepositoryMockRecorder) CreateBalance(arg0, arg1, arg2 any) *gomoc
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalance", reflect.TypeOf((*MockRepository)(nil).CreateBalance), arg0, arg1, arg2)
 }
+
+// GetBalance mocks base method.
+func (m *MockRepository) GetBalance(arg0 context.Context, arg1 string, arg2 *balance.BalanceRequest) (*balance.BalanceResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalance", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*balance.BalanceResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalance indicates an expected call of GetBalance.
+func (mr *MockRepositoryMockRecorder) GetBalance(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockRepository)(nil).GetBalance), arg0, arg1, arg2)
+}
