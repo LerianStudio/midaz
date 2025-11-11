@@ -106,7 +106,9 @@ func (b *BalanceGRPCRepository) GetBalance(ctx context.Context, token string, re
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	resp, err := client.GetBalance(ctxReq, req)
+
 	spanClientReq.End()
+
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrNoBalancesFound.Error(), "Balance Not Found", "Balance could not be found")
 		if mapped != err {
@@ -146,7 +148,9 @@ func (b *BalanceGRPCRepository) DeleteBalance(ctx context.Context, token string,
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	_, err = client.DeleteBalance(ctxReq, req)
+
 	spanClientReq.End()
+
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "Balance Deletion Failed", "Balance could not be deleted")
 		if mapped != err {

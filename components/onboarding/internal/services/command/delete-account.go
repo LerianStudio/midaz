@@ -47,6 +47,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance via gRPC", err)
 		logger.Errorf("Failed to get balance via gRPC: %v", err)
+
 		return err
 	}
 
@@ -54,6 +55,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		err = pkg.ValidateBusinessError(constant.ErrBalanceNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balances not found", err)
 		logger.Errorf("Balances not found: %v", err)
+
 		return err
 	}
 
@@ -63,6 +65,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance", err)
 			logger.Errorf("Failed to delete balance: %v", err)
+
 			return err
 		}
 	}
@@ -90,6 +93,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 func (uc *UseCase) deleteBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceFound *balanceproto.BalanceResponse, token string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "command.delete_balance")
 	defer span.End()
 
@@ -103,6 +107,7 @@ func (uc *UseCase) deleteBalance(ctx context.Context, organizationID, ledgerID u
 		err := pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, reflect.TypeOf(mmodel.Balance{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance funds not zero", err)
 		logger.Errorf("Balance funds not zero: %v", err)
+
 		return err
 	}
 
@@ -116,6 +121,7 @@ func (uc *UseCase) deleteBalance(ctx context.Context, organizationID, ledgerID u
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance via gRPC", err)
 		logger.Errorf("Failed to delete balance via gRPC: %v", err)
+
 		return err
 	}
 
