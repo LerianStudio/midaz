@@ -6,8 +6,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	cmdUtils "github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils"
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -45,7 +43,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 	defer func() {
 		if err != nil {
-			allowTransfer := ptr.BoolPtr(true)
+			allowTransfer := utils.BoolPtr(true)
 
 			err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, balanceID, allowTransfer)
 			if err != nil {
@@ -54,7 +52,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		}
 	}()
 
-	allowTransfer := ptr.BoolPtr(false)
+	allowTransfer := utils.BoolPtr(false)
 
 	err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, balanceID, allowTransfer)
 	if err != nil {
@@ -72,7 +70,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	balanceRedis := mmodel.BalanceRedis{}
 
 	cacheValue, _ := uc.RedisRepo.Get(ctx, cacheKey)
-	if !cmdUtils.IsNilOrEmpty(&cacheValue) {
+	if !utils.IsNilOrEmpty(&cacheValue) {
 		if err := json.Unmarshal([]byte(cacheValue), &balanceRedis); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 
