@@ -2,11 +2,16 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	cmdUtils "github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -30,8 +35,58 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteBalance")
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because it still has funds in it.", err)
+
 		logger.Warnf("Error deleting balance: %v", err)
+
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			allowTransfer := ptr.BoolPtr(true)
+			err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, balanceID, allowTransfer)
+			if err != nil {
+				logger.Errorf("Error update balance: %v", err)
+			}
+		}
+	}()
+
+	allowTransfer := ptr.BoolPtr(false)
+
+	err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, balanceID, allowTransfer)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
+
+		logger.Errorf("Error update balance: %v", err)
+
+		return err
+	}
+
+	balanceCompleteKey := balance.Alias + "#" + balance.Key
+
+	cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceCompleteKey)
+
+	balanceRedis := mmodel.BalanceRedis{}
+
+	cacheValue, _ := uc.RedisRepo.Get(ctx, cacheKey)
+	if !cmdUtils.IsNilOrEmpty(&cacheValue) {
+		if err := json.Unmarshal([]byte(cacheValue), &balanceRedis); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+
+			logger.Warnf("Error to Deserialization json: %v", err)
+		}
+	}
+
+	if balanceRedis.Version != balance.Version {
+		// TODO: To be defined
+	}
+
+	err = uc.RedisRepo.Del(ctx, cacheKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance on repo", err)
+		logger.Errorf("Error delete balance: %v", err)
 
 		return err
 	}
@@ -39,7 +94,31 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance on repo", err)
+
 		logger.Errorf("Error delete balance: %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, allowTransfer *bool) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.update_balance_transfer_permissions")
+	defer span.End()
+
+	logger.Infof("Trying to update balance transfer permissions")
+
+	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, mmodel.UpdateBalance{
+		AllowReceiving: allowTransfer,
+		AllowSending:   allowTransfer,
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
+
+		logger.Errorf("Error update balance: %v", err)
 
 		return err
 	}

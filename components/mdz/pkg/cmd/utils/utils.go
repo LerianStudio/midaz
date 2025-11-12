@@ -132,3 +132,7 @@ func ValidateDate(date string) error {
 
 	return nil
 }
+
+func IsNilOrEmpty(s *string) bool {
+	return s == nil || strings.TrimSpace(*s) == "" || strings.TrimSpace(*s) == "null" || strings.TrimSpace(*s) == "nil"
+}
