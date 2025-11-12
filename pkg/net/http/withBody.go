@@ -132,7 +132,7 @@ func GetPayloadFromContext(c *fiber.Ctx) any {
 
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
 func ValidateStruct(s any) error {
-    v, trans := newValidator()
+	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
 	if k == reflect.Ptr {
@@ -143,38 +143,38 @@ func ValidateStruct(s any) error {
 		return nil
 	}
 
-    err := v.Struct(s)
-    if err != nil {
-        for _, fieldError := range err.(validator.ValidationErrors) {
-            switch fieldError.Tag() {
-                case "keymax":
-                    return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-                case "valuemax":
-                    return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-                case "nonested":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
-                case "singletransactiontype":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
-                case "invalidstrings":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
-                case "invalidaliascharacters":
-                    return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
-                case "invalidaccounttype":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
-            }
-        }
+	err := v.Struct(s)
+	if err != nil {
+		for _, fieldError := range err.(validator.ValidationErrors) {
+			switch fieldError.Tag() {
+			case "keymax":
+				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+			case "valuemax":
+				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+			case "nonested":
+				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+			case "singletransactiontype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
+			case "invalidstrings":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaliascharacters":
+				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaccounttype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+			}
+		}
 
-        errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
 
-        return &errPtr
-    }
+		return &errPtr
+	}
 
-    // Generic null-byte validation across all string fields in the payload
-    if violations := validateNoNullBytes(s); len(violations) > 0 {
-        return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
-    }
+	// Generic null-byte validation across all string fields in the payload
+	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+	}
 
-    return nil
+	return nil
 }
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
@@ -467,6 +467,7 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 	requiredFields := fieldsRequired(invalidFieldsMap)
 
 	var vErr pkg.ValidationKnownFieldsError
+
 	_ = errors.As(pkg.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
@@ -501,49 +502,78 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 // validateNoNullBytes walks through the struct payload and ensures no string value contains a null byte (\x00).
 // Returns a map of invalid field names to error messages when violations are found.
 func validateNoNullBytes(s any) pkg.FieldValidations {
-    out := make(pkg.FieldValidations)
+	out := make(pkg.FieldValidations)
 
-    var walk func(rv reflect.Value, jsonPath string)
-    walk = func(rv reflect.Value, jsonPath string) {
-        if !rv.IsValid() {
-            return
-        }
+	rv := reflect.ValueOf(s)
 
-        switch rv.Kind() {
-        case reflect.Ptr:
-            if rv.IsNil() { return }
-            walk(rv.Elem(), jsonPath)
-        case reflect.Struct:
-            rt := rv.Type()
-            for i := 0; i < rv.NumField(); i++ {
-                f := rt.Field(i)
-                // Skip unexported
-                if f.PkgPath != "" { continue }
-                tag := f.Tag.Get("json")
-                name := strings.Split(tag, ",")[0]
-                if name == "-" { continue }
-                if name == "" { name = f.Name }
-                walk(rv.Field(i), name)
-            }
-        case reflect.Slice, reflect.Array:
-            for i := 0; i < rv.Len(); i++ {
-                walk(rv.Index(i), jsonPath)
-            }
-        case reflect.String:
-            if strings.ContainsRune(rv.String(), '\x00') {
-                key := jsonPath
-                if key == "" { key = "value" }
-                out[key] = key + " cannot contain null byte (\\x00)"
-            }
-        default:
-            // primitives: no-op
-        }
-    }
+	collectNullByteViolations(rv, "", out)
 
-    rv := reflect.ValueOf(s)
-    walk(rv, "")
-    if len(out) == 0 { return nil }
-    return out
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
+// collectNullByteViolations recursively traverses values and records fields that contain null bytes.
+func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if !rv.IsValid() {
+		return
+	}
+
+	switch rv.Kind() {
+	case reflect.Ptr:
+		if rv.IsNil() {
+			return
+		}
+
+		collectNullByteViolations(rv.Elem(), jsonPath, out)
+	case reflect.Struct:
+		rt := rv.Type()
+		for i := 0; i < rv.NumField(); i++ {
+			f := rt.Field(i)
+
+			// Skip unexported fields
+			if f.PkgPath != "" {
+				continue
+			}
+
+			name := jsonFieldName(f)
+			if name == "-" {
+				continue
+			}
+
+			collectNullByteViolations(rv.Field(i), name, out)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < rv.Len(); i++ {
+			collectNullByteViolations(rv.Index(i), jsonPath, out)
+		}
+	case reflect.String:
+		if strings.ContainsRune(rv.String(), '\x00') {
+			key := jsonPath
+			if key == "" {
+				key = "value"
+			}
+
+			out[key] = key + " cannot contain null byte (\\x00)"
+		}
+	default:
+		// primitives: no-op
+	}
+}
+
+// jsonFieldName returns the effective JSON field name for a struct field.
+func jsonFieldName(f reflect.StructField) string {
+	tag := f.Tag.Get("json")
+
+	name := strings.Split(tag, ",")[0]
+
+	if name == "" {
+		return f.Name
+	}
+
+	return name
 }
 
 // parseMetadata For compliance with RFC7396 JSON Merge Patch

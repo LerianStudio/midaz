@@ -1,3 +1,124 @@
+## [v3.4.0] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
+Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **API Documentation Update**: The 'Blocked' field in the account API documentation no longer has a default value. This change may impact integrations that relied on the previous default behavior. Ensure your API clients handle this change by explicitly setting the 'Blocked' field as needed.
+
+### ✨ Features
+- **Enhanced Onboarding Experience**: Onboarding now includes synchronous asset creation with external accounts and default balance setup via gRPC, providing users with immediate asset availability and a smoother start.
+- **Improved Transaction Management**: A new gRPC server implementation for balance operations enhances transaction processing efficiency and scalability.
+- **Faster Balance Queries**: Integration of Redis caching for balance retrieval significantly boosts performance, reducing response times for users.
+- **Account Security Controls**: The addition of a 'Blocked' field during account creation and updates allows for more granular control over account statuses, enhancing security management.
+
+### 🐛 Bug Fixes
+- **Docker Connectivity**: Resolved connectivity issues in multi-container deployments by exposing additional ports for transaction components.
+- **Consistent Environment Configuration**: Standardized environment variable naming across the console and backend, minimizing configuration errors and improving deployment consistency.
+- **Accurate Balance States**: Fixed issues with balance expiration handling in Redis, ensuring users always see up-to-date balance information.
+- **Robust Error Handling**: Improved error handling across gRPC connections and transaction processing to prevent crashes and enhance system stability.
+
+### ⚡ Performance
+- **Optimized Balance Retrieval**: By integrating Redis caching, balance retrieval processes are now faster, reducing load times and improving the overall user experience.
+
+### 📚 Documentation
+- **Updated API Documentation**: Comprehensive updates to API documentation reflect recent changes, ensuring developers have accurate information for seamless integration.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated key dependencies like lib-auth and lib-commons to their latest versions, ensuring compatibility and access to new features.
+- **Testing Enhancements**: Transitioned to Apidog CLI for end-to-end tests and expanded the testing framework with chaos, fuzz, and property testing for improved coverage and reliability.
+- **Code Refactoring**: Streamlined code across multiple components, removing deprecated methods to enhance readability and maintainability.
+
+
+## [v3.4.0-rc.3] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.2...v3.4.0-rc.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Frontend**: Improved code readability by adding newlines in error handling functions and the `jsonFieldName` function. This enhancement makes the code easier to understand and manage, benefiting developers by simplifying future updates and debugging.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring that both developers and users have access to a clear and current history of modifications. This aids in tracking updates and understanding the evolution of the project.
+
+### 🔧 Maintenance
+- Focused on maintaining a clean and navigable codebase, these changes support ongoing development efforts by ensuring that the system remains easy to work with and extend.
+
+
+## [v3.4.0-beta.48] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.47...v3.4.0-beta.48)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Improved Code Readability**: We've refined the frontend code by adding missing newlines in error handling and JSON processing functions. This enhancement makes the code easier to read and maintain, which supports faster debugging and more efficient future development.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring that users have a clear understanding of the project's evolution. This transparency aids in tracking project history and understanding the context of updates.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: By keeping the documentation current, we enhance the project's usability and facilitate better communication with users about ongoing developments.
+
+
+## [v3.4.0-rc.2] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-rc.1...v3.4.0-rc.2)
+Contributors: Clara Tersi, lerian-studio
+
+### ⚡ Performance
+- **Build System Optimization**: The `analyze_accepted` script has been refined to enhance clarity and efficiency. This improvement results in faster build times and more reliable script execution, streamlining the development workflow for users.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements. This ensures users have access to the most current information about the project's evolution, aiding in tracking updates and enhancements.
+
+### 🔧 Maintenance
+- **Internal Process Refinement**: While this release does not introduce new features or bug fixes, the focus on refining internal processes and documentation indirectly benefits users by ensuring a more stable and well-documented project environment.
+
+
+## [v3.4.0-rc.1] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.3...v3.4.0-rc.1)
+Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **API Documentation Update**: The default value has been removed from the 'Blocked' field in the account API documentation. This change may impact integrations that depend on the previous default behavior. Users must update their API clients to accommodate this change. Ensure your integration handles the absence of a default value appropriately.
+
+### ✨ Features
+- **Streamlined Onboarding**: Synchronous asset creation and default balance setup are now automated, drastically reducing manual setup time and simplifying the onboarding process for new accounts.
+- **Efficient Transaction Processing**: A new gRPC server implementation for balance operations enhances transaction processing, offering improved scalability and efficiency through gRPC calls.
+
+### 🐛 Bug Fixes
+- **Docker Connectivity**: An additional port has been exposed for the transaction component, resolving previous connectivity issues and enhancing deployment flexibility.
+- **Improved Error Handling**: Enhanced error logging across components, including balance creation and transaction processing, provides more detailed telemetry to aid troubleshooting.
+
+### ⚡ Performance
+- **Optimized Balance Retrieval**: Redis caching is now utilized for balance queries, significantly reducing database load and latency, resulting in faster response times.
+
+### 🔄 Changes
+- **Enhanced Account Management**: The 'Blocked' field is now included in account creation and update functionalities, offering more granular control over account states.
+
+### 📚 Documentation
+- **Expanded API Guidelines**: API documentation has been updated to include new fields and error responses, providing clearer guidelines for developers and reducing potential integration issues.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Key dependencies, including 'lib-auth' and 'lib-commons', have been updated to their latest versions, improving security and compatibility.
+- **Testing Enhancements**: The testing suite now includes chaos, fuzz, property, and E2E testing, ensuring robust application behavior under various scenarios.
+
+## [v3.4.0-beta.47] - 2025-11-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.46...v3.4.0-beta.47)
+Contributors: Clara Tersi, lerian-studio
+
+### ⚡ Performance
+- **Build Improvements**: The `analyze_accepted` script has been refined for better clarity and efficiency. Users will experience faster build times, making the development process smoother and more reliable.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest changes and improvements, ensuring users have access to current information about the project's progress and updates.
+
+### 🔧 Maintenance
+- **Script Refactoring**: Behind-the-scenes improvements to the build scripts enhance maintainability and reliability, indirectly benefiting users by reducing potential issues and simplifying future updates.
+
+
 ## [v3.4.0-beta.46] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.45...v3.4.0-beta.46)
