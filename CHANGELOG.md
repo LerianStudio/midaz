@@ -1,3 +1,12 @@
+## [v3.4.1-beta.3] - 2025-11-12
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.2...v3.4.1-beta.3)
+Contributors: Ygohr Medeiros
+
+### 🔧 Maintenance
+- **Config**: Removed GoReleaser setup steps from the release workflow. This change simplifies the process, reducing unnecessary configuration overhead and making it easier for developers to maintain the release pipeline. Users will experience a more reliable and consistent update process, though no direct interaction changes are required.
+
+
 ## [v3.4.1-beta.1] - 2025-11-12
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1-beta.1)
