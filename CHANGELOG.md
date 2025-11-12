@@ -146,7 +146,6 @@ Contributors: Clara Tersi, lerian-studio
 - **Dependency Updates**: We've upgraded all project dependencies to their latest versions. This ensures compatibility with the latest security patches and improvements from third-party libraries, maintaining the application's stability and security.
 - **Changelog Updates**: The changelog has been meticulously updated to reflect recent changes and improvements. This provides users and developers with a clear and organized history of updates, aiding in tracking the project's evolution.
 
-
 ## [v3.4.0-beta.45] - 2025-11-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.44...v3.4.0-beta.45)
