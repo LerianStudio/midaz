@@ -49,6 +49,7 @@ func getenv(key, def string) string {
 // WaitForTCP waits until the given host:port is accepting connections or timeout elapses.
 func WaitForTCP(hostPort string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+
 	for {
 		conn, err := net.DialTimeout("tcp", hostPort, 1*time.Second)
 		if err == nil {

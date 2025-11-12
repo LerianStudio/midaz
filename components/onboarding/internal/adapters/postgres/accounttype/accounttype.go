@@ -2,6 +2,7 @@ package accounttype
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -48,7 +49,7 @@ func (m *AccountTypePostgreSQLModel) FromEntity(accountType *mmodel.AccountType)
 	m.LedgerID = accountType.LedgerID
 	m.Name = accountType.Name
 	m.Description = accountType.Description
-	m.KeyValue = accountType.KeyValue
+	m.KeyValue = strings.ToLower(accountType.KeyValue)
 	m.CreatedAt = accountType.CreatedAt
 	m.UpdatedAt = accountType.UpdatedAt
 
