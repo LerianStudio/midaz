@@ -46,6 +46,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	defer func() {
 		if err != nil {
 			allowTransfer := ptr.BoolPtr(true)
+
 			err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, balanceID, allowTransfer)
 			if err != nil {
 				logger.Errorf("Error update balance: %v", err)
