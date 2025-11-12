@@ -9,7 +9,6 @@ The project is structured into several key directories, each serving specific ro
 ```
 MIDAZ
  |   bin
- |   chocolatey
  |---   tools
  |   components
  |---   infra
