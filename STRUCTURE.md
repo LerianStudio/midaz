@@ -9,7 +9,6 @@ The project is structured into several key directories, each serving specific ro
 ```
 MIDAZ
  |   bin
- |---   tools
  |   components
  |---   infra
  |---   |   artifacts
@@ -73,11 +72,13 @@ MIDAZ
  |---   |   parser
  |---   |   transaction
  |---   mmodel
+ |---   mgrpc
  |---   net
  |---   |   http
  |---   shell
  |   postman
  |   scripts
+ |   tests
 ```
 
 #### Common Utilities (`./pkg`)
