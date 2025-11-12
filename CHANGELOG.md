@@ -1,3 +1,27 @@
+## [v3.4.1-beta.3] - 2025-11-12
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.2...v3.4.1-beta.3)
+Contributors: Ygohr Medeiros
+
+### 🔧 Maintenance
+- **Config**: Removed GoReleaser setup steps from the release workflow. This change simplifies the process, reducing unnecessary configuration overhead and making it easier for developers to maintain the release pipeline. Users will experience a more reliable and consistent update process, though no direct interaction changes are required.
+
+
+## [v3.4.1-beta.1] - 2025-11-12
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1-beta.1)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Data Handling**: Account types and keys are now normalized to lowercase, reducing errors related to case sensitivity. Users will notice improved accuracy in account recognition and processing, leading to fewer disruptions.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been refreshed to provide users with the latest information about software updates, making it easier to track changes and understand the evolution of the software.
+
+### 🔧 Maintenance
+- **Code Stability**: Reverted recent lint changes in `withBody.go`. This rollback ensures code reliability, preventing potential issues that could affect user experience.
+
+
 ## [v3.4.0] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
@@ -130,7 +154,6 @@ Contributors: Clara Tersi, lerian-studio
 ### 🔧 Maintenance
 - **Dependency Updates**: We've upgraded all project dependencies to their latest versions. This ensures compatibility with the latest security patches and improvements from third-party libraries, maintaining the application's stability and security.
 - **Changelog Updates**: The changelog has been meticulously updated to reflect recent changes and improvements. This provides users and developers with a clear and organized history of updates, aiding in tracking the project's evolution.
-
 
 ## [v3.4.0-beta.45] - 2025-11-07
 

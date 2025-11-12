@@ -3,7 +3,7 @@ package mmodel
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,7 +41,7 @@ func TestAddress_IsEmpty(t *testing.T) {
 			name: "address with only Line2",
 			address: Address{
 				Line1:   "",
-				Line2:   ptr.StringPtr("Apt 4B"),
+				Line2:   utils.StringPtr("Apt 4B"),
 				ZipCode: "",
 				City:    "",
 				State:   "",
@@ -101,7 +101,7 @@ func TestAddress_IsEmpty(t *testing.T) {
 			name: "complete address",
 			address: Address{
 				Line1:   "123 Main St",
-				Line2:   ptr.StringPtr("Apt 4B"),
+				Line2:   utils.StringPtr("Apt 4B"),
 				ZipCode: "12345",
 				City:    "New York",
 				State:   "NY",

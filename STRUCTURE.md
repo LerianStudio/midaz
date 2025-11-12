@@ -9,8 +9,6 @@ The project is structured into several key directories, each serving specific ro
 ```
 MIDAZ
  |   bin
- |   chocolatey
- |---   tools
  |   components
  |---   infra
  |---   |   artifacts
@@ -18,44 +16,6 @@ MIDAZ
  |---   |   postgres
  |---   |   rabbitmq
  |---   |---   etc
- |---   mdz
- |---   |   internal
- |---   |---   domain
- |---   |---   |   repository
- |---   |---   model
- |---   |---   rest
- |---   |   pkg
- |---   |---   cmd
- |---   |---   |   account
- |---   |---   |---   testdata
- |---   |---   |   asset
- |---   |---   |---   testdata
- |---   |---   |   configure
- |---   |---   |---   testdata
- |---   |---   |---   testdata 2
- |---   |---   |   ledger
- |---   |---   |---   testdata
- |---   |---   |   login
- |---   |---   |   organization
- |---   |---   |---   testdata
- |---   |---   |   portfolio
- |---   |---   |---   testdata
- |---   |---   |   root
- |---   |---   |   segment
- |---   |---   |---   testdata
- |---   |---   |   utils
- |---   |---   |   version
- |---   |---   environment
- |---   |---   factory
- |---   |---   iostreams
- |---   |---   mockutil
- |---   |---   output
- |---   |---   ptr
- |---   |---   setting
- |---   |---   tui
- |---   |   test
- |---   |---   integration
- |---   |---   |   testdata
  |---   onboarding
  |---   |   api
  |---   |   artifacts
@@ -112,11 +72,13 @@ MIDAZ
  |---   |   parser
  |---   |   transaction
  |---   mmodel
+ |---   mgrpc
  |---   net
  |---   |   http
  |---   shell
  |   postman
  |   scripts
+ |   tests
 ```
 
 #### Common Utilities (`./pkg`)
@@ -148,11 +110,6 @@ MIDAZ
   * Description of domain models such as Onboarding, Portfolio, Transaction, etc., and their relationships.
 * **Services** (`./service`):
   * Detailed information on business logic services, their roles, and interactions in the application.
-
-##### MDZ (`./components/mdz`)
-
-* **Command Line Tools** (`./cmd`): Guides on how to use various command-line tools included in the MDZ component.
-* **Packages** (`./pkg`): Information on additional packages provided within the MDZ component.
 
 ### Configuration (`./config`)
 
