@@ -80,9 +80,9 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		}
 	}
 
-	if balanceRedis.Version != balance.Version {
-		// TODO: To be defined
-	}
+	// TODO: To be defined
+	// if balanceRedis.Version != balance.Version {
+	// }
 
 	err = uc.RedisRepo.Del(ctx, cacheKey)
 	if err != nil {
