@@ -156,7 +156,6 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 
 	for _, deletion := range deletions {
 		if err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, deletion.balanceID, allowTransfer); err != nil {
-
 			return err
 		}
 
