@@ -651,7 +651,7 @@ func (rr *RedisConsumerRepository) ListAllBalancesByAccountID(ctx context.Contex
 
 	var keys []string
 
-	pattern := fmt.Sprintf("balance:{transactions}:%s:%s:*", organizationID.String(), ledgerID.String())
+	pattern := utils.BalanceInternalKey(organizationID, ledgerID, "*")
 
 	iter := rds.Scan(ctx, 0, pattern, 0).Iterator()
 

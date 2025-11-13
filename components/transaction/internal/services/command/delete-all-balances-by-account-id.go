@@ -175,7 +175,9 @@ func (uc *UseCase) restoreBalanceCaches(ctx context.Context, deletions []balance
 
 	logger.Infof("Trying to restore balance caches")
 
-	for _, deletion := range deletions {
+	for i := len(deletions) - 1; i >= 0; i-- {
+		deletion := deletions[i]
+
 		if !deletion.hasCacheValue {
 			continue
 		}
