@@ -449,76 +449,31 @@ func (x *BalanceResponse) GetAllowReceiving() bool {
 	return false
 }
 
-// Response payload with a list of balances
-type GetBalanceResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Balances      []*BalanceResponse     `protobuf:"bytes,1,rep,name=balances,proto3" json:"balances,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetBalanceResponse) Reset() {
-	*x = GetBalanceResponse{}
-	mi := &file_balance_balance_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetBalanceResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetBalanceResponse) ProtoMessage() {}
-
-func (x *GetBalanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_balance_balance_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetBalanceResponse.ProtoReflect.Descriptor instead.
-func (*GetBalanceResponse) Descriptor() ([]byte, []int) {
-	return file_balance_balance_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GetBalanceResponse) GetBalances() []*BalanceResponse {
-	if x != nil {
-		return x.Balances
-	}
-	return nil
-}
-
 // Request payload for deleting a balance
-type DeleteBalanceRequest struct {
+type DeleteAllBalancesByAccountIDRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	OrganizationId string                 `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	LedgerId       string                 `protobuf:"bytes,3,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
+	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	LedgerId       string                 `protobuf:"bytes,2,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
+	AccountId      string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *DeleteBalanceRequest) Reset() {
-	*x = DeleteBalanceRequest{}
-	mi := &file_balance_balance_proto_msgTypes[5]
+func (x *DeleteAllBalancesByAccountIDRequest) Reset() {
+	*x = DeleteAllBalancesByAccountIDRequest{}
+	mi := &file_balance_balance_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteBalanceRequest) String() string {
+func (x *DeleteAllBalancesByAccountIDRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteBalanceRequest) ProtoMessage() {}
+func (*DeleteAllBalancesByAccountIDRequest) ProtoMessage() {}
 
-func (x *DeleteBalanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_balance_balance_proto_msgTypes[5]
+func (x *DeleteAllBalancesByAccountIDRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_balance_balance_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -529,28 +484,28 @@ func (x *DeleteBalanceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteBalanceRequest.ProtoReflect.Descriptor instead.
-func (*DeleteBalanceRequest) Descriptor() ([]byte, []int) {
-	return file_balance_balance_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use DeleteAllBalancesByAccountIDRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAllBalancesByAccountIDRequest) Descriptor() ([]byte, []int) {
+	return file_balance_balance_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *DeleteBalanceRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *DeleteBalanceRequest) GetOrganizationId() string {
+func (x *DeleteAllBalancesByAccountIDRequest) GetOrganizationId() string {
 	if x != nil {
 		return x.OrganizationId
 	}
 	return ""
 }
 
-func (x *DeleteBalanceRequest) GetLedgerId() string {
+func (x *DeleteAllBalancesByAccountIDRequest) GetLedgerId() string {
 	if x != nil {
 		return x.LedgerId
+	}
+	return ""
+}
+
+func (x *DeleteAllBalancesByAccountIDRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
 	}
 	return ""
 }
@@ -564,7 +519,7 @@ type Empty struct {
 
 func (x *Empty) Reset() {
 	*x = Empty{}
-	mi := &file_balance_balance_proto_msgTypes[6]
+	mi := &file_balance_balance_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +531,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_balance_balance_proto_msgTypes[6]
+	mi := &file_balance_balance_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +544,7 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_balance_balance_proto_rawDescGZIP(), []int{6}
+	return file_balance_balance_proto_rawDescGZIP(), []int{5}
 }
 
 var File_balance_balance_proto protoreflect.FileDescriptor
@@ -648,19 +603,16 @@ const file_balance_balance_proto_rawDesc = "" +
 	"\tavailable\x18\x05 \x01(\tR\tavailable\x12\x17\n" +
 	"\aon_hold\x18\x06 \x01(\tR\x06onHold\x12#\n" +
 	"\rallow_sending\x18\a \x01(\bR\fallowSending\x12'\n" +
-	"\x0fallow_receiving\x18\b \x01(\bR\x0eallowReceiving\"J\n" +
-	"\x12GetBalanceResponse\x124\n" +
-	"\bbalances\x18\x01 \x03(\v2\x18.balance.BalanceResponseR\bbalances\"l\n" +
-	"\x14DeleteBalanceRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
-	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x1b\n" +
-	"\tledger_id\x18\x03 \x01(\tR\bledgerId\"\a\n" +
-	"\x05Empty2\xdc\x01\n" +
-	"\fBalanceProto\x12D\n" +
-	"\rCreateBalance\x12\x17.balance.BalanceRequest\x1a\x18.balance.BalanceResponse\"\x00\x12D\n" +
+	"\x0fallow_receiving\x18\b \x01(\bR\x0eallowReceiving\"\x8a\x01\n" +
+	"#DeleteAllBalancesByAccountIDRequest\x12'\n" +
+	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x1b\n" +
+	"\tledger_id\x18\x02 \x01(\tR\bledgerId\x12\x1d\n" +
 	"\n" +
-	"GetBalance\x12\x17.balance.BalanceRequest\x1a\x1b.balance.GetBalanceResponse\"\x00\x12@\n" +
-	"\rDeleteBalance\x12\x1d.balance.DeleteBalanceRequest\x1a\x0e.balance.Empty\"\x00B\vZ\t./balanceb\x06proto3"
+	"account_id\x18\x03 \x01(\tR\taccountId\"\a\n" +
+	"\x05Empty2\xb4\x01\n" +
+	"\fBalanceProto\x12D\n" +
+	"\rCreateBalance\x12\x17.balance.BalanceRequest\x1a\x18.balance.BalanceResponse\"\x00\x12^\n" +
+	"\x1cDeleteAllBalancesByAccountID\x12,.balance.DeleteAllBalancesByAccountIDRequest\x1a\x0e.balance.Empty\"\x00B\vZ\t./balanceb\x06proto3"
 
 var (
 	file_balance_balance_proto_rawDescOnce sync.Once
@@ -674,32 +626,28 @@ func file_balance_balance_proto_rawDescGZIP() []byte {
 	return file_balance_balance_proto_rawDescData
 }
 
-var file_balance_balance_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_balance_balance_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_balance_balance_proto_goTypes = []any{
-	(*Balance)(nil),              // 0: balance.Balance
-	(*Metadata)(nil),             // 1: balance.Metadata
-	(*BalanceRequest)(nil),       // 2: balance.BalanceRequest
-	(*BalanceResponse)(nil),      // 3: balance.BalanceResponse
-	(*GetBalanceResponse)(nil),   // 4: balance.GetBalanceResponse
-	(*DeleteBalanceRequest)(nil), // 5: balance.DeleteBalanceRequest
-	(*Empty)(nil),                // 6: balance.Empty
-	nil,                          // 7: balance.Metadata.ValueEntry
+	(*Balance)(nil),                             // 0: balance.Balance
+	(*Metadata)(nil),                            // 1: balance.Metadata
+	(*BalanceRequest)(nil),                      // 2: balance.BalanceRequest
+	(*BalanceResponse)(nil),                     // 3: balance.BalanceResponse
+	(*DeleteAllBalancesByAccountIDRequest)(nil), // 4: balance.DeleteAllBalancesByAccountIDRequest
+	(*Empty)(nil),                               // 5: balance.Empty
+	nil,                                         // 6: balance.Metadata.ValueEntry
 }
 var file_balance_balance_proto_depIdxs = []int32{
 	1, // 0: balance.Balance.metadata:type_name -> balance.Metadata
-	7, // 1: balance.Metadata.value:type_name -> balance.Metadata.ValueEntry
-	3, // 2: balance.GetBalanceResponse.balances:type_name -> balance.BalanceResponse
-	2, // 3: balance.BalanceProto.CreateBalance:input_type -> balance.BalanceRequest
-	2, // 4: balance.BalanceProto.GetBalance:input_type -> balance.BalanceRequest
-	5, // 5: balance.BalanceProto.DeleteBalance:input_type -> balance.DeleteBalanceRequest
-	3, // 6: balance.BalanceProto.CreateBalance:output_type -> balance.BalanceResponse
-	4, // 7: balance.BalanceProto.GetBalance:output_type -> balance.GetBalanceResponse
-	6, // 8: balance.BalanceProto.DeleteBalance:output_type -> balance.Empty
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6, // 1: balance.Metadata.value:type_name -> balance.Metadata.ValueEntry
+	2, // 2: balance.BalanceProto.CreateBalance:input_type -> balance.BalanceRequest
+	4, // 3: balance.BalanceProto.DeleteAllBalancesByAccountID:input_type -> balance.DeleteAllBalancesByAccountIDRequest
+	3, // 4: balance.BalanceProto.CreateBalance:output_type -> balance.BalanceResponse
+	5, // 5: balance.BalanceProto.DeleteAllBalancesByAccountID:output_type -> balance.Empty
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_balance_balance_proto_init() }
@@ -713,7 +661,7 @@ func file_balance_balance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_balance_balance_proto_rawDesc), len(file_balance_balance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

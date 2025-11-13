@@ -56,31 +56,16 @@ func (mr *MockRepositoryMockRecorder) CreateBalance(ctx, token, req any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalance", reflect.TypeOf((*MockRepository)(nil).CreateBalance), ctx, token, req)
 }
 
-// DeleteBalance mocks base method.
-func (m *MockRepository) DeleteBalance(ctx context.Context, token string, req *balance.DeleteBalanceRequest) error {
+// DeleteAllBalancesByAccountID mocks base method.
+func (m *MockRepository) DeleteAllBalancesByAccountID(ctx context.Context, token string, req *balance.DeleteAllBalancesByAccountIDRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteBalance", ctx, token, req)
+	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", ctx, token, req)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteBalance indicates an expected call of DeleteBalance.
-func (mr *MockRepositoryMockRecorder) DeleteBalance(ctx, token, req any) *gomock.Call {
+// DeleteAllBalancesByAccountID indicates an expected call of DeleteAllBalancesByAccountID.
+func (mr *MockRepositoryMockRecorder) DeleteAllBalancesByAccountID(ctx, token, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBalance", reflect.TypeOf((*MockRepository)(nil).DeleteBalance), ctx, token, req)
-}
-
-// GetBalance mocks base method.
-func (m *MockRepository) GetBalance(ctx context.Context, token string, req *balance.BalanceRequest) (*balance.GetBalanceResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBalance", ctx, token, req)
-	ret0, _ := ret[0].(*balance.GetBalanceResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBalance indicates an expected call of GetBalance.
-func (mr *MockRepositoryMockRecorder) GetBalance(ctx, token, req any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockRepository)(nil).GetBalance), ctx, token, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockRepository)(nil).DeleteAllBalancesByAccountID), ctx, token, req)
 }

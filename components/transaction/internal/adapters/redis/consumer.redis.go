@@ -52,6 +52,7 @@ type RedisRepository interface {
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
+	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -631,4 +632,61 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	logger.Infof("Unscheduled synced balance: %s", member)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.list_all_by_account_id")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
+
+		return nil, err
+	}
+
+	keys, err := rds.Keys(ctx, fmt.Sprintf("balance:*:%s", accountID.String())).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get keys on redis", err)
+
+		logger.Errorf("Failed to get keys on redis: %v", err)
+
+		return nil, err
+	}
+
+	balances := make([]*mmodel.Balance, 0)
+
+	for _, key := range keys {
+		balance, err := rds.Get(ctx, key).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to get balance on redis", err)
+
+			logger.Errorf("Failed to get balance on redis: %v", err)
+
+			return nil, err
+		}
+
+		balanceRedis := mmodel.BalanceRedis{}
+
+		if err := json.Unmarshal([]byte(balance), &balance); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
+
+			logger.Errorf("Failed to unmarshal balance on redis: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, &mmodel.Balance{
+			ID:        balanceRedis.ID,
+			Available: balanceRedis.Available,
+			OnHold:    balanceRedis.OnHold,
+			Version:   balanceRedis.Version,
+		})
+	}
+
+	return balances, nil
 }

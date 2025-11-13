@@ -37,37 +37,19 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	balanceReq := &balanceproto.BalanceRequest{
+	balanceDeleteRequest := &balanceproto.DeleteAllBalancesByAccountIDRequest{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
 		AccountId:      accFound.ID,
 	}
 
-	balancesFound, err := uc.BalanceGRPCRepo.GetBalance(ctx, token, balanceReq)
+	err = uc.BalanceGRPCRepo.DeleteAllBalancesByAccountID(ctx, token, balanceDeleteRequest)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance via gRPC", err)
-		logger.Errorf("Failed to get balance via gRPC: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id via gRPC", err)
+
+		logger.Errorf("Failed to delete all balances by account id via gRPC: %v", err)
 
 		return err
-	}
-
-	if balancesFound == nil || len(balancesFound.Balances) == 0 {
-		err = pkg.ValidateBusinessError(constant.ErrBalanceNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balances not found", err)
-		logger.Errorf("Balances not found: %v", err)
-
-		return err
-	}
-
-	for _, balanceFound := range balancesFound.Balances {
-		// TODO: Do we want to stop the process if we fail to delete a balance?
-		err = uc.deleteBalance(ctx, organizationID, ledgerID, balanceFound, token)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance", err)
-			logger.Errorf("Failed to delete balance: %v", err)
-
-			return err
-		}
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
@@ -84,43 +66,6 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
 		logger.Errorf("Error deleting account: %v", err)
-
-		return err
-	}
-
-	return nil
-}
-
-func (uc *UseCase) deleteBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceFound *balanceproto.BalanceResponse, token string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "command.delete_balance")
-	defer span.End()
-
-	//TODO: Check if this is the best way to have/access the balance data from the gRPC response.
-	grpcBalance := &balanceproto.Balance{
-		Available: balanceFound.GetAvailable(),
-		OnHold:    balanceFound.GetOnHold(),
-	}
-
-	if !grpcBalance.HasZeroFunds() {
-		err := pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, reflect.TypeOf(mmodel.Balance{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance funds not zero", err)
-		logger.Errorf("Balance funds not zero: %v", err)
-
-		return err
-	}
-
-	deleteBalanceReq := &balanceproto.DeleteBalanceRequest{
-		Id:             balanceFound.GetId(),
-		OrganizationId: organizationID.String(),
-		LedgerId:       ledgerID.String(),
-	}
-
-	err := uc.BalanceGRPCRepo.DeleteBalance(ctx, token, deleteBalanceReq)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance via gRPC", err)
-		logger.Errorf("Failed to delete balance via gRPC: %v", err)
 
 		return err
 	}

@@ -60,16 +60,11 @@ message BalanceResponse {
   bool allow_receiving = 8;
 }
 
-// Response payload with a list of balances
-message GetBalanceResponse {
-  repeated BalanceResponse balances = 1;
-}
-
 // Request payload for deleting a balance
-message DeleteBalanceRequest {
-  string id = 1;
-  string organization_id = 2;
-  string ledger_id = 3;
+message DeleteAllBalancesByAccountIDRequest {
+  string organization_id = 1;
+  string ledger_id = 2;
+  string account_id = 3;
 }
 
 // Empty message when there is no return values
@@ -77,6 +72,5 @@ message Empty {}
 
 service BalanceProto {
     rpc CreateBalance(BalanceRequest) returns (BalanceResponse) {}
-    rpc GetBalance(BalanceRequest) returns (GetBalanceResponse) {}
-    rpc DeleteBalance(DeleteBalanceRequest) returns (Empty) {}
+    rpc DeleteAllBalancesByAccountID(DeleteAllBalancesByAccountIDRequest) returns (Empty) {}
 }

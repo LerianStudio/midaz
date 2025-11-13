@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
+	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
@@ -22,7 +22,7 @@ func TestDeleteAccountByID(t *testing.T) {
 
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPCRepo := out.NewMockRepository(ctrl)
+	mockBalanceGRPCRepo := grpcout.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		AccountRepo:     mockAccountRepo,
@@ -45,28 +45,13 @@ func TestDeleteAccountByID(t *testing.T) {
 			name:        "success - account deleted",
 			portfolioID: &portfolioID,
 			setupMocks: func() {
-				balanceID := uuid.NewString()
-
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					GetBalance(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.BalanceRequest{})).
-					Return(&balanceproto.GetBalanceResponse{
-						Balances: []*balanceproto.BalanceResponse{
-							{
-								Id:        balanceID,
-								Available: "0",
-								OnHold:    "0",
-							},
-						},
-					}, nil).
-					Times(1)
-
-				mockBalanceGRPCRepo.EXPECT().
-					DeleteBalance(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteBalanceRequest{})).
+					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
 					Return(nil).
 					Times(1)
 
@@ -103,28 +88,13 @@ func TestDeleteAccountByID(t *testing.T) {
 			name:        "failure - delete operation error",
 			portfolioID: &portfolioID,
 			setupMocks: func() {
-				balanceID := uuid.NewString()
-
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					GetBalance(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.BalanceRequest{})).
-					Return(&balanceproto.GetBalanceResponse{
-						Balances: []*balanceproto.BalanceResponse{
-							{
-								Id:        balanceID,
-								Available: "0",
-								OnHold:    "0",
-							},
-						},
-					}, nil).
-					Times(1)
-
-				mockBalanceGRPCRepo.EXPECT().
-					DeleteBalance(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteBalanceRequest{})).
+					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
 					Return(nil).
 					Times(1)
 
