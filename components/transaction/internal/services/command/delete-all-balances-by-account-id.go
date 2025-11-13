@@ -91,7 +91,11 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 			logger.Errorf("Error delete balance: %v", err)
 
 			uc.restoreBalanceCaches(ctx, cachesRemoved)
-			uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, deletions, true)
+
+			toggleErr := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, deletions, true)
+			if toggleErr != nil {
+				logger.Errorf("Error toggling balance transfers: %v", toggleErr)
+			}
 
 			return err
 		}
@@ -111,7 +115,11 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		logger.Errorf("Error delete balance: %v", err)
 
 		uc.restoreBalanceCaches(ctx, cachesRemoved)
-		uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, deletions, true)
+
+		toggleErr := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, deletions, true)
+		if toggleErr != nil {
+			logger.Errorf("Error toggling balance transfers: %v", toggleErr)
+		}
 
 		return err
 	}
@@ -119,25 +127,64 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	return nil
 }
 
-func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID uuid.UUID, deletions []balanceDeletionContext, allow bool) error {
+func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID uuid.UUID, deletions []balanceDeletionContext, allow bool) (err error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.toggle_balance_transfers")
+	defer span.End()
+
+	logger.Infof("Trying to toggle balance transfers")
+
 	allowTransfer := utils.BoolPtr(allow)
+	processed := make([]balanceDeletionContext, 0, len(deletions))
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		revertAllow := utils.BoolPtr(!allow)
+
+		for i := len(processed) - 1; i >= 0; i-- {
+			if rollbackErr := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, processed[i].balanceID, revertAllow); rollbackErr != nil {
+				logger.Errorf("Failed to rollback transfer permissions for balance %s: %v", processed[i].balanceID, rollbackErr)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to rollback balance transfer permission", rollbackErr)
+			}
+		}
+	}()
 
 	for _, deletion := range deletions {
-		if err := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, deletion.balanceID, allowTransfer); err != nil {
+		if err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, deletion.balanceID, allowTransfer); err != nil {
+
 			return err
 		}
+
+		processed = append(processed, deletion)
 	}
 
 	return nil
 }
 
+// TODO: Do we need to restore the balance caches?
 func (uc *UseCase) restoreBalanceCaches(ctx context.Context, deletions []balanceDeletionContext) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.restore_balance_caches")
+	defer span.End()
+
+	logger.Infof("Trying to restore balance caches")
+
 	for _, deletion := range deletions {
 		if !deletion.hasCacheValue {
 			continue
 		}
 
-		_ = uc.RedisRepo.Set(ctx, deletion.cacheKey, deletion.cacheValue, 0)
+		if err := uc.RedisRepo.Set(ctx, deletion.cacheKey, deletion.cacheValue, 0); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to restore balance cache", err)
+
+			logger.Errorf("Error restoring balance cache: %v", err)
+		}
 	}
 }
 
