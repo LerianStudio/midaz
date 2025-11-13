@@ -165,7 +165,6 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 	return nil
 }
 
-// TODO: Do we need to restore the balance caches?
 func (uc *UseCase) restoreBalanceCaches(ctx context.Context, deletions []balanceDeletionContext) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
