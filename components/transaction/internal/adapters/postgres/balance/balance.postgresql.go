@@ -40,6 +40,7 @@ type Repository interface {
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 }
 
@@ -1005,6 +1006,102 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		return err
 	}
+
+	return nil
+}
+
+// DeleteAllByIDs marks all provided balances as deleted in the database using the IDs provided
+func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_balances")
+	defer span.End()
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to begin transaction for bulk delete", err)
+
+		logger.Errorf("failed to begin transaction for bulk delete: %v", err)
+
+		return err
+	}
+
+	committed := false
+
+	defer func() {
+		if committed {
+			return
+		}
+
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "failed to rollback transaction for bulk delete", rollbackErr)
+
+			logger.Errorf("failed to rollback transaction for bulk delete: %v", rollbackErr)
+		}
+	}()
+
+	ctxExec, spanExec := tracer.Start(ctx, "postgres.delete_balances.exec")
+
+	result, err := tx.ExecContext(ctxExec, `
+		UPDATE balance
+		SET deleted_at = NOW()
+		WHERE organization_id = $1
+		  AND ledger_id = $2
+		  AND id = ANY($3)
+		  AND deleted_at IS NULL`,
+		organizationID, ledgerID, pq.Array(ids),
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "failed to execute bulk delete query", err)
+
+		logger.Errorf("failed to execute bulk delete query: %v", err)
+
+		return err
+	}
+
+	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected on bulk delete", err)
+
+		logger.Errorf("Failed to get rows affected on bulk delete: %v", err)
+
+		return err
+	}
+
+	if rowsAffected != int64(len(ids)) {
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balances. Rows affected mismatch", err)
+
+		logger.Warnf("Failed to delete balances. Rows affected mismatch: %v", err)
+
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to commit transaction for bulk delete", err)
+
+		logger.Errorf("failed to commit transaction for bulk delete: %v", err)
+
+		return err
+	}
+
+	committed = true
 
 	return nil
 }

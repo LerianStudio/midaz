@@ -85,6 +85,20 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3)
 }
 
+// DeleteAllByIDs mocks base method.
+func (m *MockRepository) DeleteAllByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllByIDs", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllByIDs indicates an expected call of DeleteAllByIDs.
+func (mr *MockRepositoryMockRecorder) DeleteAllByIDs(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllByIDs", reflect.TypeOf((*MockRepository)(nil).DeleteAllByIDs), arg0, arg1, arg2, arg3)
+}
+
 // ExistsByAccountIDAndKey mocks base method.
 func (m *MockRepository) ExistsByAccountIDAndKey(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string) (bool, error) {
 	m.ctrl.T.Helper()

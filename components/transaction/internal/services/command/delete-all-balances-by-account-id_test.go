@@ -3,12 +3,12 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -18,332 +18,322 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestDeleteAllBalancesByAccountIDListAllError(t *testing.T) {
+func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return(nil, errors.New("list error")).
-		Times(1)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	uc := UseCase{
-		RedisRepo: mockRedis,
-	}
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
+		uc := UseCase{
+			RedisRepo:   mockRedisRepo,
+			BalanceRepo: mockBalanceRepo,
+		}
 
-	assert.Error(t, err)
-}
+		targetBalance := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			AccountID: accountID.String(),
+			Alias:     "@alias",
+			Key:       "default",
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
 
-func TestDeleteAllBalancesByAccountIDBalanceWithFunds(t *testing.T) {
-	t.Parallel()
+		cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, fmt.Sprintf("%s#%s", targetBalance.Alias, targetBalance.Key))
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		listCall := mockRedisRepo.
+			EXPECT().
+			ListAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{targetBalance}, nil).
+			Times(1)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+		getCall := mockRedisRepo.
+			EXPECT().
+			Get(gomock.Any(), cacheKey).
+			Return("", nil).
+			After(listCall).
+			Times(1)
 
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return([]*mmodel.Balance{
-			{
-				ID:        balanceID.String(),
-				Alias:     "alias",
-				Key:       "key",
-				Available: decimal.NewFromInt(1),
-			},
-		}, nil).
-		Times(1)
+		updateDisableCall := mockBalanceRepo.
+			EXPECT().
+			Update(gomock.Any(), organizationID, ledgerID, targetBalance.IDtoUUID(), gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
+			DoAndReturn(func(ctx context.Context, orgID, ledID, balID uuid.UUID, payload mmodel.UpdateBalance) error {
+				assert.NotNil(t, payload.AllowReceiving)
+				assert.False(t, *payload.AllowReceiving)
+				assert.NotNil(t, payload.AllowSending)
+				assert.False(t, *payload.AllowSending)
+				return nil
+			}).
+			After(getCall).
+			Times(1)
 
-	uc := UseCase{
-		RedisRepo: mockRedis,
-	}
+		delCall := mockRedisRepo.
+			EXPECT().
+			Del(gomock.Any(), cacheKey).
+			Return(nil).
+			After(updateDisableCall).
+			Times(1)
 
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
+		mockBalanceRepo.
+			EXPECT().
+			DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{targetBalance.IDtoUUID()}).
+			Return(nil).
+			After(delCall).
+			Times(1)
 
-	assert.Error(t, err)
+		err := uc.DeleteAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID)
 
-	var validationErr pkg.ValidationError
+		assert.NoError(t, err)
+	})
 
-	assert.True(t, errors.As(err, &validationErr))
-	assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
-	assert.Equal(t, "DeleteAllBalancesByAccountID", validationErr.EntityType)
-}
+	t.Run("ListAllBalancesError", func(t *testing.T) {
+		t.Parallel()
 
-func TestDeleteAllBalancesByAccountIDUpdateBalanceTransferPermissionsError(t *testing.T) {
-	t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+		uc := UseCase{
+			RedisRepo:   mockRedisRepo,
+			BalanceRepo: mockBalanceRepo,
+		}
 
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return([]*mmodel.Balance{
-			{
-				ID:        balanceID.String(),
-				Alias:     "alias",
-				Key:       "key",
-				Available: decimal.Zero,
-				OnHold:    decimal.Zero,
-			},
-		}, nil).
-		Times(1)
+		expectedErr := errors.New("redis unavailable")
 
-	updateErr := errors.New("update error")
+		mockRedisRepo.
+			EXPECT().
+			ListAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return(nil, expectedErr).
+			Times(1)
 
-	mockBalance := balance.NewMockRepository(ctrl)
-	firstCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.NotNil(t, update.AllowReceiving)
-			assert.NotNil(t, update.AllowSending)
-			assert.False(t, *update.AllowReceiving)
-			assert.False(t, *update.AllowSending)
+		err := uc.DeleteAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID)
 
-			return updateErr
-		})
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
 
-	secondCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.NotNil(t, update.AllowReceiving)
-			assert.NotNil(t, update.AllowSending)
-			assert.True(t, *update.AllowReceiving)
-			assert.True(t, *update.AllowSending)
+	t.Run("BalanceWithFundsReturnsError", func(t *testing.T) {
+		t.Parallel()
 
-			return nil
-		})
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	gomock.InOrder(firstCall, secondCall)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	uc := UseCase{
-		RedisRepo:   mockRedis,
-		BalanceRepo: mockBalance,
-	}
+		uc := UseCase{
+			RedisRepo:   mockRedisRepo,
+			BalanceRepo: mockBalanceRepo,
+		}
 
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
+		targetBalance := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			AccountID: accountID.String(),
+			Alias:     "@alias",
+			Key:       "default",
+			Available: decimal.NewFromInt(1),
+			OnHold:    decimal.Zero,
+		}
 
-	assert.ErrorIs(t, err, updateErr)
-}
+		mockRedisRepo.
+			EXPECT().
+			ListAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{targetBalance}, nil).
+			Times(1)
 
-func TestDeleteAllBalancesByAccountIDRedisDeleteError(t *testing.T) {
-	t.Parallel()
+		err := uc.DeleteAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), constant.ErrBalancesCantBeDeleted.Error())
+	})
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	t.Run("RedisGetError", func(t *testing.T) {
+		t.Parallel()
 
-	cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, "alias#key")
-	delErr := errors.New("del error")
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return([]*mmodel.Balance{
-			{
-				ID:        balanceID.String(),
-				Alias:     "alias",
-				Key:       "key",
-				Available: decimal.Zero,
-				OnHold:    decimal.Zero,
-			},
-		}, nil).
-		Times(1)
-	mockRedis.
-		EXPECT().
-		Del(gomock.Any(), cacheKey).
-		Return(delErr).
-		Times(1)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	mockBalance := balance.NewMockRepository(ctrl)
-	firstCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.False(t, *update.AllowReceiving)
-			assert.False(t, *update.AllowSending)
+		uc := UseCase{
+			RedisRepo:   mockRedisRepo,
+			BalanceRepo: mockBalanceRepo,
+		}
 
-			return nil
-		})
+		targetBalance := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			AccountID: accountID.String(),
+			Alias:     "@alias",
+			Key:       "default",
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
 
-	secondCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.True(t, *update.AllowReceiving)
-			assert.True(t, *update.AllowSending)
+		cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, fmt.Sprintf("%s#%s", targetBalance.Alias, targetBalance.Key))
+		expectedErr := errors.New("redis get failure")
 
-			return nil
-		})
+		listCall := mockRedisRepo.
+			EXPECT().
+			ListAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{targetBalance}, nil).
+			Times(1)
 
-	gomock.InOrder(firstCall, secondCall)
+		mockRedisRepo.
+			EXPECT().
+			Get(gomock.Any(), cacheKey).
+			Return("", expectedErr).
+			After(listCall).
+			Times(1)
 
-	uc := UseCase{
-		RedisRepo:   mockRedis,
-		BalanceRepo: mockBalance,
-	}
+		err := uc.DeleteAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID)
 
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
 
-	assert.ErrorIs(t, err, delErr)
-}
+	t.Run("RedisDeleteErrorRestoresCacheAndReenablesTransfers", func(t *testing.T) {
+		t.Parallel()
 
-func TestDeleteAllBalancesByAccountIDBalanceDeleteError(t *testing.T) {
-	t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+		uc := UseCase{
+			RedisRepo:   mockRedisRepo,
+			BalanceRepo: mockBalanceRepo,
+		}
 
-	cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, "alias#key")
-	deleteErr := errors.New("delete error")
+		balanceA := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			AccountID: accountID.String(),
+			Alias:     "@a",
+			Key:       "k1",
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
+		balanceB := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			AccountID: accountID.String(),
+			Alias:     "@b",
+			Key:       "k2",
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
 
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return([]*mmodel.Balance{
-			{
-				ID:        balanceID.String(),
-				Alias:     "alias",
-				Key:       "key",
-				Available: decimal.Zero,
-				OnHold:    decimal.Zero,
-			},
-		}, nil).
-		Times(1)
-	mockRedis.
-		EXPECT().
-		Del(gomock.Any(), cacheKey).
-		Return(nil).
-		Times(1)
+		keyA := utils.BalanceInternalKey(organizationID, ledgerID, fmt.Sprintf("%s#%s", balanceA.Alias, balanceA.Key))
+		keyB := utils.BalanceInternalKey(organizationID, ledgerID, fmt.Sprintf("%s#%s", balanceB.Alias, balanceB.Key))
+		delErr := errors.New("redis delete failure")
 
-	mockBalance := balance.NewMockRepository(ctrl)
-	firstCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.False(t, *update.AllowReceiving)
-			assert.False(t, *update.AllowSending)
+		listCall := mockRedisRepo.
+			EXPECT().
+			ListAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceA, balanceB}, nil).
+			Times(1)
 
-			return nil
-		})
-	mockBalance.
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(deleteErr).
-		Times(1)
+		getACall := mockRedisRepo.
+			EXPECT().
+			Get(gomock.Any(), keyA).
+			Return("cached-a", nil).
+			After(listCall).
+			Times(1)
 
-	secondCall := mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.True(t, *update.AllowReceiving)
-			assert.True(t, *update.AllowSending)
+		getBCall := mockRedisRepo.
+			EXPECT().
+			Get(gomock.Any(), keyB).
+			Return("", nil).
+			After(getACall).
+			Times(1)
 
-			return nil
-		})
+		updateDisableA := mockBalanceRepo.
+			EXPECT().
+			Update(gomock.Any(), organizationID, ledgerID, balanceA.IDtoUUID(), gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
+			DoAndReturn(func(ctx context.Context, orgID, ledID, balID uuid.UUID, payload mmodel.UpdateBalance) error {
+				assert.NotNil(t, payload.AllowReceiving)
+				assert.False(t, *payload.AllowReceiving)
+				assert.NotNil(t, payload.AllowSending)
+				assert.False(t, *payload.AllowSending)
+				return nil
+			}).
+			After(getBCall).
+			Times(1)
 
-	gomock.InOrder(firstCall, secondCall)
+		updateDisableB := mockBalanceRepo.
+			EXPECT().
+			Update(gomock.Any(), organizationID, ledgerID, balanceB.IDtoUUID(), gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
+			DoAndReturn(func(ctx context.Context, orgID, ledID, balID uuid.UUID, payload mmodel.UpdateBalance) error {
+				assert.NotNil(t, payload.AllowReceiving)
+				assert.False(t, *payload.AllowReceiving)
+				assert.NotNil(t, payload.AllowSending)
+				assert.False(t, *payload.AllowSending)
+				return nil
+			}).
+			After(updateDisableA).
+			Times(1)
 
-	uc := UseCase{
-		RedisRepo:   mockRedis,
-		BalanceRepo: mockBalance,
-	}
+		delACall := mockRedisRepo.
+			EXPECT().
+			Del(gomock.Any(), keyA).
+			Return(nil).
+			After(updateDisableB).
+			Times(1)
 
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
+		delBCall := mockRedisRepo.
+			EXPECT().
+			Del(gomock.Any(), keyB).
+			Return(delErr).
+			After(delACall).
+			Times(1)
 
-	assert.ErrorIs(t, err, deleteErr)
-}
+		setRestore := mockRedisRepo.
+			EXPECT().
+			Set(gomock.Any(), keyA, "cached-a", time.Duration(0)).
+			Return(nil).
+			After(delBCall).
+			Times(1)
 
-func TestDeleteAllBalancesByAccountIDSuccess(t *testing.T) {
-	t.Parallel()
+		mockBalanceRepo.
+			EXPECT().
+			Update(gomock.Any(), organizationID, ledgerID, balanceA.IDtoUUID(), gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
+			DoAndReturn(func(ctx context.Context, orgID, ledID, balID uuid.UUID, payload mmodel.UpdateBalance) error {
+				assert.NotNil(t, payload.AllowReceiving)
+				assert.True(t, *payload.AllowReceiving)
+				assert.NotNil(t, payload.AllowSending)
+				assert.True(t, *payload.AllowSending)
+				return nil
+			}).
+			After(setRestore).
+			Times(1)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockBalanceRepo.
+			EXPECT().
+			Update(gomock.Any(), organizationID, ledgerID, balanceB.IDtoUUID(), gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
+			DoAndReturn(func(ctx context.Context, orgID, ledID, balID uuid.UUID, payload mmodel.UpdateBalance) error {
+				assert.NotNil(t, payload.AllowReceiving)
+				assert.True(t, *payload.AllowReceiving)
+				assert.NotNil(t, payload.AllowSending)
+				assert.True(t, *payload.AllowSending)
+				return nil
+			}).
+			After(setRestore).
+			Times(1)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+		err := uc.DeleteAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID)
 
-	cacheKey := utils.BalanceInternalKey(organizationID, ledgerID, "alias#key")
-
-	mockRedis := redis.NewMockRedisRepository(ctrl)
-	mockRedis.
-		EXPECT().
-		ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
-		Return([]*mmodel.Balance{
-			{
-				ID:        balanceID.String(),
-				Alias:     "alias",
-				Key:       "key",
-				Available: decimal.Zero,
-				OnHold:    decimal.Zero,
-			},
-		}, nil).
-		Times(1)
-	mockRedis.
-		EXPECT().
-		Del(gomock.Any(), cacheKey).
-		Return(nil).
-		Times(1)
-
-	mockBalance := balance.NewMockRepository(ctrl)
-	mockBalance.
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.AssignableToTypeOf(mmodel.UpdateBalance{})).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, update mmodel.UpdateBalance) error {
-			assert.False(t, *update.AllowReceiving)
-			assert.False(t, *update.AllowSending)
-
-			return nil
-		}).
-		Times(1)
-	mockBalance.
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(nil).
-		Times(1)
-
-	uc := UseCase{
-		RedisRepo:   mockRedis,
-		BalanceRepo: mockBalance,
-	}
-
-	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID)
-
-	assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Equal(t, delErr, err)
+	})
 }
