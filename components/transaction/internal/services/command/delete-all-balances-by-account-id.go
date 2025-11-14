@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -11,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/redis/go-redis/v9"
 	"github.com/google/uuid"
 )
 
@@ -39,11 +41,15 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	for _, balance := range balances {
 		cacheBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
+			if errors.Is(err, redis.Nil) {
+				err = nil
+			} else {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
 
-			logger.Errorf("Error getting balance by key on redis: %v", err)
+				logger.Errorf("Error getting balance by key on redis: %v", err)
 
-			return err
+				return err
+			}
 		}
 
 		if cacheBalance != nil {
