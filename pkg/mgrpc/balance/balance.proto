@@ -37,16 +37,16 @@ message Metadata {
 
 // Request payload for creating a balance with all required properties
 message BalanceRequest {
-  string request_id = 1;
-  string organization_id = 2;
-  string ledger_id = 3;
-  string account_id = 4;
-  string alias = 5;
-  string key = 6;
-  string asset_code = 7;
-  string account_type = 8;
-  bool allow_sending = 9;
-  bool allow_receiving = 10;
+  string organization_id = 1;
+  string ledger_id = 2;
+  string account_id = 3;
+  string alias = 4;
+  string key = 5;
+  string asset_code = 6;
+  string account_type = 7;
+  bool allow_sending = 8;
+  bool allow_receiving = 9;
+  string request_id = 10;
 }
 
 // Response payload with a reduced view of balance fields
