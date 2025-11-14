@@ -1,3 +1,17 @@
+## [v3.4.1-beta.5] - 2025-11-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.4...v3.4.1-beta.5)
+Contributors: Clara Tersi
+
+### 🐛 Bug Fixes
+- **Improved Request Handling**: The `BalanceRequest` fields have been reordered to ensure compatibility and correct processing, resolving potential issues with field misalignment.
+- **Streamlined Metadata Injection**: Removed redundant request-id metadata injection, reducing unnecessary overhead and improving request processing efficiency.
+- **Enhanced Request Tracking**: Added a `request_id` field to balance-related operations, allowing for better tracking and correlation of requests across the system.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `lib-commons` to version 2.5.1, incorporating the latest patches and improvements for enhanced system stability and security.
+
+
 ## [v3.4.1-beta.3] - 2025-11-12
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.2...v3.4.1-beta.3)
