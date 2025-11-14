@@ -140,136 +140,136 @@ func TestUpdateAccount(t *testing.T) {
 
 // Test updating blocked flag when provided (true)
 func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
-    ctrl := gomock.NewController(t)
-    defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-    mockAccountRepo := account.NewMockRepository(ctrl)
-    mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
-    uc := &UseCase{
-        AccountRepo:  mockAccountRepo,
-        MetadataRepo: mockMetadataRepo,
-    }
+	uc := &UseCase{
+		AccountRepo:  mockAccountRepo,
+		MetadataRepo: mockMetadataRepo,
+	}
 
-    organizationID := uuid.New()
-    ledgerID := uuid.New()
-    accountID := uuid.New()
-    blocked := true
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	blocked := true
 
-    // Expectations
-    mockAccountRepo.EXPECT().
-        Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
+	// Expectations
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
 
-    mockAccountRepo.EXPECT().
-        Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-            if acc.Blocked == nil || !*acc.Blocked {
-                t.Fatalf("expected acc.Blocked to be true and non-nil")
-            }
-            // Echo back
-            return &mmodel.Account{ID: accountID.String(), Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Blocked: acc.Blocked}, nil
-        })
+	mockAccountRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+			if acc.Blocked == nil || !*acc.Blocked {
+				t.Fatalf("expected acc.Blocked to be true and non-nil")
+			}
+			// Echo back
+			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Blocked: acc.Blocked}, nil
+		})
 
-    mockMetadataRepo.EXPECT().
-        FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(nil, nil)
-    mockMetadataRepo.EXPECT().
-        Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(nil)
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
 
-    inp := &mmodel.UpdateAccountInput{
-        Name:     "Updated Account",
-        Status:   mmodel.Status{Code: "active"},
-        Metadata: map[string]any{"key": "value"},
-        Blocked:  &blocked,
-    }
+	inp := &mmodel.UpdateAccountInput{
+		Name:     "Updated Account",
+		Status:   mmodel.Status{Code: "active"},
+		Metadata: map[string]any{"key": "value"},
+		Blocked:  &blocked,
+	}
 
-    ctx := context.Background()
-    result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
+	ctx := context.Background()
+	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
 
-    assert.NoError(t, err)
-    assert.NotNil(t, result)
-    if result.Blocked == nil || !*result.Blocked {
-        t.Fatalf("expected result.Blocked true, got nil/false")
-    }
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	if result.Blocked == nil || !*result.Blocked {
+		t.Fatalf("expected result.Blocked true, got nil/false")
+	}
 }
 
 // Test that omitting blocked does not send a value to repository (remains nil)
 func TestUpdateAccount_BlockedOmitted(t *testing.T) {
-    ctrl := gomock.NewController(t)
-    defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-    mockAccountRepo := account.NewMockRepository(ctrl)
-    mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
-    uc := &UseCase{
-        AccountRepo:  mockAccountRepo,
-        MetadataRepo: mockMetadataRepo,
-    }
+	uc := &UseCase{
+		AccountRepo:  mockAccountRepo,
+		MetadataRepo: mockMetadataRepo,
+	}
 
-    organizationID := uuid.New()
-    ledgerID := uuid.New()
-    accountID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
 
-    mockAccountRepo.EXPECT().
-        Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
 
-    mockAccountRepo.EXPECT().
-        Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-            if acc.Blocked != nil {
-                t.Fatalf("expected acc.Blocked to be nil when omitted")
-            }
-            return &mmodel.Account{ID: accountID.String(), Name: "Updated Account"}, nil
-        })
+	mockAccountRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+			if acc.Blocked != nil {
+				t.Fatalf("expected acc.Blocked to be nil when omitted")
+			}
+			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account"}, nil
+		})
 
-    mockMetadataRepo.EXPECT().
-        FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(nil, nil)
-    mockMetadataRepo.EXPECT().
-        Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(nil)
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
 
-    inp := &mmodel.UpdateAccountInput{
-        Name:     "Updated Account",
-        Status:   mmodel.Status{Code: "active"},
-        Metadata: map[string]any{"key": "value"},
-        // Blocked omitted
-    }
+	inp := &mmodel.UpdateAccountInput{
+		Name:     "Updated Account",
+		Status:   mmodel.Status{Code: "active"},
+		Metadata: map[string]any{"key": "value"},
+		// Blocked omitted
+	}
 
-    ctx := context.Background()
-    result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
-    assert.NoError(t, err)
-    assert.NotNil(t, result)
+	ctx := context.Background()
+	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 }
 
 // Test that updating an external account is forbidden
 func TestUpdateAccount_ExternalForbidden(t *testing.T) {
-    ctrl := gomock.NewController(t)
-    defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-    mockAccountRepo := account.NewMockRepository(ctrl)
-    mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
-    uc := &UseCase{
-        AccountRepo:  mockAccountRepo,
-        MetadataRepo: mockMetadataRepo,
-    }
+	uc := &UseCase{
+		AccountRepo:  mockAccountRepo,
+		MetadataRepo: mockMetadataRepo,
+	}
 
-    organizationID := uuid.New()
-    ledgerID := uuid.New()
-    accountID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
 
-    mockAccountRepo.EXPECT().
-        Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-        Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil)
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil)
 
-    inp := &mmodel.UpdateAccountInput{Name: "Updated"}
-    ctx := context.Background()
-    result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
+	inp := &mmodel.UpdateAccountInput{Name: "Updated"}
+	ctx := context.Background()
+	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
 
-    assert.Error(t, err)
-    assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Nil(t, result)
 }
