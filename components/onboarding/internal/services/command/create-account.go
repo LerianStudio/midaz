@@ -20,7 +20,7 @@ import (
 
 // CreateAccountSync creates an account and metadata, then synchronously creates the default balance via gRPC.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
@@ -123,6 +123,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	balanceReq := &balanceproto.BalanceRequest{
+		RequestId:      requestID,
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
 		AccountId:      acc.ID,
