@@ -61,7 +61,7 @@ message BalanceResponse {
   bool allow_receiving = 8;
 }
 
-// Request payload for deleting a balance
+// Request payload for deleting all balances by account ID
 message DeleteAllBalancesByAccountIDRequest {
   string organization_id = 1;
   string ledger_id = 2;

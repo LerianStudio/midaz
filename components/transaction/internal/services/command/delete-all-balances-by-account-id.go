@@ -12,8 +12,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/redis/go-redis/v9"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
@@ -42,7 +42,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		cacheBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
 		if err != nil {
 			if errors.Is(err, redis.Nil) {
-				err = nil
+				continue
 			} else {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
 

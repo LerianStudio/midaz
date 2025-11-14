@@ -1055,6 +1055,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	}()
 
 	ctxExec, spanExec := tracer.Start(ctx, "postgres.delete_balances.exec")
+	defer spanExec.End()
 
 	result, err := tx.ExecContext(ctxExec, `
 		UPDATE balance
@@ -1072,8 +1073,6 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		return err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
