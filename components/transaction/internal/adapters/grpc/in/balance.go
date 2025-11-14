@@ -36,7 +36,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		return nil, err
 	}
 
-	logger.Infof("Initiating create balance for account id: %s with alias: %s", req.GetAccountId(), req.GetAlias(), req.GetKey())
+	logger.Infof("Initiating create balance for account id: %s with alias: %s and key: %s", req.GetAccountId(), req.GetAlias(), req.GetKey())
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
