@@ -695,6 +695,8 @@ func (rr *RedisConsumerRepository) ListAllBalancesByAccountID(ctx context.Contex
 
 		balances = append(balances, &mmodel.Balance{
 			ID:             balanceRedis.ID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
 			AccountID:      balanceRedis.AccountID,
 			Alias:          balanceRedis.Alias,
 			Key:            balanceRedis.Key,
