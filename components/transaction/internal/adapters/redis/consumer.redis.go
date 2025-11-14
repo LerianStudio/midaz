@@ -52,7 +52,7 @@ type RedisRepository interface {
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
-	ListAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
+	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -634,10 +634,10 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	return nil
 }
 
-func (rr *RedisConsumerRepository) ListAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
+func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.list_all_by_account_id")
+	ctx, span := tracer.Start(ctx, "redis.list_balance_by_key")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -649,66 +649,26 @@ func (rr *RedisConsumerRepository) ListAllBalancesByAccountID(ctx context.Contex
 		return nil, err
 	}
 
-	var keys []string
+	internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), key)
 
-	pattern := utils.BalanceInternalKey(organizationID, ledgerID, "*")
+	value, err := rds.Get(ctx, internalKey).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on redis", err)
 
-	iter := rds.Scan(ctx, 0, pattern, 0).Iterator()
-
-	for iter.Next(ctx) {
-		keys = append(keys, iter.Val())
-	}
-
-	if err := iter.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan keys on redis", err)
-
-		logger.Errorf("Failed to scan keys on redis: %v", err)
+		logger.Errorf("Failed to get balance on redis: %v", err)
 
 		return nil, err
 	}
 
-	balances := make([]*mmodel.Balance, 0)
+	var balance mmodel.Balance
 
-	for _, key := range keys {
-		balance, err := rds.Get(ctx, key).Result()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get balance on redis", err)
+	if err := json.Unmarshal([]byte(value), &balance); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
 
-			logger.Errorf("Failed to get balance on redis: %v", err)
+		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
 
-			return nil, err
-		}
-
-		balanceRedis := mmodel.BalanceRedis{}
-
-		if err := json.Unmarshal([]byte(balance), &balanceRedis); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
-
-			logger.Errorf("Failed to unmarshal balance on redis: %v", err)
-
-			return nil, err
-		}
-
-		if balanceRedis.AccountID != accountID.String() {
-			continue
-		}
-
-		balances = append(balances, &mmodel.Balance{
-			ID:             balanceRedis.ID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			AccountID:      balanceRedis.AccountID,
-			Alias:          balanceRedis.Alias,
-			Key:            balanceRedis.Key,
-			AssetCode:      balanceRedis.AssetCode,
-			Available:      balanceRedis.Available,
-			OnHold:         balanceRedis.OnHold,
-			Version:        balanceRedis.Version,
-			AccountType:    balanceRedis.AccountType,
-			AllowSending:   balanceRedis.AllowSending == 1,
-			AllowReceiving: balanceRedis.AllowReceiving == 1,
-		})
+		return nil, err
 	}
 
-	return balances, nil
+	return &balance, nil
 }

@@ -17,7 +17,7 @@ import (
 
 // DeleteAccountByID delete an account from the repository by ids.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
@@ -26,9 +26,9 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by id", err)
 
-		logger.Errorf("Error finding account by alias: %v", err)
+		logger.Errorf("Error finding account by id: %v", err)
 
 		return err
 	}
@@ -41,6 +41,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
 		AccountId:      accFound.ID,
+		RequestId:      requestID,
 	}
 
 	err = uc.BalanceGRPCRepo.DeleteAllBalancesByAccountID(ctx, token, balanceDeleteRequest)

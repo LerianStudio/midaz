@@ -273,15 +273,15 @@ func (mr *MockRedisRepositoryMockRecorder) ListAllByAccountID(arg0, arg1, arg2, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllByAccountID", reflect.TypeOf((*MockRedisRepository)(nil).ListAllByAccountID), arg0, arg1, arg2, arg3)
 }
 
-func (m *MockRedisRepository) ListAllBalancesByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) ([]*mmodel.Balance, error) {
+func (m *MockRedisRepository) ListBalanceByKey(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 string) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllBalancesByAccountID", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret := m.ctrl.Call(m, "ListBalanceByKey", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (mr *MockRedisRepositoryMockRecorder) ListAllBalancesByAccountID(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) ListBalanceByKey(arg0 any, arg1, arg2 uuid.UUID, arg3 string) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllBalancesByAccountID", reflect.TypeOf((*MockRedisRepository)(nil).ListAllBalancesByAccountID), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBalanceByKey", reflect.TypeOf((*MockRedisRepository)(nil).ListBalanceByKey), arg0, arg1, arg2, arg3)
 }

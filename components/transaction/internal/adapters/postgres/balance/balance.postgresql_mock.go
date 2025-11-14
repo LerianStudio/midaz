@@ -249,3 +249,16 @@ func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4 any) *
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4)
 }
+
+func (m *MockRepository) UpdateAllByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 mmodel.UpdateBalance) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAllByAccountID", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAllByAccountID indicates an expected call of UpdateAllByAccountID.
+func (mr *MockRepositoryMockRecorder) UpdateAllByAccountID(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAllByAccountID", reflect.TypeOf((*MockRepository)(nil).UpdateAllByAccountID), arg0, arg1, arg2, arg3, arg4)
+}

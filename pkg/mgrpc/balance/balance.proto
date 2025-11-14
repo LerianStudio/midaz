@@ -65,6 +65,7 @@ message DeleteAllBalancesByAccountIDRequest {
   string organization_id = 1;
   string ledger_id = 2;
   string account_id = 3;
+  string request_id = 4;
 }
 
 // Empty message when there is no return values

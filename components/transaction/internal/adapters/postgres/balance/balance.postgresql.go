@@ -42,6 +42,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
+	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -1220,4 +1221,75 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 	}
 
 	return affected > 0, nil
+}
+
+func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_all_by_account_id")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return err
+	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.update_all_by_account_id.exec")
+	defer spanExec.End()
+
+	if balance.AllowSending == nil {
+		err := errors.New("allow_sending value is required")
+
+		libOpentelemetry.HandleSpanError(&spanExec, "allow_sending value is required", err)
+
+		logger.Errorf("allow_sending value is required: %v", err)
+
+		return err
+	}
+
+	if balance.AllowReceiving == nil {
+		err := errors.New("allow_receiving value is required")
+
+		libOpentelemetry.HandleSpanError(&spanExec, "allow_receiving value is required", err)
+
+		logger.Errorf("allow_receiving value is required: %v", err)
+
+		return err
+	}
+
+	query := `UPDATE balance SET allow_sending = $1, allow_receiving = $2, updated_at = NOW() WHERE organization_id = $3 AND ledger_id = $4 AND account_id = $5 AND deleted_at IS NULL`
+
+	result, err := db.ExecContext(ctx, query, *balance.AllowSending, *balance.AllowReceiving, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update balances. Rows affected is 0", err)
+
+		logger.Warnf("Failed to update all balances by account id. Rows affected is 0: %v", err)
+
+		return err
+	}
+
+	return nil
 }

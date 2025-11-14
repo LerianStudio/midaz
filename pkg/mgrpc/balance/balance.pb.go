@@ -455,6 +455,7 @@ type DeleteAllBalancesByAccountIDRequest struct {
 	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	LedgerId       string                 `protobuf:"bytes,2,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
 	AccountId      string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	RequestId      string                 `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -506,6 +507,13 @@ func (x *DeleteAllBalancesByAccountIDRequest) GetLedgerId() string {
 func (x *DeleteAllBalancesByAccountIDRequest) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
+	}
+	return ""
+}
+
+func (x *DeleteAllBalancesByAccountIDRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
 	}
 	return ""
 }
@@ -603,12 +611,14 @@ const file_balance_balance_proto_rawDesc = "" +
 	"\tavailable\x18\x05 \x01(\tR\tavailable\x12\x17\n" +
 	"\aon_hold\x18\x06 \x01(\tR\x06onHold\x12#\n" +
 	"\rallow_sending\x18\a \x01(\bR\fallowSending\x12'\n" +
-	"\x0fallow_receiving\x18\b \x01(\bR\x0eallowReceiving\"\x8a\x01\n" +
+	"\x0fallow_receiving\x18\b \x01(\bR\x0eallowReceiving\"\xa9\x01\n" +
 	"#DeleteAllBalancesByAccountIDRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x1b\n" +
 	"\tledger_id\x18\x02 \x01(\tR\bledgerId\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\a\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\"\a\n" +
 	"\x05Empty2\xb4\x01\n" +
 	"\fBalanceProto\x12D\n" +
 	"\rCreateBalance\x12\x17.balance.BalanceRequest\x1a\x18.balance.BalanceResponse\"\x00\x12^\n" +
