@@ -19,7 +19,7 @@ import (
 // account exists for the asset. If a new external account is created, it also
 // creates the default balance for that account via gRPC.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
@@ -146,6 +146,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
 		balanceReq := &balanceproto.BalanceRequest{
+			RequestId:      requestID,
 			OrganizationId: organizationID.String(),
 			LedgerId:       ledgerID.String(),
 			AccountId:      acc.ID,
