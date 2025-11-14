@@ -36,7 +36,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		return nil, err
 	}
 
-	logger.Infof("Initiating create balance")
+	logger.Infof("Initiating create balance for account id: %s with alias: %s", req.GetAccountId(), req.GetAlias(), req.GetKey())
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
@@ -76,8 +76,6 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		AllowSending:   req.GetAllowSending(),
 		AllowReceiving: req.GetAllowReceiving(),
 	}
-
-	logger.Infof("Request to create a Balance alias=%s key=%s asset_code=%s", input.Alias, input.Key, input.AssetCode)
 
 	created, err := b.Command.CreateBalanceSync(ctx, input)
 	if err != nil {
