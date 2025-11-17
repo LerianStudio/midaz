@@ -35,6 +35,28 @@ Contributors: Ygohr Medeiros, lerian-studio
 ### 🔧 Maintenance
 - **Code Stability**: Reverted recent lint changes in `withBody.go`. This rollback ensures code reliability, preventing potential issues that could affect user experience.
 
+## [v3.4.1] - 2025-11-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1)
+Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
+
+### 🐛 Bug Fixes
+- **gRPC BalanceRequest Handling**: Reordered fields to ensure correct data processing, improving the reliability of balance operations.
+- **Metadata Management**: Removed redundant request-id metadata injection, preventing potential conflicts and enhancing metadata consistency.
+- **Request Tracking**: Added `request_id` field to balance operations, ensuring consistent tracking and correlation of requests.
+- **Security Update**: Updated `js-yaml` to version 4.1.1, addressing security vulnerabilities and ensuring compatibility with current standards.
+- **Dependency Update**: Updated `lib-commons` to version 2.5.1, incorporating upstream bug fixes and performance improvements for smoother operation.
+
+### 🔄 Changes
+- **Backend Logging**: Enhanced logging in `CreateBalance` to include account ID and alias, improving traceability and debugging.
+- **Request Tracking**: Added request ID to `CreateAsset` and `CreateAccount` methods, facilitating better tracking and correlation across systems.
+- **Simplified Configuration**: Streamlined the release workflow and consolidated configuration settings, reducing complexity and easing deployment processes.
+
+### 📚 Documentation
+- **Version Update**: Updated application version to v3.4.1 across all documentation and configuration files, ensuring consistency and clarity.
+
+### 🔧 Maintenance
+- **Changelog Update**: Refreshed the CHANGELOG to accurately reflect recent changes, maintaining up-to-date release notes for users.
 
 ## [v3.4.0] - 2025-11-10
 
