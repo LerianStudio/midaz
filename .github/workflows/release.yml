@@ -154,27 +154,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
-    # Set up Go environment for GoReleaser
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.25'
-        cache: false
-
-    - name: Clean repo (reset + clean)
-      run: |
-        git reset --hard
-        git clean -fd
-
-    # Build and publish Go binaries using GoReleaser
-    - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v6
-      with:
-        version: v2.8.2
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-
   # Generate changelog with gptchangelog custom module
   generate_changelog:
     name: 📝 Generate AI-powered Changelog
