@@ -10,7 +10,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -25,7 +24,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	logger.Infof("Trying to delete all balances by account id: %s", accountID.String())
 
-	balances, _, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, http.Pagination{})
+	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances by account id on repo", err)
 

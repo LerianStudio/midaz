@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -29,8 +28,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		expectedErr := errors.New("list balances error")
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return(nil, http.CursorPagination{}, expectedErr)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return(nil, expectedErr)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
 		assert.ErrorIs(t, err, expectedErr)
@@ -40,8 +39,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{}, nil)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
 		assert.NoError(t, err)
@@ -53,8 +52,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		balanceItem := newTestBalance(decimal.NewFromInt(1), decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, expectedErr)
@@ -68,8 +67,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		balanceItem := newTestBalance(decimal.NewFromInt(1), decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(&mmodel.Balance{}, nil)
@@ -87,8 +86,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		balanceItem := newTestBalance(decimal.NewFromInt(10), decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -107,8 +106,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		expectedErr := errors.New("update permissions error")
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -143,8 +142,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		expectedErr := errors.New("delete balances error")
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
@@ -177,8 +176,8 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		expectedID := uuid.MustParse(balanceItem.ID)
 
 		mockBalanceRepo.EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-			Return([]*mmodel.Balance{balanceItem}, http.CursorPagination{}, nil)
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)

@@ -649,7 +649,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
-	internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), key)
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
 
 	value, err := rds.Get(ctx, internalKey).Result()
 	if err != nil {
@@ -660,9 +660,9 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
-	var balance mmodel.Balance
+	var balanceRedis mmodel.BalanceRedis
 
-	if err := json.Unmarshal([]byte(value), &balance); err != nil {
+	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
 
 		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
@@ -670,5 +670,21 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
-	return &balance, nil
+	balance := &mmodel.Balance{
+		ID:             balanceRedis.ID,
+		AccountID:      balanceRedis.AccountID,
+		Alias:          balanceRedis.Alias,
+		AssetCode:      balanceRedis.AssetCode,
+		Available:      balanceRedis.Available,
+		OnHold:         balanceRedis.OnHold,
+		Version:        balanceRedis.Version,
+		AccountType:    balanceRedis.AccountType,
+		AllowSending:   balanceRedis.AllowSending == 1,
+		AllowReceiving: balanceRedis.AllowReceiving == 1,
+		Key:            balanceRedis.Key,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+	}
+
+	return balance, nil
 }

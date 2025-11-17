@@ -43,6 +43,7 @@ type Repository interface {
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
+	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -1291,4 +1292,80 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// ListByAccountID list Balances entity from the database using the provided accountID.
+// This method does not support pagination or date filtering.
+func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	var balances []*mmodel.Balance
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_account_id.query")
+
+	rows, err := db.QueryContext(
+		ctx,
+		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
+		organizationID,
+		ledgerID,
+		accountID,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+		if err := rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+			&balance.Key,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			logger.Errorf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		logger.Errorf("Failed to iterate rows: %v", err)
+
+		return nil, err
+	}
+
+	return balances, nil
 }
