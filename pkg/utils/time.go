@@ -42,7 +42,7 @@ func NormalizeDateTime(date time.Time, days *int, endOfDay bool) string {
 	hour, min, sec := date.Hour(), date.Minute(), date.Second()
 	isNormalized := (hour == 0 && min == 0 && sec == 0) || (hour == 23 && min == 59 && sec == 59)
 
-	if isNormalized || endOfDay {
+	if isNormalized || (endOfDay && hour == 0 && min == 0 && sec == 0) {
 		if endOfDay {
 			date = time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, date.Location())
 		} else {
