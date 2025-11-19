@@ -6,6 +6,7 @@ on:
       - develop
       - release-candidate
       - main
+      - hotfix/v*
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
