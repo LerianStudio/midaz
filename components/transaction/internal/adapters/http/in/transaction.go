@@ -3,6 +3,7 @@ package in
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -1036,6 +1038,39 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
+	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
+
+	ttl := time.Duration(300)
+
+	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
+
+		logger.Errorf("Failed to set on redis: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	// if could not acquire the lock, the pending transaction is already being processed
+	if !success {
+		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction is locked", err)
+
+		logger.Errorf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error())
+
+		return http.WithError(c, err)
+	} else {
+		// only delete lock key if it was able to acquire the lock
+		defer func() {
+			if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+
+				logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
+			}
+		}()
+	}
+
 	parserDSL := tran.Body
 
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
@@ -1108,6 +1143,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
+
+	// immediately update transaction status if application is configured to persist transaction asynchronously
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction status synchronously", err)
+
+			logger.Errorf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error())
+		}
+	}
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {
