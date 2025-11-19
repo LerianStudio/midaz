@@ -101,7 +101,7 @@ func SetConfigFromEnvVars(s any) error {
 
 	t := v.Type()
 	if t.Kind() != reflect.Ptr {
-		return errors.New("s must be an pointer")
+		return errors.New("s must be a pointer")
 	}
 
 	e := t.Elem()
