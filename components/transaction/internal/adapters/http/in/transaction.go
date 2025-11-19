@@ -26,6 +26,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -1014,7 +1015,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
-	lockPendingTransactionKey := libCommons.GenericInternalKey("pending_transaction", organizationID.String(), ledgerID.String(), tran.ID)
+	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
 	ttl := time.Duration(300)
 
