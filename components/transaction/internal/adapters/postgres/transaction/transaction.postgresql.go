@@ -723,6 +723,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.Route,
 			&op.BalanceAffected,
 			&op.BalanceKey,
+			&op.VersionBalance,
+			&op.VersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -884,6 +886,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&op.Route,
 			&op.BalanceAffected,
 			&op.BalanceKey,
+			&op.VersionBalance,
+			&op.VersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 

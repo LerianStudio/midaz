@@ -100,7 +100,7 @@ jobs:
   update_gitops:
     needs: [build_and_publish]
     if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
-    runs-on: ubuntu-latest
+    runs-on: firmino-lxc-runners
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,6 +118,7 @@ jobs:
       - name: Download tags from artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: gitops-tags-*
           path: .gitops-tags
 
       - name: Apply image tags to values.yaml (beta → dev, rc → stg)
@@ -154,5 +155,25 @@ jobs:
           git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
           git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
           git add -A
-          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
+          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stg' || 'beta/dev' }})" || echo "No changes to commit"
           git push origin main
+
+      - name: ArgoCD Sync
+        uses: LerianStudio/github-actions-argocd-sync@main
+        with:
+          app-name: firmino-midaz
+          argo-cd-token: ${{ secrets.ARGOCD_GHUSER_TOKEN }}
+          argo-cd-url: ${{ secrets.ARGOCD_URL }}
+          env-prefix: ${{ contains(github.ref, '-rc') && 'stg' || contains(github.ref, '-beta') && 'dev' }}
+
+  api-dog-e2e-tests:
+    needs: update_gitops
+    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@main
+    with:
+      auto_detect_environment: true
+    secrets:
+      test_scenario_id: ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }}
+      apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
+      dev_environment_id: ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}
+      stg_environment_id: ${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}

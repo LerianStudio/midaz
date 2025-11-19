@@ -2,6 +2,7 @@ package account
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -23,6 +24,7 @@ type AccountPostgreSQLModel struct {
 	StatusDescription *string
 	Alias             *string
 	Type              string
+	Blocked           bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
@@ -49,6 +51,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Status:          status,
 		Alias:           t.Alias,
 		Type:            t.Type,
+		Blocked:         &t.Blocked,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -81,9 +84,13 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
-		Type:              account.Type,
+		Type:              strings.ToLower(account.Type),
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
+	}
+
+	if account.Blocked != nil {
+		t.Blocked = *account.Blocked
 	}
 
 	if !libCommons.IsNilOrEmpty(account.PortfolioID) {

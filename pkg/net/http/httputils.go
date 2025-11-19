@@ -176,17 +176,18 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-	ikey := c.Get(libConstants.IdempotencyKey)
-	iTTL := c.Get(libConstants.IdempotencyTTL)
+    ikey := c.Get(libConstants.IdempotencyKey)
+    iTTL := c.Get(libConstants.IdempotencyTTL)
 
-	t, err := strconv.Atoi(iTTL)
-	if err != nil {
-		t = libRedis.TTL
-	}
+    // Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+    t, err := strconv.Atoi(iTTL)
+    if err != nil || t <= 0 {
+        t = libRedis.TTL
+    }
 
-	ttl := time.Duration(t)
+    ttl := time.Duration(t)
 
-	return ikey, ttl
+    return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file

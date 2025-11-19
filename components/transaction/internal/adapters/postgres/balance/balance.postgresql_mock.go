@@ -85,6 +85,21 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3)
 }
 
+// ExistsByAccountIDAndKey mocks base method.
+func (m *MockRepository) ExistsByAccountIDAndKey(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsByAccountIDAndKey", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsByAccountIDAndKey indicates an expected call of ExistsByAccountIDAndKey.
+func (mr *MockRepositoryMockRecorder) ExistsByAccountIDAndKey(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsByAccountIDAndKey", reflect.TypeOf((*MockRepository)(nil).ExistsByAccountIDAndKey), arg0, arg1, arg2, arg3, arg4)
+}
+
 // Find mocks base method.
 func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
@@ -190,6 +205,21 @@ func (m *MockRepository) ListByAliasesWithKeys(arg0 context.Context, arg1, arg2 
 func (mr *MockRepositoryMockRecorder) ListByAliasesWithKeys(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliasesWithKeys", reflect.TypeOf((*MockRepository)(nil).ListByAliasesWithKeys), arg0, arg1, arg2, arg3)
+}
+
+// Sync mocks base method.
+func (m *MockRepository) Sync(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 mmodel.BalanceRedis) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Sync", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Sync indicates an expected call of Sync.
+func (mr *MockRepositoryMockRecorder) Sync(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sync", reflect.TypeOf((*MockRepository)(nil).Sync), arg0, arg1, arg2, arg3)
 }
 
 // Update mocks base method.

@@ -120,12 +120,6 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 // CreateMetadata func that create metadata into operations
 func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
-			logger.Errorf("Error checking metadata key and value length: %v", err)
-
-			return err
-		}
-
 		meta := mongodb.Metadata{
 			EntityID:   o.ID,
 			EntityName: reflect.TypeOf(operation.Operation{}).Name(),
