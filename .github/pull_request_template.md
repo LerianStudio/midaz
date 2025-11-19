@@ -10,6 +10,7 @@
 - [ ] Onboarding
 - [ ] Pipeline
 - [ ] Transaction
+- [ ] Tests
 
 ## Checklist
 Please check each item after it's completed.

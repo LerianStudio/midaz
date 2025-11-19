@@ -14,6 +14,7 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
@@ -55,6 +56,7 @@ type Config struct {
 	MongoDBUser                  string `env:"MONGO_USER"`
 	MongoDBPassword              string `env:"MONGO_PASSWORD"`
 	MongoDBPort                  string `env:"MONGO_PORT"`
+	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
 	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
@@ -104,6 +106,7 @@ type Config struct {
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                 string `env:"PROTO_ADDRESS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -143,11 +146,15 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
+	}
+
+	if cfg.MongoDBParameters != "" {
+		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -287,12 +294,18 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
+	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
+
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
+	balanceSyncWorker := NewBalanceSyncWorker(redisConnection, logger, useCase)
 
 	return &Service{
 		Server:             server,
+		ServerGRPC:         serverGRPC,
 		MultiQueueConsumer: multiQueueConsumer,
 		RedisQueueConsumer: redisConsumer,
+		BalanceSyncWorker:  balanceSyncWorker,
 		Logger:             logger,
 	}
 }

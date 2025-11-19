@@ -46,11 +46,13 @@ func TestGetAllAccount(t *testing.T) {
 		{
 			name: "success - accounts retrieved with metadata",
 			setupMocks: func() {
+				bFalse := false
+				bTrue := true
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 					Return([]*mmodel.Account{
-						{ID: "acc1"},
-						{ID: "acc2"},
+						{ID: "acc1", Blocked: &bFalse},
+						{ID: "acc2", Blocked: &bTrue},
 					}, nil).
 					Times(1)
 
@@ -64,8 +66,14 @@ func TestGetAllAccount(t *testing.T) {
 			},
 			expectedErr: nil,
 			expectedAccounts: []*mmodel.Account{
-				{ID: "acc1", Metadata: map[string]any{"key1": "value1"}},
-				{ID: "acc2", Metadata: map[string]any{"key2": "value2"}},
+				func() *mmodel.Account {
+					b := false
+					return &mmodel.Account{ID: "acc1", Metadata: map[string]any{"key1": "value1"}, Blocked: &b}
+				}(),
+				func() *mmodel.Account {
+					b := true
+					return &mmodel.Account{ID: "acc2", Metadata: map[string]any{"key2": "value2"}, Blocked: &b}
+				}(),
 			},
 		},
 		{
@@ -128,6 +136,13 @@ func TestGetAllAccount(t *testing.T) {
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].ID, account.ID)
 					assert.Equal(t, tt.expectedAccounts[i].Metadata, account.Metadata)
+					// Assert blocked presence and value
+					if tt.expectedAccounts[i].Blocked != nil {
+						if account.Blocked == nil {
+							t.Fatalf("expected blocked to be non-nil for account %s", account.ID)
+						}
+						assert.Equal(t, *tt.expectedAccounts[i].Blocked, *account.Blocked)
+					}
 				}
 			}
 		})

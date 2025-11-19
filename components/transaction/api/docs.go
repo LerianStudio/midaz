@@ -2570,6 +2570,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2649,6 +2655,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -2738,6 +2750,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2823,6 +2841,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2904,6 +2928,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3474,6 +3504,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -3596,6 +3632,12 @@ const docTemplate = `{
                     "type": "number",
                     "minimum": 0,
                     "example": 500
+                },
+                "version": {
+                    "description": "Balance version after the operation\nexample: 2\nminimum: 0",
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
                 }
             }
         },

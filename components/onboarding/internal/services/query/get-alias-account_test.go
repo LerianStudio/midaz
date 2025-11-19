@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUseCase_GetAccountByAlias(t *testing.T) {
@@ -24,6 +25,9 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 		AccountRepo:  mockAccountRepo,
 		MetadataRepo: mockMetadataRepo,
 	}
+
+	// Pre-generate an ID to make assertions deterministic
+	successAccountID := uuid.New()
 
 	tests := []struct {
 		name           string
@@ -42,20 +46,21 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			portfolioID:    nil,
 			alias:          "case01",
 			mockSetup: func() {
-				accountID := uuid.New()
+				b := true
 				mockAccountRepo.EXPECT().
 					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
+					Return(&mmodel.Account{ID: successAccountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}, Blocked: &b}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
 			},
 			expectErr: false,
 			expectedResult: &mmodel.Account{
-				ID:       "valid-uuid",
+				ID:       successAccountID.String(),
 				Name:     "Test Account",
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
+				Blocked:  func() *bool { x := true; return &x }(),
 			},
 		},
 		{
@@ -105,6 +110,19 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
+				// Validate critical fields
+				assert.Equal(t, tt.expectedResult.ID, result.ID)
+				assert.Equal(t, tt.expectedResult.Name, result.Name)
+				assert.Equal(t, tt.expectedResult.Status, result.Status)
+				assert.Equal(t, tt.expectedResult.Metadata, result.Metadata)
+
+				// Validate Blocked for both nil and non-nil cases
+				if tt.expectedResult != nil && tt.expectedResult.Blocked != nil {
+					assert.NotNil(t, result.Blocked, "expected blocked to be non-nil")
+					assert.Equal(t, *tt.expectedResult.Blocked, *result.Blocked)
+				} else if tt.expectedResult != nil {
+					assert.Nil(t, result.Blocked, "expected blocked to be nil")
+				}
 			}
 		})
 	}

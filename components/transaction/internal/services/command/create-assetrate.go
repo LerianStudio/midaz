@@ -121,14 +121,6 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	if cari.Metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-			err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate metadata", err)
-
-			return nil, err
-		}
-
 		meta := mongodb.Metadata{
 			EntityID:   assetRate.ID,
 			EntityName: reflect.TypeOf(assetrate.AssetRate{}).Name(),

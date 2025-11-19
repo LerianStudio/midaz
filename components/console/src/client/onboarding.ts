@@ -1,3 +1,4 @@
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
 import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import { postFetcher } from '@/lib/fetcher'
 import {
@@ -24,6 +25,7 @@ export const useCompleteOnboarding = ({
   ...options
 }: UseCompleteOnboardingProps) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation<any, any, any>({
     mutationKey: ['onboarding', organizationId, 'complete'],
@@ -31,6 +33,10 @@ export const useCompleteOnboarding = ({
     ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      layoutQueryClient.invalidateQueries({ queryKey: ['organizations'] })
+      layoutQueryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
       onSuccess?.(...args)
     }
   })
