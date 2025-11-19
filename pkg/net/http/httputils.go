@@ -72,9 +72,17 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
-			startDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := utils.ParseDateTime(value, false)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "", value)
+			}
+			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
-			endDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := utils.ParseDateTime(value, false)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "", value)
+			}
+			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
@@ -137,10 +145,6 @@ func validateDates(startDate, endDate *time.Time) error {
 	if (!startDate.IsZero() && endDate.IsZero()) ||
 		(startDate.IsZero() && !endDate.IsZero()) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
-	}
-
-	if !utils.IsValidDate(utils.NormalizeDate(*startDate, nil)) || !utils.IsValidDate(utils.NormalizeDate(*endDate, nil)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 
 	if !utils.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
