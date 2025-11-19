@@ -13,11 +13,11 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -73,7 +73,7 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http0.Pagination) ([]*mmodel.OperationRoute, http.CursorPagination, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http.Pagination) ([]*mmodel.OperationRoute, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.OperationRoute)

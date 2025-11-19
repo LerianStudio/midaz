@@ -6,7 +6,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	"github.com/LerianStudio/midaz/v3/pkg/server"
 )
 
 type ServerGRPC struct {
@@ -31,7 +31,7 @@ func NewServerGRPC(cfg *Config, server *grpc.Server, logger libLog.Logger, telem
 }
 
 func (sgrpc *ServerGRPC) Run(l *libCommons.Launcher) error {
-	libCommonsServer.NewServerManager(nil, &sgrpc.Telemetry, sgrpc.Logger).
+	server.NewServerManager(nil, &sgrpc.Telemetry, sgrpc.Logger).
 		WithGRPCServer(sgrpc.server, sgrpc.protoAddress).
 		StartWithGracefulShutdown()
 

@@ -13,8 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -87,7 +86,7 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3, arg4 any) *go
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http0.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].([]*Operation)
@@ -103,7 +102,7 @@ func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4 any) 
 }
 
 // FindAllByAccount mocks base method.
-func (m *MockRepository) FindAllByAccount(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *string, arg5 http0.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAllByAccount(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *string, arg5 http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByAccount", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].([]*Operation)

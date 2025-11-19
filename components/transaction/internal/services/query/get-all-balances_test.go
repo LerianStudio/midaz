@@ -9,7 +9,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -30,7 +29,7 @@ func TestGetAllBalances(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := libHTTP.CursorPagination{
+	mockCur := http.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -588,14 +587,14 @@ func TestGetAllBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, context.Canceled).
+			Return(nil, http.CursorPagination{}, context.Canceled).
 			Times(1)
 
 		res, cur, err := uc.GetAllBalances(cctx, organizationID, ledgerID, filter)
 
 		assert.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 		// If overlay (MGet) were attempted, gomock would fail due to unexpected call
 	})
 
@@ -731,14 +730,14 @@ func TestGetAllBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, http.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 	})
 
 	t.Run("NoBalancesFound", func(t *testing.T) {
@@ -769,7 +768,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 	})
 }
 

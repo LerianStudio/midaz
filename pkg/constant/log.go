@@ -1,0 +1,3 @@
+package constant
+
+const LoggerDefaultSeparator = " | "

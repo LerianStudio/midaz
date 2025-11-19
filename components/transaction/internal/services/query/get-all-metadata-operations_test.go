@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -120,7 +119,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 
 	mockOperationRepo.EXPECT().
 		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
-		Return(operations, libHTTP.CursorPagination{}, nil)
+		Return(operations, http.CursorPagination{}, nil)
 
 	uc := &UseCase{
 		MetadataRepo:  mockMetadataRepo,
@@ -213,7 +212,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 
 	mockOperationRepo.EXPECT().
 		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
+		Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
 	uc := &UseCase{
 		MetadataRepo:  mockMetadataRepo,
@@ -261,7 +260,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 
 	mockOperationRepo.EXPECT().
 		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, repoError)
+		Return(nil, http.CursorPagination{}, repoError)
 
 	uc := &UseCase{
 		MetadataRepo:  mockMetadataRepo,

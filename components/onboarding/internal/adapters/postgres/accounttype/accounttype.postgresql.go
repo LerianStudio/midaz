@@ -10,15 +10,15 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -33,7 +33,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error)
 	FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.AccountType, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, http.CursorPagination, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -349,7 +349,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 // FindAll retrieves all account types with cursor pagination.
 // It returns the account types, pagination cursor, and an error if the operation fails.
-func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
+func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_account_types")
@@ -361,21 +361,21 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	var accountTypes []*mmodel.AccountType
 
-	decodedCursor := libHTTP.Cursor{}
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
+	decodedCursor := http.Cursor{}
+	isFirstPage := utils.IsNilOrEmpty(&filter.Cursor)
 	orderDirection := strings.ToUpper(filter.SortOrder)
 
 	if !isFirstPage {
-		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 	}
 
@@ -384,11 +384,11 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
+		Where(squirrel.GtOrEq{"created_at": utils.NormalizeDateTime(filter.StartDate, pointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": utils.NormalizeDateTime(filter.EndDate, pointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -396,7 +396,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -408,7 +408,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 	defer rows.Close()
 
@@ -427,7 +427,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		accountTypes = append(accountTypes, record.ToEntity())
@@ -436,20 +436,20 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	hasPagination := len(accountTypes) > filter.Limit
 
-	accountTypes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, accountTypes, filter.Limit, orderDirection)
+	accountTypes = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, accountTypes, filter.Limit, orderDirection)
 
-	cur := libHTTP.CursorPagination{}
+	cur := http.CursorPagination{}
 	if len(accountTypes) > 0 {
-		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, accountTypes[0].ID.String(), accountTypes[len(accountTypes)-1].ID.String())
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, accountTypes[0].ID.String(), accountTypes[len(accountTypes)-1].ID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 	}
 

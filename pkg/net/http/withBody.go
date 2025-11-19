@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -183,7 +183,7 @@ func ValidateStruct(s any) error {
 func ParseUUIDPathParameters(entityName string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		for param, value := range c.AllParams() {
-			if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
+			if !utils.Contains[string](cn.UUIDPathParameters, param) {
 				c.Locals(param, value)
 				continue
 			}
@@ -601,7 +601,7 @@ func parseMetadata(s any, originalMap map[string]any) {
 func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
-	numKinds := libCommons.GetMapNumKinds()
+	numKinds := utils.GetMapNumKinds()
 
 	for key, value := range original {
 		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {

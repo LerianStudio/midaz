@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -131,7 +130,7 @@ func (mr *MockRepositoryMockRecorder) FindByAccountIDAndKey(arg0, arg1, arg2, ar
 }
 
 // ListAll mocks base method.
-func (m *MockRepository) ListAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http0.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+func (m *MockRepository) ListAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAll", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.Balance)
@@ -147,7 +146,7 @@ func (mr *MockRepositoryMockRecorder) ListAll(arg0, arg1, arg2, arg3 any) *gomoc
 }
 
 // ListAllByAccountID mocks base method.
-func (m *MockRepository) ListAllByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http0.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+func (m *MockRepository) ListAllByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAllByAccountID", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].([]*mmodel.Balance)

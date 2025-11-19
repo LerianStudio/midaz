@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -16,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
+func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_operations")
@@ -35,12 +34,12 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 			logger.Warnf("Error getting all operations on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all operations on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if len(op) == 0 {
@@ -60,7 +59,7 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -96,7 +94,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	if !libCommons.IsNilOrEmpty(&portfolioID) {
+	if !utils.IsNilOrEmpty(&portfolioID) {
 		_, err := uuid.Parse(portfolioID)
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
@@ -122,7 +120,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 
 // ValidateDates validate dates
 func validateDates(startDate, endDate *time.Time) error {
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	maxDateRangeMonths := utils.SafeInt64ToInt(utils.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	if startDate.IsZero() && endDate.IsZero() {
 		defaultStartDate := time.Unix(0, 0).UTC()
@@ -141,11 +139,11 @@ func validateDates(startDate, endDate *time.Time) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
 	}
 
-	if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+	if !utils.IsValidDate(utils.NormalizeDate(*startDate, nil)) || !utils.IsValidDate(utils.NormalizeDate(*endDate, nil)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 
-	if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
+	if !utils.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 	}
 
@@ -154,7 +152,7 @@ func validateDates(startDate, endDate *time.Time) error {
 
 // ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) error {
-	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+	maxPaginationLimit := utils.SafeInt64ToInt(utils.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
 	if limit > maxPaginationLimit {
 		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
@@ -164,8 +162,8 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
-	if !libCommons.IsNilOrEmpty(&cursor) {
-		_, err := libHTTP.DecodeCursor(cursor)
+	if !utils.IsNilOrEmpty(&cursor) {
+		_, err := DecodeCursor(cursor)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
 		}
@@ -176,28 +174,28 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-    ikey := c.Get(libConstants.IdempotencyKey)
-    iTTL := c.Get(libConstants.IdempotencyTTL)
+	ikey := c.Get(constant.IdempotencyKey)
+	iTTL := c.Get(constant.IdempotencyTTL)
 
-    // Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-    t, err := strconv.Atoi(iTTL)
-    if err != nil || t <= 0 {
-        t = libRedis.TTL
-    }
+	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+	t, err := strconv.Atoi(iTTL)
+	if err != nil || t <= 0 {
+		t = libRedis.TTL
+	}
 
-    ttl := time.Duration(t)
+	ttl := time.Duration(t)
 
-    return ikey, ttl
+	return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
-	fileHeader, err := ctx.FormFile(libConstants.DSL)
+	fileHeader, err := ctx.FormFile(constant.DSL)
 	if err != nil {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
 	}
 
-	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
+	if !strings.Contains(fileHeader.Filename, constant.FileExtension) {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 

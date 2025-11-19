@@ -9,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	now := time.Now()
 
 	operationRoute := &mmodel.OperationRoute{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Title:          payload.Title,

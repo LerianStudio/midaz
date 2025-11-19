@@ -5,10 +5,10 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
@@ -152,14 +152,14 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 // startWorker starts a worker that processes messages from the queue.
 func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
-		midazID, found := msg.Headers[libConstants.HeaderID]
+		midazID, found := msg.Headers[constant.HeaderID]
 		if !found {
-			midazID = libCommons.GenerateUUIDv7().String()
+			midazID = utils.GenerateUUIDv7().String()
 		}
 
 		log := cr.Logger.WithFields(
-			libConstants.HeaderID, midazID.(string),
-		).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+			constant.HeaderID, midazID.(string),
+		).WithDefaultMessageTemplate(midazID.(string) + constant.LoggerDefaultSeparator)
 
 		ctx := libCommons.ContextWithLogger(
 			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -54,7 +53,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -130,7 +129,7 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 
 	mockRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, expectedError).
+		Return(nil, http.CursorPagination{}, expectedError).
 		Times(1)
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
@@ -138,7 +137,7 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 }
 
 // TestGetAllOperationRoutesNotFound tests getting all operation routes when no results found
@@ -164,14 +163,14 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 
 	mockRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+		Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound).
 		Times(1)
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 	assert.Contains(t, err.Error(), "No operation routes were found in the search")
 }
 
@@ -189,7 +188,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{}
-	expectedCursor := libHTTP.CursorPagination{}
+	expectedCursor := http.CursorPagination{}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -248,7 +247,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -280,7 +279,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 	assert.Contains(t, err.Error(), "No entity was found for the given ID")
 }
 
@@ -310,7 +309,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -376,7 +375,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -439,7 +438,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}

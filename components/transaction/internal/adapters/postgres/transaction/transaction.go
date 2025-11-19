@@ -6,9 +6,9 @@ import (
 
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -449,7 +449,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := utils.GenerateUUIDv7().String()
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}
@@ -473,7 +473,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		t.Body = &transaction.Body
 	}
 
-	if !libCommons.IsNilOrEmpty(&transaction.Route) {
+	if !utils.IsNilOrEmpty(&transaction.Route) {
 		t.Route = &transaction.Route
 	}
 

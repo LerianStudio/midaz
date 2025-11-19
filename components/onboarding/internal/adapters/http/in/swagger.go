@@ -3,8 +3,8 @@ package in
 import (
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/api"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -22,8 +22,8 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		}
 
 		for env, field := range envVars {
-			if value := os.Getenv(env); !libCommons.IsNilOrEmpty(&value) {
-				if env == "SWAGGER_HOST" && libCommons.ValidateServerAddress(value) == "" {
+			if value := os.Getenv(env); !utils.IsNilOrEmpty(&value) {
+				if env == "SWAGGER_HOST" && utils.ValidateServerAddress(value) == "" {
 					continue
 				}
 

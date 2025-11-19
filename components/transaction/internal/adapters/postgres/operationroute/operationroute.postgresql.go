@@ -10,15 +10,15 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -34,7 +34,7 @@ type Repository interface {
 	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, http.CursorPagination, error)
 	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
 	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
@@ -464,7 +464,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 // FindAll retrieves all operation routes with pagination.
 // It returns a list of operation routes, a cursor pagination object, and an error if the operation fails.
 // The function supports filtering by date range and pagination.
-func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
+func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
@@ -476,22 +476,22 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	var operationRoutes []*mmodel.OperationRoute
 
-	decodedCursor := libHTTP.Cursor{PointsNext: true}
+	decodedCursor := http.Cursor{PointsNext: true}
 	orderDirection := strings.ToUpper(filter.SortOrder)
 
-	if !libCommons.IsNilOrEmpty(&filter.Cursor) {
-		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+	if !utils.IsNilOrEmpty(&filter.Cursor) {
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 
 			logger.Errorf("Failed to decode cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 	}
 
@@ -503,11 +503,11 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
+		Where(squirrel.GtOrEq{"created_at": utils.NormalizeDateTime(filter.StartDate, pointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": utils.NormalizeDateTime(filter.EndDate, pointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -515,7 +515,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -527,7 +527,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 	defer rows.Close()
 
@@ -552,7 +552,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 			logger.Errorf("Failed to scan operation route: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		operationRoutes = append(operationRoutes, operationRoute.ToEntity())
@@ -563,23 +563,23 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	hasPagination := len(operationRoutes) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
+	isFirstPage := utils.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
-	operationRoutes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes, filter.Limit, orderDirection)
+	operationRoutes = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes, filter.Limit, orderDirection)
 
-	cur := libHTTP.CursorPagination{}
+	cur := http.CursorPagination{}
 	if len(operationRoutes) > 0 {
-		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes[0].ID.String(), operationRoutes[len(operationRoutes)-1].ID.String())
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes[0].ID.String(), operationRoutes[len(operationRoutes)-1].ID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
 			logger.Errorf("Failed to calculate cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 	}
 

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -67,7 +67,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := utils.GenerateUUIDv7().String()
 	if account.ID != "" {
 		ID = account.ID
 	}
@@ -93,7 +93,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		t.Blocked = *account.Blocked
 	}
 
-	if !libCommons.IsNilOrEmpty(account.PortfolioID) {
+	if !utils.IsNilOrEmpty(account.PortfolioID) {
 		t.PortfolioID = account.PortfolioID
 	}
 

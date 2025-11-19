@@ -5,17 +5,17 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetTransactionByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := utils.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	tran := &transaction.Transaction{
 		ID:             ID.String(),
@@ -40,9 +40,9 @@ func TestGetTransactionByID(t *testing.T) {
 
 func TestGetTransactionByIDError(t *testing.T) {
 	errMSG := "err to create account on database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := utils.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	uc := UseCase{
 		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),
@@ -61,9 +61,9 @@ func TestGetTransactionByIDError(t *testing.T) {
 }
 
 func TestGetTransactionWithOperationsByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := utils.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	tran := &transaction.Transaction{
 		ID:             ID.String(),
@@ -89,9 +89,9 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 
 func TestGetTransactionWithOperationsByIDError(t *testing.T) {
 	errMSG := "err to get transaction with operations from database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := utils.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	uc := UseCase{
 		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),

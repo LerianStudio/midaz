@@ -11,13 +11,14 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -207,11 +208,11 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
+		Where(squirrel.GtOrEq{"created_at": utils.NormalizeDateTime(filter.StartDate, pointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": utils.NormalizeDateTime(filter.EndDate, pointers.Int(0), true)}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Limit(utils.SafeIntToUint64(filter.Limit)).
+		Offset(utils.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -252,7 +253,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}
@@ -367,7 +368,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}

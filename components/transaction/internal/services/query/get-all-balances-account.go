@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -15,7 +14,7 @@ import (
 // GetAllBalancesByAccountID methods responsible to get all balances by account id from a database.
 // This method is used to get all balances by account id from a database and return them in a cursor pagination format.
 // It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
-func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
+func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
@@ -27,7 +26,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if len(balance) == 0 {

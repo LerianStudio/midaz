@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -58,7 +59,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	additionalBalance := &mmodel.Balance{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             utils.GenerateUUIDv7().String(),
 		Alias:          defaultBalance.Alias,
 		Key:            strings.ToLower(cbi.Key),
 		OrganizationID: defaultBalance.OrganizationID,

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"reflect"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -19,7 +17,7 @@ import (
 )
 
 // GetAllMetadataTransactions fetch all Transactions from the repository
-func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
+func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
@@ -35,13 +33,13 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if len(metadata) == 0 {
 		logger.Infof("No metadata found")
 
-		return nil, libHTTP.CursorPagination{}, nil
+		return nil, http.CursorPagination{}, nil
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -63,16 +61,16 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 			logger.Warnf("Error getting transactions on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if err := uc.enrichTransactionsWithOperationMetadata(ctx, trans); err != nil {
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	for i := range trans {

@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +22,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status mmodel.Status
-	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
+	if cpi.Status.IsEmpty() || utils.IsNilOrEmpty(&cpi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -32,7 +33,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	status.Description = cpi.Status.Description
 
 	portfolio := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             utils.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),

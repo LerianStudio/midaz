@@ -7,21 +7,20 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllOperations(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	transactionID := utils.GenerateUUIDv7()
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -31,7 +30,7 @@ func TestGetAllOperations(t *testing.T) {
 		ToAssetCodes: []string{"BRL"},
 		Metadata:     &bson.M{},
 	}
-	mockCur := libHTTP.CursorPagination{
+	mockCur := http.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -49,8 +48,8 @@ func TestGetAllOperations(t *testing.T) {
 	}
 
 	t.Run("Success with metadata", func(t *testing.T) {
-		op1ID := libCommons.GenerateUUIDv7().String()
-		op2ID := libCommons.GenerateUUIDv7().String()
+		op1ID := utils.GenerateUUIDv7().String()
+		op2ID := utils.GenerateUUIDv7().String()
 		operations := []*operation.Operation{
 			{ID: op1ID},
 			{ID: op2ID},
@@ -111,18 +110,18 @@ func TestGetAllOperations(t *testing.T) {
 		mockOperationRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+			Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound).
 			Times(1)
 
 		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 	})
 
 	t.Run("Error in FindList metadata", func(t *testing.T) {
-		operations := []*operation.Operation{{ID: libCommons.GenerateUUIDv7().String()}}
+		operations := []*operation.Operation{{ID: utils.GenerateUUIDv7().String()}}
 
 		mockOperationRepo.
 			EXPECT().
@@ -140,6 +139,6 @@ func TestGetAllOperations(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 	})
 }

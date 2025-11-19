@@ -10,13 +10,14 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -205,11 +206,11 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+		Where(squirrel.GtOrEq{"created_at": utils.NormalizeDateTime(filter.StartDate, pointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": utils.NormalizeDateTime(filter.EndDate, pointers.Int(0), true)})
 
-	findAll = findAll.Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+	findAll = findAll.Limit(utils.SafeIntToUint64(filter.Limit)).
+		Offset(utils.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -815,7 +816,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Set("status_description", record.StatusDescription)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.Alias) {
+	if !utils.IsNilOrEmpty(acc.Alias) {
 		builder = builder.Set("alias", record.Alias)
 	}
 
@@ -823,15 +824,15 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Set("blocked", *acc.Blocked)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
+	if !utils.IsNilOrEmpty(acc.SegmentID) {
 		builder = builder.Set("segment_id", record.SegmentID)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.EntityID) {
+	if !utils.IsNilOrEmpty(acc.EntityID) {
 		builder = builder.Set("entity_id", record.EntityID)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
+	if !utils.IsNilOrEmpty(acc.PortfolioID) {
 		builder = builder.Set("portfolio_id", record.PortfolioID)
 	}
 

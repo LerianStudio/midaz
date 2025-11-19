@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -54,7 +55,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	portfolioID := payload.PortfolioID
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	if !libCommons.IsNilOrEmpty(portfolioID) {
+	if !utils.IsNilOrEmpty(portfolioID) {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *portfolioID)
 	}
 
@@ -141,7 +142,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
+	if !utils.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
 

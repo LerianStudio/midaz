@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -19,10 +19,10 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -64,10 +64,10 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -106,9 +106,9 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
@@ -139,11 +139,11 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID1 := libCommons.GenerateUUIDv7()
-	operationRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
+	operationRouteID1 := utils.GenerateUUIDv7()
+	operationRouteID2 := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -195,9 +195,9 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -234,10 +234,10 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -281,10 +281,10 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	routeID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,

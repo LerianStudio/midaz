@@ -5,17 +5,17 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestDeleteBalanceSuccess is responsible to test DeleteBalanceSuccess with success
 func TestDeleteBalanceSuccess(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	balanceID := utils.GenerateUUIDv7()
 
 	uc := UseCase{
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
@@ -34,9 +34,9 @@ func TestDeleteBalanceSuccess(t *testing.T) {
 // TestDeleteBalanceError is responsible to test DeleteBalanceError with error
 func TestDeleteBalanceError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	balanceID := utils.GenerateUUIDv7()
 
 	uc := UseCase{
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),

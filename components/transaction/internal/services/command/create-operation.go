@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
@@ -58,7 +59,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				description := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
+				if utils.IsNilOrEmpty(&fromTo[i].Description) {
 					description = dsl.Description
 				}
 
@@ -70,7 +71,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				save := &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
+					ID:              utils.GenerateUUIDv7().String(),
 					TransactionID:   transactionID,
 					Description:     description,
 					Type:            typeOperation,

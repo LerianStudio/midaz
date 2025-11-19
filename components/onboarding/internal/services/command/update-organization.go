@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +24,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	logger.Infof("Trying to update organization: %v", uoi)
 
-	if libCommons.IsNilOrEmpty(uoi.ParentOrganizationID) {
+	if utils.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
 	}
 
@@ -38,7 +39,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	}
 
 	if !uoi.Address.IsEmpty() {
-		if err := libCommons.ValidateCountryAddress(uoi.Address.Country); err != nil {
+		if err := utils.ValidateCountryAddress(uoi.Address.Country); err != nil {
 			err = pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate address country", err)

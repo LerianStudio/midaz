@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -28,7 +29,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
+	if utils.IsNilOrEmpty(&validate.TransactionRoute) {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction route is empty", err)
 

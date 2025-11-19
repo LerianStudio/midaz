@@ -70,7 +70,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 		internalKey := utils.TransactionInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
-		if !libCommons.IsNilOrEmpty(&value) {
+		if !utils.IsNilOrEmpty(&value) {
 			b := mmodel.BalanceRedis{}
 
 			if err := json.Unmarshal([]byte(value), &b); err != nil {

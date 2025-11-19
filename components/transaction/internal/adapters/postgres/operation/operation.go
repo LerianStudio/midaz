@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 )
 
@@ -271,7 +271,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := utils.GenerateUUIDv7().String()
 	if operation.ID != "" {
 		ID = operation.ID
 	}
@@ -303,7 +303,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		BalanceAffected:       operation.BalanceAffected,
 	}
 
-	if !libCommons.IsNilOrEmpty(&operation.Route) {
+	if !utils.IsNilOrEmpty(&operation.Route) {
 		t.Route = &operation.Route
 	}
 

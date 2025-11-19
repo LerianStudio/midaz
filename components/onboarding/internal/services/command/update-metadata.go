@@ -5,6 +5,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
@@ -28,7 +29,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		}
 
 		if existingMetadata != nil {
-			metadataToUpdate = libCommons.MergeMaps(metadata, existingMetadata.Data)
+			metadataToUpdate = utils.MergeMaps(metadata, existingMetadata.Data)
 		}
 	} else {
 		metadataToUpdate = map[string]any{}

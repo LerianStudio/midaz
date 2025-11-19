@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := utils.GenerateUUIDv7()
+	orgID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	exID := utils.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -30,8 +30,8 @@ func TestGetAssetRateByID(t *testing.T) {
 		From:           "USD",
 		To:             "BRL",
 		Rate:           100,
-		Scale:          libPointers.Float64(2),
-		Source:         libPointers.String("External System"),
+		Scale:          pointers.Float64(2),
+		Source:         pointers.String("External System"),
 		TTL:            3600,
 	}
 
@@ -52,9 +52,9 @@ func TestGetAssetRateByID(t *testing.T) {
 
 // TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error
 func TestGetAssetRateByIDError(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	id := utils.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
@@ -77,10 +77,10 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := utils.GenerateUUIDv7()
+	orgID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	exID := utils.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -90,8 +90,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 		From:           "USD",
 		To:             "BRL",
 		Rate:           100,
-		Scale:          libPointers.Float64(2),
-		Source:         libPointers.String("External System"),
+		Scale:          pointers.Float64(2),
+		Source:         pointers.String("External System"),
 		TTL:            3600,
 	}
 
@@ -147,8 +147,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 				From:           "USD",
 				To:             "BRL",
 				Rate:           100,
-				Scale:          libPointers.Float64(2),
-				Source:         libPointers.String("External System"),
+				Scale:          pointers.Float64(2),
+				Source:         pointers.String("External System"),
 				TTL:            3600,
 				Metadata: map[string]interface{}{
 					"custom_field": "custom_value",

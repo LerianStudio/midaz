@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -18,7 +17,7 @@ import (
 )
 
 // GetAllTransactions fetch all Transactions from the repository
-func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
+func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions")
@@ -37,12 +36,12 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 			logger.Warnf("Error getting transactions on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if len(trans) == 0 {
@@ -62,7 +61,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -96,7 +95,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 		if len(operationIDs) > 0 {
 			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
-				return nil, libHTTP.CursorPagination{}, err
+				return nil, http.CursorPagination{}, err
 			}
 		}
 	}

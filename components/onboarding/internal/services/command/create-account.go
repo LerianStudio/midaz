@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -35,7 +36,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	if libCommons.IsNilOrEmpty(&cai.Name) {
+	if utils.IsNilOrEmpty(&cai.Name) {
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
@@ -51,7 +52,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	var portfolioUUID uuid.UUID
 
-	if libCommons.IsNilOrEmpty(cai.EntityID) && !libCommons.IsNilOrEmpty(cai.PortfolioID) {
+	if utils.IsNilOrEmpty(cai.EntityID) && !utils.IsNilOrEmpty(cai.PortfolioID) {
 		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
@@ -65,7 +66,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		cai.EntityID = &portfolio.EntityID
 	}
 
-	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
+	if !utils.IsNilOrEmpty(cai.ParentAccountID) {
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
@@ -82,7 +83,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := utils.GenerateUUIDv7().String()
 
 	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, ID)
 	if err != nil {
@@ -176,7 +177,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // resolveAccountAlias resolves and validates the account alias.
 // Returns provided alias when present and valid; otherwise falls back to generated ID.
 func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string) (*string, error) {
-	if !libCommons.IsNilOrEmpty(cai.Alias) {
+	if !utils.IsNilOrEmpty(cai.Alias) {
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			return nil, err
@@ -191,7 +192,7 @@ func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledg
 // determineStatus determines the status of the account.
 func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
 	var status mmodel.Status
-	if cai.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cai.Status.Code) {
+	if cai.Status.IsEmpty() || utils.IsNilOrEmpty(&cai.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}

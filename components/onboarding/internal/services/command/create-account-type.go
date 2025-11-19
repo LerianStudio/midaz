@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	now := time.Now()
 
 	accountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Name:           payload.Name,

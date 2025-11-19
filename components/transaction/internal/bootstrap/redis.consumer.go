@@ -10,7 +10,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
@@ -115,7 +114,7 @@ Outer:
 			defer cancel()
 
 			logger := r.Logger.WithFields(
-				libConstants.HeaderID, m.HeaderID,
+				constant.HeaderID, m.HeaderID,
 			).WithDefaultMessageTemplate(m.HeaderID + " | ")
 
 			ctxWithLogger := libCommons.ContextWithLogger(

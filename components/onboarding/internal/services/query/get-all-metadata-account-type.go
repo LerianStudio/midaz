@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -17,7 +16,7 @@ import (
 )
 
 // GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
-func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
+func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, http.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_account_type")
@@ -31,7 +30,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -53,12 +52,12 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 			logger.Warn("No account types found")
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	for i := range accountTypes {
@@ -67,7 +66,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 		}
 	}
 
-	cur := libHTTP.CursorPagination{}
+	cur := http.CursorPagination{}
 
 	return accountTypes, cur, nil
 }

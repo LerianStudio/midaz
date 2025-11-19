@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -37,7 +38,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	save := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
+		ID:                       utils.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),

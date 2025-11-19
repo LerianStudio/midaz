@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,8 +22,8 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	payload := &mmodel.CreateAccountTypeInput{
 		Name:        "Current Assets",
@@ -34,7 +34,7 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 	now := time.Now()
 
 	expectedAccountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Name:           payload.Name,
@@ -73,8 +73,8 @@ func TestCreateAccountTypeError(t *testing.T) {
 	defer ctrl.Finish()
 
 	errMsg := "failed to create account type in database"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	payload := &mmodel.CreateAccountTypeInput{
 		Name:        "Fixed Assets",
@@ -105,8 +105,8 @@ func TestCreateAccountTypeValidatesInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	testCases := []struct {
 		name    string
@@ -166,8 +166,8 @@ func TestCreateAccountTypeDuplicateKeyValue(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	payload := &mmodel.CreateAccountTypeInput{
 		Name:        "Existing Account Type",
@@ -200,8 +200,8 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	payload := &mmodel.CreateAccountTypeInput{
 		Name:        "Liability Accounts",
@@ -214,7 +214,7 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 	}
 
 	expectedAccountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Name:           payload.Name,
@@ -265,8 +265,8 @@ func TestCreateAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	payload := &mmodel.CreateAccountTypeInput{
 		Name:        "Equity Accounts",
@@ -278,7 +278,7 @@ func TestCreateAccountTypeMetadataError(t *testing.T) {
 	}
 
 	expectedAccountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Name:           payload.Name,

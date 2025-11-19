@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -110,9 +109,9 @@ func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (
 	return &result, nil
 }
 
-func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, http.CursorPagination, error) {
 	if r.err != nil {
-		return nil, libHTTP.CursorPagination{}, r.err
+		return nil, http.CursorPagination{}, r.err
 	}
 
 	// Execute the query to get all transactions
@@ -124,7 +123,7 @@ func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 	defer rows.Close()
 
@@ -152,18 +151,18 @@ func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 			&deletedAt,
 		)
 		if err != nil {
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		transactions = append(transactions, &transaction)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	// Create pagination info - using an empty struct since we don't need to test pagination details
-	pagination := libHTTP.CursorPagination{
+	pagination := http.CursorPagination{
 		Next: "",
 		Prev: "",
 	}
@@ -393,9 +392,9 @@ func (r *mockRepository) FindWithOperations(ctx context.Context, organizationID,
 	return &transaction, nil
 }
 
-func (r *mockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+func (r *mockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, http.CursorPagination, error) {
 	if r.err != nil {
-		return nil, libHTTP.CursorPagination{}, r.err
+		return nil, http.CursorPagination{}, r.err
 	}
 
 	transactions := []*Transaction{
@@ -465,7 +464,7 @@ func (r *mockRepository) FindOrListAllWithOperations(ctx context.Context, organi
 		},
 	}
 
-	pagination := libHTTP.CursorPagination{
+	pagination := http.CursorPagination{
 		Next: "",
 		Prev: "",
 	}

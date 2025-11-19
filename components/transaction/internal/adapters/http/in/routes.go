@@ -23,7 +23,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return http.HandleFiberError(ctx, err)
 		},
 	})
 
@@ -31,7 +31,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
 
 	// -- Routes --
 
@@ -86,10 +86,10 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)
 
 	// Health
-	f.Get("/health", libHTTP.Ping)
+	f.Get("/health", http.Ping)
 
 	// Version
-	f.Get("/version", libHTTP.Version)
+	f.Get("/version", http.Version)
 
 	// Doc
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)

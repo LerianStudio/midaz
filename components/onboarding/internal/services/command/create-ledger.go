@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +22,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status mmodel.Status
-	if cli.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cli.Status.Code) {
+	if cli.Status.IsEmpty() || utils.IsNilOrEmpty(&cli.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}

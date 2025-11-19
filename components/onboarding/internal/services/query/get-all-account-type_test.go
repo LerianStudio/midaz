@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -15,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
@@ -25,10 +24,10 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID1 := libCommons.GenerateUUIDv7()
-	accountTypeID2 := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	accountTypeID1 := utils.GenerateUUIDv7()
+	accountTypeID2 := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -54,7 +53,7 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -118,8 +117,8 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -128,7 +127,7 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	expectedAccountTypes := []*mmodel.AccountType{
 		{
-			ID:             libCommons.GenerateUUIDv7(),
+			ID:             utils.GenerateUUIDv7(),
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Name:           "Revenue Account",
@@ -137,7 +136,7 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -177,8 +176,8 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -195,7 +194,7 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, expectedError).
+		Return(nil, http.CursorPagination{}, expectedError).
 		Times(1)
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
@@ -203,7 +202,7 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedBusinessError, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 }
 
 // TestGetAllAccountTypeRepoError tests getting all account types with database error
@@ -211,8 +210,8 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 	expectedError := errors.New("database connection error")
 
 	filter := http.QueryHeader{
@@ -227,7 +226,7 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, expectedError).
+		Return(nil, http.CursorPagination{}, expectedError).
 		Times(1)
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
@@ -235,7 +234,7 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 }
 
 // TestGetAllAccountTypeMetadataError tests getting all account types with metadata error
@@ -243,8 +242,8 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -253,7 +252,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 
 	expectedAccountTypes := []*mmodel.AccountType{
 		{
-			ID:             libCommons.GenerateUUIDv7(),
+			ID:             utils.GenerateUUIDv7(),
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Name:           "Test Account",
@@ -262,7 +261,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -296,7 +295,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedBusinessError, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 }
 
 // TestGetAllAccountTypeEmpty tests getting all account types when empty results
@@ -304,8 +303,8 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -313,7 +312,7 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 	}
 
 	expectedAccountTypes := []*mmodel.AccountType{}
-	expectedCursor := libHTTP.CursorPagination{}
+	expectedCursor := http.CursorPagination{}
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -349,9 +348,9 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	accountTypeID := utils.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:     5,
@@ -370,7 +369,7 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -419,9 +418,9 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	accountTypeID := utils.GenerateUUIDv7()
 
 	metadataFilter := &bson.M{
 		"category": "current",
@@ -444,7 +443,7 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}

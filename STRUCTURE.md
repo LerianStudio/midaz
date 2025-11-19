@@ -86,9 +86,7 @@ MIDAZ
 * `console`: Description of the console utilities and their usage.
 * `libLog`: Overview of the logging framework and configuration details.
 * `libMongo`, `mpostgres`: Database utilities, including setup and configuration.
-* `libPointers`: Explanation of any custom pointer utilities or enhancements used in the project.
 * `libZap`: Details on the structured logger adapted for high-performance scenarios.
-* `libHTTP`: Information on HTTP helpers and network communication utilities.
 * `shell`: Guide on shell utilities, including scripting and automation tools.
 
 #### Components (`./components`)

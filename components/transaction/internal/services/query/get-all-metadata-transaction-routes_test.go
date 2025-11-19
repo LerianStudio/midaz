@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -81,7 +80,7 @@ func TestGetAllMetadataTransactionRoutesSuccess(t *testing.T) {
 		},
 	}
 
-	expectedCursor := libHTTP.CursorPagination{
+	expectedCursor := http.CursorPagination{
 		Next: "next_cursor",
 		Prev: "prev_cursor",
 	}
@@ -136,7 +135,7 @@ func TestGetAllMetadataTransactionRoutesMetadataError(t *testing.T) {
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+	assert.Equal(t, http.CursorPagination{}, cursor)
 
 	var entityNotFoundError pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &entityNotFoundError))
@@ -172,7 +171,7 @@ func TestGetAllMetadataTransactionRoutesNoMetadata(t *testing.T) {
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+	assert.Equal(t, http.CursorPagination{}, cursor)
 
 	var entityNotFoundError pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &entityNotFoundError))
@@ -218,12 +217,12 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteRepoError(t *testing.T) 
 
 	mockTransactionRouteRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, libHTTP.CursorPagination{}, expectedRepoError)
+		Return(nil, http.CursorPagination{}, expectedRepoError)
 
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+	assert.Equal(t, http.CursorPagination{}, cursor)
 	assert.Equal(t, expectedRepoError, err)
 }
 
@@ -264,12 +263,12 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteNotFound(t *testing.T) {
 
 	mockTransactionRouteRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
+		Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+	assert.Equal(t, http.CursorPagination{}, cursor)
 
 	var entityNotFoundError pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &entityNotFoundError))

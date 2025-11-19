@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status mmodel.Status
-	if coi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&coi.Status.Code) {
+	if coi.Status.IsEmpty() || utils.IsNilOrEmpty(&coi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -32,13 +33,13 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	status.Description = coi.Status.Description
 
-	if libCommons.IsNilOrEmpty(coi.ParentOrganizationID) {
+	if utils.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
 	}
 
 	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
 
-	if err := libCommons.ValidateCountryAddress(coi.Address.Country); err != nil {
+	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)

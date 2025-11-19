@@ -10,8 +10,6 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -809,12 +807,12 @@ func (handler *TransactionHandler) BuildOperations(
 				}
 
 				description := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
+				if utils.IsNilOrEmpty(&fromTo[i].Description) {
 					description = parserDSL.Description
 				}
 
 				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
+					ID:              utils.GenerateUUIDv7().String(),
 					TransactionID:   tran.ID,
 					Description:     description,
 					Type:            amt.Operation,
@@ -855,9 +853,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
-	transactionID := libCommons.GenerateUUIDv7()
+	transactionID := utils.GenerateUUIDv7()
 
-	c.Set(libConstants.IdempotencyReplayed, "false")
+	c.Set(constant.IdempotencyReplayed, "false")
 
 	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
 	if err != nil {
@@ -899,8 +897,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 
-	ts, _ := libCommons.StructToJSONString(parserDSL)
-	hash := libCommons.HashSHA256(ts)
+	ts, _ := utils.StructToJSONString(parserDSL)
+	hash := utils.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
 	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
@@ -911,7 +909,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		logger.Infof("Error on create or check redis idempotency key: %v", err.Error())
 
 		return http.WithError(c, err)
-	} else if !libCommons.IsNilOrEmpty(value) {
+	} else if !utils.IsNilOrEmpty(value) {
 		t := transaction.Transaction{}
 		if err = json.Unmarshal([]byte(*value), &t); err != nil {
 			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
@@ -923,7 +921,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		}
 
 		spanIdempotency.End()
-		c.Set(libConstants.IdempotencyReplayed, "true")
+		c.Set(constant.IdempotencyReplayed, "true")
 
 		return http.Created(c, t)
 	}

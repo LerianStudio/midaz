@@ -5,19 +5,19 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/pkg/pointers"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateAssetRateSuccess is responsible to test TestUpdateAssetRateSuccess with success
 func TestUpdateAssetRateSuccess(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := utils.GenerateUUIDv7()
+	orgID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	exID := utils.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -27,8 +27,8 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 		From:           "USD",
 		To:             "BRL",
 		Rate:           100,
-		Scale:          libPointers.Float64(2),
-		Source:         libPointers.String("External System"),
+		Scale:          pointers.Float64(2),
+		Source:         pointers.String("External System"),
 		TTL:            3600,
 	}
 
@@ -81,10 +81,10 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 
 // TestCreateAssetRateSuccess is responsible to test TestCreateAssetRateSuccess with success
 func TestCreateAssetRateSuccess(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := utils.GenerateUUIDv7()
+	orgID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	exID := utils.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -94,8 +94,8 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 		From:           "USD",
 		To:             "BRL",
 		Rate:           100,
-		Scale:          libPointers.Float64(2),
-		Source:         libPointers.String("External System"),
+		Scale:          pointers.Float64(2),
+		Source:         pointers.String("External System"),
 		TTL:            3600,
 	}
 
@@ -142,9 +142,9 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 func TestCreateAssetRateError(t *testing.T) {
 	errMSG := "err to create asset rate on database"
 	assetRate := &assetrate.AssetRate{
-		ID:             libCommons.GenerateUUIDv7().String(),
-		OrganizationID: libCommons.GenerateUUIDv7().String(),
-		LedgerID:       libCommons.GenerateUUIDv7().String(),
+		ID:             utils.GenerateUUIDv7().String(),
+		OrganizationID: utils.GenerateUUIDv7().String(),
+		LedgerID:       utils.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

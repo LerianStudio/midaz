@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	balance "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -22,7 +23,7 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			tlMid.WithTelemetryInterceptor(tl),
-			libHTTP.WithGrpcLogging(libHTTP.WithCustomLogger(lg)),
+			http.WithGrpcLogging(http.WithCustomLogger(lg)),
 			middleware.NewGRPCAuthUnaryPolicy(auth, middleware.PolicyConfig{
 				MethodPolicies: map[string]middleware.Policy{
 					"/balance.BalanceProto/CreateBalance": {Resource: "balances", Action: "post"},

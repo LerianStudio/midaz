@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -25,7 +26,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	now := time.Now()
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             utils.GenerateUUIDv7(),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Title:          payload.Title,

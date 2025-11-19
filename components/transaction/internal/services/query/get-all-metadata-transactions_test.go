@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -146,7 +145,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 
 	mockTransactionRepo.EXPECT().
 		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID1, txID2}, filter.ToCursorPagination()).
-		Return(transactions, libHTTP.CursorPagination{}, nil)
+		Return(transactions, http.CursorPagination{}, nil)
 
 	// Expect operation metadata lookup with both operation IDs
 	mockMetadataRepo.EXPECT().
@@ -217,5 +216,5 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	assert.Equal(t, http.CursorPagination{}, cur)
 }

@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 )
 
@@ -48,7 +48,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		UpdatedAt:      balance.UpdatedAt,
 	}
 
-	if libCommons.IsNilOrEmpty(&balance.Key) {
+	if utils.IsNilOrEmpty(&balance.Key) {
 		b.Key = "default"
 	} else {
 		b.Key = balance.Key

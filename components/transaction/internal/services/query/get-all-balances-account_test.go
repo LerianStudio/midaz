@@ -7,12 +7,12 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -20,9 +20,9 @@ import (
 
 // TestGetAllBalancesByAccountID validates repository delegation, Redis overlay, and error handling.
 func TestGetAllBalancesByAccountID(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	accountID := utils.GenerateUUIDv7()
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -31,7 +31,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := libHTTP.CursorPagination{
+	mockCur := http.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -154,7 +154,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+			Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound).
 			Times(1)
 
 		uc := UseCase{BalanceRepo: mockBalanceRepo}
@@ -162,7 +162,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 	})
 
 	// Generic repository error should be propagated
@@ -177,7 +177,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errDB).
+			Return(nil, http.CursorPagination{}, errDB).
 			Times(1)
 
 		uc := UseCase{BalanceRepo: mockBalanceRepo}
@@ -185,7 +185,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "database error")
 	})
 

@@ -6,22 +6,21 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllTransactions(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -30,7 +29,7 @@ func TestGetAllTransactions(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := libHTTP.CursorPagination{
+	mockCur := http.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -139,14 +138,14 @@ func TestGetAllTransactions(t *testing.T) {
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+			Return(nil, http.CursorPagination{}, errors.New("database error")).
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "database error")
 	})
 
@@ -154,14 +153,14 @@ func TestGetAllTransactions(t *testing.T) {
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+			Return(nil, http.CursorPagination{}, services.ErrDatabaseItemNotFound).
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 
@@ -191,7 +190,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+		assert.Equal(t, http.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 }

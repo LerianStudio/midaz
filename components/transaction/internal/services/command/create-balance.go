@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -37,7 +38,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		}
 
 		balance := &mmodel.Balance{
-			ID:             libCommons.GenerateUUIDv7().String(),
+			ID:             utils.GenerateUUIDv7().String(),
 			Alias:          *account.Alias,
 			OrganizationID: account.OrganizationID,
 			LedgerID:       account.LedgerID,
@@ -127,7 +128,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	}
 
 	newBalance := &mmodel.Balance{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             utils.GenerateUUIDv7().String(),
 		Alias:          input.Alias,
 		Key:            normalizedKey,
 		OrganizationID: input.OrganizationID.String(),

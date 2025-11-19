@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -20,11 +20,11 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	transactionRouteID1 := libCommons.GenerateUUIDv7()
-	transactionRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
+	transactionRouteID1 := utils.GenerateUUIDv7()
+	transactionRouteID2 := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -85,9 +85,9 @@ func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -114,9 +114,9 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -146,10 +146,10 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
+	transactionRouteID := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -185,10 +185,10 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
+	transactionRouteID := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -237,11 +237,11 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	transactionRouteID1 := libCommons.GenerateUUIDv7()
-	transactionRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	operationRouteID := utils.GenerateUUIDv7()
+	transactionRouteID1 := utils.GenerateUUIDv7()
+	transactionRouteID2 := utils.GenerateUUIDv7()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)

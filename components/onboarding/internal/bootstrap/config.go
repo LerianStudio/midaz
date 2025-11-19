@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -26,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 const ApplicationName = "onboarding"
@@ -95,7 +95,7 @@ type Config struct {
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
+	if err := utils.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 

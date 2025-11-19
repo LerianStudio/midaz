@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -27,7 +28,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	logger.Infof("Trying to create asset (sync): %v", cii)
 
 	var status mmodel.Status
-	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
+	if cii.Status.IsEmpty() || utils.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -37,7 +38,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	status.Description = cii.Status.Description
 
-	if err := libCommons.ValidateType(cii.Type); err != nil {
+	if err := utils.ValidateType(cii.Type); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset type", err)
@@ -50,7 +51,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if cii.Type == "currency" {
-		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
+		if err := utils.ValidateCurrency(cii.Code); err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset currency", err)
@@ -115,7 +116,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Infof("Creating external account for asset: %s", cii.Code)
 
 		eAccount := &mmodel.Account{
-			ID:              libCommons.GenerateUUIDv7().String(),
+			ID:              utils.GenerateUUIDv7().String(),
 			AssetCode:       cii.Code,
 			Alias:           &aAlias,
 			Name:            "External " + cii.Code,
@@ -191,7 +192,7 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 
 	logger.Infof("Validating asset code: %s", code)
 
-	if err := libCommons.ValidateCode(code); err != nil {
+	if err := utils.ValidateCode(code); err != nil {
 		switch err.Error() {
 		case constant.ErrInvalidCodeFormat.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())

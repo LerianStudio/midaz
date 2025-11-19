@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -151,9 +151,9 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := utils.GenerateUUIDv7()
+	ledgerID := utils.GenerateUUIDv7()
+	transactionRouteID := utils.GenerateUUIDv7()
 
 	uc := &UseCase{
 		RedisRepo: mockRedisRepo,
@@ -171,8 +171,8 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 			}
 		}()
 
-		differentOrg := libCommons.GenerateUUIDv7()
-		differentLedger := libCommons.GenerateUUIDv7()
+		differentOrg := utils.GenerateUUIDv7()
+		differentLedger := utils.GenerateUUIDv7()
 		os.Setenv("TRANSACTION_ROUTE_VALIDATION", differentOrg.String()+":"+differentLedger.String())
 
 		operations := []mmodel.BalanceOperation{
