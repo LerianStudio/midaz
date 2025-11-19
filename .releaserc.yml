@@ -59,4 +59,4 @@ branches:
     prerelease: rc
   - name: hotfix/v3.3.7
     range: 3.3.x
-    range: 3.3.x
+    channel: 3.3.x
