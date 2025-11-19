@@ -1028,7 +1028,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	// if could not acquire the lock, the pending transaction is already being processed
+	// if it could not acquire the lock, the pending transaction is already being processed
 	if !success {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 
