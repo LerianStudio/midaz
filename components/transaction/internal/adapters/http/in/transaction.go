@@ -1127,8 +1127,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction status synchronously", err)
 
 			logger.Errorf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error())
-
-			return http.WithError(c, err)
 		}
 	}
 
