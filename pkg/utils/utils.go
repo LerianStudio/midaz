@@ -240,7 +240,7 @@ func GetCPUUsage(ctx context.Context, cpuGauge metric.Int64Gauge) {
 
 	out, err := cpu.Percent(100*time.Millisecond, false)
 	if err != nil {
-		logger.Warnf("Errot to get cpu use: %v", err)
+		logger.Warnf("Error to get cpu use: %v", err)
 	}
 
 	var percentageCPU int64 = 0
