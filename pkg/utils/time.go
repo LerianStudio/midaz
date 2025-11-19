@@ -77,6 +77,7 @@ func ParseDateTime(dateStr string, isEndDate bool) (time.Time, bool, error) {
 		} else {
 			t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 		}
+		
 		return t, false, nil
 	}
 

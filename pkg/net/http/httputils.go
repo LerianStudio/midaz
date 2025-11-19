@@ -76,12 +76,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			if err != nil {
 				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "", value)
 			}
+			
 			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
 			parsedDate, _, err := utils.ParseDateTime(value, true)
 			if err != nil {
 				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "", value)
 			}
+
 			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
