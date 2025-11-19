@@ -1,3 +1,17 @@
+## [v3.4.1-beta.6] - 2025-11-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.5...v3.4.1-beta.6)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Key Formatting**: Resolved discrepancies in transaction key generation by updating the configuration and documentation processes. This fix ensures stable transaction handling and reduces errors.
+- **Streamlined Transaction Updates**: Simplified the transaction status update process by removing unnecessary error returns, which reduces confusion and enhances workflow clarity.
+- **Efficient Release Management**: Introduced a hotfix branch in the CI/CD workflow, allowing for faster deployment of urgent fixes and improving overall release responsiveness.
+
+### 🔧 Maintenance
+- **Changelog Updates**: Ensured the CHANGELOG accurately reflects recent changes and improvements, providing clear and up-to-date information for users and developers.
+
+
 ## [v3.4.1-beta.5] - 2025-11-14
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.4...v3.4.1-beta.5)
