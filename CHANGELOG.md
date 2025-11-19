@@ -1,3 +1,23 @@
+## [v3.4.2] - 2025-11-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1...v3.4.2)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Key Generation**: Updated transaction key generation to use utility functions, resolving inconsistencies and improving transaction reliability. Users will notice fewer errors and smoother transaction processing.
+- **Efficient Hotfix Deployment**: Integrated a hotfix branch in the release workflow, allowing critical fixes to be deployed swiftly and without delay, ensuring minimal disruption to service.
+- **Simplified Transaction Updates**: Removed redundant error returns from transaction status updates, reducing error noise and simplifying the transaction management process for a more seamless user experience.
+
+### ⚡ Performance
+- **Improved Transaction Processing**: Implemented Redis locking for pending transactions, which prevents race conditions and ensures data integrity. This change significantly boosts the reliability and performance of transaction processing, leading to a more responsive system.
+
+### 📚 Documentation
+- **Updated Transaction Versioning**: Revised documentation to align with updated transaction versioning standards, enhancing compatibility and consistency across systems. This ensures users have access to the latest guidelines for transaction handling.
+
+### 🔧 Maintenance
+- **Changelog Updates**: The CHANGELOG has been meticulously updated to reflect recent changes, providing users with a clear and comprehensive overview of modifications for easy reference and future maintenance.
+
+
 ## [v3.4.1] - 2025-11-14
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1)
