@@ -78,7 +78,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			}
 			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
-			parsedDate, _, err := utils.ParseDateTime(value, false)
+			parsedDate, _, err := utils.ParseDateTime(value, true)
 			if err != nil {
 				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "", value)
 			}
