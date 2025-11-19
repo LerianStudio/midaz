@@ -303,7 +303,7 @@ func Reverse[T any](s []T) []T {
 // IdempotencyInternalKey returns a key with the following format to be used on redis cluster:
 // "idempotency:{organizationID:ledgerID:key}"
 func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	idempotency := GenericInternalKey("idempotency", "idempotency", organizationID.String(), ledgerID.String(), key) // TODO: Ver sobre a repetição de valores nos dois primeiros parametros
+	idempotency := GenericInternalKey("idempotency", "idempotency", organizationID.String(), ledgerID.String(), key) // TODO: Check if the repetition of values in the first two parameters is necessary
 
 	return idempotency
 }
@@ -311,7 +311,7 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 // AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
 // "accounting_routes:{organizationID:ledgerID:key}"
 func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
-	accountingRoutes := GenericInternalKey("accounting_routes", "accounting_routes", organizationID.String(), ledgerID.String(), key.String()) // TODO: Ver sobre a repetição de valores nos dois primeiros parametros
+	accountingRoutes := GenericInternalKey("accounting_routes", "accounting_routes", organizationID.String(), ledgerID.String(), key.String()) // TODO: Check if the repetition of values in the first two parameters is necessary
 
 	return accountingRoutes
 }

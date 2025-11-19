@@ -39,8 +39,8 @@ func NormalizeDateTime(date time.Time, days *int, endOfDay bool) string {
 		date = date.AddDate(0, 0, *days)
 	}
 
-	hour, min, sec := date.Hour(), date.Minute(), date.Second()
-	isNormalized := (hour == 0 && min == 0 && sec == 0) || (hour == 23 && min == 59 && sec == 59)
+	hour, minute, sec := date.Hour(), date.Minute(), date.Second()
+	isNormalized := (hour == 0 && minute == 0 && sec == 0) || (hour == 23 && minute == 59 && sec == 59)
 
 	if isNormalized {
 		if endOfDay {
@@ -77,7 +77,7 @@ func ParseDateTime(dateStr string, isEndDate bool) (time.Time, bool, error) {
 		} else {
 			t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 		}
-		
+
 		return t, false, nil
 	}
 
