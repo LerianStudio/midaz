@@ -84,18 +84,24 @@ export abstract class HttpService {
     url: URL | string,
     options: FetchModuleOptions
   ): Promise<Request> {
-    const { baseUrl, search, ...init } = {
-      ...(await this.createDefaults()),
-      ...options
+    const { headers: headerOptions, ...restOptions } = options
+
+    const defaults = (await this.createDefaults()) as any
+
+    const {
+      baseUrl,
+      search,
+      headers: defaultHeaders,
+      ...init
+    } = {
+      ...defaults,
+      ...restOptions
     }
 
-    return new Request(new URL(url + createQueryString(search), baseUrl), {
-      ...init,
-      headers: {
-        ...init?.headers,
-        ...options?.headers
-      }
-    })
+    const fullUrl = new URL(url + createQueryString(search), baseUrl)
+    const mergedHeaders = { ...defaultHeaders, ...headerOptions }
+
+    return new Request(fullUrl, { ...init, headers: mergedHeaders })
   }
 
   protected async createDefaults() {
