@@ -1,3 +1,23 @@
+## [v3.4.4-beta.1] - 2025-11-21
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.6...v3.4.4-beta.1)
+Contributors: Clara Tersi, Fabricio Carneiro, Guilherme Moreira Rodrigues, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated `js-yaml` to version 4.1.1 and `glob` dependencies to address security vulnerabilities, providing safer file handling and parsing.
+- **Stability Improvements**: Resolved issues with indirect dependencies, ensuring a stable and secure environment.
+
+### ⚡ Performance
+- **Backend Optimization**: Streamlined request processing by merging headers and options, resulting in improved performance and reduced complexity for backend operations.
+
+### 🔄 Changes
+- **Configuration Simplification**: Consolidated configuration settings to simplify the release workflow, enhancing maintainability and reducing potential errors.
+
+### 🔧 Maintenance
+- **Dependency Management**: Regular updates to package dependencies to maintain compatibility and leverage improvements from third-party libraries.
+- **Documentation Updates**: Updated CHANGELOG to accurately reflect recent changes, ensuring users have a clear understanding of the project's evolution.
+
+
 ## [v3.4.3] - 2025-11-20
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
