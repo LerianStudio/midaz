@@ -16,7 +16,7 @@
     "setup": "cd ../.. && bash scripts/setup-deps.sh"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
