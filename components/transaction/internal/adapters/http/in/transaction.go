@@ -1038,7 +1038,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
-	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
+	lockPendingTransactionKey := utils.GenericInternalKeyWithContext("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
 	ttl := time.Duration(300)
 
