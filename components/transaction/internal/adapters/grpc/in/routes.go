@@ -26,6 +26,8 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 			middleware.NewGRPCAuthUnaryPolicy(auth, middleware.PolicyConfig{
 				MethodPolicies: map[string]middleware.Policy{
 					"/balance.BalanceProto/CreateBalance": {Resource: "balances", Action: "post"},
+					"/balance.BalanceProto/GetBalance":    {Resource: "balances", Action: "get"},
+					"/balance.BalanceProto/DeleteBalance": {Resource: "balances", Action: "delete"},
 				},
 				SubResolver: func(ctx context.Context, _ string, _ any) (string, error) { return midazName, nil },
 			}),

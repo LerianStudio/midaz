@@ -252,7 +252,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}
@@ -367,7 +367,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}
