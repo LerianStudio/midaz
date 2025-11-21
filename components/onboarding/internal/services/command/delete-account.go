@@ -50,7 +50,16 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Failed to delete all balances by account id via gRPC: %v", err)
 
-		return err
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
+
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+			return err
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
