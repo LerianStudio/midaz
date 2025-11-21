@@ -1,55 +1,42 @@
 plugins:
-  - path: "@semantic-release/commit-analyzer"
-    preset: conventionalcommits
-    parserOpts:
-      noteKeywords:
-        - "BREAKING CHANGE"
-        - "BREAKING CHANGES"
-    releaseRules:
-      - type: feat
-        release: minor
-      - type: perf
-        release: minor
-      - type: build
-        release: minor
-      - type: chore
-        release: patch
-      - type: ci
-        release: patch
-      - type: test
-        release: patch
-      - type: fix
-        release: patch # to hotfix scenarios
-      - type: refactor
-        release: minor
-      - type: docs
-        release: patch
-      - breaking: true
-        release: major
-        
+  - ["@semantic-release/commit-analyzer", {
+      preset: "conventionalcommits",
+      parserOpts: {
+        noteKeywords: [
+          "BREAKING CHANGE",
+          "BREAKING CHANGES"
+        ]
+      },
+      releaseRules: [
+        { type: "feat", release: "minor" },
+        { type: "perf", release: "minor" },
+        { type: "build", release: "minor" },
+        { type: "chore", release: "patch" },
+        { type: "ci", release: "patch" },
+        { type: "test", release: "patch" },
+        { type: "fix", release: "patch" },
+        { type: "refactor", release: "minor" },
+        { type: "docs", release: "patch" },
+        { breaking: true, release: "major" }
+      ]
+    }]
+
   # Plugin to version the CHANGELOG.md
-  - path: "@semantic-release/git"
-    assets:
-      - CHANGELOG.md
-    message: "chore(release): ${nextRelease.version}\n\nChangelog atualizado."
+  - ["@semantic-release/git", {
+      assets: ["CHANGELOG.md"],
+      message: "chore(release): ${nextRelease.version}\n\nupdated changelog."
+    }]
 
   # Plugin to publish the CHANGELOG.md as an asset in the GitHub release
-  - path: "@semantic-release/github"
-    assets:
-      - path: CHANGELOG.md
-        label: "Changelog"
-    successComment: false
-    failComment: false
-    labels: []
-  
-  # Plugin to perform the backmerge between the 'main' and 'develop' branches
-  - path: "@saithodev/semantic-release-backmerge"
-    backmergeBranches:
-      - from: main
-        to: develop
-    message: "chore(release): Preparations for next release [skip ci]"
-
-  - path: "@semantic-release/exec"
+  - ["@semantic-release/github", {
+      assets: [
+        { path: "CHANGELOG.md", label: "Changelog" }
+      ],
+      successComment: false,
+      failCommentCondition: false,
+      labels: []
+    }]
+  - "@semantic-release/exec"
 
 branches:
   - name: main
