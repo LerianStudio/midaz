@@ -68,6 +68,7 @@ MIDAZ
  |---   README
  |   pkg
  |---   constant
+ |---   errors
  |---   gold
  |---   |   parser
  |---   |   transaction
@@ -75,7 +76,10 @@ MIDAZ
  |---   mgrpc
  |---   net
  |---   |   http
+ |---   pointers
+ |---   server
  |---   shell
+ |---   utils
  |   postman
  |   scripts
  |   tests
@@ -84,10 +88,19 @@ MIDAZ
 #### Common Utilities (`./pkg`)
 
 * `console`: Description of the console utilities and their usage.
-* `libLog`: Overview of the logging framework and configuration details.
+* `libLog`: Overview of the logging framework and configuration details.md
 * `libMongo`, `mpostgres`: Database utilities, including setup and configuration.
 * `libZap`: Details on the structured logger adapted for high-performance scenarios.
 * `shell`: Guide on shell utilities, including scripting and automation tools.
+* `constant`: Project constants for headers, errors, metadata, and configuration values.
+* `errors`: Custom error types and error handling utilities.
+* `gold`: Transaction parser using ANTLR grammar for .gold file format.
+* `mgrpc`: gRPC utilities for connections, protobuf definitions, and error mapping.
+* `mmodel`: Domain models including Account, Balance, Organization, Portfolio, and related structures.
+* `net`: HTTP network utilities for handlers, responses, and request processing.
+* `pointers`: Helper functions to create pointers from primitive types.
+* `server`: Server utilities for graceful shutdown and gRPC server management.
+* `utils`: General utilities for caching, jitter, metrics, time operations, and string manipulation.
 
 #### Components (`./components`)
 
