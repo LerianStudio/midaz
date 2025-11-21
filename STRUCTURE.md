@@ -76,6 +76,7 @@ MIDAZ
  |---   net
  |---   |   http
  |---   shell
+ |---   transaction
  |   postman
  |   scripts
  |   tests
@@ -90,6 +91,7 @@ MIDAZ
 * `libZap`: Details on the structured logger adapted for high-performance scenarios.
 * `libHTTP`: Information on HTTP helpers and network communication utilities.
 * `shell`: Guide on shell utilities, including scripting and automation tools.
+* `transaction`: Contains details of transaction models and validations
 
 #### Components (`./components`)
 

@@ -7,6 +7,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
@@ -21,7 +22,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()
 
-	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	cachedValue, err := uc.RedisRepo.GetBytes(ctx, internalKey)
 	if err != nil && err != redis.Nil {
