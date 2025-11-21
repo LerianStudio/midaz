@@ -1,3 +1,15 @@
+## [v3.4.3] - 2025-11-20
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend**: Improved the process of request creation by merging headers and options. This enhancement boosts the reliability of backend operations, reducing potential errors and ensuring consistent data handling.
+
+### 🔧 Maintenance
+- **Release Management**: Updated the CHANGELOG to include recent updates, providing users with the latest information on software changes and improvements for better project tracking.
+
+
 ## [v3.4.2] - 2025-11-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1...v3.4.2)
