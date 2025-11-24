@@ -2,10 +2,17 @@ package command
 
 import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
@@ -14,6 +21,27 @@ import (
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
 type UseCase struct {
+	// OrganizationRepo provides an abstraction on top of the organization data source.
+	OrganizationRepo organization.Repository
+
+	// LedgerRepo provides an abstraction on top of the ledger data source.
+	LedgerRepo ledger.Repository
+
+	// SegmentRepo provides an abstraction on top of the segment data source.
+	SegmentRepo segment.Repository
+
+	// PortfolioRepo provides an abstraction on top of the portfolio data source.
+	PortfolioRepo portfolio.Repository
+
+	// AccountRepo provides an abstraction on top of the account data source.
+	AccountRepo account.Repository
+
+	// AssetRepo provides an abstraction on top of the asset data source.
+	AssetRepo asset.Repository
+
+	// AccountTypeRepo provides an abstraction on top of the account type data source.
+	AccountTypeRepo accounttype.Repository
+
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
 
@@ -32,8 +60,11 @@ type UseCase struct {
 	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
 	TransactionRouteRepo transactionroute.Repository
 
-	// MetadataRepo provides an abstraction on top of the metadata data source.
-	MetadataRepo mongodb.Repository
+	// MetadataOnboardingRepo provides an abstraction on top of the metadata onboarding data source.
+	MetadataOnboardingRepo mongodb.Repository
+
+	// MetadataTransactionRepo provides an abstraction on top of the metadata transaction data source.
+	MetadataTransactionRepo mongodb.Repository
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository

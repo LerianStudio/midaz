@@ -14,13 +14,19 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
@@ -33,56 +39,93 @@ const ApplicationName = "transaction"
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                      string `env:"ENV_NAME"`
-	LogLevel                     string `env:"LOG_LEVEL"`
-	ServerAddress                string `env:"SERVER_ADDRESS"`
-	PrimaryDBHost                string `env:"DB_HOST"`
-	PrimaryDBUser                string `env:"DB_USER"`
-	PrimaryDBPassword            string `env:"DB_PASSWORD"`
-	PrimaryDBName                string `env:"DB_NAME"`
-	PrimaryDBPort                string `env:"DB_PORT"`
-	PrimaryDBSSLMode             string `env:"DB_SSLMODE"`
-	ReplicaDBHost                string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser                string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword            string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName                string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort                string `env:"DB_REPLICA_PORT"`
-	ReplicaDBSSLMode             string `env:"DB_REPLICA_SSLMODE"`
-	MaxOpenConnections           int    `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections           int    `env:"DB_MAX_IDLE_CONNS"`
-	MongoURI                     string `env:"MONGO_URI"`
-	MongoDBHost                  string `env:"MONGO_HOST"`
-	MongoDBName                  string `env:"MONGO_NAME"`
-	MongoDBUser                  string `env:"MONGO_USER"`
-	MongoDBPassword              string `env:"MONGO_PASSWORD"`
-	MongoDBPort                  string `env:"MONGO_PORT"`
-	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
-	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret          string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName      string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName       string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName             string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                    string `env:"RABBITMQ_URI"`
-	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv            string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint      string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry              bool   `env:"ENABLE_TELEMETRY"`
+	EnvName       string `env:"ENV_NAME"`
+	LogLevel      string `env:"LOG_LEVEL"`
+	ServerAddress string `env:"SERVER_ADDRESS"`
+
+	// -- ONBOARDING
+
+	// -- PostgreSQL primary configuration
+	PrimaryOnboardingDBHost     string `env:"DB_ONBOARDING_HOST"`
+	PrimaryOnboardingDBUser     string `env:"DB_ONBOARDING_USER"`
+	PrimaryOnboardingDBPassword string `env:"DB_ONBOARDING_PASSWORD"`
+	PrimaryOnboardingDBName     string `env:"DB_ONBOARDING_NAME"`
+	PrimaryOnboardingDBPort     string `env:"DB_ONBOARDING_PORT"`
+	PrimaryOnboardingDBSSLMode  string `env:"DB_ONBOARDING_SSLMODE"`
+
+	// -- PostgreSQL replica configuration
+	ReplicaOnboardingDBHost      string `env:"DB_ONBOARDING_REPLICA_HOST"`
+	ReplicaOnboardingDBUser      string `env:"DB_ONBOARDING_REPLICA_USER"`
+	ReplicaOnboardingDBPassword  string `env:"DB_ONBOARDING_REPLICA_PASSWORD"`
+	ReplicaOnboardingDBName      string `env:"DB_ONBOARDING_REPLICA_NAME"`
+	ReplicaOnboardingDBPort      string `env:"DB_ONBOARDING_REPLICA_PORT"`
+	ReplicaOnboardingDBSSLMode   string `env:"DB_ONBOARDING_REPLICA_SSLMODE"`
+	MaxOnboardingOpenConnections int    `env:"DB_ONBOARDING_MAX_OPEN_CONNS"`
+	MaxOnboardingIdleConnections int    `env:"DB_ONBOARDING_MAX_IDLE_CONNS"`
+
+	// -- MongoDB configuration
+	MongoOnboardingURI        string `env:"MONGO_ONBOARDING_URI"`
+	MongoOnboardingHost       string `env:"MONGO_ONBOARDING_HOST"`
+	MongoOnboardingName       string `env:"MONGO_ONBOARDING_NAME"`
+	MongoOnboardingUser       string `env:"MONGO_ONBOARDING_USER"`
+	MongoOnboardingPassword   string `env:"MONGO_ONBOARDING_PASSWORD"`
+	MongoOnboardingPort       string `env:"MONGO_ONBOARDING_PORT"`
+	MongoOnboardingParameters string `env:"MONGO_ONBOARDING_PARAMETERS"`
+	MaxOnboardingPoolSize     int    `env:"MONGO_ONBOARDING_MAX_POOL_SIZE"`
+
+	// -- TRANSACTION
+
+	// -- PostgreSQL primary configuration
+	PrimaryTransactionDBHost     string `env:"DB_TRANSACTION_HOST"`
+	PrimaryTransactionDBUser     string `env:"DB_TRANSACTION_USER"`
+	PrimaryTransactionDBPassword string `env:"DB_TRANSACTION_PASSWORD"`
+	PrimaryTransactionDBName     string `env:"DB_TRANSACTION_NAME"`
+	PrimaryTransactionDBPort     string `env:"DB_TRANSACTION_PORT"`
+	PrimaryTransactionDBSSLMode  string `env:"DB_TRANSACTION_SSLMODE"`
+
+	// -- PostgreSQL replica configuration
+	ReplicaTransactionDBHost      string `env:"DB_TRANSACTION_REPLICA_HOST"`
+	ReplicaTransactionDBUser      string `env:"DB_TRANSACTION_REPLICA_USER"`
+	ReplicaTransactionDBPassword  string `env:"DB_TRANSACTION_REPLICA_PASSWORD"`
+	ReplicaTransactionDBName      string `env:"DB_TRANSACTION_REPLICA_NAME"`
+	ReplicaTransactionDBPort      string `env:"DB_TRANSACTION_REPLICA_PORT"`
+	ReplicaTransactionDBSSLMode   string `env:"DB_TRANSACTION_REPLICA_SSLMODE"`
+	MaxTransactionOpenConnections int    `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
+	MaxTransactionIdleConnections int    `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
+
+	// -- MongoDB configuration
+	MongoTransactionURI        string `env:"MONGO_TRANSACTION_URI"`
+	MongoTransactionHost       string `env:"MONGO_TRANSACTION_HOST"`
+	MongoTransactionName       string `env:"MONGO_TRANSACTION_NAME"`
+	MongoTransactionUser       string `env:"MONGO_TRANSACTION_USER"`
+	MongoTransactionPassword   string `env:"MONGO_TRANSACTION_PASSWORD"`
+	MongoTransactionPort       string `env:"MONGO_TRANSACTION_PORT"`
+	MongoTransactionParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
+	MaxTransactionPoolSize     int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
+
+	// -- RabbitMQ configuration
+	RabbitURI                  string `env:"RABBITMQ_URI"`
+	RabbitMQHost               string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost           string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP           string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser       string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass       string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
+	RabbitMQNumbersOfWorkers   int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch  int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL     string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+
+	// -- Otel configuration
+	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
+
+	// -- Redis configuration
 	RedisHost                    string `env:"REDIS_HOST"`
 	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
 	RedisPassword                string `env:"REDIS_PASSWORD"`
@@ -104,9 +147,10 @@ type Config struct {
 	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
 	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                 string `env:"PROTO_ADDRESS"`
+
+	// -- Auth configuration
+	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -129,39 +173,78 @@ func InitServers() *Service {
 		Logger:                    logger,
 	})
 
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort, cfg.PrimaryDBSSLMode)
+	// -- ONBOARDING
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
+	postgreSourcePrimaryOnboarding := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.PrimaryOnboardingDBHost, cfg.PrimaryOnboardingDBUser, cfg.PrimaryOnboardingDBPassword, cfg.PrimaryOnboardingDBName, cfg.PrimaryOnboardingDBPort, cfg.PrimaryOnboardingDBSSLMode)
 
-	postgresConnection := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           cfg.PrimaryDBName,
-		ReplicaDBName:           cfg.ReplicaDBName,
-		Component:               ApplicationName,
+	postgreSourceReplicaOnboarding := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.ReplicaOnboardingDBHost, cfg.ReplicaOnboardingDBUser, cfg.ReplicaOnboardingDBPassword, cfg.ReplicaOnboardingDBName, cfg.ReplicaOnboardingDBPort, cfg.ReplicaOnboardingDBSSLMode)
+
+	postgresConnectionOnboarding := &libPostgres.PostgresConnection{
+		ConnectionStringPrimary: postgreSourcePrimaryOnboarding,
+		ConnectionStringReplica: postgreSourceReplicaOnboarding,
+		PrimaryDBName:           cfg.PrimaryOnboardingDBName,
+		ReplicaDBName:           cfg.ReplicaOnboardingDBName,
+		Component:               "onboarding",
 		Logger:                  logger,
-		MaxOpenConnections:      cfg.MaxOpenConnections,
-		MaxIdleConnections:      cfg.MaxIdleConnections,
+		MaxOpenConnections:      cfg.MaxOnboardingOpenConnections,
+		MaxIdleConnections:      cfg.MaxOnboardingIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+	mongoSourceOnboarding := fmt.Sprintf("%s://%s:%s@%s:%s/",
+		cfg.MongoOnboardingURI, cfg.MongoOnboardingUser, cfg.MongoOnboardingPassword, cfg.MongoOnboardingHost, cfg.MongoOnboardingPort)
 
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
+	if cfg.MaxOnboardingPoolSize <= 0 {
+		cfg.MaxOnboardingPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if cfg.MongoOnboardingParameters != "" {
+		mongoSourceOnboarding += "?" + cfg.MongoOnboardingParameters
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               cfg.MongoDBName,
+	mongoConnectionOnboarding := &libMongo.MongoConnection{
+		ConnectionStringSource: mongoSourceOnboarding,
+		Database:               cfg.MongoOnboardingName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            uint64(cfg.MaxOnboardingPoolSize),
+	}
+
+	// -- TRANSACTION
+
+	postgreSourcePrimaryTransaction := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.PrimaryTransactionDBHost, cfg.PrimaryTransactionDBUser, cfg.PrimaryTransactionDBPassword, cfg.PrimaryTransactionDBName, cfg.PrimaryTransactionDBPort, cfg.PrimaryTransactionDBSSLMode)
+
+	postgreSourceReplicaTransaction := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.ReplicaTransactionDBHost, cfg.ReplicaTransactionDBUser, cfg.ReplicaTransactionDBPassword, cfg.ReplicaTransactionDBName, cfg.ReplicaTransactionDBPort, cfg.ReplicaTransactionDBSSLMode)
+
+	postgresConnectionTransaction := &libPostgres.PostgresConnection{
+		ConnectionStringPrimary: postgreSourcePrimaryTransaction,
+		ConnectionStringReplica: postgreSourceReplicaTransaction,
+		PrimaryDBName:           cfg.PrimaryTransactionDBName,
+		ReplicaDBName:           cfg.ReplicaTransactionDBName,
+		Component:               "transaction",
+		Logger:                  logger,
+		MaxOpenConnections:      cfg.MaxTransactionOpenConnections,
+		MaxIdleConnections:      cfg.MaxTransactionIdleConnections,
+	}
+
+	mongoSourceTransaction := fmt.Sprintf("%s://%s:%s@%s:%s/",
+		cfg.MongoTransactionURI, cfg.MongoTransactionUser, cfg.MongoTransactionPassword, cfg.MongoTransactionHost, cfg.MongoTransactionPort)
+
+	if cfg.MaxTransactionPoolSize <= 0 {
+		cfg.MaxTransactionPoolSize = 100
+	}
+
+	if cfg.MongoTransactionParameters != "" {
+		mongoSourceTransaction += "?" + cfg.MongoTransactionParameters
+	}
+
+	mongoConnectionTransaction := &libMongo.MongoConnection{
+		ConnectionStringSource: mongoSourceTransaction,
+		Database:               cfg.MongoTransactionName,
+		Logger:                 logger,
+		MaxPoolSize:            uint64(cfg.MaxTransactionPoolSize),
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -191,14 +274,26 @@ func InitServers() *Service {
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
-	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
-	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
-	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
-	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
-	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	// -- ONBOARDING
+	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnectionOnboarding)
+	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnectionOnboarding)
+	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnectionOnboarding)
+	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnectionOnboarding)
+	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnectionOnboarding)
+	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnectionOnboarding)
+	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnectionOnboarding)
 
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	metadataOnboardingMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnectionOnboarding)
+
+	// -- TRANSACTION
+	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnectionTransaction)
+	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnectionTransaction)
+	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnectionTransaction)
+	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnectionTransaction)
+	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnectionTransaction)
+	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnectionTransaction)
+
+	metadataTransactionMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnectionTransaction)
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
@@ -217,27 +312,84 @@ func InitServers() *Service {
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
 	useCase := &command.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
-		RedisRepo:            redisConsumerRepository,
+		// -- ONBOARDING
+		OrganizationRepo:       organizationPostgreSQLRepository,
+		LedgerRepo:             ledgerPostgreSQLRepository,
+		SegmentRepo:            segmentPostgreSQLRepository,
+		PortfolioRepo:          portfolioPostgreSQLRepository,
+		AccountRepo:            accountPostgreSQLRepository,
+		AssetRepo:              assetPostgreSQLRepository,
+		AccountTypeRepo:        accountTypePostgreSQLRepository,
+		MetadataOnboardingRepo: metadataOnboardingMongoDBRepository,
+
+		// -- TRANSACTION
+		TransactionRepo:         transactionPostgreSQLRepository,
+		OperationRepo:           operationPostgreSQLRepository,
+		AssetRateRepo:           assetRatePostgreSQLRepository,
+		BalanceRepo:             balancePostgreSQLRepository,
+		OperationRouteRepo:      operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:    transactionRoutePostgreSQLRepository,
+		MetadataTransactionRepo: metadataTransactionMongoDBRepository,
+		RabbitMQRepo:            producerRabbitMQRepository,
+		RedisRepo:               redisConsumerRepository,
 	}
 
 	queryUseCase := &query.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
-		RedisRepo:            redisConsumerRepository,
+		// -- ONBOARDING
+		OrganizationRepo:       organizationPostgreSQLRepository,
+		LedgerRepo:             ledgerPostgreSQLRepository,
+		SegmentRepo:            segmentPostgreSQLRepository,
+		PortfolioRepo:          portfolioPostgreSQLRepository,
+		AccountRepo:            accountPostgreSQLRepository,
+		AssetRepo:              assetPostgreSQLRepository,
+		AccountTypeRepo:        accountTypePostgreSQLRepository,
+		MetadataOnboardingRepo: metadataOnboardingMongoDBRepository,
+
+		// -- TRANSACTION
+		TransactionRepo:         transactionPostgreSQLRepository,
+		OperationRepo:           operationPostgreSQLRepository,
+		AssetRateRepo:           assetRatePostgreSQLRepository,
+		BalanceRepo:             balancePostgreSQLRepository,
+		OperationRouteRepo:      operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:    transactionRoutePostgreSQLRepository,
+		MetadataTransactionRepo: metadataTransactionMongoDBRepository,
+		RabbitMQRepo:            producerRabbitMQRepository,
+		RedisRepo:               redisConsumerRepository,
+	}
+
+	accountHandler := &in.AccountHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	portfolioHandler := &in.PortfolioHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	ledgerHandler := &in.LedgerHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	assetHandler := &in.AssetHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	organizationHandler := &in.OrganizationHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	segmentHandler := &in.SegmentHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	accountTypeHandler := &in.AccountTypeHandler{
+		Command: useCase,
+		Query:   queryUseCase,
 	}
 
 	transactionHandler := &in.TransactionHandler{
@@ -290,19 +442,31 @@ func InitServers() *Service {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	handlers := &in.Handlers{
+		Account:          accountHandler,
+		Portfolio:        portfolioHandler,
+		Ledger:           ledgerHandler,
+		Asset:            assetHandler,
+		Organization:     organizationHandler,
+		Segment:          segmentHandler,
+		AccountType:      accountTypeHandler,
+		Transaction:      transactionHandler,
+		Operation:        operationHandler,
+		AssetRate:        assetRateHandler,
+		Balance:          balanceHandler,
+		OperationRoute:   operationRouteHandler,
+		TransactionRoute: transactionRouteHandler,
+	}
+
+	app := in.NewRouter(logger, telemetry, auth, handlers)
 
 	server := NewServer(cfg, app, logger, telemetry)
-
-	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
-	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 	balanceSyncWorker := NewBalanceSyncWorker(redisConnection, logger, useCase)
 
 	return &Service{
 		Server:             server,
-		ServerGRPC:         serverGRPC,
 		MultiQueueConsumer: multiQueueConsumer,
 		RedisQueueConsumer: redisConsumer,
 		BalanceSyncWorker:  balanceSyncWorker,
