@@ -21,6 +21,7 @@ export class OperationRoutesMapper {
       description: entity.description,
       operationType: entity.operationType!,
       account: entity.account,
+      code: entity.code ?? '',
       metadata: entity.metadata ?? null,
       createdAt: entity.createdAt!.toISOString(),
       updatedAt: entity.updatedAt!.toISOString(),
@@ -35,6 +36,7 @@ export class OperationRoutesMapper {
       title: dto.title!,
       description: dto.description!,
       account: dto.account!,
+      code: dto.code ?? '',
       metadata: dto.metadata ?? null,
       operationType: dto.operationType as 'source' | 'destination'
     }

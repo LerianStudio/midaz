@@ -55,6 +55,7 @@ const initialValues = {
     ruleType: 'alias' as const,
     validIf: [] as string[] | string
   },
+  code: '',
   metadata: {}
 }
 
@@ -85,6 +86,7 @@ const FormSchema = z.object({
       path: ['account', 'validIf']
     }
   ),
+  code: operationRoutes.code,
   metadata: operationRoutes.metadata
 })
 
@@ -417,6 +419,20 @@ export const OperationRoutesSheet = ({
                         ))}
                     </SelectField>
                   )}
+
+                  <InputField
+                    control={form.control}
+                    name="code"
+                    label={intl.formatMessage({
+                      id: 'accountTypes.field.code',
+                      defaultMessage: 'Code'
+                    })}
+                    textArea
+                    placeholder={intl.formatMessage({
+                      id: 'accountTypes.field.code.placeholder',
+                      defaultMessage: 'Enter a code for this operation route...'
+                    })}
+                  />
 
                   <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
