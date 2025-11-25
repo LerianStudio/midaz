@@ -1,3 +1,14 @@
+## [v3.5.0-beta.3] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.2...v3.5.0-beta.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Dependencies Updated**: We've refreshed several dependencies in `go.mod` and `go.sum` to their latest versions. This update enhances security and performance by incorporating the latest features and patches. Users can expect improved stability and reduced risk of vulnerabilities.
+- **Build and Testing Enhancements**: Routine updates have been applied to our build and testing infrastructure. These improvements streamline the development workflow, making it more reliable and efficient, which indirectly benefits users by ensuring smoother updates and fewer disruptions.
+- **Changelog Update**: The CHANGELOG has been meticulously updated to provide a clear and organized record of recent changes. This transparency helps users stay informed about the project's progress and any adjustments they might need to consider.
+
+
 ## [v3.5.0-beta.2] - 2025-11-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.1...v3.5.0-beta.2)
