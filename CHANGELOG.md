@@ -1,3 +1,18 @@
+## [v3.5.0-beta.4] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.3...v3.5.0-beta.4)
+Contributors: Augusto Alvarenga
+
+### ✨ Features
+- **Enhanced Operation Management**: A new 'code' field has been added to operation routes, allowing for better categorization and management of operations. This feature supports full localization, enabling users to interact with the system in their preferred language, enhancing usability and accessibility across different regions.
+
+### 🐛 Bug Fixes
+- **Accurate Operation Mapping**: Fixed an issue where the 'code' field was not correctly mapped in operation routes. This ensures all operations are accurately categorized and displayed, preventing potential errors in management and reporting.
+
+### 🔧 Maintenance
+- **Build and Frontend Optimization**: General improvements and optimizations have been made to the build process and frontend components, enhancing system performance and reliability for a smoother user experience.
+
+
 ## [v3.5.0-beta.2] - 2025-11-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.1...v3.5.0-beta.2)
