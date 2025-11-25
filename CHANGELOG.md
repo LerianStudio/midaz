@@ -1,3 +1,29 @@
+## [v3.5.0-beta.1] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4-beta.1...v3.5.0-beta.1)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Balance Management**: New methods for balance retrieval and management, such as `ListByAccountID` and `DeleteAllByIDs`, provide users with greater flexibility and control over their account balances. This is particularly beneficial for those managing multiple accounts, allowing for more efficient operations.
+- **gRPC Service Expansion**: The Balance service now includes additional gRPC methods like `GetBalance` and `DeleteBalance`, offering detailed balance information with new fields such as `Available` and `OnHold`. This enhancement facilitates more comprehensive data retrieval and management through gRPC interfaces.
+
+### 🐛 Bug Fixes
+- **Improved Error Handling**: Resolved issues in methods like `DeleteAllBalancesByAccountID` and `toggleBalanceTransfers`, ensuring smoother operations and reducing the risk of unhandled exceptions.
+- **Code Quality Improvements**: Fixed lint errors and standardized error logging in PostgreSQL repository files, leading to cleaner code and more readable logs.
+
+### ⚡ Performance
+- **Backend Enhancements**: Improved error handling and logging consistency across balance management methods, enhancing system reliability and user feedback during operations.
+
+### 🔄 Changes
+- **Utility Function Updates**: Introduced the `IsNilOrEmpty` utility function to streamline code and enhance balance management operations with permission updates.
+- **Telemetry and Protobuf Improvements**: Updated telemetry handling and protobuf definitions for balance messages, ensuring better monitoring and data consistency across services.
+
+### 🔧 Maintenance
+- **Code Refactoring**: Conducted extensive refactoring to improve code quality, including renaming methods for clarity and optimizing balance restoration processes. These changes enhance maintainability and future-proof the codebase.
+- **Configuration and Workflow Updates**: Updated workflow configurations to exclude generated files from security scans, streamlining the development process and reducing false positives in security assessments.
+- **Testing Enhancements**: Improved test coverage for balance operations by introducing mocks for `BalanceGRPCRepo`, ensuring more reliable and comprehensive test scenarios.
+
+
 ## [v3.4.4-beta.1] - 2025-11-21
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.6...v3.4.4-beta.1)
