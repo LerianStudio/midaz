@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +22,11 @@ func TestDeleteAccountByID(t *testing.T) {
 
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockBalanceGRPCRepo := grpcout.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountRepo: mockAccountRepo,
+		AccountRepo:     mockAccountRepo,
+		BalanceGRPCRepo: mockBalanceGRPCRepo,
 	}
 
 	ctx := context.Background()
@@ -44,6 +48,11 @@ func TestDeleteAccountByID(t *testing.T) {
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
+					Times(1)
+
+				mockBalanceGRPCRepo.EXPECT().
+					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
+					Return(nil).
 					Times(1)
 
 				mockAccountRepo.EXPECT().
@@ -84,6 +93,11 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
+				mockBalanceGRPCRepo.EXPECT().
+					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
+					Return(nil).
+					Times(1)
+
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, accountID).
 					Return(errors.New("delete error")).
@@ -99,7 +113,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			tt.setupMocks()
 
 			// Executa a função
-			err := uc.DeleteAccountByID(ctx, organizationID, ledgerID, tt.portfolioID, accountID)
+			err := uc.DeleteAccountByID(ctx, organizationID, ledgerID, tt.portfolioID, accountID, "token")
 
 			// Validações
 			if tt.expectedErr != nil {
