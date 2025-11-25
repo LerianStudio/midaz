@@ -366,7 +366,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 			&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+			logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
@@ -432,7 +432,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 			&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+			logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
