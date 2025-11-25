@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "onboarding"
@@ -191,6 +195,23 @@ func InitServers() *Service {
 	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+
+	// Ensure indexes also for known base collections on fresh installs
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelEnsureIndexes()
+
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(false),
+	}
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("organization"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("ledger"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("segment"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("account"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("portfolio"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("asset"), indexModel)
+	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("account_type"), indexModel)
 
 	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
 
