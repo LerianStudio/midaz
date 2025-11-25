@@ -1,3 +1,25 @@
+## [v3.4.4] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated indirect dependencies to fix security vulnerabilities, providing a safer and more stable environment for users.
+- **Compatibility Improvements**: Updated the `lib-commons` dependency to version 2.5.2, resolving compatibility issues and enhancing overall system stability.
+
+### ⚡ Performance
+- **Database Optimization**: MongoDB indexes are now automatically created on startup, significantly reducing query times and improving data integrity for a faster and more efficient user experience.
+
+### 🔄 Changes
+- **Increased Stability**: System timeout settings have been increased, preventing premature termination of long-running processes and improving application stability.
+
+### 📚 Documentation
+- **Version Consistency**: Updated version numbers in onboarding and transaction documentation to v3.4.4, ensuring consistency and clarity across all user-facing materials.
+
+### 🔧 Maintenance
+- **Changelog Updates**: Revised the CHANGELOG to accurately reflect recent changes, making it easier for developers and users to track project history.
+
+
 ## [v3.4.3] - 2025-11-20
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
