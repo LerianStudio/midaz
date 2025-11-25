@@ -23,6 +23,26 @@ Contributors: Ygohr Medeiros, lerian-studio
 - **Configuration and Workflow Updates**: Updated workflow configurations to exclude generated files from security scans, streamlining the development process and reducing false positives in security assessments.
 - **Testing Enhancements**: Improved test coverage for balance operations by introducing mocks for `BalanceGRPCRepo`, ensuring more reliable and comprehensive test scenarios.
 
+## [v3.4.4] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated indirect dependencies to fix security vulnerabilities, providing a safer and more stable environment for users.
+- **Compatibility Improvements**: Updated the `lib-commons` dependency to version 2.5.2, resolving compatibility issues and enhancing overall system stability.
+
+### ⚡ Performance
+- **Database Optimization**: MongoDB indexes are now automatically created on startup, significantly reducing query times and improving data integrity for a faster and more efficient user experience.
+
+### 🔄 Changes
+- **Increased Stability**: System timeout settings have been increased, preventing premature termination of long-running processes and improving application stability.
+
+### 📚 Documentation
+- **Version Consistency**: Updated version numbers in onboarding and transaction documentation to v3.4.4, ensuring consistency and clarity across all user-facing materials.
+
+### 🔧 Maintenance
+- **Changelog Updates**: Revised the CHANGELOG to accurately reflect recent changes, making it easier for developers and users to track project history.
 
 ## [v3.4.4-beta.1] - 2025-11-21
 
