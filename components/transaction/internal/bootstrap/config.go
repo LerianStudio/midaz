@@ -205,7 +205,7 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 30*time.Second)
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{
@@ -213,10 +213,13 @@ func InitServers() *Service {
 		Options: options.Index().
 			SetUnique(false),
 	}
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("operation"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("transaction"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("operation_route"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("transaction_route"), indexModel)
+
+	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)

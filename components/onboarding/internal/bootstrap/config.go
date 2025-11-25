@@ -197,7 +197,7 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 30*time.Second)
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{
@@ -205,13 +205,13 @@ func InitServers() *Service {
 		Options: options.Index().
 			SetUnique(false),
 	}
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("organization"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("ledger"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("segment"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("account"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("portfolio"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("asset"), indexModel)
-	_ = mongoConnection.EnsureIndexes(ctxEnsureIndexes, strings.ToLower("account_type"), indexModel)
+
+	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
 
 	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
 
