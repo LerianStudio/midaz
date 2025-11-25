@@ -424,12 +424,12 @@ export const OperationRoutesSheet = ({
                     control={form.control}
                     name="code"
                     label={intl.formatMessage({
-                      id: 'accountTypes.field.code',
+                      id: 'operationRoutes.field.code',
                       defaultMessage: 'Code'
                     })}
                     textArea
                     placeholder={intl.formatMessage({
-                      id: 'accountTypes.field.code.placeholder',
+                      id: 'operationRoutes.field.code.placeholder',
                       defaultMessage: 'Enter a code for this operation route...'
                     })}
                   />

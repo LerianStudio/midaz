@@ -23,6 +23,7 @@ export class MidazOperationRoutesMapper {
       description: operationRoute.description,
       operationType: operationRoute.operationType,
       account: operationRoute.account,
+      code: operationRoute.code,
       metadata: operationRoute.metadata ?? null
     }
   }
@@ -35,6 +36,7 @@ export class MidazOperationRoutesMapper {
       description: operationRoute.description,
       operationType: operationRoute.operationType,
       account: operationRoute.account,
+      code: operationRoute.code,
       metadata: operationRoute.metadata ?? null
     }
   }
@@ -48,6 +50,7 @@ export class MidazOperationRoutesMapper {
       description: dto.description,
       operationType: dto.operationType,
       account: dto.account,
+      code: dto.code,
       metadata: dto.metadata ?? null,
       createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
       updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : undefined,
