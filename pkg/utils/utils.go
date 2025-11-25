@@ -3,36 +3,8 @@ package utils
 import (
 	"errors"
 	"slices"
-	"strconv"
 	"unicode"
 )
-
-// CheckMetadataKeyAndValueLength check the length of key and value to a limit pass by on field limit
-func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
-	for k, v := range metadata {
-		if len(k) > limit {
-			return errors.New("0050")
-		}
-
-		var value string
-		switch t := v.(type) {
-		case int:
-			value = strconv.Itoa(t)
-		case float64:
-			value = strconv.FormatFloat(t, 'f', -1, 64)
-		case string:
-			value = t
-		case bool:
-			value = strconv.FormatBool(t)
-		}
-
-		if len(value) > limit {
-			return errors.New("0051")
-		}
-	}
-
-	return nil
-}
 
 // ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
 func ValidateCountryAddress(country string) error {

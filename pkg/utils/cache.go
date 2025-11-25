@@ -49,8 +49,8 @@ func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	return balance
 }
 
-// GenericInternalKey returns a key with the following format to be used without context (no redis cluster)
-// "name:organizationID:ledgerID:key"
+// GenericInternalKey returns a key with the following format to be used on non-cluster Redis:
+// "name:{organizationID}:{ledgerID}:{key}"
 func GenericInternalKey(name, organizationID, ledgerID, key string) string {
 	var builder strings.Builder
 
@@ -65,16 +65,16 @@ func GenericInternalKey(name, organizationID, ledgerID, key string) string {
 	return builder.String()
 }
 
-// IdempotencyInternalKey returns a key with the following format to be used on redis cluster:
-// "idempotency:{organizationID:ledgerID:key}"
+// IdempotencyInternalKey returns a non-contextual key (no cluster):
+// "idempotency:{organizationID}:{ledgerID}:{key}"
 func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	idempotency := GenericInternalKey("idempotency", organizationID.String(), ledgerID.String(), key)
 
 	return idempotency
 }
 
-// AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
-// "accounting_routes:{organizationID:ledgerID:key}"
+// AccountingRoutesInternalKey returns a non-contextual key (no cluster):
+// "accounting_routes:{organizationID}:{ledgerID}:{key}"
 func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
 	accountingRoutes := GenericInternalKey("accounting_routes", organizationID.String(), ledgerID.String(), key.String())
 
