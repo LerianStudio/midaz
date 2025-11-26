@@ -522,7 +522,7 @@ export const apiErrorMessages = defineMessages({
   '0119': {
     id: 'transactions.operationRoute.rule.failed',
     defaultMessage:
-      'Transaction does not completed because the operation one or more accounts do not meet the rules of the operation route.'
+      'Transaction was not completed because one or more accounts in the operation do not meet the rules of the operation route.'
   },
   '0120': {
     id: 'errors.fee.invalidTransactionStructure',

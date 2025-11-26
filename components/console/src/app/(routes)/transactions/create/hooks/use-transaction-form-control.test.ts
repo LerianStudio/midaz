@@ -170,14 +170,14 @@ describe('useTransactionFormControl', () => {
   describe('with transaction routes enabled', () => {
     beforeEach(() => {
       jest.clearAllMocks()
-      require('../../../../../hooks/use-transaction-routes-config').useTransactionRoutesConfig.mockReturnValue({
-        shouldUseRoutes: true,
-        transactionRoutes: [
-          { id: 'route1', title: 'Route 1' }
-        ],
-        isLoading: false,
-        error: null
-      })
+      require('../../../../../hooks/use-transaction-routes-config').useTransactionRoutesConfig.mockReturnValue(
+        {
+          shouldUseRoutes: true,
+          transactionRoutes: [{ id: 'route1', title: 'Route 1' }],
+          isLoading: false,
+          error: null
+        }
+      )
     })
 
     it('should disable next if transactionRoute is not selected when routes are enabled', () => {
