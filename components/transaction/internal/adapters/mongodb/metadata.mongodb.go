@@ -108,9 +108,31 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	opts := options.Find()
 
+	mongoFilter := bson.M{}
+
+	if filter.Metadata != nil {
+		for key, value := range *filter.Metadata {
+			mongoFilter[key] = value
+		}
+	}
+
+	if !filter.StartDate.IsZero() || !filter.EndDate.IsZero() {
+		dateFilter := bson.M{}
+
+		if !filter.StartDate.IsZero() {
+			dateFilter["$gte"] = filter.StartDate
+		}
+
+		if !filter.EndDate.IsZero() {
+			dateFilter["$lte"] = filter.EndDate
+		}
+		
+		mongoFilter["created_at"] = dateFilter
+	}
+
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter.Metadata, opts)
+	cur, err := coll.Find(ctx, mongoFilter, opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
 
