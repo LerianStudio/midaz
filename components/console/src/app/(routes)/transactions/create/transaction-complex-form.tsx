@@ -38,6 +38,7 @@ export const TransactionComplexForm = ({
 }: TransactionComplexFormProps) => {
   const intl = useIntl()
   const { mode } = useTransactionMode()
+
   const {
     form,
     errors,

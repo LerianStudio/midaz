@@ -31,6 +31,7 @@ import {
   useTransactionMode
 } from './hooks/use-transaction-mode'
 import { validateTransactionPreflight } from '@/utils/transaction-validation'
+import { useTransactionRoutesConfig } from '@/hooks/use-transaction-routes-config'
 
 export const TransactionReview = () => {
   const intl = useIntl()
@@ -39,6 +40,12 @@ export const TransactionReview = () => {
   const { currentOrganization, currentLedger } = useOrganization()
   const { mode } = useTransactionMode()
   const { values, handleBack, handleReset } = useTransactionForm()
+
+  // Buscar a route selecionada
+  const { shouldUseRoutes, transactionRoutes } = useTransactionRoutesConfig()
+  const selectedRoute = shouldUseRoutes
+    ? transactionRoutes.find(r => r.id === values.transactionRoute)
+    : null
 
   const [sendAnother, setSendAnother] = useState(false)
 
@@ -68,9 +75,11 @@ export const TransactionReview = () => {
       }
     })
 
-  const parse = ({ value, ...values }: TransactionFormSchema) => ({
+  const parse = ({ value, transactionRoute, ...values }: TransactionFormSchema) => ({
     ...values,
     amount: value.toString(),
+    // Adicionar route ao payload se existir
+    ...(transactionRoute && { route: transactionRoute }),
     source: values.source?.map(({ value, ...source }) => ({
       ...source,
       amount: value.toString()
@@ -298,6 +307,16 @@ export const TransactionReview = () => {
                     })
               }
             />
+            {/* Mostrar route selecionada se existir */}
+            {selectedRoute && (
+              <TransactionReceiptItem
+                label={intl.formatMessage({
+                  id: 'transactions.transactionRoute.label',
+                  defaultMessage: 'Transaction Route'
+                })}
+                value={selectedRoute.title}
+              />
+            )}
             <TransactionReceiptItem
               label={intl.formatMessage({
                 id: 'common.metadata',

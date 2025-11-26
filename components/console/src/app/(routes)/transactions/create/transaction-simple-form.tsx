@@ -36,6 +36,7 @@ export const TransactionSimpleForm = ({
   const intl = useIntl()
 
   const { mode } = useTransactionMode()
+
   const {
     form,
     enableNext,

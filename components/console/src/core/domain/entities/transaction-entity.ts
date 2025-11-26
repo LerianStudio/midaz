@@ -22,6 +22,7 @@ export type TransactionEntity = {
   organizationId?: string
   description?: string
   chartOfAccountsGroupName?: string
+  route?: string
   status?: StatusEntity
   amount: string
   asset: string

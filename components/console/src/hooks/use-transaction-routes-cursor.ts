@@ -24,6 +24,9 @@ export function useTransactionRoutesCursor({
   ...paginationProps
 }: UseTransactionRoutesCursorProps) {
   const pagination = useCursorPagination(paginationProps)
+
+  const finalEnabled = enabled && !!organizationId && !!ledgerId
+
   const { data, isLoading, error, refetch } = useListTransactionRoutesCursor({
     organizationId,
     ledgerId,
@@ -32,7 +35,7 @@ export function useTransactionRoutesCursor({
     sortOrder: pagination.sortOrder,
     sortBy: searchParams?.sortBy,
     id: searchParams?.id,
-    enabled: enabled && !!organizationId && !!ledgerId
+    enabled: finalEnabled
   })
 
   // Update pagination state when data changes

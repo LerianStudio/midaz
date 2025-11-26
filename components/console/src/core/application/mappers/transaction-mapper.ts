@@ -15,6 +15,7 @@ export class TransactionMapper {
     return {
       description: transaction.description,
       chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
+      route: transaction.route,
       amount: transaction.amount,
       asset: transaction.asset,
       source: transaction.source,

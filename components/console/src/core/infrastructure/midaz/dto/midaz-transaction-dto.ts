@@ -25,6 +25,7 @@ type MidazCreateSourceDto = {
 export type MidazCreateTransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
+  route?: string
   send: {
     asset: string
     value: string

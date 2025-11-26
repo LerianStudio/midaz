@@ -41,6 +41,8 @@ export const useListTransactionRoutesCursor = ({
     Object.entries(params).filter(([_, value]) => value !== undefined)
   )
 
+  const apiUrl = `/api/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes`
+
   return useQuery<CursorPaginationDto<TransactionRoutesDto>>({
     queryKey: [
       organizationId,
@@ -48,10 +50,7 @@ export const useListTransactionRoutesCursor = ({
       'transaction-routes-cursor',
       cleanParams
     ],
-    queryFn: getCursorPaginatedFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes`,
-      cleanParams
-    ),
+    queryFn: getCursorPaginatedFetcher(apiUrl, cleanParams),
     enabled: !!organizationId && !!ledgerId && enabled,
     ...options
   })

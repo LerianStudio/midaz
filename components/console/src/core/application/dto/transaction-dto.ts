@@ -24,6 +24,7 @@ export type CreateTransactionOperationDto = {
 export type CreateTransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
+  route?: string
   amount: string
   asset: string
   source: CreateTransactionOperationDto[]

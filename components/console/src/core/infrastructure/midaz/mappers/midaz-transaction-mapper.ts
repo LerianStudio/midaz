@@ -23,6 +23,7 @@ export class MidazTransactionMapper {
       {
         description: transaction.description,
         chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
+        route: transaction.route,
         send: {
           asset: transaction.asset,
           value: transaction.amount,
