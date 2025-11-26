@@ -18,12 +18,14 @@ export type CreateTransactionOperationDto = {
   amount: string
   description?: string
   chartOfAccounts?: string
+  operationRoute?: string // Campo para operation route
   metadata: MetadataDto
 }
 
 export type CreateTransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
+  route?: string
   amount: string
   asset: string
   source: CreateTransactionOperationDto[]

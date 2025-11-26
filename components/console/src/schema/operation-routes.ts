@@ -23,6 +23,8 @@ const account = z
   })
   .nullable()
 
+const code = z.string().max(100).optional()
+
 const id = z.string().uuid()
 
 export const operationRoutes = {
@@ -31,6 +33,7 @@ export const operationRoutes = {
   description,
   operationType,
   account,
+  code,
   metadata
 }
 
@@ -39,6 +42,7 @@ export const createOperationRouteSchema = z.object({
   description: operationRoutes.description,
   operationType: operationRoutes.operationType,
   account: operationRoutes.account,
+  code: operationRoutes.code,
   metadata: operationRoutes.metadata
 })
 
@@ -46,6 +50,7 @@ export const updateOperationRouteSchema = z.object({
   title: operationRoutes.title.optional(),
   description: operationRoutes.description,
   account: operationRoutes.account,
+  code: operationRoutes.code,
   metadata: operationRoutes.metadata
 })
 

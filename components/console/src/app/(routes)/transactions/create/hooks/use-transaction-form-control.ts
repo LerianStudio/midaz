@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useStepper } from '@/hooks/use-stepper'
 import { TransactionFormSchema } from '../schemas'
+import { useTransactionRoutesConfig } from '@/hooks/use-transaction-routes-config'
 
 export const useTransactionFormControl = (values: TransactionFormSchema) => {
   const [enableNext, setEnableNext] = useState(false)
+  const { shouldUseRoutes } = useTransactionRoutesConfig()
   const {
     step,
     setStep,
@@ -13,7 +15,7 @@ export const useTransactionFormControl = (values: TransactionFormSchema) => {
   } = useStepper({
     maxSteps: 4
   })
-  const { asset, value, source, destination } = values
+  const { asset, value, source, destination, transactionRoute } = values
 
   const handleNext = () => {
     if (enableNext) {
@@ -24,9 +26,15 @@ export const useTransactionFormControl = (values: TransactionFormSchema) => {
 
   useEffect(() => {
     if (step === 0) {
-      setEnableNext(asset !== '' && value > 0)
+      const baseValid = asset !== '' && value > 0
+      // Se routes habilitadas, validar também o campo transactionRoute
+      if (shouldUseRoutes) {
+        setEnableNext(baseValid && !!transactionRoute)
+      } else {
+        setEnableNext(baseValid)
+      }
     }
-  }, [step, asset, value])
+  }, [step, asset, value, shouldUseRoutes, transactionRoute])
 
   useEffect(() => {
     if (step === 1) {

@@ -28,7 +28,8 @@ export const transactionSourceFormSchema = z
       value: transaction.value,
       description: transaction.description.optional(),
       chartOfAccounts: transaction.chartOfAccounts.optional(),
-      metadata: extendedAccountMetadata
+      metadata: extendedAccountMetadata,
+      operationRoute: z.string().optional() // Campo para operation route
     })
   )
   .nonempty()
@@ -41,7 +42,8 @@ export const transactionFormSchema = z.object({
   value: transaction.value,
   source: transactionSourceFormSchema,
   destination: transactionSourceFormSchema,
-  metadata: extendedTransactionMetadata
+  metadata: extendedTransactionMetadata,
+  transactionRoute: z.string().optional() // Campo para transaction route
 })
 
 export type TransactionSourceFormSchema = z.infer<
@@ -57,7 +59,8 @@ export const initialValues = {
   asset: '',
   source: [],
   destination: [],
-  metadata: {}
+  metadata: {},
+  transactionRoute: '' // Campo para transaction route
 }
 
 export const sourceInitialValues = {
@@ -66,5 +69,6 @@ export const sourceInitialValues = {
   asset: '',
   description: '',
   chartOfAccounts: '',
-  metadata: {}
+  metadata: {},
+  operationRoute: '' // Campo para operation route
 }
