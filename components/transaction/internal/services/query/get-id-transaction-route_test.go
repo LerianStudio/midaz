@@ -51,8 +51,8 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -95,8 +95,8 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -132,8 +132,8 @@ func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -161,8 +161,8 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -202,8 +202,8 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -236,8 +236,8 @@ func TestGetTransactionRouteByIDNilTransactionRoute(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().

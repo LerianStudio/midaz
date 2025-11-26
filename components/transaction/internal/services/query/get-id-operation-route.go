@@ -44,7 +44,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 	}
 
 	if operationRoute != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRoute.ID.String())
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRoute.ID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation route", err)
 

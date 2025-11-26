@@ -34,7 +34,7 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 
 	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
 	uc := UseCase{
-		MetadataRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	t.Run("Success", func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 			FindList(gomock.Any(), collection, filter).
 			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
 			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+		res, err := uc.MetadataTransactionRepo.FindList(context.TODO(), collection, filter)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -56,7 +56,7 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 			FindList(gomock.Any(), collection, filter).
 			Return(nil, errors.New(errMSG)).
 			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+		res, err := uc.MetadataTransactionRepo.FindList(context.TODO(), collection, filter)
 
 		assert.EqualError(t, err, errMSG)
 		assert.Nil(t, res)
@@ -158,8 +158,8 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		Return(opMeta, nil)
 
 	uc := &UseCase{
-		MetadataRepo:    mockMetadataRepo,
-		TransactionRepo: mockTransactionRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
 	}
 
 	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
@@ -209,8 +209,8 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 		Return([]*mongodb.Metadata{}, nil)
 
 	uc := &UseCase{
-		MetadataRepo:    mockMetadataRepo,
-		TransactionRepo: mockTransactionRepo, // must not be called
+		MetadataTransactionRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo, // must not be called
 	}
 
 	result, cur, err := uc.GetAllMetadataTransactions(context.Background(), uuid.UUID{}, uuid.UUID{}, filter)

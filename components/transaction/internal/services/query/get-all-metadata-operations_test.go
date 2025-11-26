@@ -34,7 +34,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 
 	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
 	uc := UseCase{
-		MetadataRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	t.Run("Success", func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 			FindList(gomock.Any(), collection, filter).
 			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
 			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+		res, err := uc.MetadataTransactionRepo.FindList(context.TODO(), collection, filter)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -56,7 +56,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 			FindList(gomock.Any(), collection, filter).
 			Return(nil, errors.New(errMSG)).
 			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+		res, err := uc.MetadataTransactionRepo.FindList(context.TODO(), collection, filter)
 
 		assert.EqualError(t, err, errMSG)
 		assert.Nil(t, res)
@@ -123,8 +123,8 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 		Return(operations, libHTTP.CursorPagination{}, nil)
 
 	uc := &UseCase{
-		MetadataRepo:  mockMetadataRepo,
-		OperationRepo: mockOperationRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
 	}
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
@@ -170,8 +170,8 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 		Return(nil, errors.New("metadata not found"))
 
 	uc := &UseCase{
-		MetadataRepo:  mockMetadataRepo,
-		OperationRepo: mockOperationRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
 	}
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
@@ -216,8 +216,8 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
 	uc := &UseCase{
-		MetadataRepo:  mockMetadataRepo,
-		OperationRepo: mockOperationRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
 	}
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
@@ -264,8 +264,8 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 		Return(nil, libHTTP.CursorPagination{}, repoError)
 
 	uc := &UseCase{
-		MetadataRepo:  mockMetadataRepo,
-		OperationRepo: mockOperationRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
 	}
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)

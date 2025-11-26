@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	logger.Infof("Retrieving transaction routes by metadata")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), filter)
+	metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 

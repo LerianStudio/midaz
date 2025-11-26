@@ -52,7 +52,7 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		operationIDs[i] = o.ID
 	}
 
-	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	metadata, err := uc.MetadataTransactionRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 

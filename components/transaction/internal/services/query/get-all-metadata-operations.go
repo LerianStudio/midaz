@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	logger.Infof("Retrieving operations")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+	metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 

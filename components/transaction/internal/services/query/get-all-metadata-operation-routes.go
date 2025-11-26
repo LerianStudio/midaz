@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	logger.Infof("Retrieving operation routes by metadata")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
+	metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 

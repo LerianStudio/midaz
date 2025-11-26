@@ -33,8 +33,8 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -110,8 +110,8 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -237,8 +237,8 @@ func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{

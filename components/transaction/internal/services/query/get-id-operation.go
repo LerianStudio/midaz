@@ -29,7 +29,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	}
 
 	if o != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 

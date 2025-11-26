@@ -29,7 +29,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 	}
 
 	if tran != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), tran.ID)
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), tran.ID)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
 

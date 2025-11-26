@@ -39,8 +39,8 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -96,8 +96,8 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -138,8 +138,8 @@ func TestGetOperationRouteByIDError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -167,8 +167,8 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -207,8 +207,8 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -252,8 +252,8 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().

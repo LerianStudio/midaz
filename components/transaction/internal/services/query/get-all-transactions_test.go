@@ -43,8 +43,8 @@ func TestGetAllTransactions(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	t.Run("Success", func(t *testing.T) {

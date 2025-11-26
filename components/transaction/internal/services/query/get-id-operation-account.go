@@ -42,7 +42,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
 

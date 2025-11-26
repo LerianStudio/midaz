@@ -51,7 +51,7 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 			metadataFilter.Metadata = &bson.M{}
 		}
 
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter)
+		metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 

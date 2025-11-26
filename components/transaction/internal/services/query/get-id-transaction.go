@@ -29,7 +29,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	}
 
 	if tran != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
 
@@ -65,7 +65,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 	}
 
 	if tran != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
+		metadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
 

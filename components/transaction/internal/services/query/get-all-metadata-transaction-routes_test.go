@@ -33,8 +33,8 @@ func TestGetAllMetadataTransactionRoutesSuccess(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -116,8 +116,8 @@ func TestGetAllMetadataTransactionRoutesMetadataError(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -154,8 +154,8 @@ func TestGetAllMetadataTransactionRoutesNoMetadata(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -191,8 +191,8 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteRepoError(t *testing.T) 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{
@@ -239,8 +239,8 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteNotFound(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{

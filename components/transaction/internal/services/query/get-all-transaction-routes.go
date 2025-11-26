@@ -53,7 +53,7 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 			metadataFilter.Metadata = &bson.M{}
 		}
 
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)
+		metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 

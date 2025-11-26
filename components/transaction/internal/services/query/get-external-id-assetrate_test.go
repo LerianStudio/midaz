@@ -115,8 +115,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 
 	// Create use case with mocks
 	uc := UseCase{
-		AssetRateRepo: assetRateRepo,
-		MetadataRepo:  metadataRepo,
+		AssetRateRepo:           assetRateRepo,
+		MetadataTransactionRepo: metadataRepo,
 	}
 
 	// Test cases

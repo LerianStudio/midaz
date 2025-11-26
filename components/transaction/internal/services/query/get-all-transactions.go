@@ -54,7 +54,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		transactionIDs[i] = t.ID
 	}
 
-	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
+	metadata, err := uc.MetadataTransactionRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
@@ -111,7 +111,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
 	defer span.End()
 
-	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	operationMetadata, err := uc.MetadataTransactionRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
 

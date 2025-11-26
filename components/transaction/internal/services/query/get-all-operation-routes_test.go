@@ -63,8 +63,8 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	// Mock the OperationRouteRepo.FindAll call
@@ -124,8 +124,8 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -158,8 +158,8 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -195,8 +195,8 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -257,8 +257,8 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -319,8 +319,8 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -385,8 +385,8 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -448,8 +448,8 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockRepo.EXPECT().

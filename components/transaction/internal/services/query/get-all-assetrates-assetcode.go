@@ -54,7 +54,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 	}
 
 	if assetRates != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), filter)
+		metadata, err := uc.MetadataTransactionRepo.FindList(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), filter)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb asset rate", err)
 
