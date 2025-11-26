@@ -1,3 +1,22 @@
+## [v3.5.0-beta.6] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.5...v3.5.0-beta.6)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Backend & Test Integration**: We've successfully integrated `libCommons` items into the current codebase. This enhancement boosts backend capabilities and aligns testing frameworks with the latest standards, ensuring a more reliable and maintainable system.
+
+### 🔄 Changes
+- **Code Cleanup**: Removed the unused `CheckMetadataKeyAndValueLength` function from the backend. This streamlines the codebase, reducing clutter and potential confusion for developers.
+- **Improved Documentation**: Rewritten comments for cache utilities in the backend. This update aids developers in understanding caching mechanisms, making maintenance and future enhancements easier.
+
+### 📚 Documentation
+- **Changelog Updates**: We've updated the CHANGELOG to accurately reflect recent changes and improvements, ensuring all stakeholders have access to the latest project information.
+
+### 🔧 Maintenance
+- **General Updates**: Continued efforts to maintain accurate and up-to-date documentation for the project's progression and history, supporting transparency and informed decision-making.
+
+
 ## [v3.5.0-beta.5] - 2025-11-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.4...v3.5.0-beta.5)
