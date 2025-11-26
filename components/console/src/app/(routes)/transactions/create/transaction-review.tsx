@@ -44,7 +44,7 @@ export const TransactionReview = () => {
   // Buscar a route selecionada
   const { shouldUseRoutes, transactionRoutes } = useTransactionRoutesConfig()
   const selectedRoute = shouldUseRoutes
-    ? transactionRoutes.find(r => r.id === values.transactionRoute)
+    ? transactionRoutes.find((r) => r.id === values.transactionRoute)
     : null
 
   const [sendAnother, setSendAnother] = useState(false)
@@ -75,7 +75,11 @@ export const TransactionReview = () => {
       }
     })
 
-  const parse = ({ value, transactionRoute, ...values }: TransactionFormSchema) => ({
+  const parse = ({
+    value,
+    transactionRoute,
+    ...values
+  }: TransactionFormSchema) => ({
     ...values,
     amount: value.toString(),
     // Adicionar route ao payload se existir

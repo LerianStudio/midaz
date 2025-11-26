@@ -762,7 +762,7 @@
   "transactions.totalSent": "Total Sent",
   "transactions.validation.failed.title": "Transaction validation failed",
   "transactions.viewRawData": "View Raw Data",
-  "transactions.operationRoute.rule.failed": "Transaction does not completed because the operation one or more accounts do not meet the rules of the operation route.",
+  "transactions.operationRoute.rule.failed": "Transaction was not completed because one or more accounts in the operation do not meet the rules of the operation route.",
   "transactions.operationRoute.rule.notFound": "Operation Route not found in the transaction route.",
   "transactions.operationRoute.placeholder": "Select an operation route",
   "transactions.transactionRoute.placeholder": "Select a transaction route",
