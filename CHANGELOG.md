@@ -1,3 +1,16 @@
+## [v3.5.0-beta.7] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.6...v3.5.0-beta.7)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Data Integrity**: Implemented datetime format validation within the database. This ensures that all date and time entries adhere to a standard format, significantly reducing errors and improving the reliability of data-dependent applications.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded `lib-commons` to version `v2.6.0-beta.4`. This update brings various internal improvements, enhancing system stability and performance.
+- **Documentation Refresh**: Updated the CHANGELOG to accurately reflect recent changes, ensuring users have access to the latest information about software updates and enhancements.
+
+
 ## [v3.5.0-beta.6] - 2025-11-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.5...v3.5.0-beta.6)
