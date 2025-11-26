@@ -38,6 +38,7 @@ export class MidazTransactionMapper {
                   },
                   description: source.description,
                   chartOfAccounts: source.chartOfAccounts,
+                  route: source.operationRoute, // Incluir operation route
                   metadata: source.metadata
                 },
                 (propertyValue: any) => propertyValue === ''
@@ -55,6 +56,7 @@ export class MidazTransactionMapper {
                   },
                   description: destination.description,
                   chartOfAccounts: destination.chartOfAccounts,
+                  route: destination.operationRoute, // Incluir operation route
                   metadata: destination.metadata
                 },
                 (propertyValue: any) => propertyValue === ''
@@ -113,6 +115,7 @@ export class MidazTransactionMapper {
         asset: source.assetCode,
         amount: source.amount.value,
         description: source.description,
+        operationRoute: source.route,
         chartOfAccounts: source.chartOfAccounts,
         metadata: source.metadata ?? {}
       })),
@@ -122,6 +125,7 @@ export class MidazTransactionMapper {
         asset: destination.assetCode,
         amount: destination.amount.value,
         description: destination.description,
+        operationRoute: destination.route,
         chartOfAccounts: destination.chartOfAccounts,
         metadata: destination.metadata ?? {}
       })),

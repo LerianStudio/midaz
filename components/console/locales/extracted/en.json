@@ -762,6 +762,11 @@
   "transactions.totalSent": "Total Sent",
   "transactions.validation.failed.title": "Transaction validation failed",
   "transactions.viewRawData": "View Raw Data",
+  "transactions.operationRoute.rule.failed": "Transaction does not completed because the operation one or more accounts do not meet the rules of the operation route.",
+  "transactions.operationRoute.rule.notFound": "Operation Route not found in the transaction route.",
+  "transactions.operationRoute.placeholder": "Select an operation route",
+  "transactions.transactionRoute.placeholder": "Select a transaction route",
+
   "users.delete.description": "You are about to permanently delete this user. This action cannot be undone. Do you wish to continue?",
   "users.password.confirmDescription": "Are you sure you want to change the password for this user? This action cannot be undone.",
   "users.password.confirmLabel": "Yes, change password",

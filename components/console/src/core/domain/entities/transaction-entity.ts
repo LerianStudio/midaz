@@ -13,6 +13,7 @@ type TransactionSourceDto = {
   amount: string
   description?: string
   chartOfAccounts?: string
+  operationRoute?: string // Campo para operation route
   metadata: MetadataEntity
 }
 

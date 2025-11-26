@@ -28,7 +28,8 @@ export const transactionSourceFormSchema = z
       value: transaction.value,
       description: transaction.description.optional(),
       chartOfAccounts: transaction.chartOfAccounts.optional(),
-      metadata: extendedAccountMetadata
+      metadata: extendedAccountMetadata,
+      operationRoute: z.string().optional() // Campo para operation route
     })
   )
   .nonempty()
@@ -68,5 +69,6 @@ export const sourceInitialValues = {
   asset: '',
   description: '',
   chartOfAccounts: '',
-  metadata: {}
+  metadata: {},
+  operationRoute: '' // Campo para operation route
 }

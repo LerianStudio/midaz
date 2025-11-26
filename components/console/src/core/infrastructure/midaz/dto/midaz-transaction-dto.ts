@@ -18,6 +18,7 @@ type MidazCreateSourceDto = {
     percentageOfPercentage: number
   }
   chartOfAccounts?: string
+  route?: string // Campo para operation route
   description?: string
   metadata?: MidazMetadataDto
 }
@@ -61,6 +62,7 @@ export type OperationDto = {
   status: MidazStatusDto
   accountId: string
   accountAlias: string
+  route?: string
   portfolioId?: string
   createdAt: string
   updatedAt?: string

@@ -77,7 +77,7 @@ export const BasicInformationPaper = ({
             <SelectField
               name="transactionRoute"
               label={intl.formatMessage({
-                id: 'transactions.transactionRoute.label',
+                id: 'common.transactionRoutes',
                 defaultMessage: 'Transaction Route'
               })}
               control={control}
@@ -115,6 +115,7 @@ export const BasicInformationPaper = ({
             defaultMessage: 'Asset'
           })}
           control={control}
+          required={true}
         >
           {assets?.items?.map((asset) => (
             <SelectItem key={asset.code} value={asset.code}>
@@ -131,6 +132,7 @@ export const BasicInformationPaper = ({
               defaultMessage: 'Value'
             })}
             control={control}
+            required={true}
           />
         </div>
       </div>

@@ -22,6 +22,9 @@ import {
   SideControlTitle
 } from './primitives'
 import { useTransactionMode } from './hooks/use-transaction-mode'
+import { useTransactionRoutesConfig } from '@/hooks/use-transaction-routes-config'
+import { useWatch } from 'react-hook-form'
+import { useMemo } from 'react'
 
 export type TransactionSimpleFormProps = {
   onModeClick?: () => void
@@ -49,6 +52,39 @@ export const TransactionSimpleForm = ({
     handleNextStep,
     handleReview
   } = useTransactionForm()
+
+  // Obter configuração de routes
+  const { shouldUseRoutes, transactionRoutes } = useTransactionRoutesConfig()
+
+  // Observar a transactionRoute selecionada
+  const selectedTransactionRouteId = useWatch({
+    control: form.control,
+    name: 'transactionRoute'
+  })
+
+  // Filtrar operationRoutes baseado na transactionRoute selecionada
+  const { sourceOperationRoutes, destinationOperationRoutes } = useMemo(() => {
+    if (!shouldUseRoutes || !selectedTransactionRouteId) {
+      return { sourceOperationRoutes: [], destinationOperationRoutes: [] }
+    }
+
+    const selectedRoute = transactionRoutes.find(
+      (route) => route.id === selectedTransactionRouteId
+    )
+
+    if (!selectedRoute?.operationRoutes) {
+      return { sourceOperationRoutes: [], destinationOperationRoutes: [] }
+    }
+
+    return {
+      sourceOperationRoutes: selectedRoute.operationRoutes.filter(
+        (route) => route.operationType === 'source'
+      ),
+      destinationOperationRoutes: selectedRoute.operationRoutes.filter(
+        (route) => route.operationType === 'destination'
+      )
+    }
+  }, [shouldUseRoutes, selectedTransactionRouteId, transactionRoutes])
 
   return (
     <Form {...form}>
@@ -160,6 +196,8 @@ export const TransactionSimpleForm = ({
                   values={source}
                   valueEditable={values.source.length > 1}
                   control={form.control}
+                  operationRoutes={sourceOperationRoutes}
+                  shouldUseRoutes={shouldUseRoutes}
                 />
               ))}
               {values.destination?.map((destination, index) => (
@@ -171,6 +209,8 @@ export const TransactionSimpleForm = ({
                   values={destination}
                   valueEditable={values.destination.length > 1}
                   control={form.control}
+                  operationRoutes={destinationOperationRoutes}
+                  shouldUseRoutes={shouldUseRoutes}
                 />
               ))}
             </div>
