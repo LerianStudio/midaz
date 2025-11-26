@@ -13,7 +13,6 @@ Contributors: Augusto Alvarenga, lerian-studio
 ### 🔧 Maintenance
 - **Code Quality Improvements**: Behind-the-scenes enhancements to code quality across various components, including build and test systems, ensure better maintainability and performance without affecting user-facing features.
 
-
 ## [v3.5.0-beta.4] - 2025-11-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.3...v3.5.0-beta.4)
@@ -28,6 +27,15 @@ Contributors: Augusto Alvarenga
 ### 🔧 Maintenance
 - **Build and Frontend Optimization**: General improvements and optimizations have been made to the build process and frontend components, enhancing system performance and reliability for a smoother user experience.
 
+## [v3.5.0-beta.3] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.2...v3.5.0-beta.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Dependencies Updated**: We've refreshed several dependencies in `go.mod` and `go.sum` to their latest versions. This update enhances security and performance by incorporating the latest features and patches. Users can expect improved stability and reduced risk of vulnerabilities.
+- **Build and Testing Enhancements**: Routine updates have been applied to our build and testing infrastructure. These improvements streamline the development workflow, making it more reliable and efficient, which indirectly benefits users by ensuring smoother updates and fewer disruptions.
+- **Changelog Update**: The CHANGELOG has been meticulously updated to provide a clear and organized record of recent changes. This transparency helps users stay informed about the project's progress and any adjustments they might need to consider.
 
 ## [v3.5.0-beta.2] - 2025-11-25
 
@@ -49,7 +57,6 @@ Contributors: Clara Tersi, lerian-studio
 
 ### 🔧 Maintenance
 - **Dependency Management**: Conducted routine updates to dependencies, maintaining system integrity and leveraging the latest improvements and security fixes.
-
 
 ## [v3.5.0-beta.1] - 2025-11-25
 
