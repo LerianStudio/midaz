@@ -1,3 +1,15 @@
+## [v3.5.0-beta.8] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.7...v3.5.0-beta.8)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect the latest changes and improvements. This ensures users have access to the most current information about the project's progress and updates, providing clarity and transparency about what has been modified in this release.
+
+### 🔧 Maintenance
+- **Build/Dependencies**: We have updated the console dependencies to integrate the latest patches and improvements from third-party libraries. This update enhances the security and performance of the application, ensuring that users benefit from the most recent advancements in library support.
+
+
 ## [v3.5.0-beta.7] - 2025-11-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.6...v3.5.0-beta.7)
