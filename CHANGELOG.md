@@ -1,3 +1,19 @@
+## [v3.5.0-beta.5] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.4...v3.5.0-beta.5)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Forms**: Users can now select different transaction routes, providing greater customization in transaction processing. This feature, coupled with localization updates, ensures a seamless experience with interface elements and error messages in users' preferred languages.
+
+### 🐛 Bug Fixes
+- **Localization and Formatting**: Resolved issues with localized error messages in transaction routes, ensuring users receive accurate and context-sensitive communication. Improved code formatting enhances readability and reduces confusion during transaction reviews.
+- **Testing Enhancements**: Added unit tests for transaction route selection logic, increasing the reliability and robustness of transaction forms.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: Behind-the-scenes enhancements to code quality across various components, including build and test systems, ensure better maintainability and performance without affecting user-facing features.
+
+
 ## [v3.5.0-beta.4] - 2025-11-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.3...v3.5.0-beta.4)
