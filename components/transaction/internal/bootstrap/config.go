@@ -309,9 +309,16 @@ func InitServers() *Service {
 			SetUnique(false),
 	}
 
-	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+	collectionsOnboarding := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
+	for _, collection := range collectionsOnboarding {
+		if err := mongoConnectionOnboarding.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
+
+	collectionsTransaction := []string{"operation", "transaction", "operation_route", "transaction_route"}
+	for _, collection := range collectionsTransaction {
+		if err := mongoConnectionTransaction.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
 			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
 		}
 	}
