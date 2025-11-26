@@ -25,6 +25,9 @@ import { AccountSearchField } from './components/account-search-field'
 import { OperationSum } from './components/operation-sum'
 import { useTransactionMode } from './hooks/use-transaction-mode'
 import { TransactionModeButton } from '@/components/transactions/transaction-mode-button'
+import { useTransactionRoutesConfig } from '@/hooks/use-transaction-routes-config'
+import { useWatch } from 'react-hook-form'
+import { useMemo } from 'react'
 
 export type TransactionComplexFormProps = {
   onModeClick?: () => void
@@ -38,6 +41,7 @@ export const TransactionComplexForm = ({
 }: TransactionComplexFormProps) => {
   const intl = useIntl()
   const { mode } = useTransactionMode()
+
   const {
     form,
     errors,
@@ -52,6 +56,39 @@ export const TransactionComplexForm = ({
     handleNextStep,
     handleReview
   } = useTransactionForm()
+
+  // Obter configuração de routes
+  const { shouldUseRoutes, transactionRoutes } = useTransactionRoutesConfig()
+
+  // Observar a transactionRoute selecionada
+  const selectedTransactionRouteId = useWatch({
+    control: form.control,
+    name: 'transactionRoute'
+  })
+
+  // Filtrar operationRoutes baseado na transactionRoute selecionada
+  const { sourceOperationRoutes, destinationOperationRoutes } = useMemo(() => {
+    if (!shouldUseRoutes || !selectedTransactionRouteId) {
+      return { sourceOperationRoutes: [], destinationOperationRoutes: [] }
+    }
+
+    const selectedRoute = transactionRoutes.find(
+      (route) => route.id === selectedTransactionRouteId
+    )
+
+    if (!selectedRoute?.operationRoutes) {
+      return { sourceOperationRoutes: [], destinationOperationRoutes: [] }
+    }
+
+    return {
+      sourceOperationRoutes: selectedRoute.operationRoutes.filter(
+        (route) => route.operationType === 'source'
+      ),
+      destinationOperationRoutes: selectedRoute.operationRoutes.filter(
+        (route) => route.operationType === 'destination'
+      )
+    }
+  }, [shouldUseRoutes, selectedTransactionRouteId, transactionRoutes])
 
   return (
     <Form {...form}>
@@ -197,6 +234,8 @@ export const TransactionComplexForm = ({
                     values={source}
                     valueEditable={values.source.length > 1}
                     control={form.control}
+                    operationRoutes={sourceOperationRoutes}
+                    shouldUseRoutes={shouldUseRoutes}
                   />
                 ))}
                 <OperationSum
@@ -223,6 +262,8 @@ export const TransactionComplexForm = ({
                   values={destination}
                   valueEditable={values.destination.length > 1}
                   control={form.control}
+                  operationRoutes={destinationOperationRoutes}
+                  shouldUseRoutes={shouldUseRoutes}
                 />
               ))}
               <OperationSum

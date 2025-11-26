@@ -5,6 +5,15 @@ jest.mock('../../../../../hooks/use-stepper', () => ({
   useStepper: jest.fn()
 }))
 
+jest.mock('../../../../../hooks/use-transaction-routes-config', () => ({
+  useTransactionRoutesConfig: jest.fn(() => ({
+    shouldUseRoutes: false,
+    transactionRoutes: [],
+    isLoading: false,
+    error: null
+  }))
+}))
+
 const mockSetStep = jest.fn()
 const mockHandlePrevious = jest.fn()
 const mockHandleNext = jest.fn()
@@ -156,5 +165,47 @@ describe('useTransactionFormControl', () => {
       result.current.handleNext()
     })
     expect(mockHandleNext).not.toHaveBeenCalled()
+  })
+
+  describe('with transaction routes enabled', () => {
+    beforeEach(() => {
+      jest.clearAllMocks()
+      require('../../../../../hooks/use-transaction-routes-config').useTransactionRoutesConfig.mockReturnValue({
+        shouldUseRoutes: true,
+        transactionRoutes: [
+          { id: 'route1', title: 'Route 1' }
+        ],
+        isLoading: false,
+        error: null
+      })
+    })
+
+    it('should disable next if transactionRoute is not selected when routes are enabled', () => {
+      const { result } = renderHook(() =>
+        useTransactionFormControl({
+          asset: 'BTC',
+          value: 100,
+          source: [],
+          destination: [],
+          transactionRoute: '',
+          metadata: {}
+        } as any)
+      )
+      expect(result.current.enableNext).toBe(false)
+    })
+
+    it('should enable next if transactionRoute is selected when routes are enabled', () => {
+      const { result } = renderHook(() =>
+        useTransactionFormControl({
+          asset: 'BTC',
+          value: 100,
+          source: [],
+          destination: [],
+          transactionRoute: 'route1',
+          metadata: {}
+        } as any)
+      )
+      expect(result.current.enableNext).toBe(true)
+    })
   })
 })
