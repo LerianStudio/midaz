@@ -16,6 +16,16 @@ MIDAZ
  |---   |   postgres
  |---   |   rabbitmq
  |---   |---   etc
+ |---   crm
+ |---   |   api
+ |---   |   cmd
+ |---   |   internal
+ |---   |---   adapters
+ |---   |---   |   http
+ |---   |---   |---   in
+ |---   |---   |   mongodb
+ |---   |---   services
+ |---   |   scripts
  |---   onboarding
  |---   |   api
  |---   |   artifacts

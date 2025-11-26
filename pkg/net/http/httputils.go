@@ -32,6 +32,7 @@ type QueryHeader struct {
 	PortfolioID   string
 	OperationType string
 	ToAssetCodes  []string
+	HolderID      string
 }
 
 // Pagination entity from query parameter from get apis
@@ -254,5 +255,43 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+	}
+}
+
+func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
+	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
+}
+
+// ValidateMetadataValue validates a metadata value, ensuring it meets specific criteria for type and length.
+// It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
+func ValidateMetadataValue(value any) (any, error) {
+	switch v := value.(type) {
+	case string:
+		if len(v) > 2000 {
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
+		}
+
+		return v, nil
+	case float64, int, int64, float32, bool:
+		return v, nil
+	case nil:
+		return nil, nil
+	case map[string]any:
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	case []any:
+		validatedArray := make([]any, 0, len(v))
+
+		for _, item := range v {
+			validItem, err := ValidateMetadataValue(item)
+			if err != nil {
+				return nil, err
+			}
+
+			validatedArray = append(validatedArray, validItem)
+		}
+
+		return validatedArray, nil
+	default:
+		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
 	}
 }

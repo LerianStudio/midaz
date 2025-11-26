@@ -136,4 +136,11 @@ var (
 	ErrDefaultBalanceNotFound                   = errors.New("0126")
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrInvalidDatetimeFormat                    = errors.New("0128")
+
+	//TODO: Check if CRM errors should stay here
+	ErrAccountAlreadyAssociated = errors.New("CRM-0013")
+	ErrAliasNotFound            = errors.New("CRM-0008")
+	ErrDocumentAssociationError = errors.New("CRM-0010")
+	ErrHolderNotFound           = errors.New("CRM-0006")
+	ErrHolderHasAliases         = errors.New("CRM-0017")
 )
