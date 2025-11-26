@@ -3,14 +3,15 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetSegmentByID(t *testing.T) {
@@ -21,8 +22,8 @@ func TestGetSegmentByID(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		SegmentRepo:  mockSegmentRepo,
-		MetadataRepo: mockMetadataRepo,
+		SegmentRepo:            mockSegmentRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	tests := []struct {
