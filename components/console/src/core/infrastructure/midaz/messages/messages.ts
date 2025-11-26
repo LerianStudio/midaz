@@ -512,16 +512,17 @@ export const apiErrorMessages = defineMessages({
     defaultMessage: 'Invalid maxBetweenTypes configuration'
   },
   '0117': {
-    id: 'errors.fee.calculationTimeout',
-    defaultMessage: 'Fee calculation timeout'
+    id: 'transactions.operationRoute.rule.notFound',
+    defaultMessage: 'Operation Route not found in the transaction route.'
   },
   '0118': {
     id: 'errors.fee.circularDependency',
     defaultMessage: 'Circular fee dependency detected'
   },
   '0119': {
-    id: 'errors.fee.precisionError',
-    defaultMessage: 'Fee calculation precision error'
+    id: 'transactions.operationRoute.rule.failed',
+    defaultMessage:
+      'Transaction was not completed because one or more accounts in the operation do not meet the rules of the operation route.'
   },
   '0120': {
     id: 'errors.fee.invalidTransactionStructure',

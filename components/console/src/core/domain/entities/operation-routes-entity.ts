@@ -18,6 +18,7 @@ export type OperationRoutesEntity = {
     ruleType: string
     validIf: string | string[] | number | boolean | object | null | any
   }
+  code?: string
   metadata?: MetadataEntity
   createdAt?: Date
   updatedAt?: Date

@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -27,7 +28,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		key = hash
 	}
 
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
@@ -77,7 +78,7 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 		key = hash
 	}
 
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 	value, err := libCommons.StructToJSONString(t)
 	if err != nil {

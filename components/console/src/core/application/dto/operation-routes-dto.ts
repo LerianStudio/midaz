@@ -9,6 +9,7 @@ export type CreateOperationRoutesDto = {
     ruleType: string
     validIf: string | string[] | number | boolean | object | null | any
   }
+  code?: string
   metadata?: MetadataDto
 }
 
@@ -25,6 +26,7 @@ export type OperationRoutesDto = {
     ruleType: string
     validIf: string | string[] | number | boolean | object | null | any
   }
+  code?: string
   metadata?: MetadataDto
   createdAt: string
   updatedAt: string

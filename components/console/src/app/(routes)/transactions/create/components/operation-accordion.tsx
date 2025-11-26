@@ -5,7 +5,8 @@ import {
   PaperCollapsibleContent
 } from '@/components/transactions/primitives/paper-collapsible'
 import { Separator } from '@/components/ui/separator'
-import { InputField, MetadataField } from '@/components/form'
+import { InputField, MetadataField, SelectField } from '@/components/form'
+import { SelectItem } from '@/components/ui/select'
 import { useIntl } from 'react-intl'
 import { Control } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useTransactionForm } from '../transaction-form-provider'
 import { TransactionSourceFormSchema } from '../schemas'
+import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
 type ValueFieldProps = {
   name: string
@@ -81,6 +83,8 @@ export type OperationAccordionProps = {
   values: TransactionSourceFormSchema[0]
   valueEditable?: boolean
   control: Control<any>
+  operationRoutes?: OperationRoutesDto[] // Lista de operation routes disponíveis
+  shouldUseRoutes?: boolean // Se deve mostrar o campo de operation route
 }
 
 export const OperationAccordion = ({
@@ -89,7 +93,9 @@ export const OperationAccordion = ({
   asset,
   values,
   valueEditable,
-  control
+  control,
+  operationRoutes = [],
+  shouldUseRoutes = false
 }: OperationAccordionProps) => {
   const intl = useIntl()
 
@@ -174,6 +180,32 @@ export const OperationAccordion = ({
               })}
               control={control}
             />
+            {/* Campo de Operation Route */}
+            {shouldUseRoutes && (
+              <SelectField
+                name={`${name}.operationRoute`}
+                control={control}
+                label={intl.formatMessage({
+                  id: 'common.operationRoutes',
+                  defaultMessage: 'Operation Route'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'transactions.operationRoute.placeholder',
+                  defaultMessage: 'Select an operation route'
+                })}
+                description={intl.formatMessage({
+                  id: 'common.optional',
+                  defaultMessage: 'Optional'
+                })}
+                disabled={operationRoutes.length === 0}
+              >
+                {operationRoutes.map((route) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.title}
+                  </SelectItem>
+                ))}
+              </SelectField>
+            )}
           </div>
           <div className="h-9 w-9" />
         </div>

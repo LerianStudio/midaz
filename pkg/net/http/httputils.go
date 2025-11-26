@@ -74,9 +74,19 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
-			startDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, false)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
-			endDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, true)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
@@ -141,7 +151,7 @@ func validateDates(startDate, endDate *time.Time) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
 	}
 
-	if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) || !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 
@@ -176,18 +186,18 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-    ikey := c.Get(libConstants.IdempotencyKey)
-    iTTL := c.Get(libConstants.IdempotencyTTL)
+	ikey := c.Get(libConstants.IdempotencyKey)
+	iTTL := c.Get(libConstants.IdempotencyTTL)
 
-    // Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-    t, err := strconv.Atoi(iTTL)
-    if err != nil || t <= 0 {
-        t = libRedis.TTL
-    }
+	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+	t, err := strconv.Atoi(iTTL)
+	if err != nil || t <= 0 {
+		t = libRedis.TTL
+	}
 
-    ttl := time.Duration(t)
+	ttl := time.Duration(t)
 
-    return ikey, ttl
+	return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file

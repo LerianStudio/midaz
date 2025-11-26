@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestGetOrCreateTransactionRouteCache_CacheHit(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	// Create expected cache data in msgpack format
 	expectedCacheData := mmodel.TransactionRouteCache{
@@ -69,7 +70,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
@@ -129,7 +130,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
@@ -180,7 +181,7 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
@@ -231,7 +232,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+		expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -267,7 +268,7 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 	dbError := errors.New("database connection error")
 
 	mockRedisRepo.EXPECT().
@@ -304,7 +305,7 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
@@ -357,7 +358,7 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	// Create a transaction route with data that might cause msgpack encoding issues
 	transactionRoute := &mmodel.TransactionRoute{
