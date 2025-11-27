@@ -1,24 +1,10 @@
-x-plugin-crm-mongodb-common:
-  &plugin-crm-mongodb-common
-  image: mongo:latest
-  restart: always
-  healthcheck:
-    test: echo 'db.runCommand("ping").ok'
-    interval: 10s
-    timeout: 5s
-    retries: 5
-  networks:
-    - plugin-crm-network
-
 services:
-  plugin-crm:
-    container_name: plugin-crm
+  crm:
+    container_name: midaz-crm
     restart: always
     build:
-      context: .
-      dockerfile: Dockerfile
-      secrets:
-        - github_token
+      context: ../../
+      dockerfile: ./components/crm/Dockerfile
     env_file:
       - .env
     ports:
@@ -26,37 +12,19 @@ services:
     volumes:
       - .:/usr/src/app
     networks:
-      - plugin-crm-network
-      - plugin-auth-network
       - infra-network
-
-  plugin-crm-mongodb:
-    <<: *plugin-crm-mongodb-common
-    container_name: plugin-crm-mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    command: mongod --port ${MONGO_PORT}
-    ports:
-      - ${MONGO_PORT}:${MONGO_PORT}
-    volumes:
-      - plugin-crm-mongodb-data:/data/db
-
-volumes:
-  plugin-crm-mongodb-data:
-  plugin-crm-grafana-data:
+      - onboarding-network
+      - crm-network
 
 networks:
-  plugin-crm-network:
-    name: plugin-crm-network
-    driver: bridge
-  plugin-auth-network:
-    name: plugin-auth-network
-    driver: bridge
   infra-network:
     name: infra-network
     driver: bridge
-
-secrets:
-  github_token:
-    file: .secrets/github_token.txt
+    external: true
+  onboarding-network:
+    name: onboarding-network
+    driver: bridge
+    external: true
+  crm-network:
+    name: crm-network
+    driver: bridge

@@ -10,13 +10,14 @@ INFRA_DIR := ./components/infra
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 CONSOLE_DIR := ./components/console
+CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 
 # Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
+BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR) $(CRM_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -131,9 +132,9 @@ help:
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (onboarding and transaction)"
-	@echo "  make down-backend                 - Stop only backend services (onboarding and transaction)"
-	@echo "  make restart-backend              - Restart only backend services (onboarding and transaction)"
+	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
+	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
+	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"

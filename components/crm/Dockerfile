@@ -1,17 +1,18 @@
 # syntax=docker/dockerfile:1.4
 
 # Build stage
-FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
 # Install git and garble for private module access and obfuscation
 RUN apk add --no-cache git && \
     go install mvdan.cc/garble@latest
 
 # Set working directory
-WORKDIR /plugin-crm
+WORKDIR /crm-app
 
 # Copy Go module files to take advantage of layer caching
 COPY go.mod go.sum ./
+RUN go mod download
 
 # Use BuildKit secret to authenticate with GitHub and download private dependencies
 RUN --mount=type=secret,id=github_token \
@@ -23,9 +24,13 @@ RUN --mount=type=secret,id=github_token \
 # Copy the full source code
 COPY . .
 
-# Add Go bin path for garble and build the binary with obfuscation
+# Add Go bin path for garble and build the binary with obfuscation (multi-arch)
 ENV PATH="/root/go/bin:${PATH}"
-RUN CGO_ENABLED=0 GOOS=linux garble -tiny -literals build -a -tags netgo -ldflags='-w -extldflags "-static"' -o /app cmd/app/main.go
+ARG TARGETPLATFORM
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+    garble -tiny -literals build -a -tags netgo \
+    -ldflags='-w -extldflags "-static"' \
+    -o /app components/crm/cmd/app/main.go
 
 # Final minimal image (Distroless)
 FROM gcr.io/distroless/static-debian12
