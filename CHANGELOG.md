@@ -1,3 +1,18 @@
+## [v3.5.0-beta.10] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.9...v3.5.0-beta.10)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Database Performance**: Removed a deprecated index from the transaction component. This improvement boosts database performance and reliability by eliminating outdated structures that could cause inefficiencies or errors during data processing.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements, ensuring users and developers have access to the most current information about updates and fixes. This transparency aids in understanding the evolution of the software and facilitates easier troubleshooting and development.
+
+### 🔧 Maintenance
+- **Release Management**: Continued efforts to maintain the integrity and performance of the database system, ensuring that all documentation is both current and informative for users and developers alike.
+
+
 ## [v3.5.0-beta.9] - 2025-11-27
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.8...v3.5.0-beta.9)
