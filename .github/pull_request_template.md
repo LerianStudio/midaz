@@ -6,7 +6,6 @@
 - [ ] Console
 - [ ] Documentation
 - [ ] Infra
-- [ ] Mdz
 - [ ] Onboarding
 - [ ] Pipeline
 - [ ] Transaction

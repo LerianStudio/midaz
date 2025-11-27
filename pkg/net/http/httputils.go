@@ -74,9 +74,19 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
-			startDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, false)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
-			endDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, true)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
@@ -147,7 +157,7 @@ func validateDates(startDate, endDate *time.Time) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
 	}
 
-	if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) || !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 

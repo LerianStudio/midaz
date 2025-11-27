@@ -836,9 +836,9 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't use the same account in sources and destinations",
 		},
-		constant.ErrBalancesCantDeleted: ValidationError{
+		constant.ErrBalancesCantBeDeleted: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrBalancesCantDeleted.Error(),
+			Code:       constant.ErrBalancesCantBeDeleted.Error(),
 			Title:      "Balance cannot be deleted",
 			Message:    "Balance cannot be deleted because it still has funds in it.",
 		},
@@ -1043,6 +1043,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAccountCreationFailed.Error(),
 			Title:      "Account Creation Failed",
 			Message:    "The account could not be created because the default balance could not be created. Please try again.",
+		},
+		constant.ErrInvalidDatetimeFormat: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDatetimeFormat.Error(),
+			Title:      "Invalid Datetime Format Error",
+			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' or 'yyyy-mm-dd hh:mm:ss' format and try again.",
 		},
 	}
 
