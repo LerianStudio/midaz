@@ -35,11 +35,11 @@ func TestGetAllAliases(t *testing.T) {
 
 	query := http.QueryHeader{Limit: 10, Page: 1}
 	queryWithDocument := http.QueryHeader{Limit: 10, Page: 1, Document: &document}
-	queryWithAccountId := http.QueryHeader{Limit: 10, Page: 1, AccountId: &accountId}
-	queryWithLedgerId := http.QueryHeader{Limit: 10, Page: 1, LedgerId: &ledgerId}
+	queryWithAccountId := http.QueryHeader{Limit: 10, Page: 1, AccountID: &accountId}
+	queryWithLedgerId := http.QueryHeader{Limit: 10, Page: 1, LedgerID: &ledgerId}
 	queryWithbankingDetailsAccount := http.QueryHeader{Limit: 10, Page: 1, BankingDetailsAccount: &account}
-	queryWithbankingDetailsIban := http.QueryHeader{Limit: 10, Page: 1, ExternalId: &iban}
-	queryWithbankingDetailsBranch := http.QueryHeader{Limit: 10, Page: 1, ExternalId: &branch}
+	queryWithbankingDetailsIban := http.QueryHeader{Limit: 10, Page: 1, ExternalID: &iban}
+	queryWithbankingDetailsBranch := http.QueryHeader{Limit: 10, Page: 1, ExternalID: &branch}
 
 	testCases := []struct {
 		name           string

@@ -31,12 +31,12 @@ type QueryHeader struct {
 	UseMetadata           bool
 	PortfolioID           string
 	OperationType         string
-	ToAssetCodes          []string
+	ToAssetCodes          []string	
 	HolderID              *string
-	ExternalId            *string
+	ExternalID            *string
 	Document              *string
-	AccountId             *string
-	LedgerId              *string
+	AccountID             *string
+	LedgerID              *string
 	BankingDetailsBranch  *string
 	BankingDetailsAccount *string
 	BankingDetailsIban    *string
@@ -158,10 +158,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		OperationType:         operationType,
 		ToAssetCodes:          toAssetCodes,
 		HolderID:              holderID,
-		ExternalId:            externalID,
+		ExternalID:            externalID,
 		Document:              document,
-		AccountId:             accountID,
-		LedgerId:              ledgerID,
+		AccountID:             accountID,
+		LedgerID:              ledgerID,
 		BankingDetailsBranch:  bankingDetailsBranch,
 		BankingDetailsAccount: bankingDetailsAccount,
 		BankingDetailsIban:    bankingDetailsIban,
@@ -312,7 +312,7 @@ func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 	if depth > maxDepth {
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
 	}
-	
+
 	switch v := value.(type) {
 	case string:
 		if len(v) > 2000 {

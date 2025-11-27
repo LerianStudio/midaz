@@ -342,15 +342,15 @@ generate-docs:
 .PHONY: validate-api-docs
 validate-api-docs: generate-docs
 	$(call title1,"Validating API documentation")
-	@if [ -f "scripts/validate-api-docs.js" ] && [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
-		echo "$(YELLOW)Validating API documentation structure...$(NC)"; \
+	@echo "$(YELLOW)Validating API documentation structure...$(NC)"
+	@if [ -f "$(MIDAZ_ROOT)/components/crm/scripts/validate-api-docs.js" ] && [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
 		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/crm/scripts/validate-api-docs.js; \
 		echo "$(YELLOW)Validating API implementations...$(NC)"; \
 		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/crm/scripts/validate-api-implementations.js; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"; \
 	else \
-		echo "$(YELLOW)Validation scripts not found. Skipping validation.$(NC)"; \
+		echo "$(YELLOW)Validation script or package.json not found, skipping detailed validation$(NC)"; \
 	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Developer Helper

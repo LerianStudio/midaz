@@ -2,14 +2,15 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"testing"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllHolders(t *testing.T) {
@@ -37,7 +38,7 @@ func TestGetAllHolders(t *testing.T) {
 
 	query := http.QueryHeader{Limit: 10, Page: 1}
 	queryWithDocument := http.QueryHeader{Limit: 10, Page: 1, Document: &document1}
-	queryWithExternalId := http.QueryHeader{Limit: 10, Page: 1, ExternalId: &externalID3}
+	queryWithExternalId := http.QueryHeader{Limit: 10, Page: 1, ExternalID: &externalID3}
 
 	testCases := []struct {
 		name           string
@@ -85,7 +86,7 @@ func TestGetAllHolders(t *testing.T) {
 			filter: queryWithExternalId,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), query, false).
+					FindAll(gomock.Any(), gomock.Any(), queryWithExternalId, false).
 					Return([]*mmodel.Holder{
 						{ID: &holderID3, Name: &name3, Document: &document3, ExternalID: &externalID3},
 					}, nil)

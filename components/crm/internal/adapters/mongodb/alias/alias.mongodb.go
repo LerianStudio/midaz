@@ -59,8 +59,7 @@ func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *lc
 
 // Create inserts an alias into mongo
 func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Alias) (*mmodel.Alias, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_alias")
 	defer span.End()
@@ -142,8 +141,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 // Find an alias by holder and alias id
 func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_alias")
 	defer span.End()
@@ -199,8 +197,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 }
 
 func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_alias")
 	defer span.End()
@@ -306,8 +303,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 // FindAll accounts by holder id and filter
 func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_aliases")
 	defer span.End()
@@ -412,12 +408,12 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.AccountId) {
-		filter = append(filter, bson.E{Key: "account_id", Value: *query.AccountId})
+	if !libCommons.IsNilOrEmpty(query.AccountID) {
+		filter = append(filter, bson.E{Key: "account_id", Value: *query.AccountID})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.LedgerId) {
-		filter = append(filter, bson.E{Key: "ledger_id", Value: *query.LedgerId})
+	if !libCommons.IsNilOrEmpty(query.LedgerID) {
+		filter = append(filter, bson.E{Key: "ledger_id", Value: *query.LedgerID})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.Document) {

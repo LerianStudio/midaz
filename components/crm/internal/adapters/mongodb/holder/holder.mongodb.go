@@ -297,8 +297,8 @@ func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDe
 		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
 	}
 
-	if query.ExternalId != nil && *query.ExternalId != "" {
-		filter = append(filter, bson.E{Key: "external_id", Value: *query.ExternalId})
+	if query.ExternalID != nil && *query.ExternalID != "" {
+		filter = append(filter, bson.E{Key: "external_id", Value: *query.ExternalID})
 	}
 
 	if query.Document != nil && *query.Document != "" {

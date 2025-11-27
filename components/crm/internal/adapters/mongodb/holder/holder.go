@@ -395,6 +395,7 @@ func mapNaturalPersonToEntity(ds *lcrypto.LCrypto, np *NaturalPersonMongoDBModel
 // mapLegalPersonToEntity maps a MongoDB model to a LegalPerson entity
 func mapLegalPersonToEntity(ds *lcrypto.LCrypto, lp *LegalPersonMongoDBModel) (*mmodel.LegalPerson, error) {
 	var foundingDate *string
+
 	if lp.FoundingDate != nil {
 		formatted := lp.FoundingDate.Format("2006-01-02")
 		foundingDate = &formatted
