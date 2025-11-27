@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	"plugin-crm/v2/pkg/model"
-	"testing"
 )
 
 func TestUpdateHolderByID(t *testing.T) {
@@ -26,27 +27,27 @@ func TestUpdateHolderByID(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		input          *model.UpdateHolderInput
+		input          *mmodel.UpdateHolderInput
 		mockSetup      func()
 		expectErr      bool
-		expectedHolder *model.Holder
+		expectedHolder *mmodel.Holder
 	}{
 		{
 			name: "Success with single field provided",
-			input: &model.UpdateHolderInput{
+			input: &mmodel.UpdateHolderInput{
 				Name: &name,
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Holder{
+					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Name:     &name,
 						Document: &document,
 					}, nil)
 			},
 			expectErr: false,
-			expectedHolder: &model.Holder{
+			expectedHolder: &mmodel.Holder{
 				ID:       &holderID,
 				Name:     &name,
 				Document: &document,

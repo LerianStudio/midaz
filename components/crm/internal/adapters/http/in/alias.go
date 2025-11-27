@@ -283,8 +283,8 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	}
 
 	var holderID uuid.UUID
-	if !libCommons.IsNilOrEmpty(&headerParams.HolderID) {
-		holderID, err = uuid.Parse(headerParams.HolderID)
+	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
+		holderID, err = uuid.Parse(*headerParams.HolderID)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID", err)
 
@@ -309,7 +309,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	if !libCommons.IsNilOrEmpty(&headerParams.HolderID) {
+	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
 		span.SetAttributes(
 			attribute.String("app.request.holder_id", holderID.String()),
 		)

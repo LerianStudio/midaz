@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	cn "plugin-crm/v2/pkg/constant"
-	"plugin-crm/v2/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"testing"
 )
 
@@ -31,7 +31,7 @@ func TestGetHolderByID(t *testing.T) {
 		holderID       uuid.UUID
 		mockSetup      func()
 		expectError    bool
-		expectedResult *model.Holder
+		expectedResult *mmodel.Holder
 	}{
 		{
 			name:     "Success retrieving holder by ID",
@@ -39,14 +39,14 @@ func TestGetHolderByID(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Holder{
+					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Name:     &name,
 						Document: &document,
 					}, nil)
 			},
 			expectError: false,
-			expectedResult: &model.Holder{
+			expectedResult: &mmodel.Holder{
 				ID:       &holderID,
 				Name:     &name,
 				Document: &document,

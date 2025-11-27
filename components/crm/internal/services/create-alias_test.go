@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/alias"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	cn "plugin-crm/v2/pkg/constant"
-	"plugin-crm/v2/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"testing"
 )
 
@@ -34,29 +34,29 @@ func TestCreateAlias(t *testing.T) {
 	testCases := []struct {
 		name           string
 		holderID       uuid.UUID
-		input          *model.CreateAliasInput
+		input          *mmodel.CreateAliasInput
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *model.Alias
+		expectedResult *mmodel.Alias
 	}{
 		{
 			name:     "Success with required fields provided",
 			holderID: holderID,
-			input: &model.CreateAliasInput{
+			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Holder{
+					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Document: &holderDocument,
 					}, nil)
 
 				mockAliasRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Alias{
+					Return(&mmodel.Alias{
 						ID:        &id,
 						Document:  &holderDocument,
 						AccountID: &accountID,
@@ -64,7 +64,7 @@ func TestCreateAlias(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &model.Alias{
+			expectedResult: &mmodel.Alias{
 				ID:        &id,
 				Document:  &holderDocument,
 				AccountID: &accountID,
@@ -74,7 +74,7 @@ func TestCreateAlias(t *testing.T) {
 		{
 			name:     "Error when holder not found for alias creation",
 			holderID: uuid.New(),
-			input: &model.CreateAliasInput{
+			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},

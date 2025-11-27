@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/alias"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	cn "plugin-crm/v2/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"testing"
 )
 

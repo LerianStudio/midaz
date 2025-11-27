@@ -5,8 +5,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	"plugin-crm/v2/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"testing"
 )
 
@@ -26,28 +26,28 @@ func TestCreateHolder(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		input          *model.CreateHolderInput
+		input          *mmodel.CreateHolderInput
 		mockSetup      func()
 		expectErr      bool
-		expectedHolder *model.Holder
+		expectedHolder *mmodel.Holder
 	}{
 		{
 			name: "Success with required fields provided",
-			input: &model.CreateHolderInput{
+			input: &mmodel.CreateHolderInput{
 				Name:     name,
 				Document: document,
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Holder{
+					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Name:     &name,
 						Document: &document,
 					}, nil)
 			},
 			expectErr: false,
-			expectedHolder: &model.Holder{
+			expectedHolder: &mmodel.Holder{
 				ID:       &holderID,
 				Name:     &name,
 				Document: &document,

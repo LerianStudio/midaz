@@ -1,8 +1,8 @@
 package main
 
 import (
-	"plugin-crm/v2/internal/bootstrap"
-	"plugin-crm/v2/pkg"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
 // @title			Plugin CRM
@@ -11,6 +11,6 @@ import (
 // @host			localhost:4003
 // @BasePath		/
 func main() {
-	pkg.InitLocalEnvConfig()
+	libCommons.InitLocalEnvConfig()
 	bootstrap.InitServers().Run()
 }

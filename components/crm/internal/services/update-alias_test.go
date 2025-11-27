@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/alias"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	cn "plugin-crm/v2/pkg/constant"
-	"plugin-crm/v2/pkg/model"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"testing"
 )
 
@@ -36,42 +36,42 @@ func TestUpdateAliasByID(t *testing.T) {
 		name           string
 		id             uuid.UUID
 		holderID       uuid.UUID
-		input          *model.UpdateAliasInput
+		input          *mmodel.UpdateAliasInput
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *model.Alias
+		expectedResult *mmodel.Alias
 	}{
 		{
 			name:     "Success with single field provided",
 			id:       id,
 			holderID: holderID,
-			input: &model.UpdateAliasInput{
-				BankingDetails: &model.BankingDetails{
+			input: &mmodel.UpdateAliasInput{
+				BankingDetails: &mmodel.BankingDetails{
 					Branch: &branch,
 				},
 			},
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&model.Alias{
+					Return(&mmodel.Alias{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
 						HolderID:  &holderID,
 						AccountID: &accountID,
-						BankingDetails: &model.BankingDetails{
+						BankingDetails: &mmodel.BankingDetails{
 							Branch: &branch,
 						},
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &model.Alias{
+			expectedResult: &mmodel.Alias{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
 				HolderID:  &holderID,
 				AccountID: &accountID,
-				BankingDetails: &model.BankingDetails{
+				BankingDetails: &mmodel.BankingDetails{
 					Branch: &branch,
 				},
 			},
@@ -80,8 +80,8 @@ func TestUpdateAliasByID(t *testing.T) {
 			name:     "Error when alias not found by ID",
 			id:       id,
 			holderID: holderID,
-			input: &model.UpdateAliasInput{
-				BankingDetails: &model.BankingDetails{
+			input: &mmodel.UpdateAliasInput{
+				BankingDetails: &mmodel.BankingDetails{
 					Branch: &branch,
 				},
 			},

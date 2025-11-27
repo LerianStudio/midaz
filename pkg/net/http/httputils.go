@@ -21,18 +21,25 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata      *bson.M
-	Limit         int
-	Page          int
-	Cursor        string
-	SortOrder     string
-	StartDate     time.Time
-	EndDate       time.Time
-	UseMetadata   bool
-	PortfolioID   string
-	OperationType string
-	ToAssetCodes  []string
-	HolderID      string
+	Metadata              *bson.M
+	Limit                 int
+	Page                  int
+	Cursor                string
+	SortOrder             string
+	StartDate             time.Time
+	EndDate               time.Time
+	UseMetadata           bool
+	PortfolioID           string
+	OperationType         string
+	ToAssetCodes          []string
+	HolderID              *string
+	ExternalId            *string
+	Document              *string
+	AccountId             *string
+	LedgerId              *string
+	BankingDetailsBranch  *string
+	BankingDetailsAccount *string
+	BankingDetailsIban    *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -48,17 +55,25 @@ type Pagination struct {
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
-		metadata      *bson.M
-		portfolioID   string
-		operationType string
-		toAssetCodes  []string
-		startDate     time.Time
-		endDate       time.Time
-		cursor        string
-		limit         = 10
-		page          = 1
-		sortOrder     = "asc"
-		useMetadata   = false
+		metadata              *bson.M
+		portfolioID           string
+		operationType         string
+		toAssetCodes          []string
+		startDate             time.Time
+		endDate               time.Time
+		cursor                string
+		limit                 = 10
+		page                  = 1
+		sortOrder             = "asc"
+		useMetadata           = false
+		holderID              *string
+		externalID            *string
+		document              *string
+		accountID             *string
+		ledgerID              *string
+		bankingDetailsBranch  *string
+		bankingDetailsAccount *string
+		bankingDetailsIban    *string
 	)
 
 	for key, value := range params {
@@ -94,6 +109,22 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			operationType = strings.ToUpper(value)
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
+		case strings.Contains(key, "holder_id"):
+			holderID = &value
+		case strings.Contains(key, "external_id"):
+			externalID = &value
+		case strings.Contains(key, "document"):
+			document = &value
+		case strings.Contains(key, "account_id"):
+			accountID = &value
+		case strings.Contains(key, "ledger_id"):
+			ledgerID = &value
+		case strings.Contains(key, "banking_details_branch"):
+			bankingDetailsBranch = &value
+		case strings.Contains(key, "banking_details_account"):
+			bankingDetailsAccount = &value
+		case strings.Contains(key, "banking_details_iban"):
+			bankingDetailsIban = &value
 		}
 	}
 
@@ -115,17 +146,25 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	query := &QueryHeader{
-		Metadata:      metadata,
-		Limit:         limit,
-		Page:          page,
-		Cursor:        cursor,
-		SortOrder:     sortOrder,
-		StartDate:     startDate,
-		EndDate:       endDate,
-		UseMetadata:   useMetadata,
-		PortfolioID:   portfolioID,
-		OperationType: operationType,
-		ToAssetCodes:  toAssetCodes,
+		Metadata:              metadata,
+		Limit:                 limit,
+		Page:                  page,
+		Cursor:                cursor,
+		SortOrder:             sortOrder,
+		StartDate:             startDate,
+		EndDate:               endDate,
+		UseMetadata:           useMetadata,
+		PortfolioID:           portfolioID,
+		OperationType:         operationType,
+		ToAssetCodes:          toAssetCodes,
+		HolderID:              holderID,
+		ExternalId:            externalID,
+		Document:              document,
+		AccountId:             accountID,
+		LedgerId:              ledgerID,
+		BankingDetailsBranch:  bankingDetailsBranch,
+		BankingDetailsAccount: bankingDetailsAccount,
+		BankingDetailsIban:    bankingDetailsIban,
 	}
 
 	return query, nil

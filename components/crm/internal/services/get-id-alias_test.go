@@ -2,15 +2,16 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"plugin-crm/v2/internal/adapters/mongodb/alias"
-	"plugin-crm/v2/internal/adapters/mongodb/holder"
-	cn "plugin-crm/v2/pkg/constant"
-	"plugin-crm/v2/pkg/model"
-	"testing"
 )
 
 func TestGetAliasByID(t *testing.T) {
@@ -37,7 +38,7 @@ func TestGetAliasByID(t *testing.T) {
 		holderID       uuid.UUID
 		mockSetup      func()
 		expectedErr    error
-		expectedResult *model.Alias
+		expectedResult *mmodel.Alias
 	}{
 		{
 			name:     "Success retrieving alias by ID",
@@ -46,7 +47,7 @@ func TestGetAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&model.Alias{
+					Return(&mmodel.Alias{
 						ID:        &id,
 						Document:  &holderDocument,
 						LedgerID:  &ledgerID,
@@ -55,7 +56,7 @@ func TestGetAliasByID(t *testing.T) {
 					}, nil)
 			},
 			expectedErr: nil,
-			expectedResult: &model.Alias{
+			expectedResult: &mmodel.Alias{
 				ID:        &id,
 				Document:  &holderDocument,
 				LedgerID:  &ledgerID,
