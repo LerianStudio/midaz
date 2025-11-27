@@ -1,3 +1,24 @@
+## [v3.5.0-beta.9] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.8...v3.5.0-beta.9)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Database Debugging**: We've added detailed debug logging for SQL queries in key database functions. This allows developers to better track and diagnose database interactions, making troubleshooting more transparent and efficient.
+
+### 🐛 Bug Fixes
+- **Documentation Consistency**: Resolved discrepancies between the configuration and documentation by updating both to version v3.4.5. This ensures users have consistent and accurate information, reducing potential confusion.
+
+### ⚡ Performance
+- **Optimized Query Efficiency**: By adding an index to the `operation` table for `account_id`, we've significantly improved query performance. Users will experience faster response times when performing operations involving account data.
+
+### 📚 Documentation
+- **Improved Function Guidance**: Enhanced the documentation for the `validateDates` function. This update provides clearer guidance and examples, helping developers understand and correctly implement this function.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes, ensuring all modifications are documented and accessible for future reference.
+
+
 ## [v3.5.0-beta.8] - 2025-11-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.7...v3.5.0-beta.8)
