@@ -93,7 +93,7 @@ func TestCreateAlias(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.CreateAlias(ctx, uuid.New().String(), holderID, testCase.input)
+			result, err := uc.CreateAlias(ctx, uuid.New().String(), testCase.holderID, testCase.input)
 
 			if testCase.expectedErr != nil {
 				assert.Error(t, err)

@@ -206,16 +206,22 @@ func mapNaturalPersonFromEntity(ds *lcrypto.LCrypto, np *mmodel.NaturalPerson) (
 
 // mapLegalPersonFromEntity maps legal person entity to MongoDB model
 func mapLegalPersonFromEntity(ds *lcrypto.LCrypto, lp *mmodel.LegalPerson) (*LegalPersonMongoDBModel, error) {
-	parsedFoundingDate, err := time.Parse("2006-01-02", *lp.FoundingDate)
-	if err != nil {
-		return nil, err
+	var parsedFoundingDate *time.Time
+
+	if lp.FoundingDate != nil {
+		parsed, err := time.Parse("2006-01-02", *lp.FoundingDate)
+		if err != nil {
+			return nil, err
+		}
+
+		parsedFoundingDate = &parsed
 	}
 
 	mongoLP := &LegalPersonMongoDBModel{
 		TradeName:    lp.TradeName,
 		Activity:     lp.Activity,
 		Type:         lp.Type,
-		FoundingDate: &parsedFoundingDate,
+		FoundingDate: parsedFoundingDate,
 		Status:       lp.Status,
 		Size:         lp.Size,
 	}
@@ -388,13 +394,17 @@ func mapNaturalPersonToEntity(ds *lcrypto.LCrypto, np *NaturalPersonMongoDBModel
 
 // mapLegalPersonToEntity maps a MongoDB model to a LegalPerson entity
 func mapLegalPersonToEntity(ds *lcrypto.LCrypto, lp *LegalPersonMongoDBModel) (*mmodel.LegalPerson, error) {
-	formatted := lp.FoundingDate.Format("2006-01-02")
+	var foundingDate *string
+	if lp.FoundingDate != nil {
+		formatted := lp.FoundingDate.Format("2006-01-02")
+		foundingDate = &formatted
+	}
 
 	legalPerson := &mmodel.LegalPerson{
 		TradeName:    lp.TradeName,
 		Activity:     lp.Activity,
 		Type:         lp.Type,
-		FoundingDate: &formatted,
+		FoundingDate: foundingDate,
 		Status:       lp.Status,
 		Size:         lp.Size,
 	}

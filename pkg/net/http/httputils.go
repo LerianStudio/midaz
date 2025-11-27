@@ -304,12 +304,20 @@ func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
 // ValidateMetadataValue validates a metadata value, ensuring it meets specific criteria for type and length.
 // It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
 func ValidateMetadataValue(value any) (any, error) {
+	return validateMetadataValueWithDepth(value, 0)
+}
+
+func validateMetadataValueWithDepth(value any, depth int) (any, error) {
+	const maxDepth = 10
+	if depth > maxDepth {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	}
+	
 	switch v := value.(type) {
 	case string:
 		if len(v) > 2000 {
 			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
 		}
-
 		return v, nil
 	case float64, int, int64, float32, bool:
 		return v, nil
@@ -319,16 +327,13 @@ func ValidateMetadataValue(value any) (any, error) {
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
 	case []any:
 		validatedArray := make([]any, 0, len(v))
-
 		for _, item := range v {
-			validItem, err := ValidateMetadataValue(item)
+			validItem, err := validateMetadataValueWithDepth(item, depth+1)
 			if err != nil {
 				return nil, err
 			}
-
 			validatedArray = append(validatedArray, validItem)
 		}
-
 		return validatedArray, nil
 	default:
 		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")

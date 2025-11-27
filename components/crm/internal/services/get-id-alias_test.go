@@ -82,7 +82,7 @@ func TestGetAliasByID(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAliasByID(ctx, uuid.New().String(), holderID, id, false)
+			result, err := uc.GetAliasByID(ctx, uuid.New().String(), testCase.holderID, testCase.id, false)
 
 			if testCase.expectedErr != nil {
 				assert.Error(t, err)

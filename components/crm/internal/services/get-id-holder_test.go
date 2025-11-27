@@ -70,7 +70,7 @@ func TestGetHolderByID(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetHolderByID(ctx, uuid.New().String(), holderID, false)
+			result, err := uc.GetHolderByID(ctx, uuid.New().String(), testCase.holderID, false)
 
 			if testCase.expectError {
 				assert.Error(t, err)

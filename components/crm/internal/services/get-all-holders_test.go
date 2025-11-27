@@ -70,7 +70,7 @@ func TestGetAllHolders(t *testing.T) {
 			filter: queryWithDocument,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), query, false).
+					FindAll(gomock.Any(), gomock.Any(), queryWithDocument, false).
 					Return([]*mmodel.Holder{
 						{ID: &holderID1, Name: &name1, Document: &document1},
 					}, nil)
@@ -113,7 +113,7 @@ func TestGetAllHolders(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			holders, err := uc.GetAllHolders(ctx, uuid.New().String(), query, false)
+			holders, err := uc.GetAllHolders(ctx, uuid.New().String(), testCase.filter, false)
 
 			if testCase.expectErr {
 				assert.NotNil(t, err)

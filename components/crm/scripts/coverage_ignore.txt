@@ -1,5 +1,0 @@
-plugin-crm/api
-plugin-crm/cmd/app
-plugin-crm/pkg/constant
-plugin-crm/internal/bootstrap
-plugin-crm/internal/bootstrap
