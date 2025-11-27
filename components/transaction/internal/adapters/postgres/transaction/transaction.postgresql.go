@@ -822,6 +822,9 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	logger.Debugf("FindOrListAllWithOperations query: %s", query)
+	logger.Debugf("FindOrListAllWithOperations args: %v", args)
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 

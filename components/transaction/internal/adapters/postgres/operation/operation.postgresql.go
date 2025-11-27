@@ -789,6 +789,9 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	logger.Debugf("FindAllByAccount query: %s", query)
+	logger.Debugf("FindAllByAccount args: %v", args)
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
