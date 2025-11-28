@@ -97,7 +97,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					err <- er
 				}
 
-				er = uc.CreateMetadata(ctx, logger, fromTo[i].Metadata, op)
+				er = uc.CreateOperationMetadata(ctx, logger, fromTo[i].Metadata, op)
 				if er != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata on operation", er)
 
@@ -117,8 +117,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	result <- operations
 }
 
-// CreateMetadata func that create metadata into operations
-func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
+// CreateOperationMetadata func that create metadata into operations
+func (uc *UseCase) CreateOperationMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
 		meta := mongodb.Metadata{
 			EntityID:   o.ID,
