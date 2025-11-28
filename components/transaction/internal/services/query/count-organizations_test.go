@@ -5,25 +5,22 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func TestCountSegments(t *testing.T) {
+func TestCountOrganizations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockSegmentRepo := segment.NewMockRepository(ctrl)
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		SegmentRepo: mockSegmentRepo,
+		OrganizationRepo: mockOrganizationRepo,
 	}
 
 	tests := []struct {
@@ -34,30 +31,30 @@ func TestCountSegments(t *testing.T) {
 		expectedResult int64
 	}{
 		{
-			name: "Success - Count segments",
+			name: "Success - Count organizations",
 			mockSetup: func() {
-				mockSegmentRepo.EXPECT().
-					Count(gomock.Any(), organizationID, ledgerID).
-					Return(int64(15), nil)
+				mockOrganizationRepo.EXPECT().
+					Count(gomock.Any()).
+					Return(int64(42), nil)
 			},
 			expectErr:      false,
-			expectedResult: 15,
+			expectedResult: 42,
 		},
 		{
-			name: "Error - No segments found",
+			name: "Error - No organizations found",
 			mockSetup: func() {
-				mockSegmentRepo.EXPECT().
-					Count(gomock.Any(), organizationID, ledgerID).
+				mockOrganizationRepo.EXPECT().
+					Count(gomock.Any()).
 					Return(int64(0), services.ErrDatabaseItemNotFound)
 			},
 			expectErr:     true,
-			expectedError: pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, "Segment"),
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, "Organization"),
 		},
 		{
 			name: "Error - Database error",
 			mockSetup: func() {
-				mockSegmentRepo.EXPECT().
-					Count(gomock.Any(), organizationID, ledgerID).
+				mockOrganizationRepo.EXPECT().
+					Count(gomock.Any()).
 					Return(int64(0), errors.New("database error"))
 			},
 			expectErr:      true,
@@ -69,7 +66,7 @@ func TestCountSegments(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockSetup()
 
-			result, err := uc.CountSegments(context.Background(), organizationID, ledgerID)
+			result, err := uc.CountOrganizations(context.Background())
 
 			if tt.expectErr {
 				assert.Error(t, err)

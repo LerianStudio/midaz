@@ -5,22 +5,25 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func TestCountOrganizations(t *testing.T) {
+func TestCountPortfolios(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
 
 	uc := &UseCase{
-		OrganizationRepo: mockOrganizationRepo,
+		PortfolioRepo: mockPortfolioRepo,
 	}
 
 	tests := []struct {
@@ -31,30 +34,30 @@ func TestCountOrganizations(t *testing.T) {
 		expectedResult int64
 	}{
 		{
-			name: "Success - Count organizations",
+			name: "Success - Count portfolios",
 			mockSetup: func() {
-				mockOrganizationRepo.EXPECT().
-					Count(gomock.Any()).
-					Return(int64(42), nil)
+				mockPortfolioRepo.EXPECT().
+					Count(gomock.Any(), organizationID, ledgerID).
+					Return(int64(15), nil)
 			},
 			expectErr:      false,
-			expectedResult: 42,
+			expectedResult: 15,
 		},
 		{
-			name: "Error - No organizations found",
+			name: "Error - No portfolios found",
 			mockSetup: func() {
-				mockOrganizationRepo.EXPECT().
-					Count(gomock.Any()).
+				mockPortfolioRepo.EXPECT().
+					Count(gomock.Any(), organizationID, ledgerID).
 					Return(int64(0), services.ErrDatabaseItemNotFound)
 			},
 			expectErr:     true,
-			expectedError: pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, "Organization"),
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, "Portfolio"),
 		},
 		{
 			name: "Error - Database error",
 			mockSetup: func() {
-				mockOrganizationRepo.EXPECT().
-					Count(gomock.Any()).
+				mockPortfolioRepo.EXPECT().
+					Count(gomock.Any(), organizationID, ledgerID).
 					Return(int64(0), errors.New("database error"))
 			},
 			expectErr:      true,
@@ -66,7 +69,7 @@ func TestCountOrganizations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockSetup()
 
-			result, err := uc.CountOrganizations(context.Background())
+			result, err := uc.CountPortfolios(context.Background(), organizationID, ledgerID)
 
 			if tt.expectErr {
 				assert.Error(t, err)
