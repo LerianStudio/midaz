@@ -80,7 +80,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 			UpdatedAt:  now,
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), &meta); err != nil {
+		if err := uc.MetadataTransactionRepo.Create(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route metadata", err)
 
 			logger.Errorf("Failed to create transaction route metadata: %v", err)

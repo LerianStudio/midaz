@@ -69,7 +69,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
+		if err := uc.MetadataTransactionRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction metadata", err)
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)

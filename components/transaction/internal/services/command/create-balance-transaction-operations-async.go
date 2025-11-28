@@ -186,7 +186,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
+		if err := uc.MetadataTransactionRepo.Create(ctx, collection, &meta); err != nil {
 			logger.Errorf("Error into creating %s metadata: %v", collection, err)
 
 			return err

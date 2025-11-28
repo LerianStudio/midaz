@@ -62,8 +62,8 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 		Times(1)
 
 	useCase := &UseCase{
-		OperationRouteRepo: mockOperationRouteRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -118,8 +118,8 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		Times(1)
 
 	useCase := &UseCase{
-		OperationRouteRepo: mockOperationRouteRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -166,8 +166,8 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 		Times(1)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -279,8 +279,8 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 		Times(1)
 
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo:      mockRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)

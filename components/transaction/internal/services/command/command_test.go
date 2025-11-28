@@ -1,6 +1,8 @@
 package command
 
 import (
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestNewUseCase(t *testing.T) {
@@ -28,13 +29,13 @@ func TestNewUseCase(t *testing.T) {
 
 	// Create the UseCase instance
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		AssetRateRepo:   mockAssetRateRepo,
-		BalanceRepo:     mockBalanceRepo,
-		MetadataRepo:    mockMetadataRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		AssetRateRepo:           mockAssetRateRepo,
+		BalanceRepo:             mockBalanceRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		RedisRepo:               mockRedisRepo,
 	}
 
 	// Verify that the UseCase was created correctly with all repositories
@@ -43,7 +44,7 @@ func TestNewUseCase(t *testing.T) {
 	assert.Equal(t, mockOperationRepo, uc.OperationRepo)
 	assert.Equal(t, mockAssetRateRepo, uc.AssetRateRepo)
 	assert.Equal(t, mockBalanceRepo, uc.BalanceRepo)
-	assert.Equal(t, mockMetadataRepo, uc.MetadataRepo)
+	assert.Equal(t, mockMetadataRepo, uc.MetadataTransactionRepo)
 	assert.Equal(t, mockRabbitMQRepo, uc.RabbitMQRepo)
 	assert.Equal(t, mockRedisRepo, uc.RedisRepo)
 }

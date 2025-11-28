@@ -68,9 +68,9 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo:   mockOperationRouteRepo,
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockOperationRouteRepo.EXPECT().
@@ -359,9 +359,9 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OperationRouteRepo:   mockOperationRouteRepo,
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockOperationRouteRepo.EXPECT().
@@ -386,7 +386,6 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 }
-
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {

@@ -48,8 +48,8 @@ func TestUpdateTransactionRouteSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -101,8 +101,8 @@ func TestUpdateTransactionRouteNotFound(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -139,8 +139,8 @@ func TestUpdateTransactionRouteRepositoryError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -184,8 +184,8 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -240,9 +240,9 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	}
 
 	uc := UseCase{
-		TransactionRouteRepo: transactionroute.NewMockRepository(gomock.NewController(t)),
-		OperationRouteRepo:   operationroute.NewMockRepository(gomock.NewController(t)),
-		MetadataRepo:         mongodb.NewMockRepository(gomock.NewController(t)),
+		TransactionRouteRepo:    transactionroute.NewMockRepository(gomock.NewController(t)),
+		OperationRouteRepo:      operationroute.NewMockRepository(gomock.NewController(t)),
+		MetadataTransactionRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
@@ -276,13 +276,13 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 		}).
 		Times(1)
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
+	uc.MetadataTransactionRepo.(*mongodb.MockRepository).
 		EXPECT().
 		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
+	uc.MetadataTransactionRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), input.Metadata).
 		Return(nil).
@@ -312,9 +312,9 @@ func TestUpdateTransactionRouteInvalidOperationRouteCount(t *testing.T) {
 	}
 
 	uc := UseCase{
-		TransactionRouteRepo: transactionroute.NewMockRepository(gomock.NewController(t)),
-		OperationRouteRepo:   operationroute.NewMockRepository(gomock.NewController(t)),
-		MetadataRepo:         mongodb.NewMockRepository(gomock.NewController(t)),
+		TransactionRouteRepo:    transactionroute.NewMockRepository(gomock.NewController(t)),
+		OperationRouteRepo:      operationroute.NewMockRepository(gomock.NewController(t)),
+		MetadataTransactionRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
 	// No repository expectations since validation should fail early
@@ -357,8 +357,8 @@ func TestUpdateTransactionRouteWithoutOperationRoutes(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	mockTransactionRouteRepo.EXPECT().
@@ -407,9 +407,9 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 	}
 
 	uc := UseCase{
-		TransactionRouteRepo: transactionroute.NewMockRepository(gomock.NewController(t)),
-		OperationRouteRepo:   operationroute.NewMockRepository(gomock.NewController(t)),
-		MetadataRepo:         mongodb.NewMockRepository(gomock.NewController(t)),
+		TransactionRouteRepo:    transactionroute.NewMockRepository(gomock.NewController(t)),
+		OperationRouteRepo:      operationroute.NewMockRepository(gomock.NewController(t)),
+		MetadataTransactionRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
 	uc.TransactionRouteRepo.(*transactionroute.MockRepository).
@@ -471,9 +471,9 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 	}
 
 	uc := UseCase{
-		TransactionRouteRepo: transactionroute.NewMockRepository(gomock.NewController(t)),
-		OperationRouteRepo:   operationroute.NewMockRepository(gomock.NewController(t)),
-		MetadataRepo:         mongodb.NewMockRepository(gomock.NewController(t)),
+		TransactionRouteRepo:    transactionroute.NewMockRepository(gomock.NewController(t)),
+		OperationRouteRepo:      operationroute.NewMockRepository(gomock.NewController(t)),
+		MetadataTransactionRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
@@ -505,13 +505,13 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 		}).
 		Times(1)
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
+	uc.MetadataTransactionRepo.(*mongodb.MockRepository).
 		EXPECT().
 		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
+	uc.MetadataTransactionRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), input.Metadata).
 		Return(nil).
@@ -541,9 +541,9 @@ func TestUpdateTransactionRouteEmptyOperationRoutes(t *testing.T) {
 	}
 
 	uc := UseCase{
-		TransactionRouteRepo: transactionroute.NewMockRepository(gomock.NewController(t)),
-		OperationRouteRepo:   operationroute.NewMockRepository(gomock.NewController(t)),
-		MetadataRepo:         mongodb.NewMockRepository(gomock.NewController(t)),
+		TransactionRouteRepo:    transactionroute.NewMockRepository(gomock.NewController(t)),
+		OperationRouteRepo:      operationroute.NewMockRepository(gomock.NewController(t)),
+		MetadataTransactionRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
 	// No repository expectations since validation should fail early

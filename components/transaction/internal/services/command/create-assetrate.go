@@ -129,7 +129,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
+		if err := uc.MetadataTransactionRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate metadata", err)
 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)

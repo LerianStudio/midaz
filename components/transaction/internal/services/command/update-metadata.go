@@ -18,7 +18,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	metadataToUpdate := metadata
 
 	if metadataToUpdate != nil {
-		existingMetadata, err := uc.MetadataRepo.FindByEntity(ctx, entityName, entityID)
+		existingMetadata, err := uc.MetadataTransactionRepo.FindByEntity(ctx, entityName, entityID)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb", err)
 
@@ -34,7 +34,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		metadataToUpdate = map[string]any{}
 	}
 
-	if err := uc.MetadataRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {
+	if err := uc.MetadataTransactionRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on mongodb", err)
 
 		return nil, err

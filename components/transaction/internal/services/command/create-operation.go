@@ -128,7 +128,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, met
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(operation.Operation{}).Name(), &meta); err != nil {
+		if err := uc.MetadataTransactionRepo.Create(ctx, reflect.TypeOf(operation.Operation{}).Name(), &meta); err != nil {
 			logger.Errorf("Error into creating operation metadata: %v", err)
 
 			return err

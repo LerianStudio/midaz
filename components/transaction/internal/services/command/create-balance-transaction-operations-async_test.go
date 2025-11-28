@@ -63,12 +63,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -205,12 +205,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with mock repositories
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -309,12 +309,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -430,12 +430,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -638,12 +638,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -793,12 +793,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -971,12 +971,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			MetadataTransactionRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			RedisRepo:               mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -1106,7 +1106,7 @@ func TestCreateMetadataAsync(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		MetadataRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	ctx := context.Background()
@@ -1156,12 +1156,12 @@ func TestCreateBTOAsync(t *testing.T) {
 
 	// Create a real UseCase with mock repositories
 	uc := &UseCase{
-		OperationRepo:   mockOperationRepo,
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionRepo:         mockTransactionRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		RedisRepo:               mockRedisRepo,
 	}
 
 	ctx := context.Background()

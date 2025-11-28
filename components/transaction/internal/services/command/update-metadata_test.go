@@ -3,10 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUpdateMetadata(t *testing.T) {
@@ -16,7 +17,7 @@ func TestUpdateMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		MetadataRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	ctx := context.Background()
