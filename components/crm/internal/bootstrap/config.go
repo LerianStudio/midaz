@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -12,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/lcrypto"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -78,7 +78,7 @@ func InitServers() *Service {
 		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
-	dataSecurity := &lcrypto.LCrypto{
+	dataSecurity := &libCrypto.Crypto{
 		HashSecretKey:    cfg.HashSecretKey,
 		EncryptSecretKey: cfg.EncryptSecretKey,
 		Logger:           logger,

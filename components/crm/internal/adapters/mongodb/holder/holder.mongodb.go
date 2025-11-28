@@ -9,11 +9,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/lcrypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
@@ -39,11 +39,11 @@ type Repository interface {
 type MongoDBRepository struct {
 	connection   *libMongo.MongoConnection
 	Database     string
-	DataSecurity *lcrypto.LCrypto
+	DataSecurity *libCrypto.Crypto
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection
-func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *lcrypto.LCrypto) *MongoDBRepository {
+func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) *MongoDBRepository {
 	r := &MongoDBRepository{
 		connection:   connection,
 		Database:     connection.Database,

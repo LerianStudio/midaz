@@ -1,10 +1,11 @@
 package alias
 
 import (
-	"github.com/google/uuid"
-	"github.com/LerianStudio/midaz/v3/pkg/lcrypto"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"time"
+
+	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 type MongoDBModel struct {
@@ -33,7 +34,7 @@ type BankingMongoDBModel struct {
 }
 
 // FromEntity maps an account entity to a MongoDB Alias model
-func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *lcrypto.LCrypto) error {
+func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *lcrypto.LCrypto) error 
 }
 
 // ToEntity maps a MongoDB model to an Alias entity
-func (amm *MongoDBModel) ToEntity(ds *lcrypto.LCrypto) (*mmodel.Alias, error) {
+func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	document, err := ds.Decrypt(amm.Document)
 	if err != nil {
 		return nil, err
