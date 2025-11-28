@@ -36,11 +36,13 @@ jobs:
               - 'components/onboarding/**'
             transaction:
               - 'components/transaction/**'
+            crm:
+              - 'components/crm/**'
 
   CodeQL:
     name: Run CodeQL to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -70,7 +72,7 @@ jobs:
   GolangCI-Lint:
     name: Run GolangCI-Lint to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +93,7 @@ jobs:
   GoSec:
     name: Run GoSec to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +111,7 @@ jobs:
   unit-tests:
     name: Run Unit Tests to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

@@ -21,17 +21,25 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata      *bson.M
-	Limit         int
-	Page          int
-	Cursor        string
-	SortOrder     string
-	StartDate     time.Time
-	EndDate       time.Time
-	UseMetadata   bool
-	PortfolioID   string
-	OperationType string
-	ToAssetCodes  []string
+	Metadata              *bson.M
+	Limit                 int
+	Page                  int
+	Cursor                string
+	SortOrder             string
+	StartDate             time.Time
+	EndDate               time.Time
+	UseMetadata           bool
+	PortfolioID           string
+	OperationType         string
+	ToAssetCodes          []string	
+	HolderID              *string
+	ExternalID            *string
+	Document              *string
+	AccountID             *string
+	LedgerID              *string
+	BankingDetailsBranch  *string
+	BankingDetailsAccount *string
+	BankingDetailsIban    *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -47,17 +55,25 @@ type Pagination struct {
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
-		metadata      *bson.M
-		portfolioID   string
-		operationType string
-		toAssetCodes  []string
-		startDate     time.Time
-		endDate       time.Time
-		cursor        string
-		limit         = 10
-		page          = 1
-		sortOrder     = "asc"
-		useMetadata   = false
+		metadata              *bson.M
+		portfolioID           string
+		operationType         string
+		toAssetCodes          []string
+		startDate             time.Time
+		endDate               time.Time
+		cursor                string
+		limit                 = 10
+		page                  = 1
+		sortOrder             = "asc"
+		useMetadata           = false
+		holderID              *string
+		externalID            *string
+		document              *string
+		accountID             *string
+		ledgerID              *string
+		bankingDetailsBranch  *string
+		bankingDetailsAccount *string
+		bankingDetailsIban    *string
 	)
 
 	for key, value := range params {
@@ -93,6 +109,22 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			operationType = strings.ToUpper(value)
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
+		case strings.Contains(key, "holder_id"):
+			holderID = &value
+		case strings.Contains(key, "external_id"):
+			externalID = &value
+		case strings.Contains(key, "document"):
+			document = &value
+		case strings.Contains(key, "account_id"):
+			accountID = &value
+		case strings.Contains(key, "ledger_id"):
+			ledgerID = &value
+		case strings.Contains(key, "banking_details_branch"):
+			bankingDetailsBranch = &value
+		case strings.Contains(key, "banking_details_account"):
+			bankingDetailsAccount = &value
+		case strings.Contains(key, "banking_details_iban"):
+			bankingDetailsIban = &value
 		}
 	}
 
@@ -114,17 +146,25 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	query := &QueryHeader{
-		Metadata:      metadata,
-		Limit:         limit,
-		Page:          page,
-		Cursor:        cursor,
-		SortOrder:     sortOrder,
-		StartDate:     startDate,
-		EndDate:       endDate,
-		UseMetadata:   useMetadata,
-		PortfolioID:   portfolioID,
-		OperationType: operationType,
-		ToAssetCodes:  toAssetCodes,
+		Metadata:              metadata,
+		Limit:                 limit,
+		Page:                  page,
+		Cursor:                cursor,
+		SortOrder:             sortOrder,
+		StartDate:             startDate,
+		EndDate:               endDate,
+		UseMetadata:           useMetadata,
+		PortfolioID:           portfolioID,
+		OperationType:         operationType,
+		ToAssetCodes:          toAssetCodes,
+		HolderID:              holderID,
+		ExternalID:            externalID,
+		Document:              document,
+		AccountID:             accountID,
+		LedgerID:              ledgerID,
+		BankingDetailsBranch:  bankingDetailsBranch,
+		BankingDetailsAccount: bankingDetailsAccount,
+		BankingDetailsIban:    bankingDetailsIban,
 	}
 
 	return query, nil
@@ -263,5 +303,48 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+	}
+}
+
+func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
+	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
+}
+
+// ValidateMetadataValue validates a metadata value, ensuring it meets specific criteria for type and length.
+// It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
+func ValidateMetadataValue(value any) (any, error) {
+	return validateMetadataValueWithDepth(value, 0)
+}
+
+func validateMetadataValueWithDepth(value any, depth int) (any, error) {
+	const maxDepth = 10
+	if depth > maxDepth {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	}
+
+	switch v := value.(type) {
+	case string:
+		if len(v) > 2000 {
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
+		}
+		return v, nil
+	case float64, int, int64, float32, bool:
+		return v, nil
+	case nil:
+		return nil, nil
+	case map[string]any:
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	case []any:
+		validatedArray := make([]any, 0, len(v))
+		for _, item := range v {
+			validItem, err := validateMetadataValueWithDepth(item, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			validatedArray = append(validatedArray, validItem)
+		}
+		return validatedArray, nil
+	default:
+		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
 	}
 }

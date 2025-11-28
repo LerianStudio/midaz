@@ -31,6 +31,7 @@ jobs:
             components/onboarding
             components/transaction
             components/console
+            components/crm
           get_app_name: true         # Derive an app name from changed paths
           path_level: 2              # Use 2 levels of directory depth to extract name
           app_name_prefix: midaz     # Prefix app names with "midaz-" for consistency
