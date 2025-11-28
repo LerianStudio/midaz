@@ -10,14 +10,14 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestUpdateMetadata(t *testing.T) {
+func TestUpdateMetadataOnboarding(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		MetadataTransactionRepo: mockMetadataRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	ctx := context.Background()

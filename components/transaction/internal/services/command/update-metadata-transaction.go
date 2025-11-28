@@ -7,7 +7,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
-func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
+func (uc *UseCase) UpdateMetadataTransaction(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
