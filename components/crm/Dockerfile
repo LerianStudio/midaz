@@ -3,9 +3,6 @@
 # Build stage
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
-# Install garble for obfuscation
-RUN go install mvdan.cc/garble@latest
-
 # Set working directory
 WORKDIR /crm-app
 
@@ -16,18 +13,17 @@ RUN go mod download
 # Copy the full source code
 COPY . .
 
-# Add Go bin path for garble and build the binary with obfuscation (multi-arch)
-ENV PATH="/root/go/bin:${PATH}"
+# Build the binary (multi-arch)
 ARG TARGETPLATFORM
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
-    garble -tiny -literals build -a -tags netgo \
-    -ldflags='-w -extldflags "-static"' \
+    go build -tags netgo \
+    -ldflags='-w -s -extldflags "-static"' \
     -o /app components/crm/cmd/app/main.go
 
 # Final minimal image (Distroless)
 FROM gcr.io/distroless/static-debian12
 
-# Copy the obfuscated binary into the final image
+# Copy the binary into the final image
 COPY --from=builder /app /app
 
 # Expose application port
