@@ -58,7 +58,9 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
+		logger.Errorf("Failed to get database: %v", err)
 
 		return err
 	}
@@ -69,21 +71,23 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	if err := record.FromEntity(metadata); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata to model", err)
 
+		logger.Errorf("Failed to convert metadata to model: %v", err)
+
 		return err
 	}
 
 	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_metadata.insert")
 
-	insertResult, err := coll.InsertOne(ctx, record)
+	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanInsert, "Failed to insert metadata", err)
+
+		logger.Errorf("Failed to insert metadata: %v", err)
 
 		return err
 	}
 
 	spanInsert.End()
-
-	logger.Infoln("Inserted a document: ", insertResult.InsertedID)
 
 	return nil
 }
@@ -97,9 +101,9 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Errorf("Failed to get database: %v", err)
 
 		return nil, err
 	}
@@ -126,7 +130,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		if !filter.EndDate.IsZero() {
 			dateFilter["$lte"] = filter.EndDate
 		}
-		
+
 		mongoFilter["created_at"] = dateFilter
 	}
 
@@ -209,9 +213,9 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 			return nil, nil
 		}
 
-		libOpentelemetry.HandleSpanError(&spanFindOne, "Failed to find metadata", err)
+		libOpentelemetry.HandleSpanError(&spanFindOne, "Failed to find metadata by entity", err)
 
-		logger.Errorf("Failed to find metadata: %v", err)
+		logger.Errorf("Failed to find metadata by entity: %v", err)
 
 		return nil, err
 	}
@@ -320,11 +324,19 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 	updated, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdate, "Failed to update metadata", err)
+
+			logger.Warnf("Failed to update metadata: %v", err)
+
+			return err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
-		}
+		logger.Errorf("Failed to update metadata: %v", err)
 
 		return err
 	}
