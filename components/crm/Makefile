@@ -117,6 +117,14 @@ set-env:
 		echo "  Creating .env from .env.example"; \
 		cp ".env.example" ".env"; \
 		echo "$(GREEN)  ✓ Backend .env created$(NC)"; \
+		echo "  Generating random LCRYPTO_ENCRYPT_SECRET_KEY for local testing..."; \
+		RANDOM_KEY=$$(openssl rand -hex 32); \
+		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
+			sed -i "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY|" ".env"; \
+		else \
+			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
 	elif [ ! -f ".env.example" ]; then \
 		echo "$(YELLOW)  ! No .env.example found$(NC)"; \
 	else \
