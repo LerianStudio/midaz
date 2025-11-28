@@ -141,13 +141,16 @@ func validateDates(startDate, endDate *time.Time) error {
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	if startDate.IsZero() && endDate.IsZero() {
+		now := time.Now()
+
 		defaultStartDate := time.Unix(0, 0).UTC()
+		
 		if maxDateRangeMonths != 0 {
-			defaultStartDate = time.Now().AddDate(0, -maxDateRangeMonths, 0)
+			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
 		}
 
 		*startDate = defaultStartDate
-		*endDate = time.Now()
+		*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
 
 		return nil
 	}
