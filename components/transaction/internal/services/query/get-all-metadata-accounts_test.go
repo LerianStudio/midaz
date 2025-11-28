@@ -2,14 +2,15 @@ package query
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetAllMetadataAccounts(t *testing.T) {
@@ -20,8 +21,8 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountRepo:  mockAccountRepo,
-		MetadataRepo: mockMetadataRepo,
+		AccountRepo:            mockAccountRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	tests := []struct {

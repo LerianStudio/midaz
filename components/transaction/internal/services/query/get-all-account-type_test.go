@@ -8,9 +8,9 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -80,8 +80,8 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().
@@ -146,8 +146,8 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().
@@ -274,8 +274,8 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().
@@ -319,8 +319,8 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().
@@ -388,8 +388,8 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().
@@ -463,8 +463,8 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	mockAccountTypeRepo.EXPECT().

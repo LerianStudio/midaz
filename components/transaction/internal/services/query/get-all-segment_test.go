@@ -23,8 +23,8 @@ func TestGetAllSegments(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		SegmentRepo:  mockSegmentRepo,
-		MetadataRepo: mockMetadataRepo,
+		SegmentRepo:            mockSegmentRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	filter := http.QueryHeader{

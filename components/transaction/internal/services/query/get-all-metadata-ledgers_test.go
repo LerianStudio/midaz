@@ -3,37 +3,40 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
-func TestGetAllMetadataOrganizations(t *testing.T) {
+func TestGetAllMetadataLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		OrganizationRepo: mockOrganizationRepo,
-		MetadataRepo:     mockMetadataRepo,
+		LedgerRepo:             mockLedgerRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	tests := []struct {
 		name           string
+		organizationID uuid.UUID
 		filter         http.QueryHeader
 		mockSetup      func()
 		expectErr      bool
-		expectedResult []*mmodel.Organization
+		expectedResult []*mmodel.Ledger
 	}{
 		{
-			name: "Success - Retrieve organizations with metadata",
+			name:           "Success - Retrieve ledgers with metadata",
+			organizationID: uuid.New(),
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockMetadataRepo.EXPECT().
@@ -41,19 +44,20 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 					Return([]*mongodb.Metadata{
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
-				mockOrganizationRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return([]*mmodel.Organization{
-						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
+				mockLedgerRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					Return([]*mmodel.Ledger{
+						{ID: validUUID.String(), Name: "Test Ledger", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 			},
 			expectErr: false,
-			expectedResult: []*mmodel.Organization{
-				{ID: "valid-uuid", LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			expectedResult: []*mmodel.Ledger{
+				{ID: "valid-uuid", Name: "Test Ledger", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
 			},
 		},
 		{
-			name: "Error - Failed to retrieve organizations",
+			name:           "Error - Failed to retrieve ledgers",
+			organizationID: uuid.New(),
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockMetadataRepo.EXPECT().
@@ -61,8 +65,8 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 					Return([]*mongodb.Metadata{
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
-				mockOrganizationRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+				mockLedgerRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
 					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
@@ -75,7 +79,7 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataOrganizations(ctx, tt.filter)
+			result, err := uc.GetAllMetadataLedgers(ctx, tt.organizationID, tt.filter)
 
 			if tt.expectErr {
 				assert.Error(t, err)

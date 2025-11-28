@@ -3,14 +3,15 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetAllMetadataPortfolios(t *testing.T) {
@@ -21,8 +22,8 @@ func TestGetAllMetadataPortfolios(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		PortfolioRepo: mockPortfolioRepo,
-		MetadataRepo:  mockMetadataRepo,
+		PortfolioRepo:          mockPortfolioRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	tests := []struct {

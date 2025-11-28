@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -23,8 +23,8 @@ func TestGetAllMetadataAccountType_Success(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
@@ -63,8 +63,8 @@ func TestGetAllMetadataAccountType_MetadataRepoError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
@@ -90,8 +90,8 @@ func TestGetAllMetadataAccountType_AccountTypeRepoError(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
@@ -124,8 +124,8 @@ func TestGetAllMetadataAccountType_DatabaseItemNotFound(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
@@ -158,8 +158,8 @@ func TestGetAllMetadataAccountType_MultipleAccountTypes(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
@@ -203,8 +203,8 @@ func TestGetAllMetadataAccountType_PartialMetadataMatch(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-		MetadataRepo:    mockMetadataRepo,
+		AccountTypeRepo:        mockAccountTypeRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	organizationID := uuid.New()
