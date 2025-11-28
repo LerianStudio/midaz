@@ -78,8 +78,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          secrets: |
-            github_token=${{ secrets.GH_PRIVATE_REPOS_TOKEN }}
 
       - name: Extract tag name (strip leading 'v')
         id: extract_tag

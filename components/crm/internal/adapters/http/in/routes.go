@@ -13,7 +13,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const applicationName = "plugin-crm"
+const applicationName = "crm"
 
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
