@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -19,7 +17,7 @@ import (
 // account exists for the asset. If a new external account is created, it also
 // creates the default balance for that account via gRPC.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
@@ -145,11 +143,19 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
-		balanceReq := &balanceproto.BalanceRequest{
-			RequestId:      requestID,
-			OrganizationId: organizationID.String(),
-			LedgerId:       ledgerID.String(),
-			AccountId:      acc.ID,
+		accountID, err := uuid.Parse(acc.ID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account_id", err)
+
+			logger.Errorf("Invalid account_id, Error: %s", err.Error())
+
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), "accountId")
+		}
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
 			Alias:          aAlias,
 			Key:            constant.DefaultBalanceKey,
 			AssetCode:      cii.Code,
@@ -158,20 +164,11 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			AllowReceiving: true,
 		}
 
-		_, err = uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
+		_, err = uc.CreateBalanceSync(ctx, input)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance via gRPC", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance for account", err)
 
-			logger.Errorf("Failed to create default balance via gRPC: %v", err)
-
-			var (
-				unauthorized pkg.UnauthorizedError
-				forbidden    pkg.ForbiddenError
-			)
-
-			if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
-				return nil, err
-			}
+			logger.Errorf("Failed to create default balance for account, Error: %s", err.Error())
 
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}

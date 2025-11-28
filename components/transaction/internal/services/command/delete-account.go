@@ -10,14 +10,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // DeleteAccountByID delete an account from the repository by ids.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
-	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
@@ -37,27 +36,20 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	balanceDeleteRequest := &balanceproto.DeleteAllBalancesByAccountIDRequest{
-		OrganizationId: organizationID.String(),
-		LedgerId:       ledgerID.String(),
-		AccountId:      accFound.ID,
-		RequestId:      requestID,
+	accID, err := uuid.Parse(accFound.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account id", err)
+
+		logger.Errorf("Invalid account id, Error: %s", err.Error())
+
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), "accountId")
 	}
 
-	err = uc.BalanceGRPCRepo.DeleteAllBalancesByAccountID(ctx, token, balanceDeleteRequest)
+	err = uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id via gRPC", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
 
-		logger.Errorf("Failed to delete all balances by account id via gRPC: %v", err)
-
-		var (
-			unauthorized pkg.UnauthorizedError
-			forbidden    pkg.ForbiddenError
-		)
-
-		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
-			return err
-		}
+		logger.Errorf("Failed to delete all balances by account id, Error: %s", err.Error())
 
 		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
 	}

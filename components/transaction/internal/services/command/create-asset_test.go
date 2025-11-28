@@ -7,7 +7,6 @@ import (
 	"time"
 
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	grpcout "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -22,12 +21,10 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AssetRepo:       mockAssetRepo,
-		AccountRepo:     mockAccountRepo,
-		BalanceGRPCRepo: mockBalanceGRPC,
+		AssetRepo:   mockAssetRepo,
+		AccountRepo: mockAccountRepo,
 	}
 
 	ctx := context.Background()
@@ -93,11 +90,6 @@ func TestCreateAsset(t *testing.T) {
 						UpdatedAt: time.Now(),
 					}, nil).
 					Times(1)
-
-				mockBalanceGRPC.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, nil).
-					Times(1)
 			},
 			expectedErr: nil,
 			expectedRes: &mmodel.Asset{
@@ -140,55 +132,6 @@ func TestCreateAsset(t *testing.T) {
 					Times(1)
 			},
 			expectedErr: errors.New("failed to create asset"),
-			expectedRes: nil,
-		},
-		{
-			name: "grpc failure - default balance creation fails",
-			input: &mmodel.CreateAssetInput{
-				Name: "USD Dollar",
-				Type: "currency",
-				Code: "USD",
-			},
-			mockSetup: func() {
-				mockAssetRepo.EXPECT().
-					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
-					Return(false, nil).
-					Times(1)
-
-				mockAssetRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					Return(&mmodel.Asset{
-						ID:        uuid.New().String(),
-						Name:      "USD Dollar",
-						Type:      "currency",
-						Code:      "USD",
-						Status:    mmodel.Status{Code: "ACTIVE"},
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					}, nil).
-					Times(1)
-
-				mockAccountRepo.EXPECT().
-					ListAccountsByAlias(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-					Return(nil, nil).
-					Times(1)
-
-				var createdAccountID = uuid.New().String()
-				mockAccountRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
-						out := *in
-						out.ID = createdAccountID
-						return &out, nil
-					}).
-					Times(1)
-
-				mockBalanceGRPC.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).
-					Times(1)
-			},
-			expectedErr: errors.New("default balance could not be created"),
 			expectedRes: nil,
 		},
 	}
