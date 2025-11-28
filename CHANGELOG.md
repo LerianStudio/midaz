@@ -1,3 +1,18 @@
+## [v3.4.5] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4...v3.4.5)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Configuration/Documentation**: Updated the transaction version to v3.4.5, ensuring users access the latest stable release with essential fixes and optimizations. This update eliminates potential discrepancies and aligns documentation with the current software state, offering clearer guidance.
+
+### ⚡ Performance
+- **Database**: Introduced an index on the `operation` table for `account_id`, significantly optimizing sorting by `id`. This enhancement results in faster data retrieval, especially beneficial for operations involving large datasets, thereby improving application responsiveness and user satisfaction.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to incorporate the latest changes and improvements, providing users with a comprehensive and transparent record of updates. This facilitates easier tracking of project evolution and understanding of new features and fixes.
+
+
 ## [v3.4.4] - 2025-11-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
