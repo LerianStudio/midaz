@@ -130,8 +130,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-// ValidateDates validate dates
+// validateDates validates and normalizes start/end date range for pagination queries.
+// Mutates the provided pointers to apply defaults when both dates are zero.
+// Default range: last N months (via MAX_PAGINATION_MONTH_DATE_RANGE env var, default=1).
+// Set MAX_PAGINATION_MONTH_DATE_RANGE=0 for unlimited range (since epoch).
+// Enforces all-or-nothing: both dates required if any provided.
+// Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
+	// Limits query range to prevent expensive DB operations on large datasets
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	if startDate.IsZero() && endDate.IsZero() {

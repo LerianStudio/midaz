@@ -1,3 +1,39 @@
+## [v3.5.0-beta.10] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.9...v3.5.0-beta.10)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Database Performance**: Removed a deprecated index from the transaction component. This improvement boosts database performance and reliability by eliminating outdated structures that could cause inefficiencies or errors during data processing.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements, ensuring users and developers have access to the most current information about updates and fixes. This transparency aids in understanding the evolution of the software and facilitates easier troubleshooting and development.
+
+### 🔧 Maintenance
+- **Release Management**: Continued efforts to maintain the integrity and performance of the database system, ensuring that all documentation is both current and informative for users and developers alike.
+
+
+## [v3.5.0-beta.9] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.8...v3.5.0-beta.9)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Database Debugging**: We've added detailed debug logging for SQL queries in key database functions. This allows developers to better track and diagnose database interactions, making troubleshooting more transparent and efficient.
+
+### 🐛 Bug Fixes
+- **Documentation Consistency**: Resolved discrepancies between the configuration and documentation by updating both to version v3.4.5. This ensures users have consistent and accurate information, reducing potential confusion.
+
+### ⚡ Performance
+- **Optimized Query Efficiency**: By adding an index to the `operation` table for `account_id`, we've significantly improved query performance. Users will experience faster response times when performing operations involving account data.
+
+### 📚 Documentation
+- **Improved Function Guidance**: Enhanced the documentation for the `validateDates` function. This update provides clearer guidance and examples, helping developers understand and correctly implement this function.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes, ensuring all modifications are documented and accessible for future reference.
+
+
 ## [v3.5.0-beta.8] - 2025-11-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.7...v3.5.0-beta.8)
@@ -126,6 +162,21 @@ Contributors: Ygohr Medeiros, lerian-studio
 - **Code Refactoring**: Conducted extensive refactoring to improve code quality, including renaming methods for clarity and optimizing balance restoration processes. These changes enhance maintainability and future-proof the codebase.
 - **Configuration and Workflow Updates**: Updated workflow configurations to exclude generated files from security scans, streamlining the development process and reducing false positives in security assessments.
 - **Testing Enhancements**: Improved test coverage for balance operations by introducing mocks for `BalanceGRPCRepo`, ensuring more reliable and comprehensive test scenarios.
+
+## [v3.4.5] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4...v3.4.5)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Configuration/Documentation**: Updated the transaction version to v3.4.5, ensuring users access the latest stable release with essential fixes and optimizations. This update eliminates potential discrepancies and aligns documentation with the current software state, offering clearer guidance.
+
+### ⚡ Performance
+- **Database**: Introduced an index on the `operation` table for `account_id`, significantly optimizing sorting by `id`. This enhancement results in faster data retrieval, especially beneficial for operations involving large datasets, thereby improving application responsiveness and user satisfaction.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to incorporate the latest changes and improvements, providing users with a comprehensive and transparent record of updates. This facilitates easier tracking of project evolution and understanding of new features and fixes.
+
 
 ## [v3.4.4] - 2025-11-25
 
