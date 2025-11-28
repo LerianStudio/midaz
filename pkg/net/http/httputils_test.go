@@ -226,12 +226,20 @@ func TestValidateParameters_WithInvalidCursor(t *testing.T) {
 func TestValidateDates_BothZero(t *testing.T) {
 	startDate := time.Time{}
 	endDate := time.Time{}
-
 	err := validateDates(&startDate, &endDate)
-
 	require.NoError(t, err)
 	assert.False(t, startDate.IsZero())
 	assert.False(t, endDate.IsZero())
+
+	assert.Equal(t, 0, startDate.Hour())
+	assert.Equal(t, 0, startDate.Minute())
+	assert.Equal(t, 0, startDate.Second())
+
+	assert.Equal(t, 23, endDate.Hour())
+	assert.Equal(t, 59, endDate.Minute())
+	assert.Equal(t, 59, endDate.Second())
+
+	assert.True(t, endDate.After(startDate) || endDate.Equal(startDate))
 }
 
 func TestValidateDates_OnlyStartDateProvided(t *testing.T) {
