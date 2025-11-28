@@ -3,17 +3,19 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
-func TestGetAllMetadataSegments(t *testing.T) {
+func TestGetAllSegments(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -23,6 +25,11 @@ func TestGetAllMetadataSegments(t *testing.T) {
 	uc := &UseCase{
 		SegmentRepo:  mockSegmentRepo,
 		MetadataRepo: mockMetadataRepo,
+	}
+
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
 	}
 
 	tests := []struct {
@@ -38,17 +45,18 @@ func TestGetAllMetadataSegments(t *testing.T) {
 			name:           "Success - Retrieve segments with metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
+			filter:         filter,
 			mockSetup: func() {
 				validUUID := uuid.New()
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
 					Return([]*mmodel.Segment{
 						{ID: validUUID.String(), Name: "Test Segment", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 			},
 			expectErr: false,
@@ -57,31 +65,33 @@ func TestGetAllMetadataSegments(t *testing.T) {
 			},
 		},
 		{
-			name:           "Error - No metadata found",
+			name:           "Error - No segments found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("error metadata no found"))
+				mockSegmentRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
 			expectedResult: nil,
 		},
 		{
-			name:           "Error - Failed to retrieve segments",
+			name:           "Error - Failed to retrieve metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
 				validUUID := uuid.New()
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
 				mockSegmentRepo.EXPECT().
-					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return(nil, errors.New("database error"))
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return([]*mmodel.Segment{
+						{ID: validUUID.String(), Name: "Test Segment", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("metadata retrieval error"))
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -93,7 +103,7 @@ func TestGetAllMetadataSegments(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataSegments(ctx, tt.organizationID, tt.ledgerID, tt.filter)
+			result, err := uc.GetAllSegments(ctx, tt.organizationID, tt.ledgerID, tt.filter)
 
 			if tt.expectErr {
 				assert.Error(t, err)
