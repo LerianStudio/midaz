@@ -46,6 +46,7 @@ message BalanceRequest {
   string account_type = 7;
   bool allow_sending = 8;
   bool allow_receiving = 9;
+  string request_id = 10;
 }
 
 // Response payload with a reduced view of balance fields

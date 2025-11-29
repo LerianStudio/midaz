@@ -1,3 +1,96 @@
+## [v3.4.5] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4...v3.4.5)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Configuration/Documentation**: Updated the transaction version to v3.4.5, ensuring users access the latest stable release with essential fixes and optimizations. This update eliminates potential discrepancies and aligns documentation with the current software state, offering clearer guidance.
+
+### ⚡ Performance
+- **Database**: Introduced an index on the `operation` table for `account_id`, significantly optimizing sorting by `id`. This enhancement results in faster data retrieval, especially beneficial for operations involving large datasets, thereby improving application responsiveness and user satisfaction.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to incorporate the latest changes and improvements, providing users with a comprehensive and transparent record of updates. This facilitates easier tracking of project evolution and understanding of new features and fixes.
+
+
+## [v3.4.4] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated indirect dependencies to fix security vulnerabilities, providing a safer and more stable environment for users.
+- **Compatibility Improvements**: Updated the `lib-commons` dependency to version 2.5.2, resolving compatibility issues and enhancing overall system stability.
+
+### ⚡ Performance
+- **Database Optimization**: MongoDB indexes are now automatically created on startup, significantly reducing query times and improving data integrity for a faster and more efficient user experience.
+
+### 🔄 Changes
+- **Increased Stability**: System timeout settings have been increased, preventing premature termination of long-running processes and improving application stability.
+
+### 📚 Documentation
+- **Version Consistency**: Updated version numbers in onboarding and transaction documentation to v3.4.4, ensuring consistency and clarity across all user-facing materials.
+
+### 🔧 Maintenance
+- **Changelog Updates**: Revised the CHANGELOG to accurately reflect recent changes, making it easier for developers and users to track project history.
+
+
+## [v3.4.3] - 2025-11-20
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
+Contributors: Fabricio Carneiro, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend**: Improved the process of request creation by merging headers and options. This enhancement boosts the reliability of backend operations, reducing potential errors and ensuring consistent data handling.
+
+### 🔧 Maintenance
+- **Release Management**: Updated the CHANGELOG to include recent updates, providing users with the latest information on software changes and improvements for better project tracking.
+
+
+## [v3.4.2] - 2025-11-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1...v3.4.2)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Key Generation**: Updated transaction key generation to use utility functions, resolving inconsistencies and improving transaction reliability. Users will notice fewer errors and smoother transaction processing.
+- **Efficient Hotfix Deployment**: Integrated a hotfix branch in the release workflow, allowing critical fixes to be deployed swiftly and without delay, ensuring minimal disruption to service.
+- **Simplified Transaction Updates**: Removed redundant error returns from transaction status updates, reducing error noise and simplifying the transaction management process for a more seamless user experience.
+
+### ⚡ Performance
+- **Improved Transaction Processing**: Implemented Redis locking for pending transactions, which prevents race conditions and ensures data integrity. This change significantly boosts the reliability and performance of transaction processing, leading to a more responsive system.
+
+### 📚 Documentation
+- **Updated Transaction Versioning**: Revised documentation to align with updated transaction versioning standards, enhancing compatibility and consistency across systems. This ensures users have access to the latest guidelines for transaction handling.
+
+### 🔧 Maintenance
+- **Changelog Updates**: The CHANGELOG has been meticulously updated to reflect recent changes, providing users with a clear and comprehensive overview of modifications for easy reference and future maintenance.
+
+
+## [v3.4.1] - 2025-11-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1)
+Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
+
+### 🐛 Bug Fixes
+- **gRPC BalanceRequest Handling**: Reordered fields to ensure correct data processing, improving the reliability of balance operations.
+- **Metadata Management**: Removed redundant request-id metadata injection, preventing potential conflicts and enhancing metadata consistency.
+- **Request Tracking**: Added `request_id` field to balance operations, ensuring consistent tracking and correlation of requests.
+- **Security Update**: Updated `js-yaml` to version 4.1.1, addressing security vulnerabilities and ensuring compatibility with current standards.
+- **Dependency Update**: Updated `lib-commons` to version 2.5.1, incorporating upstream bug fixes and performance improvements for smoother operation.
+
+### 🔄 Changes
+- **Backend Logging**: Enhanced logging in `CreateBalance` to include account ID and alias, improving traceability and debugging.
+- **Request Tracking**: Added request ID to `CreateAsset` and `CreateAccount` methods, facilitating better tracking and correlation across systems.
+- **Simplified Configuration**: Streamlined the release workflow and consolidated configuration settings, reducing complexity and easing deployment processes.
+
+### 📚 Documentation
+- **Version Update**: Updated application version to v3.4.1 across all documentation and configuration files, ensuring consistency and clarity.
+
+### 🔧 Maintenance
+- **Changelog Update**: Refreshed the CHANGELOG to accurately reflect recent changes, maintaining up-to-date release notes for users.
+
+
 ## [v3.4.0] - 2025-11-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
