@@ -15,6 +15,38 @@ import (
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
+//
+// This function processes a parsed Gold DSL transaction and persists it to the database.
+// Transactions represent the fundamental unit of value movement in the ledger, implementing
+// double-entry accounting principles where every debit has a corresponding credit.
+//
+// Process:
+//  1. Extract tracing context for observability
+//  2. Build transaction entity with APPROVED status
+//  3. Link to parent transaction if this is a child (chained transactions)
+//  4. Persist transaction to PostgreSQL via repository
+//  5. Store optional metadata in MongoDB for extensibility
+//  6. Return the created transaction with generated ID
+//
+// Transaction Hierarchy:
+// Transactions can form parent-child relationships for complex financial operations:
+//   - Parent transactions: Standalone or root of a chain
+//   - Child transactions: Reference parent via ParentTransactionID
+//   - Use cases: Split payments, refunds, reversals, compound operations
+//
+// Parameters:
+//   - ctx: Request context with tracing, logging, and tenant information
+//   - organizationID: Organization UUID for multi-tenant isolation
+//   - ledgerID: Ledger UUID where the transaction is recorded
+//   - transactionID: Parent transaction UUID (uuid.Nil for standalone transactions)
+//   - t: Parsed transaction from Gold DSL containing send/receive operations
+//
+// Returns:
+//   - *transaction.Transaction: Created transaction with generated UUIDv7 ID
+//   - error: Repository errors, metadata persistence failures
+//
+// Note: The transaction is created with APPROVED status. The actual balance
+// mutations are handled separately by the balance processing pipeline.
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

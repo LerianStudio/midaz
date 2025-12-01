@@ -21,8 +21,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// Repository provides an interface for asset_rate template entities.
-// It defines methods for creating, finding, and updating asset rates.
+// Repository provides an interface for asset rate persistence operations.
+//
+// This interface defines the contract for asset rate operations, following
+// the repository pattern from Domain-Driven Design. Unlike other entities,
+// asset rates have no soft delete as they are versioned by creation time.
+//
+// Design Decisions:
+//
+//   - Organization and ledger scoping: All operations require both IDs
+//   - Currency pair lookup: Primary query pattern for rate retrieval
+//   - External ID lookup: Integration with external rate providers
+//   - Cursor pagination: Efficient traversal of large result sets
+//   - No delete: Rates are historical and not deleted
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
 type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
@@ -31,13 +47,71 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error)
 }
 
-// AssetRatePostgreSQLRepository is a Postgresql-specific implementation of the AssetRateRepository.
+// AssetRatePostgreSQLRepository is the PostgreSQL implementation of the asset rate Repository.
+//
+// This struct implements the Repository interface using PostgreSQL as the underlying
+// data store. It manages asset rate persistence with proper connection handling,
+// distributed tracing, and structured logging.
+//
+// Connection Management:
+//
+// The repository holds a reference to a PostgresConnection which manages the actual
+// database connection pool. The connection is validated during construction.
+//
+// Lifecycle:
+//
+//	// Initialization (typically in dependency injection)
+//	conn := libPostgres.NewPostgresConnection(cfg)
+//	repo := assetrate.NewAssetRatePostgreSQLRepository(conn)
+//
+//	// Usage in service layer
+//	rate, err := repo.Create(ctx, newRate)
+//	rate, err := repo.FindByCurrencyPair(ctx, orgID, ledgerID, "USD", "BRL")
+//
+//	// Connection lifecycle managed by PostgresConnection
+//
+// Thread Safety:
+//
+// AssetRatePostgreSQLRepository is safe for concurrent use. The underlying
+// PostgresConnection manages a connection pool that handles concurrent access.
+//
+// Fields:
+//   - connection: PostgreSQL connection pool wrapper
+//   - tableName: Target table name ("asset_rate")
 type AssetRatePostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewAssetRatePostgreSQLRepository returns a new instance of AssetRatePostgreSQLRepository using the given Postgres connection.
+// NewAssetRatePostgreSQLRepository constructs a new AssetRatePostgreSQLRepository.
+//
+// This constructor initializes the repository with a validated database connection.
+// It verifies connectivity before returning to ensure fail-fast behavior during
+// application startup.
+//
+// Initialization Process:
+//  1. Store PostgreSQL connection reference
+//  2. Set target table name to "asset_rate"
+//  3. Validate database connectivity
+//  4. Panic if connection fails (fail-fast for misconfiguration)
+//
+// Parameters:
+//   - pc: PostgreSQL connection wrapper (must not be nil)
+//
+// Returns:
+//   - *AssetRatePostgreSQLRepository: Ready-to-use repository instance
+//
+// Panics:
+//
+// This function panics if the database connection cannot be established.
+// This is intentional to prevent the application from starting with an
+// invalid database configuration.
+//
+// Example:
+//
+//	conn := libPostgres.NewPostgresConnection(cfg)
+//	repo := assetrate.NewAssetRatePostgreSQLRepository(conn)
+//	// repo is now ready for use
 func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetRatePostgreSQLRepository {
 	c := &AssetRatePostgreSQLRepository{
 		connection: pc,
@@ -52,7 +126,32 @@ func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Asset
 	return c
 }
 
-// Create a new AssetRate entity into Postgresql and returns it.
+// Create persists a new asset rate entity to PostgreSQL.
+//
+// This method creates a new asset rate record with a generated UUID v7 identifier.
+// It uses distributed tracing for observability and validates that the record
+// was successfully inserted.
+//
+// Process:
+//  1. Extract logger and tracer from context
+//  2. Start tracing span for the operation
+//  3. Get database connection from pool
+//  4. Convert domain model to PostgreSQL model (generates new ID)
+//  5. Execute INSERT query with all fields
+//  6. Validate rows affected > 0
+//  7. Return converted domain entity
+//
+// Parameters:
+//   - ctx: Context for tracing, cancellation, and deadline propagation
+//   - assetRate: Domain asset rate to persist (ID will be generated)
+//
+// Returns:
+//   - *AssetRate: Created asset rate with generated ID and timestamps
+//   - error: ErrEntityNotFound if insert affected 0 rows, or database errors
+//
+// Observability:
+//
+// Creates spans: "postgres.create_asset_rate", "postgres.create.exec"
 func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -119,7 +218,33 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	return record.ToEntity(), nil
 }
 
-// FindByExternalID an AssetRate entity by its external ID in Postgresql and returns it.
+// FindByExternalID retrieves the most recent asset rate by external identifier.
+//
+// This method looks up an asset rate using an external system identifier,
+// useful for integrating with external rate providers (e.g., forex APIs).
+// When multiple rates exist for the same external ID, the most recent is returned.
+//
+// Process:
+//  1. Extract logger and tracer from context
+//  2. Start tracing span for the operation
+//  3. Get database connection from pool
+//  4. Execute query with organization, ledger, and external ID filters
+//  5. Order by created_at DESC to get latest rate
+//  6. Scan result into model and convert to domain entity
+//
+// Parameters:
+//   - ctx: Context for tracing, cancellation, and deadline propagation
+//   - organizationID: Organization scope for multi-tenancy
+//   - ledgerID: Ledger scope within organization
+//   - externalID: External system identifier
+//
+// Returns:
+//   - *AssetRate: Found asset rate entity
+//   - error: ErrEntityNotFound if no matching rate, or database errors
+//
+// Observability:
+//
+// Creates spans: "postgres.find_asset_rate_by_external_id", "postgres.find.query"
 func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -177,7 +302,34 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 	return record.ToEntity(), nil
 }
 
-// FindByCurrencyPair an AssetRate entity by its currency pair in Postgresql and returns it.
+// FindByCurrencyPair retrieves the most recent exchange rate between two assets.
+//
+// This is the primary query method for asset rates, looking up the conversion
+// rate from one asset to another. When multiple rates exist for the same pair,
+// the most recently created rate is returned.
+//
+// Process:
+//  1. Extract logger and tracer from context
+//  2. Start tracing span for the operation
+//  3. Get database connection from pool
+//  4. Execute query with organization, ledger, and currency pair filters
+//  5. Order by created_at DESC to get latest rate
+//  6. Return nil (not error) if no rate found
+//
+// Parameters:
+//   - ctx: Context for tracing, cancellation, and deadline propagation
+//   - organizationID: Organization scope for multi-tenancy
+//   - ledgerID: Ledger scope within organization
+//   - from: Source asset code (e.g., "USD")
+//   - to: Target asset code (e.g., "BRL")
+//
+// Returns:
+//   - *AssetRate: Found asset rate, or nil if no rate exists for the pair
+//   - error: Database errors only (not-found returns nil, nil)
+//
+// Observability:
+//
+// Creates spans: "postgres.find_asset_rate_by_currency_pair", "postgres.find.query"
 func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -231,7 +383,37 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 	return record.ToEntity(), nil
 }
 
-// FindAllByAssetCodes returns all asset rates by asset codes.
+// FindAllByAssetCodes retrieves paginated asset rates for a source asset to multiple targets.
+//
+// This method supports cursor-based pagination for efficiently traversing large
+// result sets. It finds all rates from a single source asset to multiple target
+// assets, with optional date range filtering.
+//
+// Process:
+//  1. Extract logger and tracer from context
+//  2. Decode cursor if provided (for pagination continuation)
+//  3. Build query with Squirrel query builder
+//  4. Apply filters: organization, ledger, from asset, to assets, date range
+//  5. Apply cursor pagination logic
+//  6. Execute query and scan results
+//  7. Calculate next/previous cursors for navigation
+//
+// Parameters:
+//   - ctx: Context for tracing, cancellation, and deadline propagation
+//   - organizationID: Organization scope for multi-tenancy
+//   - ledgerID: Ledger scope within organization
+//   - fromAssetCode: Source asset code to find rates from
+//   - toAssetCodes: Target asset codes to filter (nil for all)
+//   - filter: Pagination parameters including limit, cursor, date range
+//
+// Returns:
+//   - []*AssetRate: Paginated list of matching asset rates
+//   - CursorPagination: Cursor information for next/previous page navigation
+//   - error: Database or cursor decoding errors
+//
+// Observability:
+//
+// Creates spans: "postgres.find_all_asset_rates_by_asset_codes", "postgres.find_all.query"
 func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -355,7 +537,36 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	return assetRates, cur, nil
 }
 
-// Update an AssetRate entity into Postgresql and returns the AssetRate updated.
+// Update modifies an existing asset rate in PostgreSQL.
+//
+// This method performs a partial update on an asset rate, only modifying fields
+// that have changed. The source field is conditionally updated only if provided.
+// The updated_at timestamp is always refreshed.
+//
+// Process:
+//  1. Extract logger and tracer from context
+//  2. Start tracing span for the operation
+//  3. Get database connection from pool
+//  4. Convert domain model to PostgreSQL model
+//  5. Build dynamic UPDATE query with conditional fields
+//  6. Execute query with organization, ledger, and ID filters
+//  7. Validate rows affected > 0
+//  8. Return updated entity
+//
+// Parameters:
+//   - ctx: Context for tracing, cancellation, and deadline propagation
+//   - organizationID: Organization scope for multi-tenancy
+//   - ledgerID: Ledger scope within organization
+//   - id: Asset rate unique identifier
+//   - assetRate: Domain model with updated values
+//
+// Returns:
+//   - *AssetRate: Updated asset rate entity
+//   - error: ErrEntityNotFound if no matching rate, or database errors
+//
+// Observability:
+//
+// Creates spans: "postgres.update_asset_rate", "postgres.update.exec"
 func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

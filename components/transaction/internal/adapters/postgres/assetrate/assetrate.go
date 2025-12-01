@@ -1,3 +1,36 @@
+// Package assetrate provides PostgreSQL adapter implementations for asset rate entity persistence.
+//
+// This package implements the infrastructure layer for asset rate storage in PostgreSQL,
+// following the hexagonal architecture pattern. Asset rates define currency conversion
+// rates between assets for multi-currency transaction processing.
+//
+// Architecture Overview:
+//
+// The asset rate adapter provides:
+//   - Create and update operations for asset rates
+//   - Currency pair lookups (e.g., USD to BRL)
+//   - External ID-based lookups for integration
+//   - Cursor-based pagination for large result sets
+//   - TTL support for rate expiration
+//
+// Domain Concepts:
+//
+// An AssetRate in the ledger system:
+//   - Represents a conversion rate between two assets
+//   - Has a source asset ("from") and target asset ("to")
+//   - Includes rate value and scale for precision
+//   - Supports TTL for rate expiration policies
+//   - Can be linked to external systems via ExternalID
+//
+// Use Cases:
+//
+//   - Multi-currency transactions requiring exchange
+//   - Real-time rate updates from external sources
+//   - Historical rate tracking for audit
+//
+// Related Packages:
+//   - github.com/LerianStudio/lib-commons/v2/commons/postgres: PostgreSQL connection management
+//   - github.com/LerianStudio/midaz/v3/pkg/net/http: Query filter and pagination
 package assetrate
 
 import (
@@ -6,7 +39,27 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 )
 
-// AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database
+// AssetRatePostgreSQLModel represents the asset rate entity in PostgreSQL.
+//
+// This model maps directly to the 'asset_rate' table with proper SQL types.
+// It stores conversion rates between assets for multi-currency operations.
+//
+// Table Schema:
+//
+//	CREATE TABLE asset_rate (
+//	    id UUID PRIMARY KEY,
+//	    organization_id UUID NOT NULL,
+//	    ledger_id UUID NOT NULL,
+//	    external_id UUID,
+//	    "from" VARCHAR(10) NOT NULL,
+//	    "to" VARCHAR(10) NOT NULL,
+//	    rate DECIMAL NOT NULL,
+//	    rate_scale DECIMAL,
+//	    source VARCHAR(200),
+//	    ttl INTEGER,
+//	    created_at TIMESTAMP WITH TIME ZONE,
+//	    updated_at TIMESTAMP WITH TIME ZONE
+//	);
 //
 // @Description Database model for storing asset rate information in PostgreSQL
 type AssetRatePostgreSQLModel struct {
@@ -145,7 +198,12 @@ type AssetRate struct {
 	Metadata map[string]any `json:"metadata"`
 } // @name AssetRate
 
-// ToEntity converts an TransactionPostgreSQLModel to entity Transaction
+// ToEntity converts an AssetRatePostgreSQLModel to the domain AssetRate model.
+//
+// This method implements the outbound mapping in hexagonal architecture.
+//
+// Returns:
+//   - *AssetRate: Domain model with all fields mapped
 func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 	assetRate := &AssetRate{
 		ID:             a.ID,
@@ -165,7 +223,12 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 	return assetRate
 }
 
-// FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel
+// FromEntity converts a domain AssetRate model to AssetRatePostgreSQLModel.
+//
+// This method implements the inbound mapping in hexagonal architecture.
+//
+// Parameters:
+//   - assetRate: Domain AssetRate model to convert
 func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) {
 	*a = AssetRatePostgreSQLModel{
 		ID:             libCommons.GenerateUUIDv7().String(),

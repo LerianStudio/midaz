@@ -1,3 +1,44 @@
+// Package balance provides PostgreSQL repository implementation for account balances.
+//
+// This file contains the Repository interface and BalancePostgreSQLRepository implementation,
+// providing comprehensive data access operations for balance management in the ledger system.
+//
+// Key Features:
+//   - Multi-tenant isolation via organization_id and ledger_id filtering
+//   - Cursor-based pagination for efficient large dataset traversal
+//   - Optimistic locking via version field for concurrent update safety
+//   - Soft delete pattern for audit trail and recovery
+//   - Bulk operations for performance (batch updates, batch deletes)
+//   - Multiple lookup strategies (by ID, alias, account, key)
+//
+// Query Patterns:
+//
+//	┌─────────────────────────────────────────────────────────────┐
+//	│                    Balance Queries                           │
+//	├─────────────────────────────────────────────────────────────┤
+//	│  Find(id)               → Single balance by ID               │
+//	│  FindByAccountIDAndKey  → Balance by account + key           │
+//	│  ListByAccountIDs       → Balances for multiple accounts     │
+//	│  ListByAliases          → Balances matching aliases          │
+//	│  ListByAliasesWithKeys  → Balances by alias#key pairs        │
+//	│  ListAll                → Paginated list for ledger          │
+//	│  ListAllByAccountID     → Paginated list for account         │
+//	└─────────────────────────────────────────────────────────────┘
+//
+// Concurrency Model:
+// Balance updates use optimistic locking. Each balance has a version counter that
+// increments on every update. Update queries include "WHERE version < new_version"
+// to prevent lost updates when multiple processes modify the same balance.
+//
+// Redis Sync:
+// The Sync method supports eventual consistency between Redis (hot cache) and
+// PostgreSQL (source of truth). Redis serves high-frequency reads while PostgreSQL
+// maintains durability. Version comparison ensures only newer data is persisted.
+//
+// Related Packages:
+//   - balance.go: Contains BalancePostgreSQLModel and entity conversion
+//   - mmodel: Domain model definitions
+//   - transaction: Uses this repository for balance mutations
 package balance
 
 import (
@@ -23,36 +64,135 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to balance template entities.
-// It defines methods for creating, finding, listing, updating, and deleting balance templates.
+// Repository defines the interface for balance persistence operations.
+//
+// This interface follows the repository pattern from Domain-Driven Design, providing
+// a collection-like abstraction over the balance data store. All methods enforce
+// multi-tenant isolation through organizationID and ledgerID parameters.
+//
+// Thread Safety:
+// Implementations must be safe for concurrent use. The PostgreSQL implementation
+// uses connection pooling and optimistic locking to handle concurrent access.
+//
+// Error Handling:
+// Methods return domain errors from pkg/constant for business rule violations
+// (e.g., ErrEntityNotFound) and infrastructure errors for system failures.
+//
+// Mock Generation:
 //
 //go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
+	// Create inserts a new balance into the database.
+	// Returns error if the balance already exists or on database failure.
 	Create(ctx context.Context, balance *mmodel.Balance) error
+
+	// Find retrieves a single balance by its unique ID.
+	// Returns ErrEntityNotFound if the balance doesn't exist or is soft-deleted.
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
+
+	// FindByAccountIDAndKey retrieves a balance by account and key combination.
+	// This is the primary lookup for transaction processing.
 	FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error)
+
+	// ExistsByAccountIDAndKey checks if a balance exists without loading it.
+	// More efficient than FindByAccountIDAndKey when only existence matters.
 	ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error)
+
+	// ListAll returns all balances in a ledger with cursor-based pagination.
+	// Results are ordered by created_at and filtered by date range.
 	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
+
+	// ListAllByAccountID returns all balances for a specific account with pagination.
+	// Use this to display all balance keys for an account (default, savings, etc.).
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
+
+	// ListByAccountIDs returns balances for multiple accounts in a single query.
+	// Used for batch operations like transaction processing involving multiple accounts.
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
+
+	// ListByAliases returns balances matching the provided account aliases.
+	// Used when Gold DSL references accounts by alias rather than ID.
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
+
+	// ListByAliasesWithKeys returns balances matching alias#key pairs.
+	// Format: ["account1#default", "account2#savings"]
+	// Used for precise balance targeting in multi-key scenarios.
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
+
+	// BalancesUpdate performs batch update of balance amounts with optimistic locking.
+	// Uses version comparison to prevent lost updates in concurrent scenarios.
+	// Skips balances where version in DB >= version in request (already updated).
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+
+	// Update modifies allow_sending and allow_receiving flags for a balance.
+	// Used for enabling/disabling debits and credits on specific balances.
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
+
+	// Delete performs soft delete on a balance by setting deleted_at.
+	// The balance remains in the database for audit but is excluded from queries.
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+
+	// DeleteAllByIDs performs bulk soft delete within a transaction.
+	// Fails atomically if any balance cannot be deleted.
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
+
+	// Sync persists a balance from Redis cache to PostgreSQL.
+	// Only updates if the Redis version is newer than the database version.
+	// Returns true if the update was applied, false if skipped due to version.
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
+
+	// UpdateAllByAccountID updates all balances for an account.
+	// Used when account-level changes affect all balance keys.
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
+
+	// ListByAccountID returns all balances for an account without pagination.
+	// Simpler alternative to ListAllByAccountID when pagination isn't needed.
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 }
 
-// BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
+// BalancePostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides all balance persistence operations using PostgreSQL as the
+// backing store. It uses squirrel for query building and lib-commons for connection
+// management, tracing, and observability.
+//
+// Connection Management:
+// The repository holds a reference to a PostgresConnection which manages the connection
+// pool. Database connections are obtained per-operation via GetDB() to support
+// connection pooling and health checks.
+//
+// Observability:
+// All methods create OpenTelemetry spans for distributed tracing. Span names follow
+// the pattern "postgres.{operation}" (e.g., "postgres.find_balance").
+//
+// Thread Safety:
+// The repository is safe for concurrent use. Each operation obtains its own database
+// connection from the pool and uses separate prepared statements.
 type BalancePostgreSQLRepository struct {
-	connection *libPostgres.PostgresConnection
-	tableName  string
+	connection *libPostgres.PostgresConnection // Connection pool manager
+	tableName  string                          // Table name: "balance"
 }
 
-// NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
+// NewBalancePostgreSQLRepository creates a new balance repository with the given connection.
+//
+// This constructor validates the database connection by calling GetDB(). If the
+// connection cannot be established, it panics to prevent the application from
+// starting with a broken database connection.
+//
+// Panic Behavior:
+// This is one of the few places where panic is acceptable because:
+//  1. It runs during application startup (not request handling)
+//  2. A failed database connection is unrecoverable
+//  3. Failing fast prevents silent failures
+//
+// Parameters:
+//   - pc: PostgreSQL connection pool manager from lib-commons
+//
+// Returns:
+//   - *BalancePostgreSQLRepository: Ready-to-use repository instance
+//
+// Panics:
+//   - If database connection cannot be established
 func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
 	c := &BalancePostgreSQLRepository{
 		connection: pc,
