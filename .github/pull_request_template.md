@@ -10,6 +10,7 @@
 - [ ] Pipeline
 - [ ] Transaction
 - [ ] Tests
+- [ ] CRM
 
 ## Checklist
 Please check each item after it's completed.

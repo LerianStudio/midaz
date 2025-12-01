@@ -1,0 +1,1496 @@
+openapi: 3.0.1
+info:
+  contact: {}
+  description: The CRM API provides a set of endpoints for managing holder data, including
+    information related to their ledger accounts.
+  title: Plugin CRM
+  version: 1.0.0
+servers:
+- url: //localhost:4003/
+paths:
+  /v1/aliases:
+    get:
+      description: List all Aliases with or without filters. CRM listing endpoints
+        support pagination using the page, limit, and sort parameters. The sort parameter
+        orders results by the entity ID using the UUID v7 standard, which is time-sortable,
+        ensuring chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: query
+        name: holder_id
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted aliases.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter alias by accountID
+        in: query
+        name: account_id
+        schema:
+          type: string
+      - description: Filter alias by ledgerID
+        in: query
+        name: ledger_id
+        schema:
+          type: string
+      - description: Filter alias by document
+        in: query
+        name: document
+        schema:
+          type: string
+      - description: Filter alias by banking details branch
+        in: query
+        name: banking_details_branch
+        schema:
+          type: string
+      - description: Filter alias by banking details account
+        in: query
+        name: banking_details_account
+        schema:
+          type: string
+      - description: Filter alias by banking details iban
+        in: query
+        name: banking_details_iban
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: List Aliases
+      tags:
+      - Aliases
+  /v1/holders:
+    get:
+      description: List all Holders. CRM listing endpoints support pagination using
+        the page, limit, and sort parameters. The sort parameter orders results by
+        the entity ID using the UUID v7 standard, which is time-sortable, ensuring
+        chronological ordering of the results.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Return includes logically deleted holders.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      - description: Filter holders by externalID
+        in: query
+        name: external_id
+        schema:
+          type: string
+      - description: Filter holders by document
+        in: query
+        name: document
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_1'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: List Holders
+      tags:
+      - Holders
+    post:
+      description: Creates a new holder with the provided details.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Create a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+  /v1/holders/{holder_id}/aliases:
+    post:
+      description: Enables a creation of an alias account, which represents an account
+        in the ledger. The alias account is linked to specific business information,
+        making it easier to manage and abstract account data within the system.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAliasRequest'
+        description: Alias Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AliasResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Create an Alias Account
+      tags:
+      - Aliases
+      x-codegen-request-body-name: alias
+  /v1/holders/{holder_id}/aliases/{alias_id}:
+    delete:
+      description: Delete an Alias. **Note:** By default, the delete endpoint performs
+        a logical deletion (soft delete) of the entity in the system. If a physical
+        deletion (hard delete) is required, you can use the query parameter outlined
+        in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Alias account.
+        in: path
+        name: alias_id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Delete an Alias
+      tags:
+      - Aliases
+    get:
+      description: Retrieves detailed information about a specific alias using its
+        unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Alias account.
+        in: path
+        name: alias_id
+        required: true
+        schema:
+          type: string
+      - description: Returns the alias even if it was logically deleted.
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AliasResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Retrieve Alias details
+      tags:
+      - Aliases
+    patch:
+      description: Update details of an alias.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Alias account.
+        in: path
+        name: alias_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAliasRequest'
+        description: Alias Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AliasResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Update an Alias
+      tags:
+      - Aliases
+      x-codegen-request-body-name: alias
+  /v1/holders/{id}:
+    delete:
+      description: Delete a Holder. **Note:** By default, the delete endpoint performs
+        a logical deletion (soft delete) of the entity in the system. If a physical
+        deletion (hard delete) is required, you can use the query parameter outlined
+        in the documentation.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Use only to perform a physical deletion of the data. This action
+          is irreversible.
+        in: query
+        name: hard_delete
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Delete a Holder
+      tags:
+      - Holders
+    get:
+      description: Retrieves detailed information about a specific holder using its
+        unique identifier.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Returns the holder even if it was logically deleted
+        in: query
+        name: include_deleted
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Retrieve Holder details
+      tags:
+      - Holders
+    patch:
+      description: Update details of a holder.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.\
+          \ Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        schema:
+          type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHolderRequest'
+        description: Holder Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+          description: Internal Server Error
+      summary: Update a Holder
+      tags:
+      - Holders
+      x-codegen-request-body-name: holder
+components:
+  schemas:
+    Address:
+      description: Address object
+      example:
+        country: US
+        zipCode: 00000-000
+        city: New York
+        description: Home address
+        state: NY
+        line2: Street 2
+        line1: Street 1
+      properties:
+        city:
+          description: The city of the address.
+          example: New York
+          type: string
+        country:
+          description: The two-letter code (ISO 3166-1 alpha2) that represents the
+            country of the address.
+          example: US
+          type: string
+        description:
+          description: A description of the address.
+          example: Home address
+          type: string
+        line1:
+          description: The first line of the address. Usually used to inform the name
+            of the street and the number of the building.
+          example: Street 1
+          type: string
+        line2:
+          description: The second line of the address. Usually used to inform about
+            any complements such as the number of the apartment.
+          example: Street 2
+          type: string
+        state:
+          description: The state or region of the address.
+          example: NY
+          type: string
+        zipCode:
+          description: The postal code of the address.
+          example: 00000-000
+          type: string
+      type: object
+    Addresses:
+      description: Addresses object
+      example:
+        additional1:
+          country: US
+          zipCode: 00000-000
+          city: New York
+          description: Home address
+          state: NY
+          line2: Street 2
+          line1: Street 1
+        additional2:
+          country: US
+          zipCode: 00000-000
+          city: New York
+          description: Home address
+          state: NY
+          line2: Street 2
+          line1: Street 1
+        primary:
+          country: US
+          zipCode: 00000-000
+          city: New York
+          description: Home address
+          state: NY
+          line2: Street 2
+          line1: Street 1
+      properties:
+        additional1:
+          $ref: '#/components/schemas/Address'
+        additional2:
+          $ref: '#/components/schemas/Address'
+        primary:
+          $ref: '#/components/schemas/Address'
+      type: object
+    AliasResponse:
+      description: AliasResponse payload
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        metadata:
+          key: '{}'
+        bankingDetails:
+          bankId: "12345"
+          countryCode: US
+          iban: US12345678901234567890
+          type: CACC
+          branch: "0001"
+          openingDate: 2025-01-01
+          account: "123450"
+        document: "91315026015"
+        id: 00000000-0000-0000-0000-000000000000
+        type: LEGAL_PERSON
+        holderId: 00000000-0000-0000-0000-000000000000
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        bankingDetails:
+          $ref: '#/components/schemas/BankingDetails'
+        createdAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        document:
+          example: "91315026015"
+          type: string
+        holderId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        type:
+          example: LEGAL_PERSON
+          type: string
+        updatedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+      type: object
+    BankingDetails:
+      description: BankingDetails object
+      example:
+        bankId: "12345"
+        countryCode: US
+        iban: US12345678901234567890
+        type: CACC
+        branch: "0001"
+        openingDate: 2025-01-01
+        account: "123450"
+      properties:
+        account:
+          description: The account code or number.
+          example: "123450"
+          type: string
+        bankId:
+          description: The code or identifier for correlation with the bank holding
+            the account.
+          example: "12345"
+          type: string
+        branch:
+          description: The branch number or code.
+          example: "0001"
+          type: string
+        countryCode:
+          description: The country code where the bank is located.
+          example: US
+          type: string
+        iban:
+          description: The International Bank Account Number.
+          example: US12345678901234567890
+          type: string
+        openingDate:
+          description: The date the account was opened.
+          example: 2025-01-01
+          type: string
+        type:
+          description: Type of account.
+          example: CACC
+          type: string
+      type: object
+    Contact:
+      description: Contact object
+      example:
+        secondaryEmail: john.doe@example.com
+        mobilePhone: +1555555555
+        otherPhone: +1555555555
+        primaryEmail: john.doe@example.com
+      properties:
+        mobilePhone:
+          description: The mobile phone number of the holder, including country code.
+          example: +1555555555
+          type: string
+        otherPhone:
+          description: Any additional phone number of the holder.
+          example: +1555555555
+          type: string
+        primaryEmail:
+          description: The primary email address of the holder.
+          example: john.doe@example.com
+          type: string
+        secondaryEmail:
+          description: The secondary email address of the holder.
+          example: john.doe@example.com
+          type: string
+      type: object
+    CreateAliasRequest:
+      description: CreateAliasRequest payload
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        metadata:
+          key: '{}'
+        bankingDetails: '{}'
+      properties:
+        accountId:
+          description: Unique identifier of the related account on ledger.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        bankingDetails:
+          allOf:
+          - $ref: '#/components/schemas/BankingDetails'
+          description: Object with banking information of the related account.
+          type: object
+        ledgerId:
+          description: Unique identifier of the ledger of the related account.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+      required:
+      - accountId
+      - ledgerId
+      type: object
+    CreateHolderRequest:
+      description: CreateHolderRequest payload
+      example:
+        addresses: '{}'
+        metadata:
+          key: '{}'
+        contact: '{}'
+        document: "91315026015"
+        legalPerson: '{}'
+        name: John Doe
+        externalId: G4K7N8M2
+        type: NATURAL_PERSON
+        naturalPerson: '{}'
+      properties:
+        addresses:
+          allOf:
+          - $ref: '#/components/schemas/Addresses'
+          description: Object of addresses.
+          type: object
+        contact:
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          description: Object with contact information.
+          type: object
+        document:
+          description: The holder’s identification document.
+          example: "91315026015"
+          type: string
+        externalId:
+          description: Optional field for an external identifier to client correlation
+            purposes.
+          example: G4K7N8M2
+          type: string
+        legalPerson:
+          allOf:
+          - $ref: '#/components/schemas/LegalPerson'
+          description: Object with legal person information.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        name:
+          description: |-
+            Holders name.
+            **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
+          example: John Doe
+          type: string
+        naturalPerson:
+          allOf:
+          - $ref: '#/components/schemas/NaturalPerson'
+          description: Object with natural person information.
+          type: object
+        type:
+          description: |-
+            Type of person.
+            * NATURAL_PERSON - Individual
+            * LEGAL_PERSON - Company
+          enum:
+          - NATURAL_PERSON
+          - LEGAL_PERSON
+          example: NATURAL_PERSON
+          type: string
+      required:
+      - document
+      - name
+      - type
+      type: object
+    ErrorMessage:
+      description: Response message error
+      properties:
+        code:
+          example: CRM-0000
+          type: string
+        message:
+          example: Error message
+          type: string
+        title:
+          example: Error title
+          type: string
+      type: object
+    HolderResponse:
+      description: HolderResponse payload
+      example:
+        addresses:
+          additional1:
+            country: US
+            zipCode: 00000-000
+            city: New York
+            description: Home address
+            state: NY
+            line2: Street 2
+            line1: Street 1
+          additional2:
+            country: US
+            zipCode: 00000-000
+            city: New York
+            description: Home address
+            state: NY
+            line2: Street 2
+            line1: Street 1
+          primary:
+            country: US
+            zipCode: 00000-000
+            city: New York
+            description: Home address
+            state: NY
+            line2: Street 2
+            line1: Street 1
+        metadata:
+          key: '{}'
+        document: "91315026015"
+        externalId: G4K7N8M2
+        type: NATURAL_PERSON
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        contact:
+          secondaryEmail: john.doe@example.com
+          mobilePhone: +1555555555
+          otherPhone: +1555555555
+          primaryEmail: john.doe@example.com
+        legalPerson:
+          foundingDate: 2025-01-01
+          tradeName: Lerian Studio
+          activity: Electronic devices development
+          size: Medium
+          type: Limited Liability
+          representative: '{}'
+          status: Closed
+        name: John Doe
+        id: 00000000-0000-0000-0000-000000000000
+        naturalPerson:
+          fatherName: John Doe
+          socialName: John Doe
+          gender: Male
+          nationality: Brazilian
+          favoriteName: John
+          motherName: Jane Doe
+          birthDate: 1990-01-01
+          civilStatus: Single
+          status: Active
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        addresses:
+          $ref: '#/components/schemas/Addresses'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        createdAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+        document:
+          example: "91315026015"
+          type: string
+        externalId:
+          example: G4K7N8M2
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        legalPerson:
+          $ref: '#/components/schemas/LegalPerson'
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          example: John Doe
+          type: string
+        naturalPerson:
+          $ref: '#/components/schemas/NaturalPerson'
+        type:
+          enum:
+          - NATURAL_PERSON
+          - LEGAL_PERSON
+          example: NATURAL_PERSON
+          type: string
+        updatedAt:
+          example: 2025-01-01T00:00:00Z
+          type: string
+      type: object
+    LegalPerson:
+      description: LegalPerson is a struct designed to encapsulate response payload
+        data.
+      example:
+        foundingDate: 2025-01-01
+        tradeName: Lerian Studio
+        activity: Electronic devices development
+        size: Medium
+        type: Limited Liability
+        representative: '{}'
+        status: Closed
+      properties:
+        activity:
+          description: The type of business or activity the company engages in.
+          example: Electronic devices development
+          type: string
+        foundingDate:
+          description: The date when the company was established.
+          example: 2025-01-01
+          type: string
+        representative:
+          allOf:
+          - $ref: '#/components/schemas/Representative'
+          description: Object with details of the company's legal representative.
+          type: object
+        size:
+          description: The size classification of the company.
+          example: Medium
+          type: string
+        status:
+          description: The current status of the legal entity.
+          example: Closed
+          type: string
+        tradeName:
+          description: The registered business name of the company, if applicable.
+          example: Lerian Studio
+          type: string
+        type:
+          description: The legal structure of the company.
+          example: Limited Liability
+          type: string
+      type: object
+    NaturalPerson:
+      description: NaturalPerson object
+      example:
+        fatherName: John Doe
+        socialName: John Doe
+        gender: Male
+        nationality: Brazilian
+        favoriteName: John
+        motherName: Jane Doe
+        birthDate: 1990-01-01
+        civilStatus: Single
+        status: Active
+      properties:
+        birthDate:
+          description: Person's birth date, formatted as YYYY-MM-DD.
+          example: 1990-01-01
+          type: string
+        civilStatus:
+          description: 'Person''s civil status, for example: "Single", "Married",
+            or "Divorced".'
+          example: Single
+          type: string
+        fatherName:
+          description: The name of the person's father.
+          example: John Doe
+          type: string
+        favoriteName:
+          description: The person's nickname or preferred name.
+          example: John
+          type: string
+        gender:
+          description: Person's gender.
+          example: Male
+          type: string
+        motherName:
+          description: The name of the person's mother.
+          example: Jane Doe
+          type: string
+        nationality:
+          description: The nationality of the person, for example, "Brazilian".
+          example: Brazilian
+          type: string
+        socialName:
+          description: The social name or alternate name used by the person, if applicable.
+          example: John Doe
+          type: string
+        status:
+          description: The current status of the individual.
+          example: Active
+          type: string
+      type: object
+    Pagination:
+      description: Pagination query params
+      example:
+        limit: 10
+        page: 0
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          example: 10
+          type: integer
+        page:
+          type: integer
+      type: object
+    Representative:
+      description: Representative object from LegalPerson
+      properties:
+        document:
+          description: The document number of the legal representative.
+          example: "91315026015"
+          type: string
+        email:
+          description: The email address of the legal representative.
+          example: john.doe@example.com
+          type: string
+        name:
+          description: The legal representative’s name.
+          example: John Doe
+          type: string
+        role:
+          description: The role of the legal representative within the company.
+          example: CFO
+          type: string
+      type: object
+    UpdateAliasRequest:
+      description: UpdateAliasRequest payload
+      example:
+        metadata:
+          key: '{}'
+        bankingDetails: '{}'
+      properties:
+        bankingDetails:
+          allOf:
+          - $ref: '#/components/schemas/BankingDetails'
+          description: Object with banking information of the related account.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+      type: object
+    UpdateHolderRequest:
+      description: UpdateHolderRequest payload
+      example:
+        addresses: '{}'
+        metadata:
+          key: '{}'
+        contact: '{}'
+        legalPerson: '{}'
+        name: John Doe
+        externalId: G4K7N8M
+        naturalPerson: '{}'
+      properties:
+        addresses:
+          allOf:
+          - $ref: '#/components/schemas/Addresses'
+          description: Object of addresses.
+          type: object
+        contact:
+          allOf:
+          - $ref: '#/components/schemas/Contact'
+          description: Object with contact information.
+          type: object
+        externalId:
+          description: Optional field for an external identifier to client correlation
+            purposes.
+          example: G4K7N8M
+          type: string
+        legalPerson:
+          allOf:
+          - $ref: '#/components/schemas/LegalPerson'
+          description: Object with legal person information.
+          type: object
+        metadata:
+          additionalProperties:
+            type: object
+          description: An object containing key-value pairs to add as metadata, where
+            the field name is the key and the field value is the value.
+          type: object
+        name:
+          description: Holders name.
+          example: John Doe
+          type: string
+        naturalPerson:
+          allOf:
+          - $ref: '#/components/schemas/NaturalPerson'
+          description: Object with natural person information.
+          type: object
+      type: object
+    inline_response_200:
+      example:
+        Pagination:
+          limit: 10
+          page: 0
+          items: '{}'
+        limit: 6
+        page: 1
+        items:
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          bankingDetails:
+            bankId: "12345"
+            countryCode: US
+            iban: US12345678901234567890
+            type: CACC
+            branch: "0001"
+            openingDate: 2025-01-01
+            account: "123450"
+          document: "91315026015"
+          id: 00000000-0000-0000-0000-000000000000
+          type: LEGAL_PERSON
+          holderId: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2025-01-01T00:00:00Z
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          bankingDetails:
+            bankId: "12345"
+            countryCode: US
+            iban: US12345678901234567890
+            type: CACC
+            branch: "0001"
+            openingDate: 2025-01-01
+            account: "123450"
+          document: "91315026015"
+          id: 00000000-0000-0000-0000-000000000000
+          type: LEGAL_PERSON
+          holderId: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AliasResponse'
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+      type: object
+    inline_response_200_1:
+      example:
+        Pagination:
+          limit: 10
+          page: 0
+          items: '{}'
+        limit: 0
+        page: 6
+        items:
+        - addresses:
+            additional1:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+            additional2:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+            primary:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+          metadata:
+            key: '{}'
+          document: "91315026015"
+          externalId: G4K7N8M2
+          type: NATURAL_PERSON
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          contact:
+            secondaryEmail: john.doe@example.com
+            mobilePhone: +1555555555
+            otherPhone: +1555555555
+            primaryEmail: john.doe@example.com
+          legalPerson:
+            foundingDate: 2025-01-01
+            tradeName: Lerian Studio
+            activity: Electronic devices development
+            size: Medium
+            type: Limited Liability
+            representative: '{}'
+            status: Closed
+          name: John Doe
+          id: 00000000-0000-0000-0000-000000000000
+          naturalPerson:
+            fatherName: John Doe
+            socialName: John Doe
+            gender: Male
+            nationality: Brazilian
+            favoriteName: John
+            motherName: Jane Doe
+            birthDate: 1990-01-01
+            civilStatus: Single
+            status: Active
+          updatedAt: 2025-01-01T00:00:00Z
+        - addresses:
+            additional1:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+            additional2:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+            primary:
+              country: US
+              zipCode: 00000-000
+              city: New York
+              description: Home address
+              state: NY
+              line2: Street 2
+              line1: Street 1
+          metadata:
+            key: '{}'
+          document: "91315026015"
+          externalId: G4K7N8M2
+          type: NATURAL_PERSON
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          contact:
+            secondaryEmail: john.doe@example.com
+            mobilePhone: +1555555555
+            otherPhone: +1555555555
+            primaryEmail: john.doe@example.com
+          legalPerson:
+            foundingDate: 2025-01-01
+            tradeName: Lerian Studio
+            activity: Electronic devices development
+            size: Medium
+            type: Limited Liability
+            representative: '{}'
+            status: Closed
+          name: John Doe
+          id: 00000000-0000-0000-0000-000000000000
+          naturalPerson:
+            fatherName: John Doe
+            socialName: John Doe
+            gender: Male
+            nationality: Brazilian
+            favoriteName: John
+            motherName: Jane Doe
+            birthDate: 1990-01-01
+            civilStatus: Single
+            status: Active
+          updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/HolderResponse'
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+      type: object
+x-original-swagger-version: "2.0"
