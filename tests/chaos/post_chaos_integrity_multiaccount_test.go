@@ -16,13 +16,13 @@ import (
 func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
     shouldRunChaos(t)
     // auto log capture for correlation
-    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "PostChaosIntegrity_MultiAccount")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-ledger", "midaz-postgres-primary"}, "PostChaosIntegrity_MultiAccount")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 

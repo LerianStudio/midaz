@@ -21,7 +21,7 @@ func TestIntegration_GetAllBalancesByAlias_FullCacheOverlay(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
@@ -90,7 +90,7 @@ func TestIntegration_GetAllBalancesByAlias_VeryLargePrecisionOverlay(t *testing.
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()

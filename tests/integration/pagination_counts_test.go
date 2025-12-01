@@ -13,7 +13,7 @@ import (
 
 func TestIntegration_CountEndpoints(t *testing.T) {
 	env := h.LoadEnvironment()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 	ctx := context.Background()
 
@@ -113,7 +113,7 @@ func TestIntegration_CountEndpoints(t *testing.T) {
 
 func TestIntegration_LedgersPaginationAndValidation(t *testing.T) {
 	env := h.LoadEnvironment()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 	ctx := context.Background()
 

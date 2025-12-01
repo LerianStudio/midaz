@@ -17,7 +17,7 @@ func TestFuzz_Headers_MissingDuplicated_InvalidAuth(t *testing.T) {
     shouldRunHeaders(t)
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
     requireAuth := os.Getenv("TEST_REQUIRE_AUTH") == "true"
 

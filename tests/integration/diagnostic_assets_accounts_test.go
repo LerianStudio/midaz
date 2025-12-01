@@ -13,7 +13,7 @@ import (
 func TestDiagnostic_AssetsThenAccounts(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Diag Org "+h.RandString(5), h.RandString(12)))

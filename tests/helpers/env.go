@@ -11,16 +11,14 @@ import (
 
 // Environment holds base URLs for Midaz services and behavior flags.
 type Environment struct {
-	OnboardingURL  string
-	LedgerURL string
-	ManageStack    bool // if true, tests may start/stop stack via Makefile
-	HTTPTimeout    time.Duration
+	LedgerURL   string
+	ManageStack bool // if true, tests may start/stop stack via Makefile
+	HTTPTimeout time.Duration
 }
 
 // LoadEnvironment loads environment configuration with sensible defaults
 // matching the local docker-compose setup.
 func LoadEnvironment() Environment {
-	onboarding := getenv("ONBOARDING_URL", "http://localhost:3000")
 	ledger := getenv("LEDGER_URL", "http://localhost:3001")
 	manage := getenv("MIDAZ_TEST_MANAGE_STACK", "false") == "true"
 	timeoutStr := getenv("MIDAZ_TEST_HTTP_TIMEOUT", "20s")
@@ -31,10 +29,9 @@ func LoadEnvironment() Environment {
 	}
 
 	return Environment{
-		OnboardingURL:  onboarding,
-		LedgerURL: ledger,
-		ManageStack:    manage,
-		HTTPTimeout:    timeout,
+		LedgerURL:   ledger,
+		ManageStack: manage,
+		HTTPTimeout: timeout,
 	}
 }
 

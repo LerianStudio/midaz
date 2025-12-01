@@ -15,7 +15,7 @@ import (
 func TestIntegration_TransactionJSON_OversizedMetadataValue_Should400(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
@@ -77,7 +77,7 @@ func TestIntegration_TransactionJSON_OversizedMetadataValue_Should400(t *testing
 func TestIntegration_TransactionInflow_OversizedMetadataValue_Should400(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 

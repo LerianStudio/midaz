@@ -18,7 +18,7 @@ import (
 func TestProperty_OperationsSum_API(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	// Setup org/ledger/asset once

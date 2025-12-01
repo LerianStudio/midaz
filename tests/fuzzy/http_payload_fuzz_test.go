@@ -29,7 +29,7 @@ func TestFuzz_Organization_Fields(t *testing.T) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	for i := 0; i < 30; i++ {
@@ -50,7 +50,7 @@ func TestFuzz_Accounts_AliasAndType(t *testing.T) {
 	shouldRun(t)
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
@@ -109,7 +109,7 @@ func TestFuzz_Transactions_Amounts_And_Codes(t *testing.T) {
 	shouldRun(t)
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 

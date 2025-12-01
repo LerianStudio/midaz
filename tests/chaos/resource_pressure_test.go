@@ -15,7 +15,7 @@ func TestChaos_ResourcePressure_NoCrashes(t *testing.T) {
     shouldRunChaos(t)
 
     env := h.LoadEnvironment()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
     ctx := context.Background()
 

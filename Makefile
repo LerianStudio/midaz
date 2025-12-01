@@ -7,16 +7,15 @@ MIDAZ_ROOT := $(shell pwd)
 
 # Component directories
 INFRA_DIR := ./components/infra
-ONBOARDING_DIR := ./components/onboarding
 LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 TESTS_DIR := ./tests
 
 # Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(LEDGER_DIR)
+BACKEND_COMPONENTS := $(LEDGER_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(LEDGER_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(LEDGER_DIR) $(CONSOLE_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -127,13 +126,12 @@ help:
 	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
-	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (onboarding and ledger)"
-	@echo "  make down-backend                 - Stop only backend services (onboarding and ledger)"
-	@echo "  make restart-backend              - Restart only backend services (onboarding and ledger)"
+	@echo "  make up-backend                   - Start only backend services (ledger)"
+	@echo "  make down-backend                 - Stop only backend services (ledger)"
+	@echo "  make restart-backend              - Restart only backend services (ledger)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -479,7 +477,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding ledger console all-components
+.PHONY: infra ledger console all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -487,14 +485,6 @@ infra:
 		exit 1; \
 	fi
 	@cd $(INFRA_DIR) && $(MAKE) $(COMMAND)
-
-onboarding:
-	$(call print_title,"Running command in onboarding component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(ONBOARDING_DIR) && $(MAKE) $(COMMAND)
 
 ledger:
 	$(call print_title,"Running command in ledger component")

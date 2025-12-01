@@ -14,7 +14,7 @@ import (
 func TestIntegration_AccountAliasUniqueness_Conflict(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload(fmt.Sprintf("Org %s", h.RandString(6)), h.RandString(14)))
@@ -83,7 +83,7 @@ func TestIntegration_AccountAliasUniqueness_Conflict(t *testing.T) {
 func TestIntegration_AccountsHeadCount(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload(fmt.Sprintf("Org %s", h.RandString(6)), h.RandString(14)))

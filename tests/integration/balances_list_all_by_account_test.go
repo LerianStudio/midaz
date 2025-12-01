@@ -21,7 +21,7 @@ func TestIntegration_GetAllBalancesByAccount_FullCacheOverlay(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
@@ -90,7 +90,7 @@ func TestIntegration_GetAllBalancesByAccount_VeryLargePrecisionOverlay(t *testin
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
@@ -158,7 +158,7 @@ func TestIntegration_GetAllBalancesByAccount_FilteringByDate(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
@@ -227,7 +227,7 @@ func TestIntegration_GetAllBalancesByAccount_Pagination(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()

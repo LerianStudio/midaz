@@ -21,7 +21,7 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 	// Create test isolation helper
 	isolation := h.NewTestIsolation()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 
@@ -174,7 +174,7 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 	// Create test isolation helper
 	isolation := h.NewTestIsolation()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 

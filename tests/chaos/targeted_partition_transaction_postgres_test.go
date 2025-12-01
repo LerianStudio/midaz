@@ -14,13 +14,13 @@ import (
 // Disconnect transaction from infra network; writes should fail transiently and recover upon reconnect.
 func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-ledger", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 

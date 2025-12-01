@@ -37,15 +37,6 @@ if [ -d "components/console" ]; then
     }
 fi
 
-# Test onboarding component
-echo -e "\nTesting onboarding component..."
-if [ -d "components/onboarding" ]; then
-    (cd components/onboarding && make test) || {
-        overall_exit_code=1
-        echo "[error] Onboarding component tests failed."
-    }
-fi
-
 # Test ledger component
 echo -e "\nTesting ledger component..."
 if [ -d "components/ledger" ]; then

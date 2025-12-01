@@ -13,11 +13,11 @@ import (
 // Restart onboarding/transaction services; APIs should return and state remains accessible.
 func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-ledger"}, "ServicesRestart_RecoverState")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-ledger"}, "ServicesRestart_RecoverState")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
@@ -28,7 +28,7 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
     _ = json.Unmarshal(body, &org)
 
     // Restart onboarding and wait for health
-    if err := h.RestartWithWait("midaz-onboarding", 5*time.Second); err != nil { t.Fatalf("restart onboarding: %v", err) }
+    if err := h.RestartWithWait("midaz-ledger", 5*time.Second); err != nil { t.Fatalf("restart onboarding: %v", err) }
     deadline := time.Now().Add(60 * time.Second)
     for {
         code, _, err = onboard.Request(ctx, "GET", "/health", headers, nil)

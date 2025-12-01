@@ -15,10 +15,10 @@ func TestChaos_RabbitMQ_Restart_WithEvents(t *testing.T) {
     shouldRunChaos(t)
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 

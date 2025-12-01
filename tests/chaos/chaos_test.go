@@ -14,11 +14,11 @@ import (
 func TestChaos_RestartDatabase(t *testing.T) {
     shouldRunChaos(t)
     // Capture logs for quick diagnostics
-    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "RestartDatabase")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-ledger", "midaz-postgres-primary"}, "RestartDatabase")()
 
     env := h.LoadEnvironment()
     // Ensure current health
-    if err := h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second); err != nil { t.Fatalf("onboarding health before restart: %v", err) }
+    if err := h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second); err != nil { t.Fatalf("onboarding health before restart: %v", err) }
     if err := h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second); err != nil { t.Fatalf("transaction health before restart: %v", err) }
 
     // Restart primary database
@@ -28,12 +28,12 @@ func TestChaos_RestartDatabase(t *testing.T) {
     }
 
     // Wait for services to recover
-    if err := h.WaitForHTTP200(env.OnboardingURL+"/health", 90*time.Second); err != nil { t.Fatalf("onboarding health after restart: %v", err) }
+    if err := h.WaitForHTTP200(env.LedgerURL+"/health", 90*time.Second); err != nil { t.Fatalf("onboarding health after restart: %v", err) }
     if err := h.WaitForHTTP200(env.LedgerURL+"/health", 90*time.Second); err != nil { t.Fatalf("transaction health after restart: %v", err) }
 
     // Smoke an API call to ensure DB writes succeed
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
     code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Chaos DB "+h.RandString(6), h.RandString(12)))
     if err != nil || code >= 500 {

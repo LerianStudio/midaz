@@ -13,7 +13,7 @@ import (
 func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Create org with metadata (include valid country)
@@ -44,7 +44,7 @@ func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
 func TestIntegration_MetadataFilters_Ledgers(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // org + ledger with metadata

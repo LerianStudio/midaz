@@ -16,7 +16,7 @@ MIDAZ
  |---   |   postgres
  |---   |   rabbitmq
  |---   |---   etc
- |---   onboarding
+ |---   ledger
  |---   |   api
  |---   |   artifacts
  |---   |   cmd
@@ -41,7 +41,7 @@ MIDAZ
  |---   |---   |   command
  |---   |---   |   query
  |---   |   migrations
- |---   transaction
+ |---   ledger
  |---   |   api
  |---   |   artifacts
  |---   |   cmd
@@ -56,7 +56,7 @@ MIDAZ
  |---   |---   |---   assetrate
  |---   |---   |---   balance
  |---   |---   |---   operation
- |---   |---   |---   transaction
+ |---   |---   |---   ledger
  |---   |---   |   rabbitmq
  |---   |---   |   redis
  |---   |---   bootstrap
@@ -70,13 +70,13 @@ MIDAZ
  |---   constant
  |---   gold
  |---   |   parser
- |---   |   transaction
+ |---   |   ledger
  |---   mmodel
  |---   mgrpc
  |---   net
  |---   |   http
  |---   shell
- |---   transaction
+ |---   ledger
  |   postman
  |   scripts
  |   tests
@@ -91,17 +91,17 @@ MIDAZ
 * `libZap`: Details on the structured logger adapted for high-performance scenarios.
 * `libHTTP`: Information on HTTP helpers and network communication utilities.
 * `shell`: Guide on shell utilities, including scripting and automation tools.
-* `transaction`: Contains details of transaction models and validations
+* `transaction`: Contains details of ledger models and validations
 
 #### Components (`./components`)
 
-##### Ledger (`./components/onboarding`)
+##### Ledger (`./components/ledger`)
 
-###### API (`./onboarding/api`)
+###### API (`./ledger/api`)
 
 * **Endpoints** : List and describe all API endpoints, including parameters, request/response formats, and error codes.
 
-###### Internal (`./onboarding/internal`)
+###### Internal (`./ledger/internal`)
 
 * **Adapters** (`./adapters`):
   * **Database** : Connection and operation guides for MongoDB and PostgreSQL.
@@ -109,7 +109,7 @@ MIDAZ
   * **Command** : Documentation of command handlers, including how commands are processed.
   * **Query** : Details on query handlers, how queries are executed, and their return structures.
 * **Domain** (`./domain`):
-  * Description of domain models such as Onboarding, Portfolio, Transaction, etc., and their relationships.
+  * Description of domain models such as Ledger, Portfolio, Ledger, etc., and their relationships.
 * **Services** (`./service`):
   * Detailed information on business logic services, their roles, and interactions in the application.
 

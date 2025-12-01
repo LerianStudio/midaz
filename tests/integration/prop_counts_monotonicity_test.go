@@ -15,7 +15,7 @@ import (
 func TestProperty_Monotonic_CountMetrics(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Create isolated org

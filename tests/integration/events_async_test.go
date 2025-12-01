@@ -19,7 +19,7 @@ func TestIntegration_EventsAsync_Sanity(t *testing.T) {
 	// Create test isolation helper
 	isolation := h.NewTestIsolation()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 

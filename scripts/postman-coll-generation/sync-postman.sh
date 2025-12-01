@@ -14,7 +14,6 @@ SCRIPTS_DIR="${MIDAZ_ROOT}/scripts/postman-coll-generation"
 CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
-ONBOARDING_API="${MIDAZ_ROOT}/components/onboarding/api"
 LEDGER_API="${MIDAZ_ROOT}/components/ledger/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
@@ -80,18 +79,14 @@ convert_component() {
 
 echo "Converting OpenAPI specs to Postman collections..."
 
-# Process components in parallel
-convert_component "onboarding" "${ONBOARDING_API}/swagger.json"
-ONBOARDING_PID=$!
-
+# Process ledger component
 convert_component "ledger" "${LEDGER_API}/swagger.json"
 LEDGER_PID=$!
 
-# Wait for both conversions to complete
-wait $ONBOARDING_PID $LEDGER_PID
+# Wait for conversion to complete
+wait $LEDGER_PID
 
-# Check conversion results
-ONBOARDING_STATUS=$(cat "${TEMP_DIR}/onboarding.status" 2>/dev/null || echo "FAILED")
+# Check conversion result
 LEDGER_STATUS=$(cat "${TEMP_DIR}/ledger.status" 2>/dev/null || echo "FAILED")
 
 # Function to merge collections efficiently
@@ -152,28 +147,18 @@ merge_collections() {
     return 1
 }
 
-# Process based on what was successfully converted
-ONBOARDING_COLLECTION="${TEMP_DIR}/onboarding.postman_collection.json"
+# Process ledger component result
 LEDGER_COLLECTION="${TEMP_DIR}/ledger.postman_collection.json"
-ONBOARDING_ENV="${TEMP_DIR}/onboarding.environment.json"
 LEDGER_ENV="${TEMP_DIR}/ledger.environment.json"
 
-if [ "$ONBOARDING_STATUS" = "SUCCESS" ] && [ "$LEDGER_STATUS" = "SUCCESS" ]; then
-    merge_collections "$ONBOARDING_COLLECTION" "$LEDGER_COLLECTION" "$ONBOARDING_ENV" "$LEDGER_ENV"
-elif [ "$ONBOARDING_STATUS" = "SUCCESS" ]; then
-    echo "Only onboarding component found. Using it as the main collection..."
-    jq '.info.name = "MIDAZ" | .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"' \
-        "$ONBOARDING_COLLECTION" > "${POSTMAN_COLLECTION}"
-    [ -f "$ONBOARDING_ENV" ] && \
-        jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$ONBOARDING_ENV" > "${POSTMAN_ENVIRONMENT}"
-elif [ "$LEDGER_STATUS" = "SUCCESS" ]; then
-    echo "Only ledger component found. Using it as the main collection..."
+if [ "$LEDGER_STATUS" = "SUCCESS" ]; then
+    echo "Processing ledger component collection..."
     jq '.info.name = "MIDAZ" | .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"' \
         "$LEDGER_COLLECTION" > "${POSTMAN_COLLECTION}"
     [ -f "$LEDGER_ENV" ] && \
         jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$LEDGER_ENV" > "${POSTMAN_ENVIRONMENT}"
 else
-    echo -e "${RED}No OpenAPI specs were successfully converted.${NC}"
+    echo -e "${RED}Ledger OpenAPI spec was not successfully converted.${NC}"
     rm -rf "${TEMP_DIR}"
     exit 1
 fi

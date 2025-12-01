@@ -13,13 +13,13 @@ import (
 // Stop/start the Postgres replica repeatedly; reads should continue via primary without crashes.
 func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-postgres-replica", "midaz-postgres-primary"}, "ReplicaFlapping_ReadsContinue")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-postgres-replica", "midaz-postgres-primary"}, "ReplicaFlapping_ReadsContinue")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Create org and two ledgers to read during flapping

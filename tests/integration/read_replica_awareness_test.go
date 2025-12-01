@@ -16,7 +16,7 @@ import (
 // behave correctly with the default stack (primary + replica running).
 func TestIntegration_ReadReplicaAwareness_ReadsSucceedWithReplica(t *testing.T) {
 	env := h.LoadEnvironment()
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 	ctx := context.Background()

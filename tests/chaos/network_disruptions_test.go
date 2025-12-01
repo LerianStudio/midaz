@@ -14,7 +14,7 @@ func TestChaos_NetworkDisruptions(t *testing.T) {
     defer h.StartLogCapture([]string{"midaz-ledger"}, "NetworkDisruptions")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))

@@ -22,7 +22,7 @@ func FuzzCreateOrganizationName(f *testing.F) {
 
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Precompile allowed chars (rough heuristic; server does full validation)

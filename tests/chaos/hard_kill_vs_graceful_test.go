@@ -15,13 +15,13 @@ import (
 // Hard kill vs graceful stop on services during active traffic; verify recovery and no data loss.
 func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "HardKillVsStop_ServicesDuringTraffic")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-ledger", "midaz-postgres-primary"}, "HardKillVsStop_ServicesDuringTraffic")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
@@ -75,8 +75,8 @@ func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
         {"start", "midaz-ledger"},
         {"stop", "midaz-ledger"},
         {"start", "midaz-ledger"},
-        {"kill", "midaz-onboarding"},
-        {"start", "midaz-onboarding"},
+        {"kill", "midaz-ledger"},
+        {"start", "midaz-ledger"},
     }
     for _, s := range steps {
         if err := h.DockerAction(s.action, s.container); err != nil {
@@ -87,8 +87,8 @@ func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
             if s.container == "midaz-ledger" {
                 _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
             }
-            if s.container == "midaz-onboarding" {
-                _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+            if s.container == "midaz-ledger" {
+                _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
             }
         }
         time.Sleep(1 * time.Second)

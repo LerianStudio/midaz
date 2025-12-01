@@ -16,11 +16,11 @@ func TestChaos_MongoDB_RestartGraceful(t *testing.T) {
 
     env := h.LoadEnvironment()
     ctx := context.Background()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Ensure services are healthy
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     // Create org and ledger
     code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Mongo Org "+h.RandString(6), h.RandString(12)))

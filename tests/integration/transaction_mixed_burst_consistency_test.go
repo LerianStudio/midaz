@@ -21,7 +21,7 @@ func TestIntegration_Transactions_MixedBurstFinalBalanceConsistent(t *testing.T)
 
 	iso := h.NewTestIsolation()
 
-	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := iso.MakeTestHeaders()
 

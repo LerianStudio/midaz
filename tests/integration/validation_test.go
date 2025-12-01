@@ -11,7 +11,7 @@ import (
 
 func TestIntegration_OnboardingValidationErrors(t *testing.T) {
     env := h.LoadEnvironment()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
     ctx := context.Background()
 
@@ -33,7 +33,7 @@ func TestIntegration_OnboardingValidationErrors(t *testing.T) {
 
 func TestIntegration_InvalidUUIDPathParam(t *testing.T) {
     env := h.LoadEnvironment()
-    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    onboard := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
     ctx := context.Background()
 

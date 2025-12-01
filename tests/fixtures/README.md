@@ -1,4 +1,4 @@
-Fixtures contain sample payloads and canonical shapes derived from the OpenAPI specs in components/onboarding/api and components/transaction/api. These are intended as starting points for integration and e2e tests and will be adjusted as validations evolve.
+Fixtures contain sample payloads and canonical shapes derived from the OpenAPI specs in components/ledger/api. These are intended as starting points for integration and e2e tests and will be adjusted as validations evolve.
 
 Conventions:
 
