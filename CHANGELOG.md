@@ -1,3 +1,17 @@
+## [v3.5.0-beta.11] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.10...v3.5.0-beta.11)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Date Handling**: Resolved an issue in the `validateDates` function to correct default date handling. This fix ensures accurate date validations, preventing potential errors in date-dependent functionalities.
+
+### 🔧 Maintenance
+- **Testing Improvements**: Enhanced the test suite for `ValidateParameters` and related utilities within `httputils`. This improvement provides more comprehensive coverage, leading to more robust application behavior.
+- **Changelog Updates**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring documentation remains current and helpful for users.
+- **Test Enhancements**: Improved the `TestValidateDates_BothZero` test case to better assess edge cases where both dates are zero, increasing the reliability of date validation logic.
+
+
 ## [v3.5.0-beta.10] - 2025-11-27
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.9...v3.5.0-beta.10)
