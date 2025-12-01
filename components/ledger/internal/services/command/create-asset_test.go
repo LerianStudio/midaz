@@ -9,6 +9,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -21,10 +22,12 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:   mockAssetRepo,
 		AccountRepo: mockAccountRepo,
+		BalanceRepo: mockBalanceRepo,
 	}
 
 	ctx := context.Background()
@@ -89,6 +92,16 @@ func TestCreateAsset(t *testing.T) {
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					}, nil).
+					Times(1)
+
+				mockBalanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).
+					Times(1)
+
+				mockBalanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil).
 					Times(1)
 			},
 			expectedErr: nil,

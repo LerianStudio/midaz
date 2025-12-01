@@ -17,7 +17,7 @@ func TestUpdateMetadataTransaction(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		MetadataTransactionRepo: mockMetadataRepo,
+		MetadataOnboardingRepo: mockMetadataRepo,
 	}
 
 	ctx := context.Background()
