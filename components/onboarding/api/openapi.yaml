@@ -15,10 +15,10 @@ servers:
 paths:
   /v1/organizations:
     get:
-      description: Returns a paginated list of organizations, optionally filtered
-        by metadata, date range, and other criteria
+      description: "Returns a paginated list of organizations, optionally filtered\
+        \ by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -49,14 +49,14 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter organizations created on or after this date (format:
-          YYYY-MM-DD)'
+      - description: "Filter organizations created on or after this date (format:\
+          \ YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter organizations created on or before this date (format:
-          YYYY-MM-DD)'
+      - description: "Filter organizations created on or before this date (format:\
+          \ YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -74,7 +74,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_organizations_get_200_response'
           description: Successfully retrieved organizations list
         "400":
           content:
@@ -104,10 +104,10 @@ paths:
       tags:
       - Organizations
     post:
-      description: Creates a new organization with the provided details including
-        legal name, legal document, and optional address information
+      description: "Creates a new organization with the provided details including\
+        \ legal name, legal document, and optional address information"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -123,8 +123,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateOrganizationInput'
-        description: Organization details including legal name, legal document, and
-          optional address information
+        description: "Organization details including legal name, legal document, and\
+          \ optional address information"
         required: true
       responses:
         "201":
@@ -138,7 +138,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -166,7 +166,7 @@ paths:
       description: Returns the total count of organizations as a header without a
         response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -213,10 +213,10 @@ paths:
       - Organizations
   /v1/organizations/{id}:
     delete:
-      description: 'Permanently removes an organization identified by its UUID. Note:
-        This operation is not available in production environments.'
+      description: "Permanently removes an organization identified by its UUID. Note:\
+        \ This operation is not available in production environments."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -263,7 +263,7 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Cannot delete organization with dependent resources'
+          description: "Conflict: Cannot delete organization with dependent resources"
         "500":
           content:
             '*/*':
@@ -277,7 +277,7 @@ paths:
       description: Returns detailed information about an organization identified by
         its UUID
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -329,10 +329,10 @@ paths:
       tags:
       - Organizations
     patch:
-      description: Updates an organization's information such as legal name, address,
-        or status. Only supplied fields will be updated.
+      description: "Updates an organization's information such as legal name, address,\
+        \ or status. Only supplied fields will be updated."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -368,7 +368,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -399,10 +399,10 @@ paths:
       x-codegen-request-body-name: organization
   /v1/organizations/{organization_id}/ledgers:
     get:
-      description: Returns a paginated list of ledgers within the specified organization,
-        optionally filtered by metadata, date range, and other criteria
+      description: "Returns a paginated list of ledgers within the specified organization,\
+        \ optionally filtered by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -439,12 +439,12 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter ledgers created on or after this date (format: YYYY-MM-DD)'
+      - description: "Filter ledgers created on or after this date (format: YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter ledgers created on or before this date (format: YYYY-MM-DD)'
+      - description: "Filter ledgers created on or before this date (format: YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -462,7 +462,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers_get_200_response'
           description: Successfully retrieved ledgers list
         "400":
           content:
@@ -498,10 +498,11 @@ paths:
       tags:
       - Ledgers
     post:
-      description: Creates a new ledger within the specified organization. A ledger
-        is a financial record-keeping system for tracking assets, accounts, and transactions.
+      description: "Creates a new ledger within the specified organization. A ledger\
+        \ is a financial record-keeping system for tracking assets, accounts, and\
+        \ transactions."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -523,7 +524,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateLedgerInput'
-        description: Ledger details including name, status, and optional metadata
+        description: "Ledger details including name, status, and optional metadata"
         required: true
       responses:
         "201":
@@ -537,7 +538,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -571,7 +572,7 @@ paths:
       description: Returns the total count of ledgers for a specific organization
         as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -624,10 +625,10 @@ paths:
       - Ledgers
   /v1/organizations/{organization_id}/ledgers/{id}:
     delete:
-      description: 'Permanently removes a ledger identified by its UUID. Note: This
-        operation is not available in production environments.'
+      description: "Permanently removes a ledger identified by its UUID. Note: This\
+        \ operation is not available in production environments."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -680,7 +681,7 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Cannot delete ledger with dependent resources'
+          description: "Conflict: Cannot delete ledger with dependent resources"
         "500":
           content:
             '*/*':
@@ -694,7 +695,7 @@ paths:
       description: Returns detailed information about a ledger identified by its UUID
         within the specified organization
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -752,10 +753,10 @@ paths:
       tags:
       - Ledgers
     patch:
-      description: Updates a ledger's information such as name, status, or metadata.
-        Only supplied fields will be updated.
+      description: "Updates a ledger's information such as name, status, or metadata.\
+        \ Only supplied fields will be updated."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -797,7 +798,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -828,10 +829,10 @@ paths:
       x-codegen-request-body-name: ledger
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
-      description: Returns a paginated list of all account types for the specified
-        organization and ledger, optionally filtered by metadata
+      description: "Returns a paginated list of all account types for the specified\
+        \ organization and ledger, optionally filtered by metadata"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -859,12 +860,12 @@ paths:
         name: metadata
         schema:
           type: string
-      - description: 'Limit of account types per page (default: 10, max: 100)'
+      - description: "Limit of account types per page (default: 10, max: 100)"
         in: query
         name: limit
         schema:
           type: integer
-      - description: 'Page number for offset pagination (default: 1)'
+      - description: "Page number for offset pagination (default: 1)"
         in: query
         name: page
         schema:
@@ -874,7 +875,7 @@ paths:
         name: cursor
         schema:
           type: string
-      - description: 'Sort order (asc or desc, default: asc)'
+      - description: "Sort order (asc or desc, default: asc)"
         in: query
         name: sort_order
         schema:
@@ -894,7 +895,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__account_types_get_200_response'
           description: Successfully retrieved account types
         "400":
           content:
@@ -919,7 +920,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Organization, ledger, or account types not found
+          description: "Organization, ledger, or account types not found"
         "500":
           content:
             application/json:
@@ -932,7 +933,7 @@ paths:
     post:
       description: Endpoint to create a new Account Type.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -974,7 +975,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1008,7 +1009,7 @@ paths:
       description: Deletes an existing account type identified by its UUID within
         the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1047,6 +1048,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
         "404":
           content:
             application/json:
@@ -1066,7 +1073,7 @@ paths:
       description: Returns detailed information about an account type identified by
         its UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1119,7 +1126,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account type, ledger, or organization not found
+          description: "Account type, ledger, or organization not found"
         "500":
           content:
             application/json:
@@ -1132,7 +1139,7 @@ paths:
     patch:
       description: Endpoint to update an existing Account Type.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1180,7 +1187,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1211,10 +1218,10 @@ paths:
       x-codegen-request-body-name: accountType
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
-      description: Returns a paginated list of accounts within the specified ledger,
-        optionally filtered by metadata, date range, and other criteria
+      description: "Returns a paginated list of accounts within the specified ledger,\
+        \ optionally filtered by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1257,12 +1264,12 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter accounts created on or after this date (format: YYYY-MM-DD)'
+      - description: "Filter accounts created on or after this date (format: YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter accounts created on or before this date (format: YYYY-MM-DD)'
+      - description: "Filter accounts created on or before this date (format: YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -1280,7 +1287,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts_get_200_response'
           description: Successfully retrieved accounts list
         "400":
           content:
@@ -1316,11 +1323,11 @@ paths:
       tags:
       - Accounts
     post:
-      description: Creates a new account within the specified ledger. Accounts represent
-        individual financial entities like bank accounts, credit cards, or expense
-        categories.
+      description: "Creates a new account within the specified ledger. Accounts represent\
+        \ individual financial entities like bank accounts, credit cards, or expense\
+        \ categories."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1348,8 +1355,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateAccountInput'
-        description: Account details including name, type, asset code, and optional
-          parent account, portfolio, segment, and metadata
+        description: "Account details including name, type, asset code, and optional\
+          \ parent account, portfolio, segment, and metadata"
         required: true
       responses:
         "201":
@@ -1363,7 +1370,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1381,14 +1388,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Organization, ledger, parent account, portfolio, or segment
-            not found
+          description: "Organization, ledger, parent account, portfolio, or segment\
+            \ not found"
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Account with the same alias already exists'
+          description: "Conflict: Account with the same alias already exists"
         "500":
           content:
             application/json:
@@ -1404,7 +1411,7 @@ paths:
       description: Returns detailed information about an account identified by its
         alias within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1457,8 +1464,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account with the specified alias, ledger, or organization not
-            found
+          description: "Account with the specified alias, ledger, or organization\
+            \ not found"
         "500":
           content:
             application/json:
@@ -1473,7 +1480,7 @@ paths:
       description: Returns detailed information about an account identified by its
         alias within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1526,8 +1533,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account with the specified alias, ledger, or organization not
-            found
+          description: "Account with the specified alias, ledger, or organization\
+            \ not found"
         "500":
           content:
             application/json:
@@ -1539,10 +1546,10 @@ paths:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
-      description: Returns the total count of accounts for the specified organization,
-        ledger, and optional portfolio
+      description: "Returns the total count of accounts for the specified organization,\
+        \ ledger, and optional portfolio"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1601,7 +1608,7 @@ paths:
       description: Permanently removes an account from the specified ledger. This
         operation cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1651,13 +1658,13 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account, ledger, or organization not found
+          description: "Account, ledger, or organization not found"
         "409":
           content:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Account cannot be deleted due to existing dependencies'
+          description: "Conflict: Account cannot be deleted due to existing dependencies"
         "500":
           content:
             '*/*':
@@ -1671,7 +1678,7 @@ paths:
       description: Returns detailed information about an account identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1724,7 +1731,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account, ledger, or organization not found
+          description: "Account, ledger, or organization not found"
         "500":
           content:
             application/json:
@@ -1735,10 +1742,10 @@ paths:
       tags:
       - Accounts
     patch:
-      description: Updates an existing account's properties such as name, status,
-        portfolio, segment, and metadata within the specified ledger
+      description: "Updates an existing account's properties such as name, status,\
+        \ portfolio, segment, and metadata within the specified ledger"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1772,8 +1779,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateAccountInput'
-        description: Account properties to update including name, status, portfolio,
-          segment, and optional metadata
+        description: "Account properties to update including name, status, portfolio,\
+          \ segment, and optional metadata"
         required: true
       responses:
         "200":
@@ -1787,7 +1794,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1805,13 +1812,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account, ledger, organization, portfolio, or segment not found
+          description: "Account, ledger, organization, portfolio, or segment not found"
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Account with the same name already exists'
+          description: "Conflict: Account with the same name already exists"
         "500":
           content:
             application/json:
@@ -1824,10 +1831,10 @@ paths:
       x-codegen-request-body-name: account
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
-      description: Returns a paginated list of assets within the specified ledger,
-        optionally filtered by metadata, date range, and other criteria
+      description: "Returns a paginated list of assets within the specified ledger,\
+        \ optionally filtered by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1870,12 +1877,12 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter assets created on or after this date (format: YYYY-MM-DD)'
+      - description: "Filter assets created on or after this date (format: YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter assets created on or before this date (format: YYYY-MM-DD)'
+      - description: "Filter assets created on or before this date (format: YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -1893,7 +1900,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__assets_get_200_response'
           description: Successfully retrieved assets list
         "400":
           content:
@@ -1929,11 +1936,11 @@ paths:
       tags:
       - Assets
     post:
-      description: Creates a new asset within the specified ledger. Assets represent
-        currencies, cryptocurrencies, commodities, or other financial instruments
-        tracked in the ledger.
+      description: "Creates a new asset within the specified ledger. Assets represent\
+        \ currencies, cryptocurrencies, commodities, or other financial instruments\
+        \ tracked in the ledger."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1961,8 +1968,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateAssetInput'
-        description: Asset details including name, code, type, status, and optional
-          metadata
+        description: "Asset details including name, code, type, status, and optional\
+          \ metadata"
         required: true
       responses:
         "201":
@@ -1976,7 +1983,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2000,7 +2007,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Asset with the same name or code already exists'
+          description: "Conflict: Asset with the same name or code already exists"
         "500":
           content:
             application/json:
@@ -2016,7 +2023,7 @@ paths:
       description: Returns the total count of assets for a specific ledger in an organization
         as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2078,7 +2085,7 @@ paths:
       description: Permanently removes an asset from the specified ledger. This operation
         cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2128,13 +2135,13 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Asset, ledger, or organization not found
+          description: "Asset, ledger, or organization not found"
         "409":
           content:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Asset cannot be deleted due to existing dependencies'
+          description: "Conflict: Asset cannot be deleted due to existing dependencies"
         "500":
           content:
             '*/*':
@@ -2148,7 +2155,7 @@ paths:
       description: Returns detailed information about an asset identified by its UUID
         within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2201,7 +2208,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Asset, ledger, or organization not found
+          description: "Asset, ledger, or organization not found"
         "500":
           content:
             application/json:
@@ -2212,10 +2219,10 @@ paths:
       tags:
       - Assets
     patch:
-      description: Updates an existing asset's properties such as name, status, and
-        metadata within the specified ledger
+      description: "Updates an existing asset's properties such as name, status, and\
+        \ metadata within the specified ledger"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2249,8 +2256,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateAssetInput'
-        description: Asset properties to update including name, status, and optional
-          metadata
+        description: "Asset properties to update including name, status, and optional\
+          \ metadata"
         required: true
       responses:
         "200":
@@ -2264,7 +2271,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2282,13 +2289,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Asset, ledger, or organization not found
+          description: "Asset, ledger, or organization not found"
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Asset with the same name already exists'
+          description: "Conflict: Asset with the same name already exists"
         "500":
           content:
             application/json:
@@ -2301,10 +2308,10 @@ paths:
       x-codegen-request-body-name: asset
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
-      description: Returns a paginated list of portfolios within the specified ledger,
-        optionally filtered by metadata, date range, and other criteria
+      description: "Returns a paginated list of portfolios within the specified ledger,\
+        \ optionally filtered by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2347,12 +2354,12 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter portfolios created on or after this date (format: YYYY-MM-DD)'
+      - description: "Filter portfolios created on or after this date (format: YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter portfolios created on or before this date (format: YYYY-MM-DD)'
+      - description: "Filter portfolios created on or before this date (format: YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -2370,7 +2377,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__portfolios_get_200_response'
           description: Successfully retrieved portfolios list
         "400":
           content:
@@ -2406,11 +2413,11 @@ paths:
       tags:
       - Portfolios
     post:
-      description: Creates a new portfolio within the specified ledger. Portfolios
-        represent collections of accounts grouped for specific purposes such as business
-        units, departments, or client portfolios.
+      description: "Creates a new portfolio within the specified ledger. Portfolios\
+        \ represent collections of accounts grouped for specific purposes such as\
+        \ business units, departments, or client portfolios."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2438,8 +2445,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePortfolioInput'
-        description: Portfolio details including name, optional entity ID, status,
-          and metadata
+        description: "Portfolio details including name, optional entity ID, status,\
+          \ and metadata"
         required: true
       responses:
         "201":
@@ -2453,7 +2460,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2477,7 +2484,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Portfolio with the same name already exists'
+          description: "Conflict: Portfolio with the same name already exists"
         "500":
           content:
             application/json:
@@ -2493,7 +2500,7 @@ paths:
       description: Returns the total count of portfolios for a specific organization
         and ledger as a header without a response body
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2519,8 +2526,8 @@ paths:
       responses:
         "204":
           content: {}
-          description: Successfully counted portfolios, total count available in X-Total-Count
-            header
+          description: "Successfully counted portfolios, total count available in\
+            \ X-Total-Count header"
         "400":
           content:
             '*/*':
@@ -2559,7 +2566,7 @@ paths:
       description: Permanently removes a portfolio from the specified ledger. This
         operation cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2609,13 +2616,13 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Portfolio, ledger, or organization not found
+          description: "Portfolio, ledger, or organization not found"
         "409":
           content:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Portfolio cannot be deleted due to existing dependencies'
+          description: "Conflict: Portfolio cannot be deleted due to existing dependencies"
         "500":
           content:
             '*/*':
@@ -2629,7 +2636,7 @@ paths:
       description: Returns detailed information about a portfolio identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2682,7 +2689,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Portfolio, ledger, or organization not found
+          description: "Portfolio, ledger, or organization not found"
         "500":
           content:
             application/json:
@@ -2693,10 +2700,10 @@ paths:
       tags:
       - Portfolios
     patch:
-      description: Updates an existing portfolio's properties such as name, entity
-        ID, status, and metadata within the specified ledger
+      description: "Updates an existing portfolio's properties such as name, entity\
+        \ ID, status, and metadata within the specified ledger"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2730,8 +2737,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdatePortfolioInput'
-        description: Portfolio properties to update including name, entity ID, status,
-          and optional metadata
+        description: "Portfolio properties to update including name, entity ID, status,\
+          \ and optional metadata"
         required: true
       responses:
         "200":
@@ -2745,7 +2752,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2763,13 +2770,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Portfolio, ledger, or organization not found
+          description: "Portfolio, ledger, or organization not found"
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Portfolio with the same name already exists'
+          description: "Conflict: Portfolio with the same name already exists"
         "500":
           content:
             application/json:
@@ -2782,10 +2789,10 @@ paths:
       x-codegen-request-body-name: portfolio
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
-      description: Returns a paginated list of segments within the specified ledger,
-        optionally filtered by metadata, date range, and other criteria
+      description: "Returns a paginated list of segments within the specified ledger,\
+        \ optionally filtered by metadata, date range, and other criteria"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2828,12 +2835,12 @@ paths:
           default: 1
           minimum: 1
           type: integer
-      - description: 'Filter segments created on or after this date (format: YYYY-MM-DD)'
+      - description: "Filter segments created on or after this date (format: YYYY-MM-DD)"
         in: query
         name: start_date
         schema:
           type: string
-      - description: 'Filter segments created on or before this date (format: YYYY-MM-DD)'
+      - description: "Filter segments created on or before this date (format: YYYY-MM-DD)"
         in: query
         name: end_date
         schema:
@@ -2851,7 +2858,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__segments_get_200_response'
           description: Successfully retrieved segments list
         "400":
           content:
@@ -2887,11 +2894,11 @@ paths:
       tags:
       - Segments
     post:
-      description: Creates a new segment within the specified ledger. Segments represent
-        logical divisions within a ledger, such as business areas, product lines,
-        or customer categories.
+      description: "Creates a new segment within the specified ledger. Segments represent\
+        \ logical divisions within a ledger, such as business areas, product lines,\
+        \ or customer categories."
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -2919,7 +2926,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateSegmentInput'
-        description: Segment details including name, status, and optional metadata
+        description: "Segment details including name, status, and optional metadata"
         required: true
       responses:
         "201":
@@ -2933,7 +2940,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2957,7 +2964,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Segment with the same name already exists'
+          description: "Conflict: Segment with the same name already exists"
         "500":
           content:
             application/json:
@@ -2973,7 +2980,7 @@ paths:
       description: Returns the total count of segments for the specified organization
         and ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -3032,7 +3039,7 @@ paths:
       description: Permanently removes a segment from the specified ledger. This operation
         cannot be undone.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -3082,13 +3089,13 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Segment, ledger, or organization not found
+          description: "Segment, ledger, or organization not found"
         "409":
           content:
             '*/*':
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Segment cannot be deleted due to existing dependencies'
+          description: "Conflict: Segment cannot be deleted due to existing dependencies"
         "500":
           content:
             '*/*':
@@ -3102,7 +3109,7 @@ paths:
       description: Returns detailed information about a segment identified by its
         UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -3155,7 +3162,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Segment, ledger, or organization not found
+          description: "Segment, ledger, or organization not found"
         "500":
           content:
             application/json:
@@ -3166,10 +3173,10 @@ paths:
       tags:
       - Segments
     patch:
-      description: Updates an existing segment's properties such as name, status,
-        and metadata within the specified ledger
+      description: "Updates an existing segment's properties such as name, status,\
+        \ and metadata within the specified ledger"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -3203,8 +3210,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateSegmentInput'
-        description: Segment properties to update including name, status, and optional
-          metadata
+        description: "Segment properties to update including name, status, and optional\
+          \ metadata"
         required: true
       responses:
         "200":
@@ -3218,7 +3225,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -3236,13 +3243,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Segment, ledger, or organization not found
+          description: "Segment, ledger, or organization not found"
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Segment with the same name already exists'
+          description: "Conflict: Segment with the same name already exists"
         "500":
           content:
             application/json:
@@ -3256,14 +3263,14 @@ paths:
 components:
   schemas:
     Account:
-      description: Complete account entity containing all fields including system-generated
-        fields like ID, creation timestamps, and metadata. This is the response format
-        for account operations. Accounts represent individual financial entities (bank
-        accounts, cards, expense categories, etc.) within a ledger and are the primary
-        structures for tracking balances and transactions.
+      description: "Complete account entity containing all fields including system-generated\
+        \ fields like ID, creation timestamps, and metadata. This is the response\
+        \ format for account operations. Accounts represent individual financial entities\
+        \ (bank accounts, cards, expense categories, etc.) within a ledger and are\
+        \ the primary structures for tracking balances and transactions."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         assetCode: USD
         entityId: EXT-ACC-12345
         type: deposit
@@ -3273,11 +3280,12 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         portfolioId: 00000000-0000-0000-0000-000000000000
+        blocked: true
         segmentId: 00000000-0000-0000-0000-000000000000
         name: Corporate Checking Account
         alias: '@treasury_checking'
         id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         alias:
@@ -3296,6 +3304,9 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: Indicates if the account is blocked
+          type: boolean
         createdAt:
           description: |-
             Timestamp when the account was created (RFC3339 format)
@@ -3406,16 +3417,16 @@ components:
     AccountType:
       description: AccountType object
       example:
-        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         keyValue: current_assets
         name: Current Assets
         description: Assets that are expected to be converted to cash within one year
-        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        id: 00000000-0000-0000-0000-000000000000
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         createdAt:
@@ -3434,7 +3445,8 @@ components:
           type: string
         id:
           description: The unique identifier of the Account Type.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         keyValue:
           description: A unique key value identifier for the account type.
@@ -3442,7 +3454,8 @@ components:
           type: string
         ledgerId:
           description: The unique identifier of the Ledger.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
@@ -3457,7 +3470,8 @@ components:
           type: string
         organizationId:
           description: The unique identifier of the Organization.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         updatedAt:
           description: The timestamp when the account type was last updated.
@@ -3522,20 +3536,20 @@ components:
           type: string
       type: object
     Asset:
-      description: Asset represents a financial instrument within a ledger, such as
-        a currency, cryptocurrency, commodity, or other asset type.
+      description: "Asset represents a financial instrument within a ledger, such\
+        \ as a currency, cryptocurrency, commodity, or other asset type."
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         code: USD
         name: US Dollar
         id: 00000000-0000-0000-0000-000000000000
         type: currency
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         code:
@@ -3581,11 +3595,11 @@ components:
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the asset (active, inactive, pending)
+          description: "Status of the asset (active, inactive, pending)"
           type: object
         type:
-          description: Type of the asset (e.g., currency, cryptocurrency, commodity,
-            stock)
+          description: "Type of the asset (e.g., currency, cryptocurrency, commodity,\
+            \ stock)"
           example: currency
           type: string
         updatedAt:
@@ -3595,23 +3609,24 @@ components:
           type: string
       type: object
     CreateAccountInput:
-      description: Request payload for creating a new account within a ledger. Accounts
-        represent individual financial entities such as bank accounts, credit cards,
-        expense categories, or any other financial buckets within a ledger. Accounts
-        are identified by a unique ID, can have aliases for easy reference, and are
-        associated with a specific asset type.
+      description: "Request payload for creating a new account within a ledger. Accounts\
+        \ represent individual financial entities such as bank accounts, credit cards,\
+        \ expense categories, or any other financial buckets within a ledger. Accounts\
+        \ are identified by a unique ID, can have aliases for easy reference, and\
+        \ are associated with a specific asset type."
       example:
         parentAccountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         metadata:
-          key: '{}'
+          key: "{}"
         assetCode: USD
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Corporate Checking Account
         alias: '@treasury_checking'
         entityId: EXT-ACC-12345
         type: deposit
-        status: '{}'
+        status: "{}"
       properties:
         alias:
           description: |-
@@ -3631,6 +3646,12 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: |-
+            Whether the account should start blocked
+            required: false
+            default: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -3702,7 +3723,7 @@ components:
       description: CreateAccountTypeInput payload
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         keyValue: current_assets
         name: Current Assets
         description: Assets that are expected to be converted to cash within one year
@@ -3735,19 +3756,19 @@ components:
       - name
       type: object
     CreateAssetInput:
-      description: CreateAssetInput is the input payload to create an asset within
-        a ledger, such as a currency, cryptocurrency, or other financial instrument.
+      description: "CreateAssetInput is the input payload to create an asset within\
+        \ a ledger, such as a currency, cryptocurrency, or other financial instrument."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         code: USD
         name: US Dollar
         type: currency
-        status: '{}'
+        status: "{}"
       properties:
         code:
-          description: Unique code/symbol for the asset (required, max length 100
-            characters)
+          description: "Unique code/symbol for the asset (required, max length 100\
+            \ characters)"
           example: USD
           maxLength: 100
           type: string
@@ -3759,18 +3780,18 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Name of the asset (required, max length 256 characters)
+          description: "Name of the asset (required, max length 256 characters)"
           example: US Dollar
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the asset (active, inactive, pending)
+          description: "Status of the asset (active, inactive, pending)"
           type: object
         type:
-          description: Type of the asset (e.g., currency, cryptocurrency, commodity,
-            stock)
+          description: "Type of the asset (e.g., currency, cryptocurrency, commodity,\
+            \ stock)"
           example: currency
           type: string
       required:
@@ -3779,15 +3800,15 @@ components:
       - type
       type: object
     CreateLedgerInput:
-      description: Request payload for creating a new ledger. Contains the ledger
-        name (required), status, and optional metadata. Ledgers are organizational
-        units within an organization that group related financial accounts and assets
-        together.
+      description: "Request payload for creating a new ledger. Contains the ledger\
+        \ name (required), status, and optional metadata. Ledgers are organizational\
+        \ units within an organization that group related financial accounts and assets\
+        \ together."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: name
-        status: '{}'
+        status: "{}"
       properties:
         metadata:
           additionalProperties:
@@ -3815,19 +3836,19 @@ components:
       - name
       type: object
     CreateOrganizationInput:
-      description: Request payload for creating a new organization. Contains all the
-        necessary fields for organization creation, with required fields marked as
-        such. Organizations are the top-level entities in the hierarchy and contain
-        ledgers, which in turn contain accounts and assets.
+      description: "Request payload for creating a new organization. Contains all\
+        \ the necessary fields for organization creation, with required fields marked\
+        \ as such. Organizations are the top-level entities in the hierarchy and contain\
+        \ ledgers, which in turn contain accounts and assets."
       example:
         legalName: Lerian Financial Services Ltd.
         metadata:
-          key: '{}'
-        address: '{}'
+          key: "{}"
+        address: "{}"
         doingBusinessAs: Lerian FS
         legalDocument: "123456789012345"
         parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        status: '{}'
+        status: "{}"
       properties:
         address:
           allOf:
@@ -3890,15 +3911,15 @@ components:
       - legalName
       type: object
     CreatePortfolioInput:
-      description: CreatePortfolioInput is the input payload to create a portfolio
-        within a ledger, representing a collection of accounts grouped for specific
-        purposes.
+      description: "CreatePortfolioInput is the input payload to create a portfolio\
+        \ within a ledger, representing a collection of accounts grouped for specific\
+        \ purposes."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Portfolio
         entityId: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
       properties:
         entityId:
           description: Optional external entity identifier (max length 256 characters)
@@ -3913,27 +3934,27 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Name of the portfolio (required, max length 256 characters)
+          description: "Name of the portfolio (required, max length 256 characters)"
           example: My Portfolio
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the portfolio (active, inactive, pending)
+          description: "Status of the portfolio (active, inactive, pending)"
           type: object
       required:
       - name
       type: object
     CreateSegmentInput:
-      description: CreateSegmentInput is the input payload to create a segment within
-        a ledger, representing a logical division such as a business area, product
-        line, or customer category.
+      description: "CreateSegmentInput is the input payload to create a segment within\
+        \ a ledger, representing a logical division such as a business area, product\
+        \ line, or customer category."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Segment
-        status: '{}'
+        status: "{}"
       properties:
         metadata:
           additionalProperties:
@@ -3943,22 +3964,30 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Name of the segment (required, max length 256 characters)
+          description: "Name of the segment (required, max length 256 characters)"
           example: My Segment
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the segment (active, inactive, pending)
+          description: "Status of the segment (active, inactive, pending)"
           type: object
       required:
       - name
       type: object
     Error:
-      description: Standardized error response format used across all API endpoints
-        for error situations. Provides structured information about errors including
-        codes, messages, and field-specific validation details.
+      description: "Standardized error response format used across all API endpoints\
+        \ for error situations. Provides structured information about errors including\
+        \ codes, messages, and field-specific validation details."
+      example:
+        code: ERR_INVALID_INPUT
+        entityType: Organization
+        fields:
+          '{"name"': " \"Field 'name' is required\"}"
+        message: The request contains invalid fields. Please check the field 'name'
+          and try again.
+        title: Bad Request
       properties:
         code:
           description: |-
@@ -3983,7 +4012,7 @@ components:
             Optional detailed field validations for client-side handling
             example: {"name": "Field 'name' is required"}
           example:
-            '{"name"': ' "Field ''name'' is required"}'
+            '{"name"': " \"Field 'name' is required\"}"
           type: object
         message:
           description: |-
@@ -4004,19 +4033,19 @@ components:
           type: string
       type: object
     Ledger:
-      description: Complete ledger entity containing all fields including system-generated
-        fields like ID, creation timestamps, and metadata. This is the response format
-        for ledger operations. Ledgers are organizational units within an organization
-        that group related financial accounts and assets together.
+      description: "Complete ledger entity containing all fields including system-generated\
+        \ fields like ID, creation timestamps, and metadata. This is the response\
+        \ format for ledger operations. Ledgers are organizational units within an\
+        \ organization that group related financial accounts and assets together."
       example:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         name: Treasury Operations
         id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         createdAt:
@@ -4081,22 +4110,22 @@ components:
           type: string
       type: object
     Organization:
-      description: Complete organization entity containing all fields including system-generated
-        fields like ID, creation timestamps, and metadata. This is the response format
-        for organization operations. Organizations are the top-level entities in the
-        Midaz platform hierarchy.
+      description: "Complete organization entity containing all fields including system-generated\
+        \ fields like ID, creation timestamps, and metadata. This is the response\
+        \ format for organization operations. Organizations are the top-level entities\
+        \ in the Midaz platform hierarchy."
       example:
         legalName: Lerian Financial Services Ltd.
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
-        address: '{}'
+          key: "{}"
+        address: "{}"
         doingBusinessAs: Lerian FS
         id: 00000000-0000-0000-0000-000000000000
         legalDocument: "123456789012345"
         parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         address:
@@ -4183,12 +4212,6 @@ components:
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
       properties:
         items:
           type: object
@@ -4208,19 +4231,19 @@ components:
           x-omitempty: true
       type: object
     Portfolio:
-      description: Portfolio represents a collection of accounts grouped for specific
-        purposes such as business units, departments, or client portfolios.
+      description: "Portfolio represents a collection of accounts grouped for specific\
+        \ purposes such as business units, departments, or client portfolios."
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Portfolio
         entityId: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         createdAt:
@@ -4266,7 +4289,7 @@ components:
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the portfolio (active, inactive, pending)
+          description: "Status of the portfolio (active, inactive, pending)"
           type: object
         updatedAt:
           description: Timestamp when the portfolio was last updated
@@ -4275,18 +4298,18 @@ components:
           type: string
       type: object
     Segment:
-      description: Segment represents a logical division within a ledger such as a
-        business area, product line, or customer category.
+      description: "Segment represents a logical division within a ledger such as\
+        \ a business area, product line, or customer category."
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Segment
         id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         createdAt:
@@ -4327,7 +4350,7 @@ components:
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Status of the segment (active, inactive, pending)
+          description: "Status of the segment (active, inactive, pending)"
           type: object
         updatedAt:
           description: Timestamp when the segment was last updated
@@ -4336,13 +4359,13 @@ components:
           type: string
       type: object
     Status:
-      description: 'Entity status information with a standardized code and optional
-        description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,
-        DELETED.'
+      description: "Entity status information with a standardized code and optional\
+        \ description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,\
+        \ DELETED."
       properties:
         code:
-          description: 'Status code identifier, common values include: ACTIVE, INACTIVE,
-            PENDING, SUSPENDED, DELETED'
+          description: "Status code identifier, common values include: ACTIVE, INACTIVE,\
+            \ PENDING, SUSPENDED, DELETED"
           example: ACTIVE
           maxLength: 100
           type: string
@@ -4353,19 +4376,25 @@ components:
           type: string
       type: object
     UpdateAccountInput:
-      description: Request payload for updating an existing account. All fields are
-        optional - only specified fields will be updated. Omitted fields will remain
-        unchanged. This allows partial updates to account properties such as name,
-        status, portfolio, segment, and metadata.
+      description: "Request payload for updating an existing account. All fields are\
+        \ optional - only specified fields will be updated. Omitted fields will remain\
+        \ unchanged. This allows partial updates to account properties such as name,\
+        \ status, portfolio, segment, and metadata."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
         entityId: EXT-ACC-12345
-        status: '{}'
+        status: "{}"
       properties:
+        blocked:
+          description: |-
+            Whether the account should be blocked
+            required: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -4418,7 +4447,7 @@ components:
       description: UpdateAccountTypeInput payload
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: Current Assets
         description: Assets that are expected to be converted to cash within one year
       properties:
@@ -4442,13 +4471,13 @@ components:
           type: string
       type: object
     UpdateAssetInput:
-      description: UpdateAssetInput is the input payload to update an existing asset's
-        properties such as name, status, and metadata.
+      description: "UpdateAssetInput is the input payload to update an existing asset's\
+        \ properties such as name, status, and metadata."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: Bitcoin
-        status: '{}'
+        status: "{}"
       properties:
         metadata:
           additionalProperties:
@@ -4458,14 +4487,14 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Updated name of the asset (optional, max length 256 characters)
+          description: "Updated name of the asset (optional, max length 256 characters)"
           example: Bitcoin
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Updated status of the asset (active, inactive, pending)
+          description: "Updated status of the asset (active, inactive, pending)"
           type: object
       type: object
     UpdateLedgerInput:
@@ -4474,9 +4503,9 @@ components:
         unchanged.
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: Treasury Operations Global
-        status: '{}'
+        status: "{}"
       properties:
         metadata:
           additionalProperties:
@@ -4510,11 +4539,11 @@ components:
       example:
         legalName: Lerian Financial Group Ltd.
         metadata:
-          key: '{}'
-        address: '{}'
+          key: "{}"
+        address: "{}"
         doingBusinessAs: Lerian Group
         parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        status: '{}'
+        status: "{}"
       properties:
         address:
           allOf:
@@ -4565,18 +4594,18 @@ components:
           type: object
       type: object
     UpdatePortfolioInput:
-      description: UpdatePortfolioInput is the input payload to update an existing
-        portfolio's properties such as name, entity ID, status, and metadata.
+      description: "UpdatePortfolioInput is the input payload to update an existing\
+        \ portfolio's properties such as name, entity ID, status, and metadata."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Portfolio Updated
         entityId: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
       properties:
         entityId:
-          description: Updated external entity identifier (optional, max length 256
-            characters)
+          description: "Updated external entity identifier (optional, max length 256\
+            \ characters)"
           example: 00000000-0000-0000-0000-000000000000
           maxLength: 256
           type: string
@@ -4588,24 +4617,24 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Updated name of the portfolio (optional, max length 256 characters)
+          description: "Updated name of the portfolio (optional, max length 256 characters)"
           example: My Portfolio Updated
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Updated status of the portfolio (active, inactive, pending)
+          description: "Updated status of the portfolio (active, inactive, pending)"
           type: object
       type: object
     UpdateSegmentInput:
-      description: UpdateSegmentInput is the input payload to update an existing segment's
-        properties such as name, status, and metadata.
+      description: "UpdateSegmentInput is the input payload to update an existing\
+        \ segment's properties such as name, status, and metadata."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         name: My Segment Updated
-        status: '{}'
+        status: "{}"
       properties:
         metadata:
           additionalProperties:
@@ -4615,24 +4644,32 @@ components:
             Keys max length: 100 characters, Values max length: 2000 characters
           type: object
         name:
-          description: Updated name of the segment (optional, max length 256 characters)
+          description: "Updated name of the segment (optional, max length 256 characters)"
           example: My Segment Updated
           maxLength: 256
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
-          description: Updated status of the segment (active, inactive, pending)
+          description: "Updated status of the segment (active, inactive, pending)"
           type: object
       type: object
-    inline_response_200:
+    _v1_organizations_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          items:
+            items:
+              $ref: '#/components/schemas/Organization'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
@@ -4640,46 +4677,42 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
-          address: '{}'
+            key: "{}"
+          address: "{}"
           doingBusinessAs: Lerian FS
           id: 00000000-0000-0000-0000-000000000000
           legalDocument: "123456789012345"
           parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - legalName: Lerian Financial Services Ltd.
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
-          address: '{}'
+            key: "{}"
+          address: "{}"
           doingBusinessAs: Lerian FS
           id: 00000000-0000-0000-0000-000000000000
           legalDocument: "123456789012345"
           parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Organization'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_1:
+            items:
+              $ref: '#/components/schemas/Ledger'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
@@ -4687,99 +4720,88 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: Treasury Operations
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: Treasury Operations
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__account_types_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Ledger'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_2:
+            items:
+              $ref: '#/components/schemas/AccountType'
+            type: array
+          limit:
+            type: integer
+          next_cursor:
+            type: string
+          page:
+            $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__account_types_get_200_response_allOf_page'
+          prev_cursor:
+            type: string
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        page: '{}'
+        page: {}
         items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           keyValue: current_assets
           name: Current Assets
           description: Assets that are expected to be converted to cash within one
             year
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           keyValue: current_assets
           name: Current Assets
           description: Assets that are expected to be converted to cash within one
             year
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__accounts_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/AccountType'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_3:
+            items:
+              $ref: '#/components/schemas/Account'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
         - metadata:
-            key: '{}'
+            key: "{}"
           assetCode: USD
           entityId: EXT-ACC-12345
           type: deposit
@@ -4789,14 +4811,15 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - metadata:
-            key: '{}'
+            key: "{}"
           assetCode: USD
           entityId: EXT-ACC-12345
           type: deposit
@@ -4806,32 +4829,29 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__assets_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Account'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_4:
+            items:
+              $ref: '#/components/schemas/Asset'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
@@ -4840,45 +4860,41 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           code: USD
           name: US Dollar
           id: 00000000-0000-0000-0000-000000000000
           type: currency
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           code: USD
           name: US Dollar
           id: 00000000-0000-0000-0000-000000000000
           type: currency
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__portfolios_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Asset'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_5:
+            items:
+              $ref: '#/components/schemas/Portfolio'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
@@ -4887,43 +4903,39 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: My Portfolio
           entityId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: My Portfolio
           entityId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__segments_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Portfolio'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_6:
+            items:
+              $ref: '#/components/schemas/Segment'
+            type: array
+          limit:
+            type: integer
+          page:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         limit: 0
         page: 6
         items:
@@ -4932,31 +4944,23 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: My Segment
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           name: My Segment
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Segment'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
+    _v1_organizations__organization_id__ledgers__ledger_id__account_types_get_200_response_allOf_page:
+      example: {}
+      properties: {}
       type: object
 x-original-swagger-version: "2.0"

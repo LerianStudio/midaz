@@ -51,7 +51,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response'
           description: OK
         "401":
           content:
@@ -118,7 +118,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response'
           description: OK
         "401":
           content:
@@ -211,7 +211,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response'
           description: OK
         "400":
           content:
@@ -246,6 +246,86 @@ paths:
       summary: Get all balances by account id
       tags:
       - Balances
+    post:
+      description: Create an Additional Balance with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdditionalBalance'
+        description: Balance Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mmodel.Balance'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Invalid input, validation errors"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Balance not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Additional Balance
+      tags:
+      - Balances
+      x-codegen-request-body-name: balance
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       description: Get all Operations with the input ID
@@ -305,7 +385,7 @@ paths:
         name: cursor
         schema:
           type: string
-      - description: DEBIT, CREDIT
+      - description: "DEBIT, CREDIT"
         in: query
         name: type
         schema:
@@ -315,7 +395,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts__account_id__operations_get_200_response'
           description: OK
         "400":
           content:
@@ -469,7 +549,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -574,7 +654,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__asset_rates_from__asset_code__get_200_response'
           description: OK
         "400":
           content:
@@ -734,7 +814,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response'
           description: OK
         "400":
           content:
@@ -826,7 +906,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Cannot delete balance with active operations'
+          description: "Conflict: Cannot delete balance with active operations"
         "500":
           content:
             application/json:
@@ -953,7 +1033,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -987,7 +1067,7 @@ paths:
       description: Returns a list of all operation routes within the specified ledger
         with cursor-based pagination
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1044,14 +1124,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response'
           description: OK
         "400":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1082,7 +1162,7 @@ paths:
     post:
       description: Endpoint to create a new Operation Route.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1109,7 +1189,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/mmodel.CreateOperationRouteInput'
+              $ref: '#/components/schemas/CreateOperationRouteInput'
         description: Operation Route Input
         required: true
       responses:
@@ -1124,7 +1204,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1152,7 +1232,7 @@ paths:
       description: Returns detailed information about an operation route identified
         by its UUID within the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1194,6 +1274,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Operation route not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
       summary: Retrieve a specific operation route
       tags:
       - Operation Route
@@ -1202,7 +1300,7 @@ paths:
       description: Deletes an existing operation route identified by its UUID within
         the specified ledger
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1241,6 +1339,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
         "404":
           content:
             application/json:
@@ -1257,10 +1361,10 @@ paths:
       tags:
       - Operation Route
     patch:
-      description: Updates an existing operation route's properties such as title,
-        description, and type within the specified ledger
+      description: "Updates an existing operation route's properties such as title,\
+        \ description, and type within the specified ledger"
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1308,7 +1412,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1332,7 +1436,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'Conflict: Operation Route with the same title already exists'
+          description: "Conflict: Operation Route with the same title already exists"
         "500":
           content:
             application/json:
@@ -1347,7 +1451,7 @@ paths:
     get:
       description: Endpoint to get all Transaction Routes with optional metadata filtering.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1404,14 +1508,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__transaction_routes_get_200_response'
           description: OK
         "400":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1436,7 +1540,7 @@ paths:
     post:
       description: Endpoint to create a new Transaction Route.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1478,7 +1582,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1505,7 +1609,7 @@ paths:
     delete:
       description: Endpoint to delete a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1543,7 +1647,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1574,7 +1678,7 @@ paths:
     get:
       description: Endpoint to get a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1615,7 +1719,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1646,7 +1750,7 @@ paths:
     patch:
       description: Endpoint to update a Transaction Route by its ID.
       parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
+      - description: "Authorization Bearer Token with format: Bearer {token}"
         in: header
         name: Authorization
         required: true
@@ -1694,7 +1798,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1707,6 +1811,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction route not found
         "500":
           content:
             application/json:
@@ -1778,7 +1888,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__transactions_get_200_response'
           description: OK
         "400":
           content:
@@ -1807,6 +1917,81 @@ paths:
       summary: Get all Transactions
       tags:
       - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
+    post:
+      description: Create a Transaction Annotation with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Invalid input, validation errors"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Transaction Annotation using JSON
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       description: Create a Transaction with the input DSL file
@@ -1838,13 +2023,7 @@ paths:
         content:
           multipart/form-data:
             schema:
-              properties:
-                transaction:
-                  description: Transaction DSL file
-                  format: binary
-                  type: string
-              required:
-              - transaction
+              $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__transactions_dsl_post_request'
         required: true
       responses:
         "200":
@@ -1871,6 +2050,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden access
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
         "500":
           content:
             application/json:
@@ -1926,7 +2111,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -1939,6 +2124,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden access
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
         "500":
           content:
             application/json:
@@ -1995,7 +2186,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2008,6 +2199,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden access
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
         "500":
           content:
             application/json:
@@ -2064,7 +2261,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2077,6 +2274,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden access
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
         "500":
           content:
             application/json:
@@ -2211,7 +2414,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2456,7 +2659,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
+          description: "Invalid input, validation errors"
         "401":
           content:
             application/json:
@@ -2555,6 +2758,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Transaction already has a parent transaction
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable Entity, validation errors"
         "500":
           content:
             application/json:
@@ -2566,6 +2775,8 @@ paths:
       - Transactions
 components:
   schemas:
+    AccountRule:
+      type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
@@ -2575,17 +2786,16 @@ components:
             The amount value in the smallest unit of the asset (e.g., cents)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
+          example: "1500.00"
+          type: string
       type: object
     AssetRate:
-      description: AssetRate is a struct designed to store asset rate data. Represents
-        a complete asset rate entity containing conversion information between two
-        assets, including all system-generated fields.
+      description: "AssetRate is a struct designed to store asset rate data. Represents\
+        \ a complete asset rate entity containing conversion information between two\
+        \ assets, including all system-generated fields."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         externalId: 00000000-0000-0000-0000-000000000000
         scale: 2.0
         source: External System
@@ -2714,25 +2924,65 @@ components:
             Amount available for transactions (in the smallest unit of asset)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
+          example: "1500.00"
+          type: string
         onHold:
           description: |-
             Amount on hold and unavailable for transactions (in the smallest unit of asset)
             example: 500
             minimum: 0
-          example: 500.0
+          example: "500.00"
+          type: string
+        version:
+          description: |-
+            Balance version after the operation
+            example: 2
+            minimum: 0
+          example: 2
           minimum: 0
-          type: number
+          type: integer
+      type: object
+    CreateAdditionalBalance:
+      description: Request payload for creating a new balance with specified permissions
+        and custom key.
+      example:
+        allowReceiving: true
+        allowSending: true
+        key: asset-freeze
+      properties:
+        allowReceiving:
+          description: |-
+            Whether the account should be allowed to receive funds to this balance
+            required: false
+            example: true
+          example: true
+          type: boolean
+        allowSending:
+          description: |-
+            Whether the account should be allowed to send funds from this balance
+            required: false
+            example: true
+          example: true
+          type: boolean
+        key:
+          description: |-
+            Unique key for the balance
+            required: true
+            maxLength: 100
+            example: asset-freeze
+          example: asset-freeze
+          maxLength: 100
+          type: string
+      required:
+      - key
       type: object
     CreateAssetRateInput:
-      description: CreateAssetRateInput is the input payload to create an asset rate.
-        Contains required fields for setting up asset conversion rates, including
-        source and target assets, rate value, scale, and optional metadata.
+      description: "CreateAssetRateInput is the input payload to create an asset rate.\
+        \ Contains required fields for setting up asset conversion rates, including\
+        \ source and target assets, rate value, scale, and optional metadata."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         rate: 100
         externalId: 00000000-0000-0000-0000-000000000000
         scale: 2
@@ -2814,14 +3064,17 @@ components:
       - rate
       - to
       type: object
+    CreateOperationRouteInput:
+      type: object
     CreateTransactionInflowSwaggerModel:
       description: Schema for creating inflow transaction with the complete SendInflow
         operation structure defined inline
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         code: code
         description: description
+        transactionDate: transactionDate
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           distribute:
@@ -2831,7 +3084,7 @@ components:
                 asset: asset
                 value: value
               metadata:
-                key: '{}'
+                key: "{}"
               chartOfAccounts: chartOfAccounts
               description: description
             - accountAlias: accountAlias
@@ -2839,7 +3092,7 @@ components:
                 asset: asset
                 value: value
               metadata:
-                key: '{}'
+                key: "{}"
               chartOfAccounts: chartOfAccounts
               description: description
           asset: asset
@@ -2872,16 +3125,24 @@ components:
           type: object
         send:
           $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            swagger: type string
+            required: false
+          type: string
       type: object
     CreateTransactionOutflowSwaggerModel:
       description: Schema for creating outflow transaction with the complete SendOutflow
         operation structure defined inline
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         code: code
         pending: true
         description: description
+        transactionDate: transactionDate
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           source:
@@ -2891,7 +3152,7 @@ components:
                 asset: asset
                 value: value
               metadata:
-                key: '{}'
+                key: "{}"
               chartOfAccounts: chartOfAccounts
               description: description
             - accountAlias: accountAlias
@@ -2899,7 +3160,7 @@ components:
                 asset: asset
                 value: value
               metadata:
-                key: '{}'
+                key: "{}"
               chartOfAccounts: chartOfAccounts
               description: description
           asset: asset
@@ -2940,15 +3201,22 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            swagger: type string
+            required: false
+          type: string
       type: object
     CreateTransactionRouteInput:
       description: CreateTransactionRouteInput payload
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -2966,6 +3234,7 @@ components:
           description: An object containing accounting data of Operation Routes from
             the Transaction Route.
           items:
+            format: uuid
             type: string
           type: array
         title:
@@ -2979,9 +3248,17 @@ components:
       - title
       type: object
     Error:
-      description: Standardized error response format used across all API endpoints
-        for error situations. Provides structured information about errors including
-        codes, messages, and field-specific validation details.
+      description: "Standardized error response format used across all API endpoints\
+        \ for error situations. Provides structured information about errors including\
+        \ codes, messages, and field-specific validation details."
+      example:
+        code: ERR_INVALID_INPUT
+        entityType: Organization
+        fields:
+          '{"name"': " \"Field 'name' is required\"}"
+        message: The request contains invalid fields. Please check the field 'name'
+          and try again.
+        title: Bad Request
       properties:
         code:
           description: |-
@@ -3006,7 +3283,7 @@ components:
             Optional detailed field validations for client-side handling
             example: {"name": "Field 'name' is required"}
           example:
-            '{"name"': ' "Field ''name'' is required"}'
+            '{"name"': " \"Field 'name' is required\"}"
           type: object
         message:
           description: |-
@@ -3027,18 +3304,19 @@ components:
           type: string
       type: object
     Operation:
-      description: Operation is a struct designed to store operation data. Represents
-        a financial operation that affects account balances, including details such
-        as amount, balance before and after, transaction association, and metadata.
+      description: "Operation is a struct designed to store operation data. Represents\
+        \ a financial operation that affects account balances, including details such\
+        \ as amount, balance before and after, transaction association, and metadata."
       example:
         accountAlias: '@person1'
-        amount: '{}'
+        amount: "{}"
         metadata:
-          key: '{}'
+          key: "{}"
         assetCode: BRL
         chartOfAccounts: "1000"
         description: Credit card operation
         type: DEBIT
+        balanceAffected: true
         transactionId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -3046,11 +3324,12 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
-        balance: '{}'
-        balanceAfter: '{}'
+        balance: "{}"
+        balanceAfter: "{}"
         id: 00000000-0000-0000-0000-000000000000
+        balanceKey: asset-freeze
         balanceId: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountAlias:
@@ -3089,6 +3368,13 @@ components:
           - $ref: '#/components/schemas/Balance'
           description: Balance before the operation
           type: object
+        balanceAffected:
+          description: |-
+            BalanceAffected default true
+            format: boolean
+          example: true
+          format: boolean
+          type: boolean
         balanceAfter:
           allOf:
           - $ref: '#/components/schemas/Balance'
@@ -3101,6 +3387,14 @@ components:
             format: uuid
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        balanceKey:
+          description: |-
+            Unique key for the balance
+            example: asset-freeze
+            maxLength: 100
+          example: asset-freeze
+          maxLength: 100
           type: string
         chartOfAccounts:
           description: |-
@@ -3206,25 +3500,30 @@ components:
     OperationRoute:
       description: OperationRoute object
       example:
-        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
+        code: EXT-001
         description: This operation route handles cash-in transactions from service
           charge collections
         operationType: source
-        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        id: 00000000-0000-0000-0000-000000000000
         title: Cashin from service charge
-        account: '{}'
+        account: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         account:
           allOf:
-          - $ref: '#/components/schemas/mmodel.AccountRule'
+          - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
           type: object
+        code:
+          description: External reference of the operation route.
+          example: EXT-001
+          type: string
         createdAt:
           description: The timestamp when the operation route was created.
           example: 2021-01-01T00:00:00Z
@@ -3242,11 +3541,13 @@ components:
           type: string
         id:
           description: The unique identifier of the Operation Route.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
           description: The unique identifier of the Ledger.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
@@ -3259,7 +3560,8 @@ components:
           type: string
         organizationId:
           description: The unique identifier of the Organization.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         title:
           description: Short text summarizing the purpose of the operation. Used as
@@ -3275,12 +3577,6 @@ components:
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
       properties:
         items:
           type: object
@@ -3321,14 +3617,14 @@ components:
           type: string
       type: object
     Transaction:
-      description: Transaction is a struct designed to store transaction data. Represents
-        a financial transaction that consists of multiple operations affecting account
-        balances, including details about the transaction's status, amounts, and related
-        operations.
+      description: "Transaction is a struct designed to store transaction data. Represents\
+        \ a financial transaction that consists of multiple operations affecting account\
+        \ balances, including details about the transaction's status, amounts, and\
+        \ related operations."
       example:
-        amount: 1500.0
+        amount: "1500.00"
         metadata:
-          key: '{}'
+          key: "{}"
         assetCode: BRL
         destination:
         - '@person2'
@@ -3343,13 +3639,14 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         operations:
         - accountAlias: '@person1'
-          amount: '{}'
+          amount: "{}"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
+          balanceAffected: true
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -3357,20 +3654,22 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
+          balance: "{}"
+          balanceAfter: "{}"
           id: 00000000-0000-0000-0000-000000000000
+          balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
+          amount: "{}"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
+          balanceAffected: true
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -3378,15 +3677,16 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
+          balance: "{}"
+          balanceAfter: "{}"
           id: 00000000-0000-0000-0000-000000000000
+          balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
+        status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         amount:
@@ -3394,9 +3694,8 @@ components:
             Transaction amount value in the smallest unit of the asset
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
+          example: "1500.00"
+          type: string
         assetCode:
           description: |-
             Asset code for the transaction
@@ -3526,41 +3825,43 @@ components:
     TransactionRoute:
       description: TransactionRoute object
       example:
-        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2025-01-01T00:00:00Z
         deletedAt: 2025-01-01T00:00:00Z
         metadata:
-          key: '{}'
+          key: "{}"
         operationRoutes:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
+          code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
           operationType: source
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Cashin from service charge
-          account: '{}'
+          account: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
+          code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
           operationType: source
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Cashin from service charge
-          account: '{}'
+          account: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         description: Settlement route for service charges
-        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        id: 00000000-0000-0000-0000-000000000000
         title: Charge Settlement
         updatedAt: 2025-01-01T00:00:00Z
       properties:
@@ -3578,11 +3879,13 @@ components:
           type: string
         id:
           description: The unique identifier of the Transaction Route.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
           description: The unique identifier of the Ledger.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
@@ -3597,7 +3900,8 @@ components:
           type: array
         organizationId:
           description: The unique identifier of the Organization.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         title:
           description: Short text summarizing the purpose of the transaction. Used
@@ -3637,7 +3941,7 @@ components:
         Contains fields that can be modified after an operation is created.
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         description: Credit card operation
       properties:
         description:
@@ -3660,17 +3964,23 @@ components:
       description: UpdateOperationRouteInput payload
       example:
         metadata:
-          key: '{}'
+          key: "{}"
+        code: EXT-001
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
-        account: '{}'
+        account: "{}"
       properties:
         account:
           allOf:
-          - $ref: '#/components/schemas/mmodel.AccountRule'
+          - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
           type: object
+        code:
+          description: External reference of the operation route.
+          example: EXT-001
+          maxLength: 100
+          type: string
         description:
           description: Detailed description of the operation route purpose and usage.
           example: This operation route handles cash-in transactions from service
@@ -3694,7 +4004,7 @@ components:
         Contains fields that can be modified after a transaction is created.
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         description: Transaction description
       properties:
         description:
@@ -3717,10 +4027,10 @@ components:
       description: UpdateTransactionRouteInput payload
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -3738,6 +4048,7 @@ components:
           description: An object containing accounting data of Operation Routes from
             the Transaction Route.
           items:
+            format: uuid
             type: string
           type: array
         title:
@@ -3786,22 +4097,27 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
-      type: object
-    mmodel.AccountRule:
+        transactionDate:
+          description: |-
+            TransactionDate Period from transaction creation date until now
+            Example "2021-01-01T00:00:00Z"
+            swagger: type string
+            required: false
+          type: string
       type: object
     mmodel.Balance:
-      description: Complete balance entity containing all fields including system-generated
-        fields like ID, creation timestamps, and metadata. This is the response format
-        for balance operations. Balances represent the amount of a specific asset
-        held in an account, including available and on-hold amounts.
+      description: "Complete balance entity containing all fields including system-generated\
+        \ fields like ID, creation timestamps, and metadata. This is the response\
+        \ format for balance operations. Balances represent the amount of a specific\
+        \ asset held in an account, including available and on-hold amounts."
       example:
         metadata:
-          key: '{}'
+          key: "{}"
         assetCode: USD
-        onHold: 500.0
+        onHold: "500.00"
         allowReceiving: true
         accountType: creditCard
-        available: 1500.0
+        available: "1500.00"
         allowSending: true
         version: 1
         ledgerId: 00000000-0000-0000-0000-000000000000
@@ -3811,6 +4127,7 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         alias: '@person1'
         id: 00000000-0000-0000-0000-000000000000
+        key: asset-freeze
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountId:
@@ -3864,9 +4181,8 @@ components:
             Amount available for transactions (in the smallest unit of the asset, e.g. cents)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
+          example: "1500.00"
+          type: string
         createdAt:
           description: |-
             Timestamp when the balance was created (RFC3339 format)
@@ -3891,6 +4207,14 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        key:
+          description: |-
+            Unique key for the balance
+            example: asset-freeze
+            maxLength: 100
+          example: asset-freeze
+          maxLength: 100
+          type: string
         ledgerId:
           description: |-
             Ledger containing the account this balance belongs to
@@ -3911,9 +4235,8 @@ components:
             Amount currently on hold and unavailable for transactions
             example: 500
             minimum: 0
-          example: 500.0
-          minimum: 0
-          type: number
+          example: "500.00"
+          type: string
         organizationId:
           description: |-
             Organization that owns this balance
@@ -3939,27 +4262,36 @@ components:
           minimum: 1
           type: integer
       type: object
-    mmodel.CreateOperationRouteInput:
-      type: object
-    inline_response_200:
+    _v1_organizations__organization_id__ledgers__ledger_id__accounts_alias__alias__balances_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          ' next_cursor':
+            type: string
+          ' prev_cursor':
+            type: string
+          items:
+            items:
+              $ref: '#/components/schemas/mmodel.Balance'
+            type: array
+          limit:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         ' prev_cursor': ' prev_cursor'
         ' next_cursor': ' next_cursor'
         limit: 0
+        page: 1
         items:
         - metadata:
-            key: '{}'
+            key: "{}"
           assetCode: USD
-          onHold: 500.0
+          onHold: "500.00"
           allowReceiving: true
           accountType: creditCard
-          available: 1500.0
+          available: "1500.00"
           allowSending: true
           version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -3969,14 +4301,15 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
+          key: asset-freeze
           updatedAt: 2021-01-01T00:00:00Z
         - metadata:
-            key: '{}'
+            key: "{}"
           assetCode: USD
-          onHold: 500.0
+          onHold: "500.00"
           allowReceiving: true
           accountType: creditCard
-          available: 1500.0
+          available: "1500.00"
           allowSending: true
           version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -3986,41 +4319,40 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
+          key: asset-freeze
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        ' next_cursor':
-          type: string
-        ' prev_cursor':
-          type: string
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__accounts__account_id__operations_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
+          ' next_cursor':
+            type: string
+          ' prev_cursor':
+            type: string
           items:
-            $ref: '#/components/schemas/mmodel.Balance'
-          type: array
-        limit:
-          type: integer
-      type: object
-    inline_response_200_1:
+            items:
+              $ref: '#/components/schemas/Operation'
+            type: array
+          limit:
+            type: integer
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
         ' prev_cursor': ' prev_cursor'
         ' next_cursor': ' next_cursor'
         limit: 0
+        page: 1
         items:
         - accountAlias: '@person1'
-          amount: '{}'
+          amount: "{}"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
+          balanceAffected: true
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -4028,20 +4360,22 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
+          balance: "{}"
+          balanceAfter: "{}"
           id: 00000000-0000-0000-0000-000000000000
+          balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
+          amount: "{}"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
+          balanceAffected: true
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -4049,40 +4383,36 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
+          balance: "{}"
+          balanceAfter: "{}"
           id: 00000000-0000-0000-0000-000000000000
+          balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        ' next_cursor':
-          type: string
-        ' prev_cursor':
-          type: string
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__asset_rates_from__asset_code__get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/Operation'
-          type: array
-        limit:
-          type: integer
-      type: object
-    inline_response_200_2:
+            items:
+              $ref: '#/components/schemas/AssetRate'
+            type: array
+          limit:
+            type: integer
+          next_cursor:
+            type: string
+          prev_cursor:
+            type: string
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
+        page: 1
         items:
         - metadata:
-            key: '{}'
+            key: "{}"
           externalId: 00000000-0000-0000-0000-000000000000
           scale: 2.0
           source: External System
@@ -4096,7 +4426,7 @@ components:
           to: BRL
           updatedAt: 2021-01-01T00:00:00Z
         - metadata:
-            key: '{}'
+            key: "{}"
           externalId: 00000000-0000-0000-0000-000000000000
           scale: 2.0
           source: External System
@@ -4109,196 +4439,184 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           to: BRL
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/AssetRate'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_3:
+            items:
+              $ref: '#/components/schemas/OperationRoute'
+            type: array
+          limit:
+            type: integer
+          next_cursor:
+            type: string
+          page:
+            $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response_allOf_page'
+          prev_cursor:
+            type: string
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        page: '{}'
+        page: {}
         items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
+          code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
           operationType: source
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Cashin from service charge
-          account: '{}'
+          account: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
+          code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
           operationType: source
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Cashin from service charge
-          account: '{}'
+          account: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__transaction_routes_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/OperationRoute'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_4:
+            items:
+              $ref: '#/components/schemas/TransactionRoute'
+            type: array
+          limit:
+            type: integer
+          next_cursor:
+            type: string
+          page:
+            $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response_allOf_page'
+          prev_cursor:
+            type: string
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        page: '{}'
+        page: {}
         items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             metadata:
-              key: '{}'
+              key: "{}"
+            code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
             operationType: source
-            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            id: 00000000-0000-0000-0000-000000000000
             title: Cashin from service charge
-            account: '{}'
+            account: "{}"
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             metadata:
-              key: '{}'
+              key: "{}"
+            code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
             operationType: source
-            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            id: 00000000-0000-0000-0000-000000000000
             title: Cashin from service charge
-            account: '{}'
+            account: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Charge Settlement
           updatedAt: 2025-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
           metadata:
-            key: '{}'
+            key: "{}"
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             metadata:
-              key: '{}'
+              key: "{}"
+            code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
             operationType: source
-            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            id: 00000000-0000-0000-0000-000000000000
             title: Cashin from service charge
-            account: '{}'
+            account: "{}"
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             metadata:
-              key: '{}'
+              key: "{}"
+            code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
             operationType: source
-            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            id: 00000000-0000-0000-0000-000000000000
             title: Cashin from service charge
-            account: '{}'
+            account: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          id: 00000000-0000-0000-0000-000000000000
           title: Charge Settlement
           updatedAt: 2025-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
+    _v1_organizations__organization_id__ledgers__ledger_id__transactions_get_200_response:
+      allOf:
+      - $ref: '#/components/schemas/Pagination'
+      - properties:
           items:
-            $ref: '#/components/schemas/TransactionRoute'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_5:
+            items:
+              $ref: '#/components/schemas/Transaction'
+            type: array
+          limit:
+            type: integer
+          next_cursor:
+            type: string
+          page:
+            $ref: '#/components/schemas/_v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response_allOf_page'
+          prev_cursor:
+            type: string
+        type: object
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        page: '{}'
+        page: {}
         items:
-        - amount: 1500.0
+        - amount: "1500.00"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           destination:
           - '@person2'
@@ -4313,13 +4631,14 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
+            amount: "{}"
             metadata:
-              key: '{}'
+              key: "{}"
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
+            balanceAffected: true
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -4327,20 +4646,22 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
+            balance: "{}"
+            balanceAfter: "{}"
             id: 00000000-0000-0000-0000-000000000000
+            balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+            status: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
+            amount: "{}"
             metadata:
-              key: '{}'
+              key: "{}"
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
+            balanceAffected: true
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -4348,19 +4669,20 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
+            balance: "{}"
+            balanceAfter: "{}"
             id: 00000000-0000-0000-0000-000000000000
+            balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+            status: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
-        - amount: 1500.0
+        - amount: "1500.00"
           metadata:
-            key: '{}'
+            key: "{}"
           assetCode: BRL
           destination:
           - '@person2'
@@ -4375,13 +4697,14 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
+            amount: "{}"
             metadata:
-              key: '{}'
+              key: "{}"
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
+            balanceAffected: true
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -4389,20 +4712,22 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
+            balance: "{}"
+            balanceAfter: "{}"
             id: 00000000-0000-0000-0000-000000000000
+            balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+            status: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
+            amount: "{}"
             metadata:
-              key: '{}'
+              key: "{}"
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
+            balanceAffected: true
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -4410,34 +4735,27 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
+            balance: "{}"
+            balanceAfter: "{}"
             id: 00000000-0000-0000-0000-000000000000
+            balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+            status: "{}"
             updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+          status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
+    _v1_organizations__organization_id__ledgers__ledger_id__transactions_dsl_post_request:
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Transaction'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
+        transaction:
+          description: Transaction DSL file
+          format: binary
           type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
+      required:
+      - transaction
       type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_amount:
+    CreateTransactionInflowSwaggerModel_send_distribute_to_inner_amount:
       description: |-
         Amount details for the operation
         required: true
@@ -4458,14 +4776,14 @@ components:
             required: true
           type: string
       type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_to:
+    CreateTransactionInflowSwaggerModel_send_distribute_to_inner:
       example:
         accountAlias: accountAlias
         amount:
           asset: asset
           value: value
         metadata:
-          key: '{}'
+          key: "{}"
         chartOfAccounts: chartOfAccounts
         description: description
       properties:
@@ -4476,7 +4794,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to_inner_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -4506,7 +4824,7 @@ components:
             asset: asset
             value: value
           metadata:
-            key: '{}'
+            key: "{}"
           chartOfAccounts: chartOfAccounts
           description: description
         - accountAlias: accountAlias
@@ -4514,7 +4832,7 @@ components:
             asset: asset
             value: value
           metadata:
-            key: '{}'
+            key: "{}"
           chartOfAccounts: chartOfAccounts
           description: description
       properties:
@@ -4523,7 +4841,7 @@ components:
             List of destination operations
             required: true
           items:
-            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to'
+            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to_inner'
           type: array
       type: object
     CreateTransactionInflowSwaggerModel_send:
@@ -4538,7 +4856,7 @@ components:
               asset: asset
               value: value
             metadata:
-              key: '{}'
+              key: "{}"
             chartOfAccounts: chartOfAccounts
             description: description
           - accountAlias: accountAlias
@@ -4546,7 +4864,7 @@ components:
               asset: asset
               value: value
             metadata:
-              key: '{}'
+              key: "{}"
             chartOfAccounts: chartOfAccounts
             description: description
         asset: asset
@@ -4567,14 +4885,14 @@ components:
             required: true
           type: string
       type: object
-    CreateTransactionOutflowSwaggerModel_send_source_from:
+    CreateTransactionOutflowSwaggerModel_send_source_from_inner:
       example:
         accountAlias: accountAlias
         amount:
           asset: asset
           value: value
         metadata:
-          key: '{}'
+          key: "{}"
         chartOfAccounts: chartOfAccounts
         description: description
       properties:
@@ -4585,7 +4903,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to_inner_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -4615,7 +4933,7 @@ components:
             asset: asset
             value: value
           metadata:
-            key: '{}'
+            key: "{}"
           chartOfAccounts: chartOfAccounts
           description: description
         - accountAlias: accountAlias
@@ -4623,7 +4941,7 @@ components:
             asset: asset
             value: value
           metadata:
-            key: '{}'
+            key: "{}"
           chartOfAccounts: chartOfAccounts
           description: description
       properties:
@@ -4632,7 +4950,7 @@ components:
             List of source operations
             required: true
           items:
-            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from'
+            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from_inner'
           type: array
       type: object
     CreateTransactionOutflowSwaggerModel_send:
@@ -4647,7 +4965,7 @@ components:
               asset: asset
               value: value
             metadata:
-              key: '{}'
+              key: "{}"
             chartOfAccounts: chartOfAccounts
             description: description
           - accountAlias: accountAlias
@@ -4655,7 +4973,7 @@ components:
               asset: asset
               value: value
             metadata:
-              key: '{}'
+              key: "{}"
             chartOfAccounts: chartOfAccounts
             description: description
         asset: asset
@@ -4676,7 +4994,7 @@ components:
             required: true
           type: string
       type: object
-    ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
+    ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from_inner
     : properties:
         accountAlias:
           description: |-
@@ -4685,7 +5003,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to_inner_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -4714,7 +5032,7 @@ components:
             List of source operations
             required: true
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from_inner'
           type: array
       type: object
     ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send
@@ -4738,5 +5056,9 @@ components:
             example: "100.00"
             required: true
           type: string
+      type: object
+    _v1_organizations__organization_id__ledgers__ledger_id__operation_routes_get_200_response_allOf_page:
+      example: {}
+      properties: {}
       type: object
 x-original-swagger-version: "2.0"
