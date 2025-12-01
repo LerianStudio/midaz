@@ -453,13 +453,29 @@ func mapAddressToEntity(a *AddressMongoDBModel) *mmodel.Address {
 		return nil
 	}
 
+	var line1, zipCode, city, state, country string
+	if a.Line1 != nil {
+		line1 = *a.Line1
+	}
+	if a.ZipCode != nil {
+		zipCode = *a.ZipCode
+	}
+	if a.City != nil {
+		city = *a.City
+	}
+	if a.State != nil {
+		state = *a.State
+	}
+	if a.Country != nil {
+		country = *a.Country
+	}
 	return &mmodel.Address{
-		Line1:   *a.Line1,
+		Line1:   line1,
 		Line2:   a.Line2,
-		ZipCode: *a.ZipCode,
-		City:    *a.City,
-		State:   *a.State,
-		Country: *a.Country,
-		// Description: a.Description, // TODO: Check if this is needed
+		ZipCode: zipCode,
+		City:    city,
+		State:   state,
+		Country: country,
+		// Description: a.Description,
 	}
 }
