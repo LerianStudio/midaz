@@ -14,8 +14,57 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOperationRouteByID retrieves an operation route by its ID.
-// It returns the operation route if found, otherwise it returns an error.
+// GetOperationRouteByID retrieves an operation route by its unique identifier.
+//
+// Operation routes define how operations should be processed based on matching
+// criteria such as asset codes, account types, or custom rules. This method
+// retrieves a specific route configuration with its associated metadata.
+//
+// Query Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "query.get_operation_route_by_id"
+//	  - Log route ID being retrieved
+//
+//	Step 2: Route Retrieval
+//	  - Query OperationRouteRepo.FindByID with organization and ledger scope
+//	  - If route not found: Return ErrOperationRouteNotFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 3: Metadata Enrichment
+//	  - If route found: Query MongoDB for associated metadata
+//	  - If metadata retrieval fails: Return error
+//	  - If metadata exists: Attach to route entity
+//
+//	Step 4: Response
+//	  - Log successful retrieval
+//	  - Return enriched operation route with metadata
+//
+// Operation Route Purpose:
+//
+// Operation routes enable dynamic transaction processing by defining rules
+// for how operations should be handled. They can specify:
+//   - Fee calculations and destination accounts
+//   - Compliance checks and validations
+//   - Custom processing logic triggers
+//   - Multi-step operation workflows
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the route
+//   - portfolioID: Optional portfolio UUID (may be nil)
+//   - id: UUID of the operation route to retrieve
+//
+// Returns:
+//   - *mmodel.OperationRoute: Operation route with metadata if found
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrOperationRouteNotFound: Route does not exist
+//   - Database connection failure
+//   - MongoDB metadata retrieval failure
 func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

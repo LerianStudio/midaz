@@ -17,7 +17,50 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetAllOperationRoutes fetch all Operation Routes from the repository
+// GetAllOperationRoutes retrieves all operation routes configured for a ledger.
+//
+// Operation routes define the accounting rules that govern individual operations within
+// a transaction route. They specify which accounts can participate in operations and
+// what validation rules apply (e.g., account type restrictions, alias matching).
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Fetch Operation Routes from PostgreSQL
+//	  - Query all operation routes for the organization/ledger
+//	  - Apply cursor-based pagination from filter
+//	  - Handle not-found case with business error
+//
+//	Step 3: Prepare Metadata Filter
+//	  - Initialize empty BSON filter if not provided
+//	  - Ensures consistent MongoDB query behavior
+//
+//	Step 4: Fetch Metadata from MongoDB
+//	  - Query metadata documents matching the filter
+//	  - Build lookup map indexed by entity ID
+//
+//	Step 5: Enrich Operation Routes with Metadata
+//	  - Assign metadata to each operation route by ID match
+//	  - Convert UUID to string for map lookup
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope operation routes
+//   - filter: Query parameters with pagination and optional metadata filter
+//
+// Returns:
+//   - []*mmodel.OperationRoute: Operation routes with metadata, nil if none found
+//   - libHTTP.CursorPagination: Cursor for paginated results
+//   - error: Business error (ErrNoOperationRoutesFound) or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoOperationRoutesFound: No operation routes configured for ledger
+//   - ErrEntityNotFound: Metadata lookup failed
+//   - Database errors: PostgreSQL or MongoDB connection issues
 func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

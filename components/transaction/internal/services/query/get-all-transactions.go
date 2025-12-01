@@ -17,7 +17,66 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllTransactions fetch all Transactions from the repository
+// GetAllTransactions retrieves all transactions for a ledger with operations and metadata.
+//
+// This method provides a comprehensive view of ledger transactions, including their
+// associated operations (debits/credits) and metadata from MongoDB. It is the primary
+// query for transaction listing APIs.
+//
+// Data Structure:
+//
+// Each returned transaction includes:
+//   - Core fields: ID, status, amount, timestamps
+//   - Operations: Associated debit/credit entries
+//   - Source: Account aliases on debit side
+//   - Destination: Account aliases on credit side
+//   - Metadata: Custom key-value attributes
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for distributed tracing
+//
+//	Step 2: Fetch Transactions with Operations
+//	  - Query PostgreSQL with operation JOIN
+//	  - Empty UUID slice signals "fetch all" mode
+//	  - Apply cursor-based pagination
+//
+//	Step 3: Collect Transaction IDs
+//	  - Build slice for bulk metadata lookup
+//	  - Return early if no transactions found
+//
+//	Step 4: Fetch Transaction Metadata
+//	  - Bulk query MongoDB for all transaction IDs
+//	  - Build lookup map for O(1) assignment
+//
+//	Step 5: Process Each Transaction
+//	  - Categorize operations by type (DEBIT/CREDIT)
+//	  - Build Source and Destination alias lists
+//	  - Assign metadata from lookup map
+//	  - Enrich operations with their metadata
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope transactions
+//   - filter: Query parameters with cursor pagination
+//
+// Returns:
+//   - []*transaction.Transaction: Transactions with operations and metadata
+//   - libHTTP.CursorPagination: Pagination cursor for next page
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoTransactionsFound: No transactions exist for ledger
+//   - Metadata error: MongoDB query failure
+//   - Database error: PostgreSQL connection or query failure
+//
+// Performance Considerations:
+//   - Single PostgreSQL query with JOIN for transactions + operations
+//   - Bulk MongoDB query for transaction metadata
+//   - Per-transaction metadata query for operations (potential N+1)
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -104,7 +163,28 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	return trans, cur, nil
 }
 
-// enrichOperationsWithMetadata retrieves and assigns metadata to operations
+// enrichOperationsWithMetadata retrieves and assigns metadata to operations within a transaction.
+//
+// This helper method fetches metadata for a batch of operations and assigns it to
+// each operation. It is called per-transaction during GetAllTransactions processing.
+//
+// Process:
+//
+//	Step 1: Bulk Metadata Fetch
+//	  - Query MongoDB for all operation IDs
+//	  - Build lookup map indexed by operation ID
+//
+//	Step 2: Assign Metadata
+//	  - Iterate operations and assign from map
+//	  - Operations without metadata retain nil
+//
+// Parameters:
+//   - ctx: Request context for tracing and MongoDB access
+//   - operations: Operation slice to enrich
+//   - operationIDs: IDs for metadata lookup
+//
+// Returns:
+//   - error: MongoDB query failure
 func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -134,6 +214,36 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 	return nil
 }
 
+// GetOperationsByTransaction retrieves operations for a single transaction and enriches the transaction object.
+//
+// This method fetches all operations for a transaction and populates the Source/Destination
+// alias lists based on operation types. It is used when transaction operations were not
+// loaded in the initial query.
+//
+// Process:
+//
+//	Step 1: Fetch Operations
+//	  - Call GetAllOperations with transaction ID filter
+//	  - Retrieve all debit and credit entries
+//
+//	Step 2: Categorize Operations
+//	  - DEBIT operations -> Source aliases
+//	  - CREDIT operations -> Destination aliases
+//
+//	Step 3: Enrich Transaction
+//	  - Populate Source and Destination slices
+//	  - Assign Operations slice to transaction
+//
+// Parameters:
+//   - ctx: Request context for tracing
+//   - organizationID: Organization UUID
+//   - ledgerID: Ledger UUID
+//   - tran: Transaction to enrich with operations
+//   - filter: Query parameters (for operation filtering)
+//
+// Returns:
+//   - *transaction.Transaction: Enriched transaction with operations
+//   - error: Operation retrieval failure
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

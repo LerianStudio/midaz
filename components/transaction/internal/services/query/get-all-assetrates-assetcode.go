@@ -13,7 +13,65 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
+// GetAllAssetRatesByAssetCode retrieves asset exchange rates for currency conversion.
+//
+// This method queries all exchange rates from a source asset code to one or more
+// target asset codes. Asset rates are used for multi-currency transactions where
+// amounts need to be converted between different assets.
+//
+// Query Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "query.get_asset_rate_by_asset_codes"
+//
+//	Step 2: Source Code Validation
+//	  - Validate fromAssetCode format via libCommons.ValidateCode
+//	  - If invalid: Return validation business error
+//
+//	Step 3: Target Codes Validation
+//	  - Iterate through filter.ToAssetCodes
+//	  - Validate each target code format
+//	  - If any invalid: Return validation business error
+//
+//	Step 4: Asset Rates Retrieval
+//	  - Query AssetRateRepo.FindAllByAssetCodes with pagination
+//	  - If retrieval fails: Return error with span event
+//	  - Returns asset rates with cursor pagination info
+//
+//	Step 5: Metadata Enrichment
+//	  - If asset rates found: Query MongoDB for metadata list
+//	  - Build metadata map keyed by entity ID
+//	  - Attach metadata to each asset rate
+//
+//	Step 6: Response
+//	  - Return enriched asset rates with pagination cursor
+//
+// Asset Rate Structure:
+//
+// Each asset rate represents a conversion factor from one asset to another:
+//   - FromAssetCode: Source currency/asset (e.g., "USD")
+//   - ToAssetCode: Target currency/asset (e.g., "EUR")
+//   - Rate: Conversion multiplier (e.g., 0.92 for USD->EUR)
+//   - EffectiveAt: Timestamp when rate became effective
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the asset rates
+//   - fromAssetCode: Source asset code to convert from
+//   - filter: Query parameters including ToAssetCodes and pagination
+//
+// Returns:
+//   - []*assetrate.AssetRate: List of asset rates with metadata
+//   - libHTTP.CursorPagination: Pagination cursor for next page
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - Invalid fromAssetCode format
+//   - Invalid toAssetCode format in filter
+//   - Database connection failure
+//   - MongoDB metadata retrieval failure
 func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

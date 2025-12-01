@@ -16,7 +16,62 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidateAccountingRules validates the accounting rules for the given operations
+// ValidateAccountingRules validates transaction operations against configured accounting routes.
+//
+// This method enforces accounting rules defined in transaction routes, ensuring that
+// operations comply with configured account restrictions. It is a critical validation
+// step that prevents invalid transactions from being recorded in the ledger.
+//
+// Feature Flag:
+//
+// Validation is controlled by the TRANSACTION_ROUTE_VALIDATION environment variable.
+// Format: "orgID1:ledgerID1,orgID2:ledgerID2" (comma-separated org:ledger pairs)
+// If the current org:ledger is not in the list, validation is skipped (returns nil).
+//
+// Validation Process:
+//
+//	Step 1: Check Feature Flag
+//	  - Parse TRANSACTION_ROUTE_VALIDATION environment variable
+//	  - Skip validation if org:ledger pair not enabled
+//	  - This allows gradual rollout of route validation
+//
+//	Step 2: Validate Transaction Route Presence
+//	  - Ensure transaction route ID is provided
+//	  - Parse and validate UUID format
+//	  - Return business error if invalid or missing
+//
+//	Step 3: Load Transaction Route Cache
+//	  - Retrieve cached route configuration (or create from DB)
+//	  - Cache contains source/destination operation routes
+//	  - Fail if route not found in database
+//
+//	Step 4: Validate Route Counts
+//	  - Count unique source routes from request
+//	  - Count unique destination routes from request
+//	  - Compare against configured route counts
+//	  - Mismatch indicates incorrect transaction structure
+//
+//	Step 5: Validate Account Rules
+//	  - Delegate to validateAccountRules for per-operation checks
+//	  - Each operation validated against its assigned route
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for route lookup
+//   - ledgerID: Ledger UUID for route lookup
+//   - operations: Balance operations to validate
+//   - validate: Transaction validation context with route assignments
+//
+// Returns:
+//   - error: Validation failure with specific error code, nil if valid
+//
+// Error Scenarios:
+//   - ErrTransactionRouteNotInformed: No route ID provided
+//   - ErrInvalidTransactionRouteID: Malformed UUID
+//   - ErrAccountingRouteCountMismatch: Wrong number of source/destination routes
+//   - ErrAccountingRouteNotFound: Operation references non-existent route
+//   - ErrAccountingAliasValidationFailed: Account alias doesn't match rule
+//   - ErrAccountingAccountTypeValidationFailed: Account type not in allowed list
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *libTransaction.Responses) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -74,7 +129,37 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
 }
 
-// validateAccountRules validates each operation against its corresponding route rule
+// validateAccountRules validates each operation against its corresponding route rule.
+//
+// This function iterates through operations and validates each against the accounting
+// rules defined in the transaction route cache. It determines whether an operation
+// is a source (debit) or destination (credit) and applies the appropriate rule set.
+//
+// Validation Logic:
+//
+//	Step 1: Determine Operation Direction
+//	  - Check if alias exists in From map (source/debit)
+//	  - Check if alias exists in To map (destination/credit)
+//	  - Skip if operation not in either (shouldn't happen)
+//
+//	Step 2: Locate Route Rule
+//	  - Find route ID from operation routes map
+//	  - Lookup rule in cache (source or destination)
+//	  - Error if route not found in cache
+//
+//	Step 3: Apply Account Rule
+//	  - Validate operation against account rule if defined
+//	  - Delegate to validateSingleOperationRule
+//	  - Return first validation failure
+//
+// Parameters:
+//   - ctx: Request context for tracing
+//   - transactionRouteCache: Cached route with source/destination rules
+//   - validate: Validation context with alias-to-route mappings
+//   - operations: Operations to validate
+//
+// Returns:
+//   - error: First validation failure, nil if all pass
 func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -130,7 +215,34 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 	return nil
 }
 
-// validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
+// validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route.
+//
+// Account rules define constraints on which accounts can participate in operations.
+// Two rule types are supported:
+//
+// Rule Types:
+//
+//	AccountRuleTypeAlias: Exact alias match
+//	  - ValidIf contains expected alias string
+//	  - Operation alias must exactly match
+//	  - Use case: Specific account requirements (e.g., "settlement_account")
+//
+//	AccountRuleTypeAccountType: Account type whitelist
+//	  - ValidIf contains []string of allowed types
+//	  - Operation's account type must be in list
+//	  - Use case: Category restrictions (e.g., only "ASSET" or "LIABILITY")
+//
+// Parameters:
+//   - op: Balance operation to validate
+//   - account: Account rule from route configuration
+//
+// Returns:
+//   - error: Validation failure with specific error code
+//
+// Error Scenarios:
+//   - ErrInvalidAccountingRoute: Rule type unknown or ValidIf malformed
+//   - ErrAccountingAliasValidationFailed: Alias doesn't match expected value
+//   - ErrAccountingAccountTypeValidationFailed: Type not in allowed list
 func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
 	case constant.AccountRuleTypeAlias:
@@ -174,7 +286,21 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 	return nil
 }
 
-// uniqueValues counts the number of unique values in a map
+// uniqueValues counts the number of unique values in a map.
+//
+// This helper function is used to count distinct route IDs in operation assignments,
+// ensuring the correct number of unique routes are specified.
+//
+// Optimization:
+//   - Early return for empty map (0)
+//   - Early return for single-entry map (1)
+//   - Uses map[string]struct{} for O(1) deduplication
+//
+// Parameters:
+//   - m: Map with string values to deduplicate
+//
+// Returns:
+//   - int: Count of unique values
 func uniqueValues(m map[string]string) int {
 	if len(m) == 0 {
 		return 0
@@ -192,7 +318,21 @@ func uniqueValues(m map[string]string) int {
 	return len(seen)
 }
 
-// extractStringSlice helper function to handle []string and []any conversion
+// extractStringSlice helper function to handle []string and []any conversion.
+//
+// MongoDB may return arrays as []any instead of []string. This helper normalizes
+// both formats to []string for consistent rule validation.
+//
+// Supported Input Types:
+//   - []string: Returned as-is
+//   - []any: Converted element-by-element (returns nil if any element not string)
+//   - Other: Returns nil
+//
+// Parameters:
+//   - value: Value to convert (typically from account rule ValidIf)
+//
+// Returns:
+//   - []string: Converted slice, nil if conversion fails
 func extractStringSlice(value any) []string {
 	switch v := value.(type) {
 	case []string:

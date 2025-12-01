@@ -14,6 +14,53 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetOperationByAccount retrieves a specific operation for an account.
+//
+// This method queries an operation by its ID within the context of a specific
+// account, ensuring the operation belongs to the specified account. This is
+// useful for account-centric views where operations need to be filtered by
+// account ownership.
+//
+// Query Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "query.get_operation_by_account"
+//
+//	Step 2: Operation Retrieval
+//	  - Query OperationRepo.FindByAccount with organization, ledger, account, and operation IDs
+//	  - If operation not found: Return ErrNoOperationsFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 3: Metadata Enrichment
+//	  - If operation found: Query MongoDB for associated metadata
+//	  - If metadata retrieval fails: Return error
+//	  - If metadata exists: Attach to operation entity
+//
+//	Step 4: Response
+//	  - Return enriched operation with metadata
+//
+// Account Scoping:
+//
+// Unlike GetOperationByID which queries by transaction scope, this method
+// queries by account scope. This ensures the operation is relevant to the
+// specified account (either as source or destination).
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the operation
+//   - accountID: UUID of the account to scope the operation query
+//   - operationID: UUID of the operation to retrieve
+//
+// Returns:
+//   - *operation.Operation: Operation with metadata if found
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoOperationsFound: Operation not found for account
+//   - Database connection failure
+//   - MongoDB metadata retrieval failure
 func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

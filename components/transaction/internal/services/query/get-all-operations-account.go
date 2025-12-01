@@ -1,3 +1,42 @@
+// Package query provides CQRS query handlers for the transaction bounded context.
+//
+// This package implements read-only operations for retrieving transaction-related
+// entities from the ledger system. It follows the CQRS (Command Query Responsibility
+// Segregation) pattern, separating read operations from write operations.
+//
+// Query Handlers:
+//
+//   - Operations: Retrieve ledger operations by account, transaction, or metadata
+//   - Transactions: Fetch transactions with associated operations and metadata
+//   - Balances: Query account balances with Redis cache integration
+//   - Transaction Routes: Retrieve accounting route configurations
+//   - Operation Routes: Fetch operation-level routing rules
+//   - Asset Rates: Query currency exchange rates
+//
+// Architecture:
+//
+// Query handlers use a multi-store approach:
+//   - PostgreSQL: Primary data source for transactional entities
+//   - MongoDB: Metadata storage for flexible key-value attributes
+//   - Redis/Valkey: Cache layer for balance lookups and route configurations
+//
+// Data Enrichment Pattern:
+//
+// Most queries follow a two-phase retrieval:
+//  1. Fetch core entity data from PostgreSQL
+//  2. Enrich with metadata from MongoDB (joined by entity ID)
+//
+// This separation allows flexible metadata schemas without PostgreSQL migrations.
+//
+// Thread Safety:
+//
+// UseCase is safe for concurrent use. All methods are read-only and use
+// context-scoped database connections from the repository layer.
+//
+// Related Packages:
+//   - adapters/postgres: PostgreSQL repository implementations
+//   - adapters/mongodb: MongoDB metadata repository
+//   - adapters/redis: Redis cache repository
 package query
 
 import (
@@ -16,6 +55,51 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetAllOperationsByAccount retrieves all ledger operations associated with a specific account.
+//
+// This method fetches operations where the account participated as either source (debit)
+// or destination (credit), enriching each operation with its associated metadata from MongoDB.
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for distributed tracing
+//
+//	Step 2: Fetch Operations from PostgreSQL
+//	  - Query operations by organization, ledger, and account IDs
+//	  - Apply optional operation type filter from query header
+//	  - Use cursor-based pagination for efficient large result sets
+//	  - Return early if no operations found
+//
+//	Step 3: Collect Operation IDs
+//	  - Build slice of operation IDs for bulk metadata lookup
+//	  - Avoid N+1 query pattern by batching metadata retrieval
+//
+//	Step 4: Fetch Metadata from MongoDB
+//	  - Bulk query metadata documents by entity IDs
+//	  - Build lookup map for O(1) metadata assignment
+//
+//	Step 5: Enrich Operations with Metadata
+//	  - Iterate operations and assign metadata from lookup map
+//	  - Preserve operations without metadata (optional field)
+//
+// Parameters:
+//   - ctx: Request context with tenant information and tracing
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID within the organization
+//   - accountID: Account UUID to filter operations
+//   - filter: Query parameters including pagination and operation type filter
+//
+// Returns:
+//   - []*operation.Operation: Slice of operations with metadata, empty slice if none found
+//   - libHTTP.CursorPagination: Pagination cursor for next/previous page
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoOperationsFound: No operations exist for the given account
+//   - Database connection errors: PostgreSQL or MongoDB unavailable
+//   - Metadata lookup failures: MongoDB query errors
 func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

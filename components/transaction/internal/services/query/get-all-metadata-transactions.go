@@ -18,7 +18,65 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataTransactions fetch all Transactions from the repository
+// GetAllMetadataTransactions retrieves transactions filtered by metadata criteria.
+//
+// This method implements a metadata-first query pattern, useful when searching for
+// transactions by custom attributes stored in MongoDB rather than core fields in
+// PostgreSQL. Common use cases include searching by external reference IDs, custom
+// tags, or integration-specific identifiers.
+//
+// Query Strategy (Metadata-First):
+//
+// Unlike standard queries that start with PostgreSQL, this method:
+//  1. Queries MongoDB first to find matching metadata documents
+//  2. Extracts entity IDs from metadata results
+//  3. Fetches full transaction records from PostgreSQL by those IDs
+//
+// This approach is optimal when:
+//   - Filtering by metadata fields not indexed in PostgreSQL
+//   - Metadata filter is highly selective (few matches expected)
+//   - Full transaction data needed after metadata match
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for distributed tracing
+//
+//	Step 2: Query Metadata from MongoDB
+//	  - Apply metadata filter from query header
+//	  - Return business error if no metadata matches
+//	  - Build lookup map and UUID slice from results
+//
+//	Step 3: Fetch Transactions from PostgreSQL
+//	  - Query transactions by extracted UUIDs
+//	  - Include operations in the join (FindOrListAllWithOperations)
+//	  - Apply cursor pagination to results
+//
+//	Step 4: Enrich Operations with Metadata
+//	  - Bulk fetch operation metadata for all transactions
+//	  - Delegate to enrichTransactionsWithOperationMetadata helper
+//
+//	Step 5: Build Source/Destination Lists
+//	  - Categorize operations by type (DEBIT/CREDIT)
+//	  - Populate Source (debit aliases) and Destination (credit aliases)
+//	  - Assign transaction metadata from lookup map
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope transactions
+//   - filter: Query parameters including metadata filter criteria
+//
+// Returns:
+//   - []*transaction.Transaction: Transactions with operations and metadata
+//   - libHTTP.CursorPagination: Pagination cursor for next page
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoTransactionsFound: No metadata matches or no transactions for matched IDs
+//   - Metadata query error: MongoDB unavailable or query syntax error
+//   - Database error: PostgreSQL connection or query failure
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -99,7 +157,40 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	return trans, cur, nil
 }
 
-// enrichTransactionsWithOperationMetadata fetches operation metadata in bulk and assigns it to operations
+// enrichTransactionsWithOperationMetadata fetches and assigns metadata to transaction operations.
+//
+// This helper method implements bulk metadata retrieval for operations across multiple
+// transactions, avoiding the N+1 query problem when each transaction has many operations.
+//
+// Optimization Strategy:
+//
+//	Step 1: Count Total Operations
+//	  - Sum operations across all transactions
+//	  - Early return if no operations exist
+//
+//	Step 2: Collect Operation IDs
+//	  - Pre-allocate slice with known capacity
+//	  - Single pass through all transactions
+//
+//	Step 3: Bulk Metadata Fetch
+//	  - Single MongoDB query for all operation IDs
+//	  - Build O(1) lookup map for assignment
+//
+//	Step 4: Assign Metadata
+//	  - Iterate operations and assign from map
+//	  - Operations without metadata retain nil
+//
+// Parameters:
+//   - ctx: Request context for tracing and cancellation
+//   - trans: Slice of transactions with operations to enrich
+//
+// Returns:
+//   - error: Metadata query failure (operations unchanged on error)
+//
+// Performance:
+//   - Single MongoDB query regardless of operation count
+//   - O(n) time complexity where n = total operations
+//   - Memory: O(n) for ID slice and metadata map
 func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, trans []*transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

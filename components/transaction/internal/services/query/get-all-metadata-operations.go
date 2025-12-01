@@ -16,7 +16,69 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataOperations fetch all Operations from the repository
+// GetAllMetadataOperations retrieves operations filtered by metadata criteria for a specific account.
+//
+// This method implements a metadata-first query pattern for operations, useful when
+// searching by custom attributes stored in MongoDB. Unlike GetAllOperationsByAccount
+// which fetches all operations then enriches with metadata, this method filters
+// by metadata first, returning only operations that match the metadata criteria.
+//
+// Use Cases:
+//   - Find operations tagged with specific external reference IDs
+//   - Search operations by custom integration attributes
+//   - Filter operations by user-defined metadata fields
+//
+// Query Strategy (Metadata-First):
+//
+//	1. Query MongoDB for metadata matching filter criteria
+//	2. Build lookup map of entity ID -> metadata
+//	3. Fetch operations from PostgreSQL for the account
+//	4. Return only operations that have matching metadata
+//
+// This approach differs from standard queries:
+//   - Standard: Fetch all operations, then enrich with metadata
+//   - Metadata-first: Filter by metadata, then fetch matching operations
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Query Metadata from MongoDB
+//	  - Apply metadata filter from query header
+//	  - Return business error if no matches
+//	  - Build lookup map indexed by entity ID
+//
+//	Step 3: Fetch Operations from PostgreSQL
+//	  - Query operations for the account
+//	  - Apply operation type filter if specified
+//	  - Use cursor-based pagination
+//
+//	Step 4: Filter and Enrich Operations
+//	  - Only include operations with matching metadata
+//	  - Assign metadata to each matching operation
+//	  - Non-matching operations are excluded from results
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID for operation scope
+//   - accountID: Account UUID to filter operations
+//   - filter: Query parameters including metadata filter criteria
+//
+// Returns:
+//   - []*operation.Operation: Operations with matching metadata
+//   - libHTTP.CursorPagination: Pagination cursor for next page
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoOperationsFound: No metadata matches or no operations for account
+//   - Metadata query error: MongoDB unavailable or query failure
+//   - Database error: PostgreSQL connection or query failure
+//
+// Note: Pagination applies to the PostgreSQL query, not the final filtered result.
+// This may result in fewer results than requested if many operations lack matching metadata.
 func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

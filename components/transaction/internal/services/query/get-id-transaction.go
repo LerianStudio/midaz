@@ -10,7 +10,52 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetTransactionByID gets data in the repository.
+// GetTransactionByID retrieves a transaction by its unique identifier.
+//
+// This method fetches a single transaction without its associated operations.
+// For scenarios requiring the full transaction with operations, use
+// GetTransactionWithOperationsByID instead.
+//
+// Query Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "query.get_transaction_by_id"
+//
+//	Step 2: Transaction Retrieval
+//	  - Query TransactionRepo.Find with organization, ledger, and transaction IDs
+//	  - If retrieval fails: Return error with span event
+//	  - Note: Returns nil transaction (not error) if not found
+//
+//	Step 3: Metadata Enrichment
+//	  - If transaction found: Query MongoDB for associated metadata
+//	  - If metadata retrieval fails: Return error with span event
+//	  - If metadata exists: Attach to transaction entity
+//
+//	Step 4: Response
+//	  - Return enriched transaction with metadata (or nil if not found)
+//
+// Transaction Structure:
+//
+// A transaction represents a complete ledger entry that must balance:
+//   - Total debits must equal total credits
+//   - Contains one or more operations (retrieved separately)
+//   - Has status lifecycle: PENDING -> COMMITTED or FAILED
+//   - May reference a parent transaction for chains
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the transaction
+//   - transactionID: UUID of the transaction to retrieve
+//
+// Returns:
+//   - *transaction.Transaction: Transaction with metadata if found
+//   - error: Infrastructure error (nil transaction is valid for not found)
+//
+// Error Scenarios:
+//   - Database connection failure
+//   - MongoDB metadata retrieval failure
 func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -46,7 +91,53 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	return tran, nil
 }
 
-// GetTransactionWithOperationsByID gets data in the repository.
+// GetTransactionWithOperationsByID retrieves a transaction with all its operations.
+//
+// This method fetches a complete transaction including all associated operations
+// in a single query. This is more efficient than fetching the transaction and
+// operations separately when both are needed.
+//
+// Query Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "query.get_transaction_and_operations_by_id"
+//
+//	Step 2: Transaction with Operations Retrieval
+//	  - Query TransactionRepo.FindWithOperations with organization, ledger, and transaction IDs
+//	  - Returns transaction with Operations slice populated
+//	  - If retrieval fails: Return error with span event
+//
+//	Step 3: Metadata Enrichment
+//	  - If transaction found: Query MongoDB for associated metadata
+//	  - If metadata retrieval fails: Return error with span event
+//	  - If metadata exists: Attach to transaction entity
+//	  - Note: Operation metadata is NOT fetched (use GetAllOperations for that)
+//
+//	Step 4: Response
+//	  - Return enriched transaction with operations and metadata
+//
+// Use Cases:
+//
+// Use this method when you need:
+//   - Transaction details display with operation breakdown
+//   - Transaction verification (checking all operations)
+//   - Audit trail queries
+//   - Transaction reversal preparation
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the transaction
+//   - transactionID: UUID of the transaction to retrieve
+//
+// Returns:
+//   - *transaction.Transaction: Transaction with operations and metadata
+//   - error: Infrastructure error
+//
+// Error Scenarios:
+//   - Database connection failure
+//   - MongoDB metadata retrieval failure
 func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
