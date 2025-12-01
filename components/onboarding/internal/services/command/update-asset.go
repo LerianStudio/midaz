@@ -1,3 +1,4 @@
+// Package command provides CQRS command handlers for the onboarding component.
 package command
 
 import (
@@ -14,7 +15,74 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAssetByID update an asset from the repository by given id.
+// UpdateAssetByID updates an existing asset in the repository.
+//
+// This function performs a partial update of an asset's mutable fields.
+// Assets define currencies and instruments that can be held in accounts.
+//
+// # Updatable Fields
+//
+// The following fields can be updated:
+//   - Name: Update asset display name
+//   - Status: Change asset status
+//   - Metadata: Update arbitrary key-value data
+//
+// Non-updatable fields (set at creation):
+//   - ID, OrganizationID, LedgerID, CreatedAt
+//   - Code: Asset code is immutable (e.g., "USD", "BRL")
+//   - Type: Asset type is immutable (currency, commodity, etc.)
+//   - Scale: Decimal precision is immutable
+//
+// # Code Immutability
+//
+// Asset codes cannot be changed because:
+//   - Accounts reference assets by code
+//   - Transaction history uses asset codes
+//   - External systems may reference asset codes
+//   - Changing codes would break referential integrity
+//
+// # Status Transitions
+//
+// Common status transitions:
+//   - ACTIVE -> INACTIVE: Disable asset for new transactions
+//   - INACTIVE -> ACTIVE: Reactivate asset
+//
+// Note: Existing balances remain valid regardless of status.
+//
+// # Process
+//
+//  1. Extract logger and tracer from context for observability
+//  2. Start tracing span "command.update_asset_by_id"
+//  3. Build partial asset update model
+//  4. Update asset in PostgreSQL via repository
+//  5. Handle not found error (ErrAssetIDNotFound)
+//  6. Update associated metadata in MongoDB
+//  7. Return updated asset with metadata
+//
+// # Parameters
+//
+//   - ctx: Request context containing tenant info, tracing, and cancellation
+//   - organizationID: The organization that owns this ledger (tenant isolation)
+//   - ledgerID: The ledger containing this asset
+//   - id: The UUID of the asset to update
+//   - uii: UpdateAssetInput containing fields to update
+//
+// # Returns
+//
+//   - *mmodel.Asset: The updated asset
+//   - error: If asset not found or database operations fail
+//
+// # Error Scenarios
+//
+//   - ErrAssetIDNotFound: Asset with given ID not found
+//   - Database connection failure
+//   - Metadata update failure (MongoDB)
+//   - Context cancellation/timeout
+//
+// # Observability
+//
+// Creates tracing span "command.update_asset_by_id" with error events.
+// Logs operation progress, warnings for not found, errors for failures.
 func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -15,7 +15,60 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteAccountByID delete an account from the repository by ids.
+// DeleteAccountByID deletes an account and all associated balances.
+//
+// This method performs a cascading delete operation that removes both the account
+// and all its associated balances. The operation coordinates between the onboarding
+// service (account deletion) and the transaction service (balance deletion via gRPC).
+//
+// Deletion Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger, tracer, and requestID from context
+//	  - Start OpenTelemetry span "command.delete_account_by_id"
+//
+//	Step 2: Account Validation
+//	  - Find account by ID within organization and ledger scope
+//	  - If account not found: Return error
+//	  - If account is "external" type: Return ErrForbiddenExternalAccountManipulation
+//	    (External accounts are system-managed and cannot be deleted)
+//
+//	Step 3: Balance Deletion (gRPC)
+//	  - Build DeleteAllBalancesByAccountIDRequest with account details
+//	  - Call BalanceGRPCRepo.DeleteAllBalancesByAccountID via gRPC
+//	  - If unauthorized/forbidden: Return auth error as-is
+//	  - If other gRPC error: Return ErrAccountBalanceDeletion business error
+//
+//	Step 4: Account Deletion
+//	  - Delete account from PostgreSQL via AccountRepo.Delete
+//	  - If account not found during delete: Return ErrAccountIDNotFound
+//	  - If other error: Return wrapped error
+//
+// External Account Protection:
+//
+// External accounts are automatically created during asset creation to serve as
+// the counterparty for external transactions. These accounts:
+//   - Have type="external" and status.code="external"
+//   - Are named "External {ASSET_CODE}" with alias "@external/{ASSET_CODE}"
+//   - Must not be deleted as they are required for asset operations
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the account
+//   - portfolioID: Optional portfolio UUID (nil if account has no portfolio)
+//   - id: UUID of the account to delete
+//   - token: Authentication token for gRPC balance service call
+//
+// Returns:
+//   - error: Business or infrastructure error, nil on success
+//
+// Error Scenarios:
+//   - ErrForbiddenExternalAccountManipulation: Cannot delete external accounts
+//   - ErrAccountBalanceDeletion: Failed to delete associated balances
+//   - ErrAccountIDNotFound: Account does not exist
+//   - UnauthorizedError: Invalid or expired token
+//   - ForbiddenError: Insufficient permissions
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 

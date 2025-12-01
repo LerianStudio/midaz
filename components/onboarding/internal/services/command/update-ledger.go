@@ -14,7 +14,56 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateLedgerByID update a ledger from the repository.
+// UpdateLedgerByID updates an existing ledger's properties and metadata.
+//
+// This method handles partial updates to a ledger entity, allowing modification
+// of name, status, and metadata while preserving other properties. The update
+// is performed atomically across PostgreSQL (ledger data) and MongoDB (metadata).
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "command.update_ledger_by_id"
+//
+//	Step 2: Input Mapping
+//	  - Map UpdateLedgerInput fields to Ledger model
+//	  - Only non-nil fields from input are considered for update
+//
+//	Step 3: PostgreSQL Update
+//	  - Call LedgerRepo.Update with organization scope
+//	  - If ledger not found: Return ErrLedgerIDNotFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 4: Metadata Update
+//	  - Call UpdateMetadata for MongoDB metadata merge
+//	  - If metadata update fails: Return error (ledger update not rolled back)
+//
+//	Step 5: Response Assembly
+//	  - Attach updated metadata to ledger entity
+//	  - Return complete updated ledger
+//
+// Business Rules:
+//
+//   - Ledger must exist within the specified organization
+//   - Name updates do not require uniqueness validation (handled by repo)
+//   - Status transitions are not validated (any status is allowed)
+//   - Metadata follows merge semantics (see UpdateMetadata)
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - id: UUID of the ledger to update
+//   - uli: Update input containing optional name, status, and metadata
+//
+// Returns:
+//   - *mmodel.Ledger: Updated ledger with merged metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrLedgerIDNotFound: Ledger does not exist in organization
+//   - Database connection failure
+//   - MongoDB metadata update failure
 func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid.UUID, uli *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

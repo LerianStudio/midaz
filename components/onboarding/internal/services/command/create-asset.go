@@ -15,9 +15,95 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAssetSync creates an asset and metadata synchronously and ensures an external
-// account exists for the asset. If a new external account is created, it also
-// creates the default balance for that account via gRPC.
+// CreateAsset creates an asset and its associated external account synchronously.
+//
+// This method creates a new asset within a ledger and automatically provisions
+// the corresponding external account and default balance. The external account
+// serves as the counterparty for all external transactions involving this asset.
+//
+// Creation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger, tracer, and requestID from context
+//	  - Start OpenTelemetry span "command.create_asset"
+//
+//	Step 2: Status Resolution
+//	  - If input status is empty or has no code: Default to "ACTIVE"
+//	  - Otherwise: Use provided status code
+//	  - Apply status description from input (optional)
+//
+//	Step 3: Asset Type Validation
+//	  - Validate asset type via libCommons.ValidateType
+//	  - Supported types: "currency", "commodity", "crypto", etc.
+//	  - If invalid type: Return ErrInvalidType business error
+//
+//	Step 4: Asset Code Validation
+//	  - Validate code format via validateAssetCode (uppercase, alphanumeric)
+//	  - If format invalid: Return ErrInvalidCodeFormat or ErrCodeUppercaseRequirement
+//	  - For type="currency": Additional ISO 4217 validation
+//	  - If currency code invalid: Return ErrCurrencyCodeStandardCompliance
+//
+//	Step 5: Uniqueness Validation
+//	  - Check if asset with same name OR code exists in ledger
+//	  - If duplicate found: Return error from repository
+//
+//	Step 6: Asset Persistence
+//	  - Create asset model with validated properties
+//	  - Persist to PostgreSQL via AssetRepo.Create
+//	  - If creation fails: Return error with span event
+//
+//	Step 7: Metadata Creation
+//	  - Create metadata document in MongoDB via CreateMetadata
+//	  - If metadata creation fails: Return error (asset already created)
+//
+//	Step 8: External Account Provisioning
+//	  - Check if external account for asset code already exists
+//	  - If not exists: Create external account with alias "@external/{CODE}"
+//	  - External account has type="external", status="external"
+//
+//	Step 9: Default Balance Creation (gRPC)
+//	  - For new external accounts: Create default balance via gRPC
+//	  - Balance has default key, allows sending and receiving
+//	  - If gRPC fails with auth error: Return auth error as-is
+//	  - If other gRPC error: Return ErrAccountCreationFailed
+//
+//	Step 10: Response Assembly
+//	  - Attach metadata to asset entity
+//	  - Return complete asset with generated ID
+//
+// External Account Purpose:
+//
+// Every asset requires an external account to serve as the counterparty for
+// transactions that move value in/out of the ledger. For example, when a
+// customer deposits USD, the transaction debits the external USD account
+// and credits the customer's account.
+//
+// Asset Types:
+//
+//   - "currency": Fiat currencies (ISO 4217 validation required)
+//   - "commodity": Physical commodities
+//   - "crypto": Cryptocurrencies
+//   - Custom types as defined by the organization
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger to contain the asset
+//   - cii: Creation input with name, type, code, optional status, and metadata
+//   - token: Authentication token for gRPC balance service call
+//
+// Returns:
+//   - *mmodel.Asset: Created asset with generated ID and metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrInvalidType: Asset type not recognized
+//   - ErrInvalidCodeFormat: Code format validation failed
+//   - ErrCodeUppercaseRequirement: Code must be uppercase
+//   - ErrCurrencyCodeStandardCompliance: Currency code not ISO 4217 compliant
+//   - Asset name or code already exists in ledger
+//   - Database connection failure
+//   - gRPC balance creation failure
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -182,7 +268,33 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	return inst, nil
 }
 
-// validateAssetCode checks the provided asset code and maps validation errors to business errors.
+// validateAssetCode validates asset code format and maps errors to business errors.
+//
+// Asset codes must follow specific formatting rules:
+//   - Alphanumeric characters only
+//   - Uppercase letters required
+//   - No special characters or spaces
+//
+// Validation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "command.validate_asset_code"
+//
+//	Step 2: Code Validation
+//	  - Call libCommons.ValidateCode with asset code
+//	  - Map validation errors to domain-specific business errors
+//
+//	Step 3: Error Mapping
+//	  - ErrInvalidCodeFormat: Code contains invalid characters
+//	  - ErrCodeUppercaseRequirement: Code must be uppercase
+//
+// Parameters:
+//   - ctx: Request context with tracing information
+//   - code: Asset code string to validate
+//
+// Returns:
+//   - error: Mapped business error or nil if valid
 func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

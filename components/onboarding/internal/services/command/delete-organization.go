@@ -1,3 +1,4 @@
+// Package command provides CQRS command handlers for the onboarding component.
 package command
 
 import (
@@ -14,7 +15,61 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteOrganizationByID fetch a new organization from the repository
+// DeleteOrganizationByID removes an organization from the repository.
+//
+// This function performs a soft delete of an organization. The deletion
+// operation is subject to referential integrity constraints - organizations
+// with active ledgers, accounts, or child organizations may be restricted
+// from deletion depending on the repository implementation.
+//
+// # Deletion Constraints
+//
+// Before deletion, consider:
+//   - Child organizations (if any) should be reassigned or deleted
+//   - Ledgers owned by this organization should be deleted
+//   - Active balances should be zeroed and accounts closed
+//   - Associated metadata will need cleanup
+//
+// # Soft Delete
+//
+// Organizations are typically soft-deleted (marked as deleted) rather than
+// physically removed. This preserves:
+//   - Audit trail and historical records
+//   - References from transactions and operations
+//   - Compliance requirements for data retention
+//
+// # Process
+//
+//  1. Extract logger and tracer from context for observability
+//  2. Start tracing span "usecase.delete_organization_by_id"
+//  3. Call repository Delete method
+//  4. Handle not found error (ErrOrganizationIDNotFound)
+//  5. Handle other database errors
+//  6. Return success or error
+//
+// # Parameters
+//
+//   - ctx: Request context containing tenant info, tracing, and cancellation
+//   - id: The UUID of the organization to delete
+//
+// # Returns
+//
+//   - error: nil on success, or error if:
+//   - Organization not found (ErrOrganizationIDNotFound)
+//   - Referential integrity violation
+//   - Database operation fails
+//
+// # Error Scenarios
+//
+//   - ErrOrganizationIDNotFound: No organization with given ID
+//   - Referential integrity violation (has dependent entities)
+//   - Database connection failure
+//   - Context cancellation/timeout
+//
+// # Observability
+//
+// Creates tracing span "usecase.delete_organization_by_id" with error events.
+// Logs organization ID at info level, warnings for not found, errors for failures.
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -14,7 +14,58 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateSegmentByID update a segment from the repository by given id.
+// UpdateSegmentByID updates an existing segment's properties and metadata.
+//
+// Segments are logical groupings of accounts within a ledger, used for
+// organizational and reporting purposes (e.g., "retail", "corporate", "treasury").
+// This method allows updating the name, status, and metadata of an existing segment.
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "command.update_segment_by_id"
+//
+//	Step 2: Input Mapping
+//	  - Map UpdateSegmentInput to Segment model
+//	  - Only name and status fields are updateable via this method
+//
+//	Step 3: PostgreSQL Update
+//	  - Call SegmentRepo.Update with organization and ledger scope
+//	  - If segment not found: Return ErrSegmentIDNotFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 4: Metadata Update
+//	  - Call UpdateMetadata for MongoDB metadata merge
+//	  - If metadata update fails: Return error
+//
+//	Step 5: Response Assembly
+//	  - Attach updated metadata to segment entity
+//	  - Return complete updated segment
+//
+// Business Rules:
+//
+//   - Segment must exist within the specified organization and ledger
+//   - Name updates are allowed (uniqueness enforced by repository)
+//   - Status can be updated (e.g., ACTIVE -> INACTIVE)
+//   - Metadata follows merge semantics (see UpdateMetadata)
+//   - Accounts referencing this segment are not affected by status changes
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the segment
+//   - id: UUID of the segment to update
+//   - upi: Update input containing optional name, status, and metadata
+//
+// Returns:
+//   - *mmodel.Segment: Updated segment with merged metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrSegmentIDNotFound: Segment does not exist
+//   - Database connection failure
+//   - MongoDB metadata update failure
 func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateSegmentInput) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

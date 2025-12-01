@@ -14,8 +14,58 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAccountType updates an account type by its ID.
-// It returns the updated account type and an error if the operation fails.
+// UpdateAccountType updates an existing account type's properties and metadata.
+//
+// Account types define categories for accounts within a ledger (e.g., "checking",
+// "savings", "liability"). This method allows updating the name, description,
+// and metadata of an existing account type.
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "command.update_account_type"
+//
+//	Step 2: Input Mapping
+//	  - Map UpdateAccountTypeInput to AccountType model
+//	  - Only name and description fields are updateable
+//
+//	Step 3: PostgreSQL Update
+//	  - Call AccountTypeRepo.Update with organization and ledger scope
+//	  - If account type not found: Return ErrAccountTypeNotFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 4: Metadata Update
+//	  - Call UpdateMetadata for MongoDB metadata merge
+//	  - If metadata update fails: Return error
+//
+//	Step 5: Response Assembly
+//	  - Attach updated metadata to account type entity
+//	  - Log success with account type ID
+//	  - Return complete updated account type
+//
+// Business Rules:
+//
+//   - Account type must exist within the specified organization and ledger
+//   - Name updates are allowed (uniqueness enforced by repository)
+//   - Description is optional and can be cleared by passing empty string
+//   - Metadata follows merge semantics (see UpdateMetadata)
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the account type
+//   - id: UUID of the account type to update
+//   - input: Update input containing optional name, description, and metadata
+//
+// Returns:
+//   - *mmodel.AccountType: Updated account type with merged metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrAccountTypeNotFound: Account type does not exist
+//   - Database connection failure
+//   - MongoDB metadata update failure
 func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

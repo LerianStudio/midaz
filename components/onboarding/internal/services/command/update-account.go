@@ -14,7 +14,76 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAccount update an account from the repository by given id.
+// UpdateAccount updates an existing account's properties and metadata.
+//
+// Accounts are the fundamental units of the ledger system, representing entities
+// that can hold balances and participate in transactions. This method allows
+// updating various account properties while enforcing protection rules for
+// system-managed external accounts.
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span "command.update_account"
+//
+//	Step 2: Account Validation
+//	  - Find existing account by ID within organization and ledger scope
+//	  - If account not found: Return error from repository
+//	  - If account is "external" type: Return ErrForbiddenExternalAccountManipulation
+//	    (External accounts are system-managed and cannot be modified)
+//
+//	Step 3: Input Mapping
+//	  - Map UpdateAccountInput to Account model
+//	  - Updateable fields: Name, Status, EntityID, SegmentID, PortfolioID, Metadata, Blocked
+//
+//	Step 4: PostgreSQL Update
+//	  - Call AccountRepo.Update with organization and ledger scope
+//	  - If account not found during update: Return ErrAccountIDNotFound business error
+//	  - If other error: Return wrapped error with span event
+//
+//	Step 5: Metadata Update
+//	  - Call UpdateMetadata for MongoDB metadata merge
+//	  - If metadata update fails: Return error
+//
+//	Step 6: Response Assembly
+//	  - Attach updated metadata to account entity
+//	  - Return complete updated account
+//
+// External Account Protection:
+//
+// External accounts are automatically created during asset creation to serve as
+// the counterparty for external transactions. These accounts:
+//   - Have type="external" and cannot be modified
+//   - Attempting to update returns ErrForbiddenExternalAccountManipulation
+//
+// Updateable Fields:
+//
+//   - Name: Display name of the account
+//   - Status: Account status (e.g., ACTIVE, INACTIVE, BLOCKED)
+//   - EntityID: Reference to an external entity (customer, vendor, etc.)
+//   - SegmentID: Logical grouping within the ledger
+//   - PortfolioID: Portfolio association for account aggregation
+//   - Blocked: Sending/receiving block flags
+//   - Metadata: Arbitrary key-value metadata
+//
+// Parameters:
+//   - ctx: Request context with tracing and tenant information
+//   - organizationID: UUID of the owning organization (tenant scope)
+//   - ledgerID: UUID of the ledger containing the account
+//   - portfolioID: Optional portfolio UUID (nil if account has no portfolio)
+//   - id: UUID of the account to update
+//   - uai: Update input containing optional fields to update
+//
+// Returns:
+//   - *mmodel.Account: Updated account with merged metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrForbiddenExternalAccountManipulation: Cannot update external accounts
+//   - ErrAccountIDNotFound: Account does not exist
+//   - Database connection failure
+//   - MongoDB metadata update failure
 func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

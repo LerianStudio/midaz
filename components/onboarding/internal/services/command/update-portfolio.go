@@ -1,3 +1,4 @@
+// Package command provides CQRS command handlers for the onboarding component.
 package command
 
 import (
@@ -14,7 +15,64 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdatePortfolioByID update a portfolio from the repository by given id.
+// UpdatePortfolioByID updates an existing portfolio in the repository.
+//
+// This function performs a partial update of a portfolio's mutable fields.
+// It updates the portfolio record and synchronizes associated metadata.
+//
+// # Updatable Fields
+//
+// The following fields can be updated:
+//   - EntityID: Change the associated external entity
+//   - Name: Update portfolio name
+//   - Status: Change portfolio status
+//   - Metadata: Update arbitrary key-value data
+//
+// Non-updatable fields (set at creation): ID, OrganizationID, LedgerID, CreatedAt
+//
+// # Status Transitions
+//
+// Common status transitions:
+//   - ACTIVE -> INACTIVE: Disable portfolio temporarily
+//   - ACTIVE -> CLOSED: Permanently close portfolio
+//   - INACTIVE -> ACTIVE: Reactivate portfolio
+//
+// Note: Status transition rules may be enforced at the repository level.
+//
+// # Process
+//
+//  1. Extract logger and tracer from context for observability
+//  2. Start tracing span "command.update_portfolio_by_id"
+//  3. Build partial portfolio update model
+//  4. Update portfolio in PostgreSQL via repository
+//  5. Handle not found error (ErrPortfolioIDNotFound)
+//  6. Update associated metadata in MongoDB
+//  7. Return updated portfolio with metadata
+//
+// # Parameters
+//
+//   - ctx: Request context containing tenant info, tracing, and cancellation
+//   - organizationID: The organization that owns this ledger (tenant isolation)
+//   - ledgerID: The ledger containing this portfolio
+//   - id: The UUID of the portfolio to update
+//   - upi: UpdatePortfolioInput containing fields to update
+//
+// # Returns
+//
+//   - *mmodel.Portfolio: The updated portfolio
+//   - error: If portfolio not found or database operations fail
+//
+// # Error Scenarios
+//
+//   - ErrPortfolioIDNotFound: Portfolio with given ID not found
+//   - Database connection failure
+//   - Metadata update failure (MongoDB)
+//   - Context cancellation/timeout
+//
+// # Observability
+//
+// Creates tracing span "command.update_portfolio_by_id" with error events.
+// Logs operation progress, warnings for not found, errors for failures.
 func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
