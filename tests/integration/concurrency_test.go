@@ -22,7 +22,7 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 	isolation := h.NewTestIsolation()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 
 	// Setup: org, ledger, asset, account
@@ -175,7 +175,7 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 	isolation := h.NewTestIsolation()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 
 	// Setup org/ledger/assets/accounts A and B

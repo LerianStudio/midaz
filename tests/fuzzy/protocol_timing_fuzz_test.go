@@ -17,7 +17,7 @@ func TestFuzz_Protocol_RapidFireAndRetries(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account

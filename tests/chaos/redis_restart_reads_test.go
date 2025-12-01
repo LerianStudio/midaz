@@ -14,14 +14,14 @@ import (
 // Restart Redis; reads may degrade briefly but should recover; no negative balances.
 func TestChaos_RedisRestart_ReadsRecover(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-valkey"}, "RedisRestart_ReadsRecover")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-valkey"}, "RedisRestart_ReadsRecover")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup minimal org/ledger/asset/account

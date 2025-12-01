@@ -13,11 +13,11 @@ import (
 // Prolonged primary outage: stop Postgres for ~12s while reads continue; APIs fail gracefully and recover.
 func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "ProlongedPrimaryOutage_GracefulRecovery")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "ProlongedPrimaryOutage_GracefulRecovery")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
@@ -46,7 +46,7 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
     // Start primary and wait for health recovery
     if err := h.DockerAction("start", "midaz-postgres-primary"); err != nil { t.Fatalf("start primary: %v", err) }
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
 
     // Verify reads succeed again
     code, _, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)

@@ -15,14 +15,14 @@ import (
 // Hard kill vs graceful stop on services during active traffic; verify recovery and no data loss.
 func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "HardKillVsStop_ServicesDuringTraffic")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "HardKillVsStop_ServicesDuringTraffic")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account and seed
@@ -71,10 +71,10 @@ func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
     // Exercise kill and stop across services
     type step struct{ action, container string }
     steps := []step{
-        {"kill", "midaz-transaction"},
-        {"start", "midaz-transaction"},
-        {"stop", "midaz-transaction"},
-        {"start", "midaz-transaction"},
+        {"kill", "midaz-ledger"},
+        {"start", "midaz-ledger"},
+        {"stop", "midaz-ledger"},
+        {"start", "midaz-ledger"},
         {"kill", "midaz-onboarding"},
         {"start", "midaz-onboarding"},
     }
@@ -84,8 +84,8 @@ func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
         }
         // Wait briefly and then health-check if it is a service
         if s.action == "start" {
-            if s.container == "midaz-transaction" {
-                _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+            if s.container == "midaz-ledger" {
+                _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
             }
             if s.container == "midaz-onboarding" {
                 _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)

@@ -17,7 +17,7 @@ func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))

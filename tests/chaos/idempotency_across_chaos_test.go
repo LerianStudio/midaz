@@ -18,7 +18,7 @@ func TestChaos_IdempotencyAcrossChaos_SingleNetEffect(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account & seed 5
@@ -56,14 +56,14 @@ func TestChaos_IdempotencyAcrossChaos_SingleNetEffect(t *testing.T) {
     if err != nil || (code != 201 && code != 409) { t.Fatalf("first idem call: code=%d err=%v", code, err) }
 
     // Pause service to simulate timeout, call again (likely network error)
-    _ = h.DockerAction("pause", "midaz-transaction")
+    _ = h.DockerAction("pause", "midaz-ledger")
     _, _, _, _ = trans.RequestFull(ctx, "POST", path, idemHeaders, p)
-    _ = h.DockerAction("unpause", "midaz-transaction")
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 30*time.Second)
+    _ = h.DockerAction("unpause", "midaz-ledger")
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 30*time.Second)
 
     // Restart service and call again; expect replay/409 but no second effect
-    _ = h.DockerAction("restart", "midaz-transaction")
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.DockerAction("restart", "midaz-ledger")
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     code, _, _, _ = trans.RequestFull(ctx, "POST", path, idemHeaders, p)
     if !(code == 201 || code == 409) { t.Fatalf("post-restart idem call code=%d", code) }
 

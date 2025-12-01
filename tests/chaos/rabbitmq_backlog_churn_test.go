@@ -15,12 +15,12 @@ import (
 // Pause/unpause RabbitMQ amid transaction posts; API remains 2xx; final balances reflect successes.
 func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	shouldRunChaos(t)
-	defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-rabbitmq"}, "RabbitMQ_BacklogChurn_AcceptsTransactions")()
+	defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-rabbitmq"}, "RabbitMQ_BacklogChurn_AcceptsTransactions")()
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	// Setup org/ledger/asset/account & seed 10

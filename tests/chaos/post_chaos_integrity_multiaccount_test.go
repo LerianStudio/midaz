@@ -16,14 +16,14 @@ import (
 func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
     shouldRunChaos(t)
     // auto log capture for correlation
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "PostChaosIntegrity_MultiAccount")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "PostChaosIntegrity_MultiAccount")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/accounts A and B
@@ -87,7 +87,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
         c, b, _, _ := trans.RequestFullWithRetry(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/json", org.ID, ledger.ID), headers, p, 4, 200*time.Millisecond)
         if c == 201 { trAB++; var m struct{ ID string `json:"id"` }; _ = json.Unmarshal(b, &m); if m.ID != "" { accepted = append(accepted, acc{Kind: "transferAB", ID: m.ID}) } }
         if i == 1 { // inject service restart during transfers
-            _ = h.RestartWithWait("midaz-transaction", 4*time.Second)
+            _ = h.RestartWithWait("midaz-ledger", 4*time.Second)
         }
     }
 

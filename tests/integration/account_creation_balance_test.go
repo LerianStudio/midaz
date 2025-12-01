@@ -17,7 +17,7 @@ func TestIntegration_AccountCreation_DefaultBalanceExistsByAccountID(t *testing.
 	ctx := context.Background()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()
@@ -83,7 +83,7 @@ func TestIntegration_AccountCreation_DefaultBalanceVisibleByAlias(t *testing.T) 
 	ctx := context.Background()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()

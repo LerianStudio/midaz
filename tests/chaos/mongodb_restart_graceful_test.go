@@ -21,7 +21,7 @@ func TestChaos_MongoDB_RestartGraceful(t *testing.T) {
 
     // Ensure services are healthy
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     // Create org and ledger
     code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Mongo Org "+h.RandString(6), h.RandString(12)))
     if err != nil || code != 201 { t.Fatalf("create org: %d %s", code, string(body)) }

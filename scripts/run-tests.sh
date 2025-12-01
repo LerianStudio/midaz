@@ -46,12 +46,12 @@ if [ -d "components/onboarding" ]; then
     }
 fi
 
-# Test transaction component
-echo -e "\nTesting transaction component..."
-if [ -d "components/transaction" ]; then
-    (cd components/transaction && make test) || {
+# Test ledger component
+echo -e "\nTesting ledger component..."
+if [ -d "components/ledger" ]; then
+    (cd components/ledger && make test) || {
         overall_exit_code=1
-        echo "[error] Transaction component tests failed."
+        echo "[error] Ledger component tests failed."
     }
 fi
 

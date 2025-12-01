@@ -20,7 +20,7 @@ func TestIntegration_Transactions_PendingCommitThenRevert_Succeeds(t *testing.T)
 
 	iso := h.NewTestIsolation()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := iso.MakeTestHeaders()
 
 	// Setup: org -> ledger -> USD asset -> account

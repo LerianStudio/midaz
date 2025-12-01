@@ -18,7 +18,7 @@ func TestIntegration_Transactions_CommitOnNonPending_Should4xx(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()
@@ -100,7 +100,7 @@ func TestIntegration_Transactions_RevertOnNonApproved_Should4xx(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()

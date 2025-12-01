@@ -14,14 +14,14 @@ import (
 // Disconnect transaction from infra network; writes should fail transiently and recover upon reconnect.
 func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account (with small retry for readiness)
@@ -54,7 +54,7 @@ func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     }
 
     // Disconnect transaction from infra-network
-    if err := h.DockerNetwork("disconnect", "infra-network", "midaz-transaction"); err != nil { t.Fatalf("disconnect transaction: %v", err) }
+    if err := h.DockerNetwork("disconnect", "infra-network", "midaz-ledger"); err != nil { t.Fatalf("disconnect transaction: %v", err) }
     time.Sleep(2 * time.Second)
 
     // Attempt a write; expect failure (non-201 or error)
@@ -64,8 +64,8 @@ func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     }
 
     // Reconnect and retry; expect success and final=11
-    if err := h.DockerNetwork("connect", "infra-network", "midaz-transaction"); err != nil { t.Fatalf("connect transaction: %v", err) }
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 30*time.Second)
+    if err := h.DockerNetwork("connect", "infra-network", "midaz-ledger"); err != nil { t.Fatalf("connect transaction: %v", err) }
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 30*time.Second)
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"1.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"1.00"}}}}}})
     if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("11.00"), 20*time.Second); err != nil {
         t.Fatalf("final wait after reconnect: %v", err)

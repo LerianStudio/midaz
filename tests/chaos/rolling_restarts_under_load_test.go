@@ -19,7 +19,7 @@ func TestChaos_RollingRestarts_UnderLoad_Idempotent(t *testing.T) {
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account & seed 20
@@ -68,8 +68,8 @@ func TestChaos_RollingRestarts_UnderLoad_Idempotent(t *testing.T) {
     // Restart onboarding then transaction sequentially
     _ = h.DockerAction("restart", "midaz-onboarding")
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.DockerAction("restart", "midaz-transaction")
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+    _ = h.DockerAction("restart", "midaz-ledger")
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
 
     time.Sleep(3 * time.Second)
     close(stop)

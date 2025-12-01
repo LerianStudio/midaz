@@ -21,7 +21,7 @@ jobs:
       runner_type: "firmino-lxc-runners"
       filter_paths: |-
         components/onboarding
-        components/transaction
+        components/ledger
         components/console
       path_level: "2"
       dockerhub_org: "lerianstudio"

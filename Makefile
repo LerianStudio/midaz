@@ -8,15 +8,15 @@ MIDAZ_ROOT := $(shell pwd)
 # Component directories
 INFRA_DIR := ./components/infra
 ONBOARDING_DIR := ./components/onboarding
-TRANSACTION_DIR := ./components/transaction
+LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 TESTS_DIR := ./tests
 
 # Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
+BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(LEDGER_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(LEDGER_DIR) $(CONSOLE_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -128,12 +128,12 @@ help:
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
-	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
+	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (onboarding and transaction)"
-	@echo "  make down-backend                 - Stop only backend services (onboarding and transaction)"
-	@echo "  make restart-backend              - Restart only backend services (onboarding and transaction)"
+	@echo "  make up-backend                   - Start only backend services (onboarding and ledger)"
+	@echo "  make down-backend                 - Stop only backend services (onboarding and ledger)"
+	@echo "  make restart-backend              - Restart only backend services (onboarding and ledger)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -159,7 +159,7 @@ help:
 	@echo "Test Parameters (env vars for test-* targets):"
 	@echo "  START_LOCAL_DOCKER            - 0|1 (default: $(START_LOCAL_DOCKER))"
 	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
-	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
+	@echo "  TEST_LEDGER_URL               - default: $(TEST_LEDGER_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
 	@echo "  TEST_FUZZTIME                 - default: $(TEST_FUZZTIME)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
@@ -170,10 +170,10 @@ help:
 	@echo "  RETRY_ON_FAIL                 - 0|1 (default: $(RETRY_ON_FAIL))"
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
-	@echo "  test-integration: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
-	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-integration: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_LEDGER_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_LEDGER_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_LEDGER_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
+	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_LEDGER_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
 
  
 
@@ -479,7 +479,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction console all-components
+.PHONY: infra onboarding ledger console all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -496,13 +496,13 @@ onboarding:
 	fi
 	@cd $(ONBOARDING_DIR) && $(MAKE) $(COMMAND)
 
-transaction:
-	$(call print_title,"Running command in transaction component")
+ledger:
+	$(call print_title,"Running command in ledger component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
-	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
+	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
 
 console:
 	$(call print_title,"Running command in console component")

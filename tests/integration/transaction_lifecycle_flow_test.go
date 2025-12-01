@@ -18,7 +18,7 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	iso := h.NewTestIsolation()
 	headers := iso.MakeTestHeaders()

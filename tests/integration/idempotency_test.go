@@ -23,7 +23,7 @@ func TestIntegration_TransactionIdempotency_ReplayOrConflict(t *testing.T) {
 	ctx := context.Background()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	// Create org, ledger, account
 	headers := h.AuthHeaders(h.RandHex(8))
@@ -119,7 +119,7 @@ func TestIntegration_TransactionIdempotency_ConflictOnDifferentPayload(t *testin
 	ctx := context.Background()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 
 	headers := h.AuthHeaders(h.RandHex(8))
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload(fmt.Sprintf("Org %s", h.RandString(5)), h.RandString(12)))

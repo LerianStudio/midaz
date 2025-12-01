@@ -19,7 +19,7 @@ func TestChaos_Soak_MixedTraffic_WithInjections(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	// Setup org/ledger/asset/accounts A & B, seed A=100
@@ -79,8 +79,8 @@ func TestChaos_Soak_MixedTraffic_WithInjections(t *testing.T) {
 	duration := 5 * time.Minute
 	end := time.Now().Add(duration)
 	for time.Now().Before(end) {
-		_ = h.DockerAction("restart", "midaz-transaction")
-		_ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+		_ = h.DockerAction("restart", "midaz-ledger")
+		_ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
 		time.Sleep(60 * time.Second)
 	}
 

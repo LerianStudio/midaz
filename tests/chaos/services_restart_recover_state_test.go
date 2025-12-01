@@ -13,12 +13,12 @@ import (
 // Restart onboarding/transaction services; APIs should return and state remains accessible.
 func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-transaction"}, "ServicesRestart_RecoverState")()
+    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-ledger"}, "ServicesRestart_RecoverState")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Create a small org/ledger to verify after restart
@@ -41,7 +41,7 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
     if err != nil || code != 200 { t.Fatalf("get org after onboarding restart: %d err=%v", code, err) }
 
     // Restart transaction and wait for health
-    if err := h.RestartWithWait("midaz-transaction", 5*time.Second); err != nil { t.Fatalf("restart transaction: %v", err) }
+    if err := h.RestartWithWait("midaz-ledger", 5*time.Second); err != nil { t.Fatalf("restart transaction: %v", err) }
     deadline = time.Now().Add(60 * time.Second)
     for {
         code, _, err = trans.Request(ctx, "GET", "/health", headers, nil)

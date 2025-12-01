@@ -37,9 +37,9 @@ jobs:
         shell: bash
         run: make test
 
-      # Run unit tests for the Transaction component
-      - name: Unit Tests - Transaction
-        working-directory: components/transaction
+      # Run unit tests for the Ledger component
+      - name: Unit Tests - Ledger
+        working-directory: components/ledger
         shell: bash
         run: make test
 

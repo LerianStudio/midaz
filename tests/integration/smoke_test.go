@@ -30,13 +30,13 @@ func TestSmoke_OnboardingHealthAndVersion(t *testing.T) {
 
 func TestSmoke_TransactionHealthAndVersion(t *testing.T) {
     env := h.LoadEnvironment()
-    host, err := h.URLHostPort(env.TransactionURL)
+    host, err := h.URLHostPort(env.LedgerURL)
     if err != nil { t.Fatalf("parse url: %v", err) }
     if err := h.WaitForTCP(host, 30*time.Second); err != nil {
         t.Fatalf("transaction not reachable: %v", err)
     }
 
-    c := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    c := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     ctx := context.Background()
     if code, _, err := c.Request(ctx, "GET", "/health", nil, nil); err != nil || code != 200 {
         t.Fatalf("/health failed: code=%d err=%v", code, err)

@@ -20,7 +20,7 @@ func TestIntegration_EventsAsync_Sanity(t *testing.T) {
 	isolation := h.NewTestIsolation()
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := isolation.MakeTestHeaders()
 
 	orgName := isolation.UniqueOrgName("EventsAsync")

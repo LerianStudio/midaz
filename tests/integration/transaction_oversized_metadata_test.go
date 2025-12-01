@@ -16,7 +16,7 @@ func TestIntegration_TransactionJSON_OversizedMetadataValue_Should400(t *testing
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Org %s", h.RandString(6)))
@@ -78,7 +78,7 @@ func TestIntegration_TransactionInflow_OversizedMetadataValue_Should400(t *testi
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Org %s", h.RandString(6)))

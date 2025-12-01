@@ -42,7 +42,7 @@ jobs:
       - name: "Update URLs in Postman environment"
         run: |
           sed -i 's#\"value\": \"{{baseUrl}}:{{onboardingPort}}\"#\"value\": \"https://onboarding.lerian.net\"#' postman/MIDAZ.postman_environment.json
-          sed -i 's#\"value\": \"{{baseUrl}}:{{transactionPort}}\"#\"value\": \"https://transaction.lerian.net\"#' postman/MIDAZ.postman_environment.json
+          sed -i 's#\"value\": \"{{baseUrl}}:{{ledgerPort}}\"#\"value\": \"https://ledger.lerian.net\"#' postman/MIDAZ.postman_environment.json
 
       - name: "Run tests"
         run: "make newman"

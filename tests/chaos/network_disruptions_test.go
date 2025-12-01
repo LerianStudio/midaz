@@ -11,18 +11,18 @@ import (
 // Pause/unpause containers; and network disconnect/connect to simulate disruptions; verify /health recovers.
 func TestChaos_NetworkDisruptions(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction"}, "NetworkDisruptions")()
+    defer h.StartLogCapture([]string{"midaz-ledger"}, "NetworkDisruptions")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    _ = h.WaitForHTTP200(env.LedgerURL+"/health", 60*time.Second)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Pause/unpause transaction container
-    if err := h.DockerAction("pause", "midaz-transaction"); err != nil { t.Fatalf("pause transaction: %v", err) }
+    if err := h.DockerAction("pause", "midaz-ledger"); err != nil { t.Fatalf("pause transaction: %v", err) }
     time.Sleep(2 * time.Second)
-    if err := h.DockerAction("unpause", "midaz-transaction"); err != nil { t.Fatalf("unpause transaction: %v", err) }
+    if err := h.DockerAction("unpause", "midaz-ledger"); err != nil { t.Fatalf("unpause transaction: %v", err) }
 
     // Wait for health to return
     deadline := time.Now().Add(30 * time.Second)
@@ -34,11 +34,11 @@ func TestChaos_NetworkDisruptions(t *testing.T) {
     }
 
     // Network disconnect/connect transaction from infra-network
-    if err := h.DockerNetwork("disconnect", "infra-network", "midaz-transaction"); err != nil {
+    if err := h.DockerNetwork("disconnect", "infra-network", "midaz-ledger"); err != nil {
         t.Fatalf("network disconnect transaction: %v", err)
     }
     time.Sleep(2 * time.Second)
-    if err := h.DockerNetwork("connect", "infra-network", "midaz-transaction"); err != nil {
+    if err := h.DockerNetwork("connect", "infra-network", "midaz-ledger"); err != nil {
         t.Fatalf("network connect transaction: %v", err)
     }
 

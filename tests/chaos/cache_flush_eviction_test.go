@@ -14,12 +14,12 @@ import (
 // Flush cache via redis-cli FLUSHALL and verify caches rehydrate; no negative balances and values correct.
 func TestChaos_CacheFlush_RehydrateNoNegative(t *testing.T) {
     shouldRunChaos(t)
-    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-valkey"}, "CacheFlush_RehydrateNoNegative")()
+    defer h.StartLogCapture([]string{"midaz-ledger", "midaz-onboarding", "midaz-valkey"}, "CacheFlush_RehydrateNoNegative")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
-    trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+    trans := h.NewHTTPClient(env.LedgerURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
     // Setup org/ledger/asset/account & seed 25
