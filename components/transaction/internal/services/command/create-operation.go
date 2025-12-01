@@ -15,7 +15,61 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CreateOperation creates a new operation based on transaction id and persisting data in the repository.
+// CreateOperation creates operations for a transaction based on DSL parsing results.
+//
+// Operations are the individual debit/credit entries that compose a transaction.
+// Each operation records the movement of funds to/from a specific account balance,
+// maintaining the double-entry accounting principle.
+//
+// Operation Creation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Combine Source and Destination
+//	  - Merge "from" (sources) and "to" (destinations) from DSL
+//	  - Each entry becomes one operation
+//
+//	Step 3: Match Balances to Operations
+//	  - For each balance, find matching DSL entry by alias
+//	  - Calculate operation amounts using validation results
+//	  - Compute balance-after values
+//
+//	Step 4: Build Operation Records
+//	  - Generate UUIDv7 for each operation
+//	  - Set operation type (DEBIT for source, CREDIT for destination)
+//	  - Record balance before and after states
+//
+//	Step 5: Persist Operations
+//	  - Store each operation in PostgreSQL
+//	  - Create associated metadata in MongoDB
+//	  - Send results via channel for async processing
+//
+// Double-Entry Accounting:
+//
+// Operations enforce double-entry bookkeeping:
+//   - Total DEBIT amounts must equal total CREDIT amounts
+//   - Each operation affects exactly one balance
+//   - Balance states are captured before and after the operation
+//
+// Channel Communication:
+//
+// This function communicates via channels for async/concurrent processing:
+//   - result: Sends completed operations on success
+//   - err: Sends error if any step fails
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - balances: Balances affected by this transaction
+//   - transactionID: Parent transaction ID for linking operations
+//   - dsl: Parsed DSL containing send/distribute rules
+//   - validate: Validation results with calculated amounts
+//   - result: Channel to send created operations
+//   - err: Channel to send errors
+//
+// Note: Results and errors are sent via channels, not returned directly.
+// The caller should select on both channels to handle outcomes.
 func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *libTransaction.Transaction, validate libTransaction.Responses, result chan []*operation.Operation, err chan error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -117,7 +171,22 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	result <- operations
 }
 
-// CreateMetadata func that create metadata into operations
+// CreateMetadata creates metadata for an operation in MongoDB.
+//
+// Metadata provides extensible key-value storage for operations, allowing
+// clients to attach custom data (e.g., external references, tags, notes)
+// without schema changes.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - logger: Logger instance for error reporting
+//   - metadata: Key-value metadata map (nil = no-op)
+//   - o: Operation to attach metadata to
+//
+// Returns:
+//   - error: MongoDB operation error
+//
+// Note: If metadata is nil, this function returns immediately without error.
 func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
 		meta := mongodb.Metadata{

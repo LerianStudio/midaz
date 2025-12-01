@@ -14,7 +14,57 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateOperation update an operation from the repository by given id.
+// UpdateOperation updates an operation's description and metadata.
+//
+// Operations represent individual debit/credit entries within a transaction.
+// This function allows modification of operation metadata after creation.
+// Only non-financial properties can be updated - amounts, accounts, and
+// balance changes are immutable for audit trail integrity.
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Build Update Model
+//	  - Map input description to Operation model
+//	  - Only description field is updatable
+//
+//	Step 3: Repository Update
+//	  - Call OperationRepo.Update with scoped IDs
+//	  - Requires organizationID, ledgerID, transactionID, and operationID
+//	  - Handle not-found scenarios with business error
+//
+//	Step 4: Metadata Update
+//	  - Update associated metadata in MongoDB
+//	  - Merge new metadata with existing data
+//
+// Immutable Fields:
+//
+// The following operation fields cannot be updated (audit trail requirement):
+//   - Amount (value, scale)
+//   - Balance before/after states
+//   - Account and balance references
+//   - Operation type (DEBIT/CREDIT)
+//   - Asset code
+//   - Timestamps
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - transactionID: Parent transaction containing this operation
+//   - operationID: UUID of the operation to update
+//   - uoi: Update payload with Description and optional Metadata
+//
+// Returns:
+//   - *operation.Operation: Updated operation with refreshed metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrOperationIDNotFound: Operation with given ID does not exist
+//   - Database errors: PostgreSQL or MongoDB unavailable
 func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

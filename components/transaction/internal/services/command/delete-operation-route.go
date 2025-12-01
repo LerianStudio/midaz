@@ -14,7 +14,49 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteOperationRouteByID is a method that deletes Operation Route information.
+// DeleteOperationRouteByID deletes an operation route if it has no transaction route links.
+//
+// Operation routes define how money moves in transactions. Before deletion,
+// this function validates that the route is not linked to any transaction routes.
+// Linked operation routes cannot be deleted to maintain referential integrity.
+//
+// Deletion Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Check Transaction Route Links
+//	  - Query join table for any relationships
+//	  - If links exist, return ErrOperationRouteLinkedToTransactionRoutes
+//
+//	Step 3: Delete Operation Route
+//	  - Remove record from PostgreSQL
+//	  - Handle not-found scenarios
+//
+// Referential Integrity:
+//
+// Operation routes are referenced by transaction routes through a join table.
+// Deleting an operation route that's in use would break transaction route
+// functionality. This check ensures data consistency.
+//
+// To delete a linked operation route:
+//  1. Update all transaction routes to remove the operation route
+//  2. Then delete the operation route
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - id: UUID of the operation route to delete
+//
+// Returns:
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrOperationRouteLinkedToTransactionRoutes: Route is in use by transaction routes
+//   - ErrOperationRouteNotFound: Operation route with given ID doesn't exist
+//   - Database errors: PostgreSQL unavailable
 func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

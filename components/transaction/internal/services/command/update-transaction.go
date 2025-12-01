@@ -14,7 +14,44 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransaction update a transaction from the repository by given id.
+// UpdateTransaction updates a transaction's description and metadata.
+//
+// This function allows modification of transaction properties after creation.
+// Only non-financial properties can be updated - the transaction amount,
+// accounts, and status cannot be changed through this endpoint.
+//
+// Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Build Update Model
+//	  - Map input description to Transaction model
+//	  - Only description field is updatable
+//
+//	Step 3: Repository Update
+//	  - Call TransactionRepo.Update with scoped IDs
+//	  - Handle not-found scenarios with business error
+//
+//	Step 4: Metadata Update
+//	  - Update associated metadata in MongoDB
+//	  - Merge new metadata with existing data
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - transactionID: UUID of the transaction to update
+//   - uti: Update payload with Description and optional Metadata
+//
+// Returns:
+//   - *transaction.Transaction: Updated transaction with refreshed metadata
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrTransactionIDNotFound: Transaction with given ID does not exist
+//   - Database errors: PostgreSQL or MongoDB unavailable
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -58,7 +95,33 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	return transUpdated, nil
 }
 
-// UpdateTransactionStatus update a status transaction from the repository by given id.
+// UpdateTransactionStatus updates only the status of a transaction.
+//
+// This internal function is used by the async processing pipeline to update
+// transaction status after balance operations complete. It handles status
+// transitions like CREATED -> APPROVED or PENDING -> CANCELED.
+//
+// Status Update Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Parse UUIDs from transaction string fields
+//
+//	Step 2: Repository Update
+//	  - Call TransactionRepo.Update with status change
+//	  - Handle not-found scenarios (shouldn't happen in normal flow)
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - tran: Transaction with updated status to persist
+//
+// Returns:
+//   - *transaction.Transaction: Updated transaction
+//   - error: Database or validation error
+//
+// Error Scenarios:
+//   - ErrTransactionIDNotFound: Transaction doesn't exist (data integrity issue)
+//   - Database errors: PostgreSQL unavailable
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

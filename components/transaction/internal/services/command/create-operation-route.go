@@ -12,7 +12,63 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOperationRoute creates a new operation route.
+// CreateOperationRoute creates a new operation route for transaction routing.
+//
+// Operation routes define how money moves in a single direction within a transaction.
+// Each route specifies either a "source" (debit from account) or "destination"
+// (credit to account) operation, along with rules for account selection.
+//
+// Operation Route Types:
+//
+//	Source (Debit):
+//	  - Withdraws funds from an account
+//	  - Decreases account balance
+//	  - Must specify account selection rule
+//
+//	Destination (Credit):
+//	  - Deposits funds to an account
+//	  - Increases account balance
+//	  - Must specify account selection rule
+//
+// Account Rules:
+//
+// The Account field contains rules for dynamic account selection:
+//   - Static: Specific account alias (e.g., "@treasury")
+//   - Dynamic: Query-based selection (e.g., "{{.source}}")
+//   - Formula: Calculated distribution (e.g., "remaining")
+//
+// Creation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//	  - Generate UUIDv7 for the new operation route
+//
+//	Step 2: Build Operation Route Model
+//	  - Map input fields to OperationRoute model
+//	  - Set timestamps (CreatedAt, UpdatedAt)
+//
+//	Step 3: Persist Operation Route
+//	  - Store in PostgreSQL via repository
+//	  - Handle unique constraint violations
+//
+//	Step 4: Create Metadata (Optional)
+//	  - If metadata provided, store in MongoDB
+//	  - Link metadata to operation route by entity ID
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - payload: Creation input with Title, Description, Code, OperationType, Account, and optional Metadata
+//
+// Returns:
+//   - *mmodel.OperationRoute: Created operation route with generated ID
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - Database errors: PostgreSQL or MongoDB unavailable
+//   - Unique constraint violation: Duplicate code within ledger
 func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

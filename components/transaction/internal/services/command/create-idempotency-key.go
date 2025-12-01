@@ -16,6 +16,50 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// CreateOrCheckIdempotencyKey creates or validates an idempotency key for transaction deduplication.
+//
+// Idempotency keys prevent duplicate transaction processing when clients retry requests.
+// This function uses Redis SETNX for atomic lock acquisition, ensuring only the first
+// request with a given key can proceed with transaction creation.
+//
+// Idempotency Flow:
+//
+//	Case 1: New Key (first request)
+//	  - SETNX succeeds, lock acquired
+//	  - Returns nil, nil - caller should proceed with transaction
+//	  - After transaction completes, call SetValueOnExistingIdempotencyKey
+//
+//	Case 2: Existing Key with Value (completed transaction)
+//	  - SETNX fails, key exists
+//	  - GET returns serialized transaction
+//	  - Returns transaction JSON - caller should return cached result
+//
+//	Case 3: Existing Key without Value (in-progress transaction)
+//	  - SETNX fails, key exists
+//	  - GET returns empty string
+//	  - Returns ErrIdempotencyKey - caller should retry later
+//
+// Key Structure:
+//
+//	Format: "idempotency:{orgID}:{ledgerID}:{key}"
+//	TTL: Configurable, typically 24-48 hours
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for key namespacing
+//   - ledgerID: Ledger scope for key namespacing
+//   - key: Client-provided idempotency key (or empty to use hash)
+//   - hash: Request body hash as fallback key
+//   - ttl: Time-to-live for the idempotency key
+//
+// Returns:
+//   - *string: Cached transaction JSON if key exists with value, nil otherwise
+//   - error: Redis error or ErrIdempotencyKey if key locked by another request
+//
+// Error Scenarios:
+//   - ErrIdempotencyKey: Key exists but transaction not yet completed
+//   - Redis connection error: Redis server unavailable
+//   - Redis operation error: SETNX or GET failed
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -65,7 +109,37 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	return nil, nil
 }
 
-// SetValueOnExistingIdempotencyKey func that set value on idempotency key to return to user.
+// SetValueOnExistingIdempotencyKey stores the transaction result for an idempotency key.
+//
+// After a transaction is successfully created, this function stores the serialized
+// transaction in the existing idempotency key. Subsequent requests with the same
+// key will receive this cached result instead of creating a duplicate transaction.
+//
+// Storage Process:
+//
+//	Step 1: Resolve Key
+//	  - Use client-provided key, or fall back to request hash
+//	  - Build internal key with org/ledger scope
+//
+//	Step 2: Serialize Transaction
+//	  - Convert transaction to JSON string
+//	  - Log error if serialization fails (non-blocking)
+//
+//	Step 3: Store in Redis
+//	  - Overwrite existing empty value with transaction JSON
+//	  - Maintain original TTL from SETNX
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for key namespacing
+//   - ledgerID: Ledger scope for key namespacing
+//   - key: Client-provided idempotency key (or empty to use hash)
+//   - hash: Request body hash as fallback key
+//   - t: Completed transaction to cache
+//   - ttl: Time-to-live for the value
+//
+// Note: This function does not return errors - failures are logged but don't
+// affect the transaction result. The transaction is already committed at this point.
 func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

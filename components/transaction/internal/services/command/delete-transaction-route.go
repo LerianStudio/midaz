@@ -14,8 +14,52 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteTransactionRouteByID delete a transaction route from the repository by ids.
-// It will also delete the relationships between the transaction route and the operation routes.
+// DeleteTransactionRouteByID deletes a transaction route and its operation route relationships.
+//
+// Transaction routes define complete transaction patterns. When deleted, all
+// relationships to operation routes are also removed (but operation routes
+// themselves are preserved for potential use in other transaction routes).
+//
+// Deletion Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Fetch Transaction Route
+//	  - Retrieve route with associated operation routes
+//	  - Validate route exists (return ErrOperationRouteNotFound if not)
+//
+//	Step 3: Collect Relationships
+//	  - Build list of operation route IDs to unlink
+//	  - These relationships will be removed from join table
+//
+//	Step 4: Delete Route and Relationships
+//	  - Remove transaction route record
+//	  - Remove all join table entries
+//	  - Operation routes remain intact
+//
+// Cascade Behavior:
+//
+// Deletion cascades to the transaction_route_operation_routes join table
+// but does NOT cascade to operation routes themselves. This allows operation
+// routes to be reused across multiple transaction routes.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - transactionRouteID: UUID of the transaction route to delete
+//
+// Returns:
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrOperationRouteNotFound: Transaction route with given ID doesn't exist
+//   - Database errors: PostgreSQL unavailable
+//
+// Related Functions:
+//   - DeleteTransactionRouteCache: Should be called after successful deletion
 func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

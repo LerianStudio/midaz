@@ -24,7 +24,60 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
+// CreateBalanceTransactionOperationsAsync processes a transaction queue message asynchronously.
+//
+// This is the main worker function for processing transactions from RabbitMQ.
+// It handles the complete transaction lifecycle: balance updates, transaction
+// creation/update, operation creation, metadata storage, and event publishing.
+//
+// Processing Pipeline:
+//
+//	Step 1: Deserialize Queue Message
+//	  - Unmarshal msgpack-encoded TransactionQueue from queue data
+//	  - Extract transaction, balances, and validation results
+//
+//	Step 2: Update Balances (if not NOTED status)
+//	  - Apply balance changes to affected accounts
+//	  - NOTED transactions skip balance updates (audit-only)
+//
+//	Step 3: Create or Update Transaction
+//	  - Insert new transaction record
+//	  - Handle duplicate key (idempotency) by updating status
+//	  - Map CREATED -> APPROVED, PENDING -> preserve body
+//
+//	Step 4: Create Transaction Metadata
+//	  - Store transaction metadata in MongoDB
+//	  - Link metadata to transaction by entity ID
+//
+//	Step 5: Create Operations
+//	  - Create operation records for each balance affected
+//	  - Skip duplicates (unique violation = already processed)
+//	  - Store operation metadata in MongoDB
+//
+//	Step 6: Post-Processing (async)
+//	  - Send transaction events to RabbitMQ (notifications)
+//	  - Remove transaction from Redis pending queue
+//
+// Idempotency Handling:
+//
+// This function is idempotent - processing the same message multiple times
+// produces the same result. This is achieved through:
+//   - Unique constraints on transaction and operation IDs
+//   - Skip-on-duplicate logic for already-processed records
+//   - Status-based conditional updates
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - data: Queue message containing transaction data and organization context
+//
+// Returns:
+//   - error: Processing error (triggers message retry/DLQ)
+//
+// Error Scenarios:
+//   - Deserialization error: Corrupted queue message
+//   - Balance update error: Insufficient funds, locked account
+//   - Database error: PostgreSQL or MongoDB unavailable
+//   - Unique violation (handled): Skip and continue processing
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -124,7 +177,31 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
-// CreateOrUpdateTransaction func that is responsible to create or update a transaction.
+// CreateOrUpdateTransaction creates a new transaction or updates an existing one.
+//
+// This function handles transaction persistence with idempotency support.
+// If a transaction already exists (unique key violation), it updates the
+// status instead of failing, supporting retry scenarios.
+//
+// Status Transitions:
+//
+//	CREATED -> APPROVED: Normal transaction flow
+//	PENDING -> preserve body: Transaction awaiting confirmation
+//	APPROVED/CANCELED (retry): Update existing pending transaction
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - logger: Logger instance for structured logging
+//   - tracer: OpenTelemetry tracer for distributed tracing
+//   - t: TransactionQueue containing transaction data and validation results
+//
+// Returns:
+//   - *transaction.Transaction: Created or updated transaction
+//   - error: Database or validation error
+//
+// Error Scenarios:
+//   - Database error: PostgreSQL unavailable
+//   - Unique violation (handled): Updates existing transaction status
 func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
@@ -175,7 +252,20 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	return tran, nil
 }
 
-// CreateMetadataAsync func that create metadata into operations
+// CreateMetadataAsync creates metadata for an entity asynchronously.
+//
+// Metadata provides extensible key-value storage for transactions and operations,
+// allowing clients to attach custom data without schema changes.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - logger: Logger instance for error reporting
+//   - metadata: Key-value metadata map (nil = no-op)
+//   - ID: Entity ID to associate metadata with
+//   - collection: MongoDB collection name (Transaction or Operation)
+//
+// Returns:
+//   - error: MongoDB operation error
 func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
 		meta := mongodb.Metadata{
@@ -196,7 +286,17 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
-// CreateBTOSync func that create balance transaction operations synchronously
+// CreateBTOSync processes a transaction synchronously (blocking).
+//
+// This is a wrapper around CreateBalanceTransactionOperationsAsync for
+// synchronous execution paths. Used when RABBITMQ_TRANSACTION_ASYNC=false.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - data: Queue message containing transaction data
+//
+// Returns:
+//   - error: Processing error
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -213,7 +313,18 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	return nil
 }
 
-// RemoveTransactionFromRedisQueue func that remove transaction from redis queue
+// RemoveTransactionFromRedisQueue removes a processed transaction from the Redis pending queue.
+//
+// After successful processing, transactions are removed from the Redis queue
+// to prevent reprocessing and free up memory. This is called asynchronously
+// to avoid blocking the main processing flow.
+//
+// Parameters:
+//   - ctx: Request context (may be background context for async)
+//   - logger: Logger instance for error reporting
+//   - organizationID: Organization scope for queue key
+//   - ledgerID: Ledger scope for queue key
+//   - transactionID: Transaction ID to remove
 func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
@@ -224,7 +335,35 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	}
 }
 
-// SendTransactionToRedisQueue func that send transaction to redis queue
+// SendTransactionToRedisQueue adds a transaction to the Redis pending queue.
+//
+// Transactions are queued in Redis for tracking and recovery purposes.
+// If the message queue fails, the transaction can be recovered from Redis
+// and reprocessed, ensuring no transactions are lost.
+//
+// Queue Entry Structure:
+//
+//	{
+//	  "header_id": "request-id",
+//	  "organization_id": "...",
+//	  "ledger_id": "...",
+//	  "transaction_id": "...",
+//	  "parser_dsl": {...},
+//	  "validate": {...},
+//	  "ttl": "timestamp",
+//	  "transaction_status": "CREATED",
+//	  "transaction_date": "timestamp"
+//	}
+//
+// Parameters:
+//   - ctx: Request context with request ID for tracing
+//   - organizationID: Organization scope for queue key
+//   - ledgerID: Ledger scope for queue key
+//   - transactionID: Unique transaction identifier
+//   - parserDSL: Parsed transaction DSL for reprocessing
+//   - validate: Validation results from transaction parsing
+//   - transactionStatus: Current transaction status
+//   - transactionDate: Transaction creation timestamp
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())

@@ -9,12 +9,64 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
-// CreateAccountingRouteCache creates a cache for the accounting route.
-// It converts the transaction route into a cache structure and stores it in Redis.
-// The cache structure is a map of operation route ids to their type and account rule.
-// The operation route ids are the uuids of the operation routes in the transaction route.
-// The type is the type of the operation route (debit or credit).
-// The account rule is the account rule of the operation route.
+// CreateAccountingRouteCache creates a Redis cache entry for a transaction route.
+//
+// Transaction routes define how money flows in transactions. Caching these routes
+// in Redis significantly improves transaction processing performance by avoiding
+// repeated database lookups during high-throughput transaction processing.
+//
+// Cache Structure:
+//
+// The cache stores a map of operation route IDs to their routing rules:
+//
+//	{
+//	  "operation_route_id_1": {"type": "source", "account_rule": "..."},
+//	  "operation_route_id_2": {"type": "destination", "account_rule": "..."}
+//	}
+//
+// This structure allows O(1) lookup of operation routing rules during transaction
+// execution, eliminating the need for database joins.
+//
+// Caching Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Build Cache Key
+//	  - Construct internal key using org/ledger/route IDs
+//	  - Key format: "accounting_routes:{orgID}:{ledgerID}:{routeID}"
+//
+//	Step 3: Serialize Cache Data
+//	  - Convert TransactionRoute to cache-optimized structure
+//	  - Serialize using MessagePack for compact binary format
+//
+//	Step 4: Store in Redis
+//	  - Store serialized bytes with no expiration (TTL=0)
+//	  - Cache is explicitly invalidated on route updates/deletes
+//
+// Why MessagePack:
+//
+// MessagePack provides ~50% smaller serialization compared to JSON while
+// maintaining fast encode/decode performance. For high-frequency cache
+// operations, this reduces network bandwidth and Redis memory usage.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - route: TransactionRoute to cache (must include OperationRoutes)
+//
+// Returns:
+//   - error: Serialization or Redis operation error
+//
+// Error Scenarios:
+//   - Serialization error: Failed to convert route to msgpack bytes
+//   - Redis connection error: Redis server unavailable
+//   - Redis write error: Failed to store cache entry
+//
+// Related Functions:
+//   - DeleteTransactionRouteCache: Invalidates this cache entry
+//   - CreateTransactionRoute: Should call this after creating a route
+//   - UpdateTransactionRoute: Should invalidate and recreate cache
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

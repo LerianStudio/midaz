@@ -15,7 +15,69 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAdditionalBalance creates a new additional balance.
+// CreateAdditionalBalance creates a secondary balance for an existing account.
+//
+// Additional balances allow accounts to segregate funds for different purposes
+// (e.g., escrow, pending settlements, reserved funds) while maintaining a
+// single account identity. Each additional balance has a unique key.
+//
+// Use Cases for Additional Balances:
+//
+//	Escrow: "@merchant/escrow" holds funds during dispute resolution
+//	Pending: "@user/pending" holds funds awaiting confirmation
+//	Reserved: "@treasury/reserved" holds regulatory reserve requirements
+//	Multi-currency: "@user/usd", "@user/eur" for currency segregation
+//
+// Creation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Check Duplicate Key
+//	  - Verify no balance exists with the requested key
+//	  - Return ErrDuplicatedAliasKeyValue if duplicate
+//
+//	Step 3: Fetch Default Balance
+//	  - Retrieve the account's default balance
+//	  - Inherit properties (alias, asset code, account type)
+//
+//	Step 4: Validate Account Type
+//	  - External accounts cannot have additional balances
+//	  - Only internal/liability accounts support multiple balances
+//
+//	Step 5: Build Additional Balance
+//	  - Generate UUIDv7 for the new balance
+//	  - Inherit alias, asset code, and account type from default
+//	  - Set transfer permissions (default: both enabled)
+//
+//	Step 6: Persist Balance
+//	  - Store in PostgreSQL
+//	  - Handle constraint violations
+//
+// Inheritance from Default Balance:
+//
+// Additional balances inherit read-only properties from the default balance:
+//   - Alias: Same account alias for identification
+//   - AssetCode: Same currency/asset (prevents mixed-currency accounts)
+//   - AccountType: Same type for consistent behavior
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - accountID: Account to add the balance to
+//   - cbi: Creation input with Key and optional AllowSending/AllowReceiving
+//
+// Returns:
+//   - *mmodel.Balance: Created additional balance
+//   - error: Validation or database error
+//
+// Error Scenarios:
+//   - ErrDuplicatedAliasKeyValue: Balance key already exists for this account
+//   - ErrAdditionalBalanceNotAllowed: Account type doesn't support additional balances
+//   - Default balance not found: Account doesn't have a default balance
+//   - Database errors: PostgreSQL unavailable
 func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

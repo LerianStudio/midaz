@@ -15,7 +15,61 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// DeleteAllBalancesByAccountID delete all balances by account id in the repository.
+// DeleteAllBalancesByAccountID safely deletes all balances associated with an account.
+//
+// This function implements a safe deletion process with multiple validation checks
+// to prevent data loss or inconsistency. Balances can only be deleted when they
+// have zero funds and no active transactions.
+//
+// Safety Validation Process:
+//
+//	Step 1: Fetch All Balances
+//	  - Retrieve all balances for the account
+//	  - Return early if no balances exist
+//
+//	Step 2: Check Active Transactions
+//	  - For each balance, check Redis cache for pending transactions
+//	  - If any balance has cached data, abort (transactions in progress)
+//
+//	Step 3: Verify Zero Funds
+//	  - Check that Available and OnHold amounts are zero
+//	  - Balances with funds cannot be deleted (would cause fund loss)
+//
+//	Step 4: Disable Transfer Permissions
+//	  - Set AllowSending and AllowReceiving to false
+//	  - Prevents new transactions during deletion window
+//
+//	Step 5: Delete Balances
+//	  - Bulk delete all balance records
+//	  - On failure: Re-enable transfer permissions (rollback)
+//
+// Why These Checks Matter:
+//
+//	Active Transactions: Deleting a balance mid-transaction would cause
+//	the transaction to fail or corrupt data. The Redis cache check
+//	detects balances with pending operations.
+//
+//	Non-Zero Funds: Deleting a balance with funds would effectively
+//	destroy money, breaking ledger integrity. This check ensures
+//	funds are transferred out before deletion.
+//
+//	Transfer Permissions: Disabling transfers creates a deletion window
+//	where no new transactions can start on these balances, preventing
+//	race conditions.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - accountID: Account whose balances should be deleted
+//
+// Returns:
+//   - error: Business validation or infrastructure error
+//
+// Error Scenarios:
+//   - ErrBalancesCantBeDeleted: Active transactions or non-zero funds
+//   - Redis errors: Cache check failed
+//   - Database errors: PostgreSQL unavailable
 func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID uuid.UUID, accountID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -102,6 +156,26 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	return nil
 }
 
+// toggleBalanceTransfers enables or disables transfer permissions for an account's balances.
+//
+// This function is used during balance deletion to create a safe deletion window.
+// When disabled, no new transactions can debit or credit these balances.
+//
+// Rollback Behavior:
+//
+// The function implements deferred rollback - if the operation fails after
+// permissions are changed, it attempts to restore the original state.
+// This ensures balances aren't permanently locked due to partial failures.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - accountID: Account whose balance permissions to modify
+//   - allow: true to enable transfers, false to disable
+//
+// Returns:
+//   - error: Database update error
 func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allow bool) (err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -131,6 +205,20 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 	return nil
 }
 
+// updateBalanceTransferPermissions updates AllowSending and AllowReceiving for all account balances.
+//
+// This is the low-level function that performs the actual database update.
+// It sets both sending and receiving permissions to the same value.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - accountID: Account whose balance permissions to modify
+//   - allowTransfer: Pointer to bool value for both AllowSending and AllowReceiving
+//
+// Returns:
+//   - error: Database update error
 func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allowTransfer *bool) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

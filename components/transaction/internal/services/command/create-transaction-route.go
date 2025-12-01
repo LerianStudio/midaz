@@ -14,8 +14,57 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateTransactionRoute creates a new transaction route.
-// It returns the created transaction route and an error if the operation fails.
+// CreateTransactionRoute creates a new transaction route with associated operation routes.
+//
+// Transaction routes are templates that define complete transaction patterns by combining
+// multiple operation routes. Each transaction route must have at least one source (debit)
+// and one destination (credit) operation route to form a valid double-entry accounting pattern.
+//
+// Creation Process:
+//
+//	Step 1: Context Setup
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//	  - Generate UUIDv7 for the new transaction route
+//
+//	Step 2: Fetch Operation Routes
+//	  - Retrieve all operation routes by their IDs
+//	  - Validate that all referenced operation routes exist
+//
+//	Step 3: Validate Operation Route Types
+//	  - Ensure at least one "source" type operation route exists
+//	  - Ensure at least one "destination" type operation route exists
+//	  - Return ErrMissingOperationRoutes if validation fails
+//
+//	Step 4: Create Transaction Route
+//	  - Persist transaction route to PostgreSQL
+//	  - Associate operation routes via join table
+//
+//	Step 5: Create Metadata (Optional)
+//	  - If metadata provided, store in MongoDB
+//	  - Link metadata to transaction route by entity ID
+//
+// Double-Entry Accounting Requirement:
+//
+// Every financial transaction must balance: total debits = total credits.
+// Transaction routes enforce this by requiring both source and destination
+// operation routes, ensuring transactions created from this template
+// will maintain accounting integrity.
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - organizationID: Organization scope for multi-tenant isolation
+//   - ledgerID: Ledger scope within the organization
+//   - payload: Creation input with Title, Description, OperationRoutes (UUIDs), and optional Metadata
+//
+// Returns:
+//   - *mmodel.TransactionRoute: Created transaction route with operation routes attached
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrMissingOperationRoutes: No source or destination operation route provided
+//   - Operation route not found: Referenced operation route ID does not exist
+//   - Database errors: PostgreSQL or MongoDB unavailable
 func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -97,7 +146,26 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 }
 
 // validateOperationRouteTypes validates that operation routes contain both source and destination types.
-// Returns an error if either source or destination type is missing.
+//
+// This validation enforces double-entry accounting principles by ensuring every
+// transaction route template can create balanced transactions.
+//
+// Validation Logic:
+//   - Iterate through all operation routes
+//   - Track presence of "source" type (debit operations)
+//   - Track presence of "destination" type (credit operations)
+//   - Return nil if both types found, error otherwise
+//
+// Parameters:
+//   - operationRoutes: Slice of operation routes to validate
+//
+// Returns:
+//   - error: ErrMissingOperationRoutes if validation fails, nil otherwise
+//
+// Why This Matters:
+//
+// Without both source and destination routes, a transaction cannot balance.
+// This early validation prevents creation of unusable transaction templates.
 func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
 	hasSource := false
 	hasDestination := false

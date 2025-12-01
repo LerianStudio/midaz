@@ -1,3 +1,4 @@
+// Package command provides CQRS command handlers for the transaction component.
 package command
 
 import (
@@ -13,7 +14,89 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateOrUpdateAssetRate creates or updates an asset rate.
+// CreateOrUpdateAssetRate creates a new asset rate or updates an existing one.
+//
+// Asset rates define the exchange rate between two assets (currencies).
+// This function implements an upsert pattern: if a rate for the currency pair
+// already exists, it updates the existing rate; otherwise, it creates a new one.
+//
+// # Currency Pair Uniqueness
+//
+// Asset rates are unique by the combination of:
+//   - Organization ID (tenant isolation)
+//   - Ledger ID (ledger context)
+//   - From asset code (source currency)
+//   - To asset code (target currency)
+//
+// This ensures each currency pair has exactly one active rate per ledger.
+//
+// # Rate Calculation
+//
+// The rate represents: 1 unit of "From" currency = Rate units of "To" currency
+//
+// Example: USD -> EUR with rate 0.85 means 1 USD = 0.85 EUR
+//
+// Scale is used for precision in calculations (number of decimal places).
+//
+// # Process
+//
+//  1. Extract logger and tracer from context for observability
+//  2. Start tracing span "command.create_or_update_asset_rate"
+//  3. Validate "From" asset code format
+//  4. Validate "To" asset code format
+//  5. Check for existing rate by currency pair
+//  6. If exists: Update the existing rate and metadata
+//  7. If not exists: Create new rate with generated UUID
+//  8. Create/update associated metadata in MongoDB
+//  9. Return the created/updated asset rate
+//
+// # Parameters
+//
+//   - ctx: Request context containing tenant info, tracing, and cancellation
+//   - organizationID: The organization that owns this ledger (tenant isolation)
+//   - ledgerID: The ledger where this rate applies
+//   - cari: The asset rate input containing From, To, Rate, Scale, Source, TTL, and Metadata
+//
+// # Returns
+//
+//   - *assetrate.AssetRate: The created or updated asset rate
+//   - error: If validation fails or database operations fail
+//
+// # Input Fields
+//
+//   - From: Source asset code (validated for format)
+//   - To: Target asset code (validated for format)
+//   - Rate: The exchange rate value
+//   - Scale: Decimal precision for the rate
+//   - Source: Origin of the rate data (e.g., "manual", "external_api")
+//   - TTL: Time-to-live in seconds (when rate expires)
+//   - ExternalID: Optional external system identifier
+//   - Metadata: Optional key-value pairs for additional data
+//
+// # Error Scenarios
+//
+//   - Invalid "From" asset code format
+//   - Invalid "To" asset code format
+//   - Database query failure (FindByCurrencyPair)
+//   - Database create/update failure
+//   - Metadata create/update failure (MongoDB)
+//
+// # Observability
+//
+// Creates tracing span "command.create_or_update_asset_rate" with error events.
+// Logs operation progress and any errors encountered.
+//
+// # Example
+//
+//	input := &assetrate.CreateAssetRateInput{
+//	    From:   "USD",
+//	    To:     "EUR",
+//	    Rate:   85,      // 0.85 with scale 2
+//	    Scale:  2,
+//	    Source: "manual",
+//	    TTL:    &ttl,
+//	}
+//	rate, err := uc.CreateOrUpdateAssetRate(ctx, orgID, ledgerID, input)
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

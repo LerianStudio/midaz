@@ -13,12 +13,59 @@ import (
 	"github.com/google/uuid"
 )
 
-// SendLogTransactionAuditQueue sends transaction audit log data to a message queue for processing and storage.
-// ctx is the request-scoped context for cancellation and deadlines.
-// operations is the list of operations to be logged in the audit queue.
-// organizationID is the UUID of the associated organization.
-// ledgerID is the UUID of the ledger linked to the transaction.
-// transactionID is the UUID of the transaction being logged.
+// SendLogTransactionAuditQueue sends transaction audit data to RabbitMQ for compliance logging.
+//
+// Financial regulations require comprehensive audit trails for all transactions.
+// This function publishes operation-level details to an audit queue, where they're
+// consumed by audit services for long-term storage and compliance reporting.
+//
+// Audit Data Structure:
+//
+// Each operation is converted to an audit log format containing:
+//   - Operation ID and type (debit/credit)
+//   - Account and balance information
+//   - Amount and asset details
+//   - Timestamps and organization context
+//
+// Publishing Process:
+//
+//	Step 1: Check Configuration
+//	  - Return early if AUDIT_LOG_ENABLED=false
+//	  - Default is enabled (any value except "false")
+//
+//	Step 2: Build Audit Queue Message
+//	  - Convert each operation to audit log format
+//	  - Serialize operations as JSON
+//	  - Package into queue message with context
+//
+//	Step 3: Publish to RabbitMQ
+//	  - Send to configured audit exchange
+//	  - Use transaction ID for message correlation
+//
+// Compliance Requirements:
+//
+// This audit trail supports:
+//   - SOX compliance (Sarbanes-Oxley)
+//   - PCI-DSS requirements for financial data
+//   - General ledger reconciliation
+//   - Fraud investigation and forensics
+//
+// Parameters:
+//   - ctx: Request context with tracing and cancellation
+//   - operations: Slice of operations to audit (all from same transaction)
+//   - organizationID: Organization scope for audit records
+//   - ledgerID: Ledger scope for audit records
+//   - transactionID: Transaction ID for audit correlation
+//
+// Note: This function does not return errors. Audit failures are logged but
+// do not affect transaction processing. Audit data can be recovered from
+// the database if queue publishing fails.
+//
+// Environment Variables:
+//
+//	AUDIT_LOG_ENABLED=true|false (default: true)
+//	RABBITMQ_AUDIT_EXCHANGE: Exchange name for audit messages
+//	RABBITMQ_AUDIT_KEY: Routing key for audit messages
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -70,6 +117,11 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	}
 }
 
+// isAuditLogEnabled checks if audit logging is enabled via environment variable.
+//
+// Returns true unless AUDIT_LOG_ENABLED is explicitly set to "false".
+// This default-enabled behavior ensures audit trails are captured unless
+// explicitly disabled (e.g., in development environments).
 func isAuditLogEnabled() bool {
 	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
 	return envValue != "false"
