@@ -27,9 +27,11 @@ type OrganizationHandler struct {
 
 // CreateOrganization is a method that creates Organization information.
 //
+//	@ID				createOrganization
 //	@Summary		Create a new organization
 //	@Description	Creates a new organization with the provided details including legal name, legal document, and optional address information
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
@@ -72,9 +74,11 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 
 // UpdateOrganization is a method that updates Organization information.
 //
+//	@ID				updateOrganization
 //	@Summary		Update an existing organization
 //	@Description	Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
@@ -133,9 +137,11 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
 //
+//	@ID				getOrganizationByID
 //	@Summary		Retrieve a specific organization
 //	@Description	Returns detailed information about an organization identified by its UUID
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -174,9 +180,11 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 // GetAllOrganizations is a method that retrieves all Organizations.
 //
+//	@ID				listOrganizations
 //	@Summary		List all organizations
 //	@Description	Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -264,9 +272,11 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
 //
+//	@ID				deleteOrganization
 //	@Summary		Delete an organization
 //	@Description	Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			id				path	string	true	"Organization ID in UUID format"
@@ -314,9 +324,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 // CountOrganizations is a method that returns the total count of organizations.
 //
+//	@ID				countOrganizations
 //	@Summary		Count total organizations
 //	@Description	Returns the total count of organizations as a header without a response body
 //	@Tags			Organizations
+//	@Security		BearerAuth
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Success		204				{string}	string	"No content with X-Total-Count header containing the count"

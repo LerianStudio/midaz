@@ -21,22 +21,24 @@ type OperationHandler struct {
 
 // GetAllOperationsByAccount retrieves all operations by account.
 //
-//	@Summary		Get all Operations by account
-//	@Description	Get all Operations with the input ID
+//	@ID				listOperationsByAccount
+//	@Summary		List all operations by account
+//	@Description	Retrieves all operations associated with a specific account. Supports filtering by date range, operation type (DEBIT/CREDIT), cursor-based pagination, and sorting. Returns transaction details including amounts, balances before and after each operation.
 //	@Tags			Operations
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Param			type			query		string	false	"DEBIT, CREDIT"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			start_date		query		string	false	"Filter records created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter records created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor for pagination to fetch the next set of results"
+//	@Param			type			query		string	false	"Filter by operation type"									Enums(DEBIT,CREDIT)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}	"Successfully retrieved operations"
 //	@Example		response	{"items":[{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6Im9wMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -120,17 +122,19 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 // GetOperationByAccount retrieves an operation by account.
 //
-//	@Summary		Get Operation
-//	@Description	Get an Operation with the input ID
+//	@ID				getOperationByAccount
+//	@Summary		Retrieve a specific operation
+//	@Description	Returns detailed information about an operation identified by its UUID within the specified account, including amount, balance changes, and transaction reference
 //	@Tags			Operations
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			operation_id	path		string	true	"Operation ID"
-//	@Success		200				{object}	operation.Operation
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			operation_id	path		string	true	"Operation ID in UUID format"
+//	@Success		200				{object}	operation.Operation	"Successfully retrieved operation"
 //	@Example		response	{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -168,19 +172,21 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 // UpdateOperation method that patch operation created before
 //
-//	@Summary		Update an Operation
-//	@Description	Update an Operation with the input payload
+//	@ID				updateOperation
+//	@Summary		Update an operation
+//	@Description	Updates an existing operation's properties such as description and metadata. Only supplied fields will be updated.
 //	@Tags			Operations
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction_id	path		string							true	"Transaction ID"
-//	@Param			operation_id	path		string							true	"Operation ID"
-//	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
-//	@Success		200				{object}	operation.Operation
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string							true	"Transaction ID in UUID format"
+//	@Param			operation_id	path		string							true	"Operation ID in UUID format"
+//	@Param			operation		body		operation.UpdateOperationInput	true	"Operation properties to update"
+//	@Success		200				{object}	operation.Operation				"Successfully updated operation"
 //	@Example		response	{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Updated debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

@@ -40,22 +40,25 @@ type TransactionHandler struct {
 
 // CreateTransactionJSON method that create transaction using JSON
 //
+//	@ID				createTransactionJSON
 //	@Summary		Create a Transaction using JSON
 //	@Description	Create a Transaction with the input payload
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
@@ -87,22 +90,25 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 // CreateTransactionAnnotation method that create transaction using JSON
 //
+//	@ID				createTransactionAnnotation
 //	@Summary		Create a Transaction Annotation using JSON
 //	@Description	Create a Transaction Annotation with the input payload
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string										true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string										false	"Request ID"
-//	@Param			organization_id	path		string										true	"Organization ID"
-//	@Param			ledger_id		path		string								        true	"Ledger ID"
+//	@Param			Authorization	header		string										true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string										false	"Request ID for tracing"
+//	@Param			organization_id	path		string										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								        true	"Ledger ID in UUID format"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t2345678-9abc-def0-1234-56789abcdef0","description":"Annotation for audit purposes","status":{"code":"NOTED","description":"NOTED"},"amount":"0.00","assetCode":"USD","chartOfAccountsGroupName":"ANNOTATIONS","source":["@treasury"],"destination":["@audit"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation [post]
 func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
@@ -124,22 +130,25 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
 //
+//	@ID				createTransactionInflow
 //	@Summary		Create a Transaction without passing from source
 //	@Description	Create a Transaction with the input payload
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t3456789-abcd-ef01-2345-6789abcdef01","description":"Inflow from external source","status":{"code":"APPROVED","description":"APPROVED"},"amount":"10000.00","assetCode":"USD","chartOfAccountsGroupName":"INFLOWS","source":["@external/USD"],"destination":["@treasury"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
@@ -168,22 +177,25 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
 //
+//	@ID				createTransactionOutflow
 //	@Summary		Create a Transaction without passing to distribution
 //	@Description	Create a Transaction with the input payload
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t4567890-bcde-f012-3456-789abcdef012","description":"Outflow to external destination","status":{"code":"APPROVED","description":"APPROVED"},"amount":"5000.00","assetCode":"USD","chartOfAccountsGroupName":"OUTFLOWS","source":["@treasury"],"destination":["@external/USD"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
@@ -215,22 +227,25 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 // CreateTransactionDSL method that create transaction using DSL
 //
+//	@ID				createTransactionDSL
 //	@Summary		Create a Transaction using DSL
 //	@Description	Create a Transaction with the input DSL file
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			mpfd
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
 //	@Success		200				{object}	transaction.Transaction
 //	@Example		response	{"id":"t5678901-cdef-0123-4567-89abcdef0123","description":"DSL-defined transaction","status":{"code":"APPROVED","description":"APPROVED"},"amount":"2500.00","assetCode":"USD","chartOfAccountsGroupName":"TRANSFERS","source":["@operating"],"destination":["@savings"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
@@ -293,22 +308,24 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 // CommitTransaction method that commit transaction created before
 //
+//	@ID				commitTransaction
 //	@Summary		Commit a Transaction
 //	@Description	Commit a previously created transaction
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string	true	"Transaction ID in UUID format"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:00:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		404				{object}	mmodel.Error	"Organization, ledger, or transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict - transaction already has a parent transaction"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
@@ -337,22 +354,24 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 // CancelTransaction method that cancel pre transaction created before
 //
+//	@ID				cancelTransaction
 //	@Summary		Cancel a pre transaction
 //	@Description	Cancel a previously created pre transaction
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string	true	"Transaction ID in UUID format"
 //	@Success		201				{object}	transaction.Transaction
 //	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"CANCELED","description":"CANCELED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:00:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		404				{object}	mmodel.Error	"Organization, ledger, or transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict - transaction already has a parent transaction"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [Post]
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
@@ -381,24 +400,26 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 // RevertTransaction method that revert transaction created before
 //
+//	@ID				revertTransaction
 //	@Summary		Revert a Transaction
 //	@Description	Revert a Transaction with Transaction ID only
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction_id	path		string								true	"Transaction ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string								true	"Transaction ID in UUID format"
 //	@Success		200				{object}	transaction.Transaction
 //	@Example		response	{"id":"t6789012-def0-1234-5678-9abcdef01234","parentTransactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Revert: Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@vendor"],"destination":["@treasury"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T11:00:00Z","updatedAt":"2024-01-15T11:00:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		404				{object}	mmodel.Error	"Organization, ledger, or transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict - transaction already has a parent transaction"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable entity - validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
@@ -479,23 +500,25 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 // UpdateTransaction method that patch transaction created before
 //
+//	@ID				updateTransaction
 //	@Summary		Update a Transaction
 //	@Description	Update a Transaction with the input payload
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction_id	path		string								true	"Transaction ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string								true	"Transaction ID in UUID format"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
 //	@Success		200				{object}	transaction.Transaction
 //	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Updated payment description","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		404				{object}	mmodel.Error	"Organization, ledger, or transaction not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
@@ -544,21 +567,23 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 // GetTransaction method that get transaction created before
 //
+//	@ID				getTransactionByID
 //	@Summary		Get a Transaction by ID
 //	@Description	Get a Transaction with the input ID
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string	true	"Transaction ID in UUID format"
 //	@Success		200				{object}	transaction.Transaction
 //	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		404				{object}	mmodel.Error	"Organization, ledger, or transaction not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
@@ -613,24 +638,27 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 // GetAllTransactions method that get all transactions created before
 //
+//	@ID				listTransactions
 //	@Summary		Get all Transactions
 //	@Description	Get all Transactions with the input metadata or without metadata
 //	@Tags			Transactions
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			start_date		query		string	false	"Filter by start date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter by end date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor token for pagination"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Example		response	{"items":[{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6InQxMjM0NTY3In0="}
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request parameters or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {

@@ -20,9 +20,11 @@ type AccountTypeHandler struct {
 
 // Create an Account Type.
 //
+//	@ID				createAccountType
 //	@Summary		Create Account Type
 //	@Description	Endpoint to create a new Account Type.
 //	@Tags			Account Types
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
@@ -72,9 +74,11 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 
 // GetAccountTypeByID is a method that retrieves Account Type information by a given account type id.
 //
+//	@ID				getAccountTypeByID
 //	@Summary		Retrieve a specific account type
 //	@Description	Returns detailed information about an account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -118,9 +122,11 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 
 // Update an Account Type.
 //
+//	@ID				updateAccountType
 //	@Summary		Update Account Type
 //	@Description	Endpoint to update an existing Account Type.
 //	@Tags			Account Types
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
@@ -183,9 +189,11 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 // DeleteAccountTypeByID is a method that deletes Account Type information.
 //
+//	@ID				deleteAccountType
 //	@Summary		Delete an account type
 //	@Description	Deletes an existing account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -227,9 +235,11 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 
 // GetAllAccountTypes is a method that retrieves all Account Types.
 //
+//	@ID				listAccountTypes
 //	@Summary		Get all account types
 //	@Description	Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata
 //	@Tags			Account Types
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"

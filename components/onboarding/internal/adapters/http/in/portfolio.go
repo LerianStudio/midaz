@@ -24,9 +24,11 @@ type PortfolioHandler struct {
 
 // CreatePortfolio is a method that creates portfolio information.
 //
+//	@ID				createPortfolio
 //	@Summary		Create a new portfolio
 //	@Description	Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -79,9 +81,11 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
 //
+//	@ID				listPortfolios
 //	@Summary		List all portfolios
 //	@Description	Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -177,9 +181,11 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
 //
+//	@ID				getPortfolioByID
 //	@Summary		Retrieve a specific portfolio
 //	@Description	Returns detailed information about a portfolio identified by its UUID within the specified ledger
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -223,9 +229,11 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 // UpdatePortfolio is a method that updates Portfolio information.
 //
+//	@ID				updatePortfolio
 //	@Summary		Update a portfolio
 //	@Description	Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -290,9 +298,11 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
 //
+//	@ID				deletePortfolio
 //	@Summary		Delete a portfolio
 //	@Description	Permanently removes a portfolio from the specified ledger. This operation cannot be undone.
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
@@ -334,9 +344,11 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 
 // CountPortfolios is a method that returns the total count of portfolios for a specific organization and ledger.
 //
+//	@ID				countPortfolios
 //	@Summary		Count total portfolios
 //	@Description	Returns the total count of portfolios for a specific organization and ledger as a header without a response body
 //	@Tags			Portfolios
+//	@Security		BearerAuth
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"

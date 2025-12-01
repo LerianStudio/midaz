@@ -27,9 +27,11 @@ type LedgerHandler struct {
 
 // CreateLedger is a method that creates Ledger information.
 //
+//	@ID				createLedger
 //	@Summary		Create a new ledger
 //	@Description	Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -76,9 +78,11 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
 //
+//	@ID				getLedgerByID
 //	@Summary		Retrieve a specific ledger
 //	@Description	Returns detailed information about a ledger identified by its UUID within the specified organization
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -120,9 +124,11 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 // GetAllLedgers is a method that retrieves all ledgers.
 //
+//	@ID				listLedgers
 //	@Summary		List all ledgers
 //	@Description	Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -214,9 +220,11 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 // UpdateLedger is a method that updates Ledger information.
 //
+//	@ID				updateLedger
 //	@Summary		Update an existing ledger
 //	@Description	Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -278,9 +286,11 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
 //
+//	@ID				deleteLedger
 //	@Summary		Delete a ledger
 //	@Description	Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
@@ -330,9 +340,11 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 // CountLedgers is a method that returns the total count of ledgers for a specific organization.
 //
+//	@ID				countLedgers
 //	@Summary		Count total ledgers
 //	@Description	Returns the total count of ledgers for a specific organization as a header without a response body
 //	@Tags			Ledgers
+//	@Security		BearerAuth
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"

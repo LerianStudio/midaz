@@ -27,9 +27,11 @@ type OperationRouteHandler struct {
 
 // Create an Operation Route.
 //
+//	@ID				createOperationRoute
 //	@Summary		Create Operation Route
 //	@Description	Endpoint to create a new Operation Route.
 //	@Tags			Operation Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
@@ -84,9 +86,11 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
 //
+//	@ID				getOperationRouteByID
 //	@Summary		Retrieve a specific operation route
 //	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -130,9 +134,11 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 
 // UpdateOperationRoute is a method that updates Operation Route information.
 //
+//	@ID				updateOperationRoute
 //	@Summary		Update an operation route
 //	@Description	Updates an existing operation route's properties such as title, description, and type within the specified ledger
 //	@Tags			Operation Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
@@ -205,9 +211,11 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
 //
+//	@ID				deleteOperationRoute
 //	@Summary		Delete an operation route
 //	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -249,25 +257,27 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
 //
-//	@Summary		Retrieve all operation routes
-//	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
+//	@ID				listOperationRoutes
+//	@Summary		List all operation routes
+//	@Description	Retrieves all operation routes within the specified ledger. Supports filtering by metadata, date range, cursor-based pagination, and sorting. Operation routes define rules for account matching in transactions.
 //	@Tags			Operation Route
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.OperationRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			start_date		query		string	false	"Filter records created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter records created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor for pagination to fetch the next set of results"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.OperationRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}	"Successfully retrieved operation routes"
 //	@Example		response	{"items":[{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Card Payment Route","description":"Route for card payment operations","code":"CARD_PAYMENTS","operationType":"source","account":{"ruleType":"alias","validIf":"@cards"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6Im9yMTIzNDU2In0="}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
+//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [get]
 func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {

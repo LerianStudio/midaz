@@ -24,9 +24,11 @@ type AccountHandler struct {
 
 // CreateAccount is a method that creates account information.
 //
+//	@ID				createAccount
 //	@Summary		Create a new account
 //	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -87,9 +89,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 // GetAllAccounts is a method that retrieves all Accounts.
 //
+//	@ID				listAccounts
 //	@Summary		List all accounts
 //	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -191,9 +195,11 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
 //
+//	@ID				getAccountByID
 //	@Summary		Retrieve a specific account
 //	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -237,9 +243,11 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 // GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
 //
+//	@ID				getAccountExternalByCode
 //	@Summary		Retrieve an account by alias
 //	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -285,9 +293,11 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
 //
+//	@ID				getAccountByAlias
 //	@Summary		Retrieve an account by alias
 //	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -331,9 +341,11 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 // UpdateAccount is a method that updates Account information.
 //
+//	@ID				updateAccount
 //	@Summary		Update an account
 //	@Description	Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -398,9 +410,11 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
 //
+//	@ID				deleteAccount
 //	@Summary		Delete an account
 //	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
 //	@Tags			Accounts
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
@@ -443,14 +457,17 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 // CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
 //
+//	@ID				countAccounts
 //	@Summary		Count accounts
-//	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio
+//	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio via X-Total-Count header. Response body is empty (HEAD method).
 //	@Tags			Accounts
+//	@Security		BearerAuth
+//	@Produce		json
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	nil	"Successfully retrieved accounts count"
+//	@Success		204				{object}	nil	"Count returned in X-Total-Count header, empty response body"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"

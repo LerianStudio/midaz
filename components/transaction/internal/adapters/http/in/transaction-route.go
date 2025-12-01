@@ -20,16 +20,18 @@ type TransactionRouteHandler struct {
 
 // Create a Transaction Route.
 //
-//	@Summary		Create Transaction Route
-//	@Description	Endpoint to create a new Transaction Route.
+//	@ID				createTransactionRoute
+//	@Summary		Create a new transaction route
+//	@Description	Creates a new transaction route within the specified ledger. Transaction routes define how transactions are processed by linking operation routes that specify source and destination account matching rules.
 //	@Tags			Transaction Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			transaction-route	body		mmodel.CreateTransactionRouteInput	true	"Transaction Route Input"
+//	@Param			transaction-route	body		mmodel.CreateTransactionRouteInput	true	"Transaction route details including title, description, and operation route references"
 //	@Success		201				{object}	mmodel.TransactionRoute				"Successfully created transaction route"
 //	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
@@ -79,9 +81,11 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 // Get a Transaction Route by ID.
 //
-//	@Summary		Get Transaction Route by ID
-//	@Description	Endpoint to get a Transaction Route by its ID.
+//	@ID				getTransactionRouteByID
+//	@Summary		Retrieve a specific transaction route
+//	@Description	Returns detailed information about a transaction route identified by its UUID within the specified ledger, including all associated operation routes
 //	@Tags			Transaction Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
@@ -91,10 +95,9 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
 //	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction route"
 //	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Transaction Route not found"
+//	@Failure		404				{object}	mmodel.Error						"Transaction route not found"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [get]
 func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
@@ -125,9 +128,11 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 
 // Update a Transaction Route.
 //
-//	@Summary		Update Transaction Route
-//	@Description	Endpoint to update a Transaction Route by its ID.
+//	@ID				updateTransactionRoute
+//	@Summary		Update a transaction route
+//	@Description	Updates an existing transaction route's properties such as title, description, and operation route associations. Only supplied fields will be updated.
 //	@Tags			Transaction Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
@@ -135,7 +140,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
-//	@Param			transaction-route	body		mmodel.UpdateTransactionRouteInput	true	"Transaction Route Input"
+//	@Param			transaction-route	body		mmodel.UpdateTransactionRouteInput	true	"Transaction route properties to update"
 //	@Success		200				{object}	mmodel.TransactionRoute				"Successfully updated transaction route"
 //	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Updated Wire Transfer Route","description":"Updated route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
@@ -198,9 +203,11 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 // Delete a Transaction Route by ID.
 //
-//	@Summary		Delete Transaction Route by ID
-//	@Description	Endpoint to delete a Transaction Route by its ID.
+//	@ID				deleteTransactionRoute
+//	@Summary		Delete a transaction route
+//	@Description	Permanently removes a transaction route identified by its UUID. This operation cannot be undone and will also remove associated cache entries.
 //	@Tags			Transaction Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
@@ -209,10 +216,9 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
 //	@Success		204				{object}	nil								"Successfully deleted transaction route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Transaction Route not found"
+//	@Failure		404				{object}	mmodel.Error						"Transaction route not found"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [delete]
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx) error {
@@ -249,23 +255,25 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 
 // Get all Transaction Routes.
 //
-//	@Summary		Get all Transaction Routes
-//	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.
+//	@ID				listTransactionRoutes
+//	@Summary		List all transaction routes
+//	@Description	Retrieves all transaction routes within the specified ledger. Supports filtering by metadata, date range, cursor-based pagination, and sorting. Transaction routes define how transactions are processed and which operation routes to apply.
 //	@Tags			Transaction Route
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			limit			query		int									false	"Limit"			default(10)
-//	@Param			start_date		query		string								false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string								false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string								false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string								false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Param			limit			query		int									false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			start_date		query		string								false	"Filter records created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string								false	"Filter records created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string								false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			cursor			query		string								false	"Cursor for pagination to fetch the next set of results"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}	"Successfully retrieved transaction routes"
 //	@Example		response	{"items":[{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6InRyMTIzNDU2In0="}
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		400				{object}	mmodel.Error						"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"

@@ -21,24 +21,26 @@ type AssetRateHandler struct {
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.
 //
-//	@Summary		Create or Update an AssetRate
-//	@Description	Create or Update an AssetRate with the input details
+//	@ID				createOrUpdateAssetRate
+//	@Summary		Create or update an asset rate
+//	@Description	Creates a new asset rate or updates an existing one for currency conversion. Asset rates define exchange rates between assets within a ledger for multi-currency transactions.
 //	@Tags			Asset Rates
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"Asset rate details including from/to assets, rate, scale, and TTL"
+//	@Success		200				{object}	assetrate.AssetRate				"Successfully created or updated asset rate"
 //	@Example		response	{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [Put]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [put]
 func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -77,16 +79,18 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 // GetAssetRateByExternalID retrieves an asset rate.
 //
-//	@Summary		Get an AssetRate by External ID
-//	@Description	Get an AssetRate by External ID with the input details
+//	@ID				getAssetRateByExternalID
+//	@Summary		Retrieve an asset rate by external ID
+//	@Description	Returns detailed information about an asset rate identified by its external ID within the specified ledger
 //	@Tags			Asset Rates
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			external_id		path		string	true	"External ID"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			external_id		path		string	true	"External ID in UUID format"
+//	@Success		200				{object}	assetrate.AssetRate	"Successfully retrieved asset rate"
 //	@Example		response	{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -124,23 +128,24 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 
 // GetAllAssetRatesByAssetCode retrieves an asset rate.
 //
-//	@Summary		Get an AssetRate by the Asset Code
-//	@Description	Get an AssetRate by the Asset Code with the input details
+//	@ID				listAssetRatesByAssetCode
+//	@Summary		List asset rates by source asset code
+//	@Description	Retrieves all asset rates for a specific source asset code within the ledger. Supports filtering by target asset codes, date range, cursor-based pagination, and sorting.
 //	@Tags			Asset Rates
+//	@Security		BearerAuth
 //	@Produce		json
-//	@Param			Authorization	header		string		true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string		false	"Request ID"
-//	@Param			organization_id	path		string		true	"Organization ID"
-//	@Param			ledger_id		path		string		true	"Ledger ID"
-//	@Param			asset_code		path		string		true	"From Asset Code"
-//
-//	@Param			to				query		[]string	false	"To Asset Codes"	example "BRL,USD,SGD"
-//	@Param			limit			query		int			false	"Limit"				default(10)
-//	@Param			start_date		query		string		false	"Start Date"		example "2021-01-01"
-//	@Param			end_date		query		string		false	"End Date"			example "2021-01-01"
-//	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
-//	@Param			cursor			query		string		false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}
+//	@Param			Authorization	header		string		true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string		false	"Request ID for tracing"
+//	@Param			organization_id	path		string		true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string		true	"Ledger ID in UUID format"
+//	@Param			asset_code		path		string		true	"Source asset code (e.g., USD, BRL)"
+//	@Param			to				query		[]string	false	"Filter by target asset codes"
+//	@Param			limit			query		int			false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			start_date		query		string		false	"Filter records created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string		false	"Filter records created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string		false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			cursor			query		string		false	"Cursor for pagination to fetch the next set of results"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}	"Successfully retrieved asset rates"
 //	@Example		response	{"items":[{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6ImFyMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

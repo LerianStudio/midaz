@@ -24,9 +24,11 @@ type AssetHandler struct {
 
 // CreateAsset is a method that creates asset information.
 //
+//	@ID				createAsset
 //	@Summary		Create a new asset
 //	@Description	Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
@@ -83,9 +85,11 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 // GetAllAssets is a method that retrieves all Assets.
 //
+//	@ID				listAssets
 //	@Summary		List all assets
 //	@Description	Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -182,9 +186,11 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
 //
+//	@ID				getAssetByID
 //	@Summary		Retrieve a specific asset
 //	@Description	Returns detailed information about an asset identified by its UUID within the specified ledger
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -228,9 +234,11 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 // UpdateAsset is a method that updates Asset information.
 //
+//	@ID				updateAsset
 //	@Summary		Update an asset
 //	@Description	Updates an existing asset's properties such as name, status, and metadata within the specified ledger
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
@@ -295,9 +303,11 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
 //
+//	@ID				deleteAsset
 //	@Summary		Delete an asset
 //	@Description	Permanently removes an asset from the specified ledger. This operation cannot be undone.
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
@@ -339,9 +349,11 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 
 // CountAssets is a method that returns the total count of assets for a specific ledger in an organization.
 //
+//	@ID				countAssets
 //	@Summary		Count total assets
 //	@Description	Returns the total count of assets for a specific ledger in an organization as a header without a response body
 //	@Tags			Assets
+//	@Security		BearerAuth
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"

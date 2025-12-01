@@ -24,9 +24,11 @@ type SegmentHandler struct {
 
 // CreateSegment is a method that creates segment information.
 //
+//	@ID				createSegment
 //	@Summary		Create a new segment
 //	@Description	Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.
 //	@Tags			Segments
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -78,9 +80,11 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 
 // GetAllSegments is a method that retrieves all Segments.
 //
+//	@ID				listSegments
 //	@Summary		List all segments
 //	@Description	Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Segments
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -176,9 +180,11 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 // GetSegmentByID is a method that retrieves Segment information by a given id.
 //
+//	@ID				getSegmentByID
 //	@Summary		Retrieve a specific segment
 //	@Description	Returns detailed information about a segment identified by its UUID within the specified ledger
 //	@Tags			Segments
+//	@Security		BearerAuth
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
@@ -222,9 +228,11 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 
 // UpdateSegment is a method that updates Segment information.
 //
+//	@ID				updateSegment
 //	@Summary		Update a segment
 //	@Description	Updates an existing segment's properties such as name, status, and metadata within the specified ledger
 //	@Tags			Segments
+//	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
@@ -289,9 +297,11 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 // DeleteSegmentByID is a method that removes Segment information by a given ids.
 //
+//	@ID				deleteSegment
 //	@Summary		Delete a segment
 //	@Description	Permanently removes a segment from the specified ledger. This operation cannot be undone.
 //	@Tags			Segments
+//	@Security		BearerAuth
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
@@ -333,14 +343,17 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 
 // CountSegments is a method that counts all segments for a given organization and ledger.
 //
+//	@ID				countSegments
 //	@Summary		Count segments
-//	@Description	Returns the total count of segments for the specified organization and ledger
+//	@Description	Returns the total count of segments for the specified organization and ledger via X-Total-Count header. Response body is empty (HEAD method).
 //	@Tags			Segments
+//	@Security		BearerAuth
+//	@Produce		json
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	nil	"Successfully retrieved segments count"
+//	@Success		204				{object}	nil	"Count returned in X-Total-Count header, empty response body"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
