@@ -5,117 +5,198 @@ import "time"
 // CreateAssetInput is a struct design to encapsulate request create payload data.
 //
 // swagger:model CreateAssetInput
+// @Description Request payload for creating a new asset within a ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger system.
 //
-//	@Description	CreateAssetInput is the input payload to create an asset within a ledger, such as a currency, cryptocurrency, or other financial instrument.
+//	@example {
+//	  "name": "US Dollar",
+//	  "type": "currency",
+//	  "code": "USD",
+//	  "status": {
+//	    "code": "ACTIVE"
+//	  },
+//	  "metadata": {
+//	    "country": "United States",
+//	    "symbol": "$",
+//	    "isoNumeric": "840"
+//	  }
+//	}
 type CreateAssetInput struct {
-	// Name of the asset (required, max length 256 characters)
-	Name string `json:"name" validate:"required,max=256" example:"US Dollar"`
+	// Human-readable name of the asset
+	// required: true
+	// example: US Dollar
+	// maxLength: 256
+	Name string `json:"name" validate:"required,max=256" example:"US Dollar" maxLength:"256"`
 
-	// Type of the asset (e.g., currency, cryptocurrency, commodity, stock)
+	// Type classification of the asset (e.g., currency, cryptocurrency, commodity, stock)
+	// required: true
+	// example: currency
 	Type string `json:"type" validate:"required" example:"currency"`
 
-	// Unique code/symbol for the asset (required, max length 100 characters)
-	Code string `json:"code" validate:"required,max=100" example:"USD"`
+	// Unique code/symbol for the asset (e.g., USD, BTC, GOLD)
+	// required: true
+	// example: USD
+	// maxLength: 100
+	Code string `json:"code" validate:"required,max=100" example:"USD" maxLength:"100"`
 
-	// Status of the asset (active, inactive, pending)
+	// Current operating status of the asset
+	// required: false
 	Status Status `json:"status"`
 
-	// Additional custom attributes for the asset
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// Custom key-value pairs for extending the asset information
+	// required: false
+	// example: {"country": "United States", "symbol": "$", "isoNumeric": "840"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} //	@name	CreateAssetInput
-// @example {
-//   "name": "US Dollar",
-//   "type": "currency",
-//   "code": "USD",
-//   "status": "ACTIVE",
-//   "metadata": {
-//     "country": "United States",
-//     "symbol": "$",
-//     "isoNumeric": "840"
-//   }
-// }
+} // @name CreateAssetInput
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 //
 // swagger:model UpdateAssetInput
+// @Description Request payload for updating an existing asset. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 //
-//	@Description	UpdateAssetInput is the input payload to update an existing asset's properties such as name, status, and metadata.
+//	@example {
+//	  "name": "US Dollar Updated",
+//	  "status": {
+//	    "code": "ACTIVE"
+//	  },
+//	  "metadata": {
+//	    "country": "United States",
+//	    "symbol": "$",
+//	    "isoNumeric": "840",
+//	    "updated": true
+//	  }
+//	}
 type UpdateAssetInput struct {
-	// Updated name of the asset (optional, max length 256 characters)
-	Name string `json:"name" validate:"max=256" example:"Bitcoin"`
+	// Updated human-readable name of the asset
+	// required: false
+	// example: Bitcoin
+	// maxLength: 256
+	Name string `json:"name" validate:"max=256" example:"Bitcoin" maxLength:"256"`
 
-	// Updated status of the asset (active, inactive, pending)
+	// Updated status of the asset
+	// required: false
 	Status Status `json:"status"`
 
-	// Updated or additional custom attributes for the asset
-	// Keys max length: 100 characters, Values max length: 2000 characters
+	// Updated custom key-value pairs for extending the asset information
+	// required: false
+	// example: {"country": "United States", "symbol": "$", "isoNumeric": "840", "updated": true}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} //	@name	UpdateAssetInput
-// @example {
-//   "name": "US Dollar Updated",
-//   "status": {
-//     "code": "ACTIVE"
-//   },
-//   "metadata": {
-//     "country": "United States",
-//     "symbol": "$",
-//     "isoNumeric": "840",
-//     "updated": true
-//   }
-// }
+} // @name UpdateAssetInput
 
 // Asset is a struct designed to encapsulate payload data.
 //
 // swagger:model Asset
+// @Description Complete asset entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for asset operations. Assets represent financial instruments within a ledger, such as currencies, cryptocurrencies, commodities, or other value units.
 //
-//	@Description	Asset represents a financial instrument within a ledger, such as a currency, cryptocurrency, commodity, or other asset type.
+//	@example {
+//	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//	  "name": "US Dollar",
+//	  "type": "currency",
+//	  "code": "USD",
+//	  "status": {
+//	    "code": "ACTIVE"
+//	  },
+//	  "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
+//	  "organizationId": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
+//	  "createdAt": "2022-04-15T09:30:00Z",
+//	  "updatedAt": "2022-04-15T09:30:00Z",
+//	  "metadata": {
+//	    "country": "United States",
+//	    "symbol": "$",
+//	    "isoNumeric": "840"
+//	  }
+//	}
 type Asset struct {
 	// Unique identifier for the asset (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Name of the asset (max length 256 characters)
+	// Human-readable name of the asset
+	// example: US Dollar
+	// maxLength: 256
 	Name string `json:"name" example:"US Dollar" maxLength:"256"`
 
-	// Type of the asset (e.g., currency, cryptocurrency, commodity, stock)
+	// Type classification of the asset (e.g., currency, cryptocurrency, commodity, stock)
+	// example: currency
 	Type string `json:"type" example:"currency"`
 
-	// Unique code/symbol for the asset (max length 100 characters)
+	// Unique code/symbol for the asset (e.g., USD, BTC, GOLD)
+	// example: USD
+	// maxLength: 100
 	Code string `json:"code" example:"USD" maxLength:"100"`
 
-	// Status of the asset (active, inactive, pending)
+	// Current operating status of the asset
 	Status Status `json:"status"`
 
 	// ID of the ledger this asset belongs to (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// ID of the organization that owns this asset (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Timestamp when the asset was created
+	// Timestamp when the asset was created (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the asset was last updated
+	// Timestamp when the asset was last updated (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the asset was deleted (null if not deleted)
+	// Timestamp when the asset was soft deleted, null if not deleted (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes for the asset
+	// Custom key-value pairs for extending the asset information
+	// example: {"country": "United States", "symbol": "$", "isoNumeric": "840"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	Asset
+} // @name Asset
 
 // Assets struct to return get all.
 //
 // swagger:model Assets
+// @Description Paginated list of assets with metadata about the current page, limit, and the asset items themselves. Used for list operations.
 //
-//	@Description	Assets represents a paginated collection of asset records returned by list operations.
+//	@example {
+//	  "items": [
+//	    {
+//	      "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//	      "name": "US Dollar",
+//	      "code": "USD",
+//	      "type": "currency",
+//	      "status": {
+//	        "code": "ACTIVE"
+//	      },
+//	      "createdAt": "2022-04-15T09:30:00Z",
+//	      "updatedAt": "2022-04-15T09:30:00Z"
+//	    },
+//	    {
+//	      "id": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
+//	      "name": "Bitcoin",
+//	      "code": "BTC",
+//	      "type": "cryptocurrency",
+//	      "status": {
+//	        "code": "ACTIVE"
+//	      },
+//	      "createdAt": "2022-04-16T10:15:00Z",
+//	      "updatedAt": "2022-04-16T10:15:00Z"
+//	    }
+//	  ],
+//	  "page": 1,
+//	  "limit": 10
+//	}
 type Assets struct {
-	// Array of asset records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"US Dollar","code":"USD","type":"currency"}]
+	// Array of asset records returned in this page
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"US Dollar","code":"USD","type":"currency","status":{"code":"ACTIVE"}}]
 	Items []Asset `json:"items"`
 
-	// Current page number
+	// Current page number in the pagination
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
@@ -125,7 +206,7 @@ type Assets struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} //	@name	Assets
+} // @name Assets
 
 // AssetResponse represents a success response containing a single asset.
 //

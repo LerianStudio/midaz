@@ -6,11 +6,24 @@ import "time"
 //
 // swagger:model CreateLedgerInput
 // @Description Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.
+//
+//	@example {
+//	  "name": "Treasury Operations",
+//	  "status": {
+//	    "code": "ACTIVE"
+//	  },
+//	  "metadata": {
+//	    "department": "Finance",
+//	    "currency": "USD",
+//	    "region": "North America"
+//	  }
+//	}
 type CreateLedgerInput struct {
 	// Display name of the ledger
 	// required: true
+	// example: Treasury Operations
 	// maxLength: 256
-	Name string `json:"name" validate:"required,max=256" maxLength:"256"`
+	Name string `json:"name" validate:"required,max=256" example:"Treasury Operations" maxLength:"256"`
 
 	// Current operating status of the ledger (defaults to ACTIVE if not specified)
 	// required: false

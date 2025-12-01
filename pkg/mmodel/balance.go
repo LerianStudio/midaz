@@ -15,23 +15,45 @@ import (
 //
 // swagger:model Balance
 // @Description Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.
+//
+//	@example {
+//	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//	  "organizationId": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
+//	  "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
+//	  "accountId": "d4e5f6a1-b2c3-7890-defg-4567890123ef",
+//	  "alias": "@treasury_main",
+//	  "key": "default",
+//	  "assetCode": "USD",
+//	  "available": "15000.00",
+//	  "onHold": "500.00",
+//	  "version": 1,
+//	  "accountType": "deposit",
+//	  "allowSending": true,
+//	  "allowReceiving": true,
+//	  "createdAt": "2022-04-15T09:30:00Z",
+//	  "updatedAt": "2022-04-15T09:30:00Z",
+//	  "metadata": {
+//	    "purpose": "Main treasury balance",
+//	    "category": "Operations"
+//	  }
+//	}
 type Balance struct {
 	// Unique identifier for the balance (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Organization that owns this balance
+	// ID of the organization that owns this balance (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Ledger containing the account this balance belongs to
+	// ID of the ledger containing the account this balance belongs to (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Account that holds this balance
+	// ID of the account that holds this balance (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
@@ -41,10 +63,10 @@ type Balance struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
-	// Unique key for the balance
-	// example: asset-freeze
+	// Unique key for the balance within the account (e.g., default, asset-freeze)
+	// example: default
 	// maxLength: 100
-	Key string `json:"key" example:"asset-freeze" maxLength:"100"`
+	Key string `json:"key" example:"default" maxLength:"100"`
 
 	// Asset code identifying the currency or asset type of this balance
 	// example: USD
@@ -52,25 +74,25 @@ type Balance struct {
 	// maxLength: 10
 	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
 
-	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
-	// example: 1500
+	// Amount available for transactions (decimal string representation)
+	// example: 1500.00
 	// minimum: 0
 	Available decimal.Decimal `json:"available" swaggertype:"string" example:"1500.00" minimum:"0"`
 
-	// Amount currently on hold and unavailable for transactions
-	// example: 500
+	// Amount currently on hold and unavailable for transactions (decimal string representation)
+	// example: 500.00
 	// minimum: 0
 	OnHold decimal.Decimal `json:"onHold" swaggertype:"string" example:"500.00" minimum:"0"`
 
-	// Optimistic concurrency control version
+	// Optimistic concurrency control version number
 	// example: 1
 	// minimum: 1
 	Version int64 `json:"version" example:"1" minimum:"1"`
 
-	// Type of account holding this balance
-	// example: creditCard
+	// Type classification of the account holding this balance
+	// example: deposit
 	// maxLength: 50
-	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
+	AccountType string `json:"accountType" example:"deposit" maxLength:"50"`
 
 	// Whether the account can send funds from this balance
 	// example: true
@@ -90,8 +112,8 @@ type Balance struct {
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
-	// example: null
+	// Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
@@ -103,13 +125,20 @@ type Balance struct {
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
 //
 // swagger:model CreateAdditionalBalance
-// @Description Request payload for creating a new balance with specified permissions and custom key.
+// @Description Request payload for creating a new additional balance with specified permissions and custom key. Additional balances allow accounts to hold multiple balances with different purposes (e.g., frozen funds, reserved amounts).
+//
+//	@example {
+//	  "key": "asset-freeze",
+//	  "allowSending": false,
+//	  "allowReceiving": true
+//	}
 type CreateAdditionalBalance struct {
-	// Unique key for the balance
+	// Unique key identifier for the balance within the account
 	// required: true
-	// maxLength: 100
 	// example: asset-freeze
-	Key string `json:"key" validate:"required,nowhitespaces,max=100" example:"asset-freeze"`
+	// maxLength: 100
+	Key string `json:"key" validate:"required,nowhitespaces,max=100" example:"asset-freeze" maxLength:"100"`
+
 	// Whether the account should be allowed to send funds from this balance
 	// required: false
 	// example: true
@@ -125,6 +154,11 @@ type CreateAdditionalBalance struct {
 //
 // swagger:model UpdateBalance
 // @Description Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+//
+//	@example {
+//	  "allowSending": true,
+//	  "allowReceiving": false
+//	}
 type UpdateBalance struct {
 	// Whether the account should be allowed to send funds from this balance
 	// required: false
