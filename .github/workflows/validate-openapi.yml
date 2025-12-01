@@ -1,0 +1,128 @@
+name: "Validate OpenAPI Specs"
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'components/*/internal/adapters/http/in/*.go'
+      - 'components/*/cmd/app/main.go'
+      - 'pkg/mmodel/*.go'
+      - 'scripts/lint-swag-comments.sh'
+      - 'scripts/validate-openapi.sh'
+      - '.spectral.yaml'
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint-swag-comments:
+    name: Lint Swag Comments
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint swag comments
+        run: ./scripts/lint-swag-comments.sh
+        continue-on-error: true
+
+  generate-and-validate:
+    name: Generate and Validate OpenAPI Specs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Generate OpenAPI specs
+        run: |
+          echo "Generating OpenAPI specs for onboarding..."
+          cd components/onboarding
+          swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+          cd ../..
+
+          echo "Generating OpenAPI specs for transaction..."
+          cd components/transaction
+          swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+          cd ../..
+
+      - name: Validate OpenAPI specs with Spectral
+        run: |
+          echo "Validating onboarding API spec..."
+          if [ -f "components/onboarding/api/swagger.json" ]; then
+            spectral lint components/onboarding/api/swagger.json --format stylish --ruleset .spectral.yaml || true
+          fi
+
+          echo "Validating transaction API spec..."
+          if [ -f "components/transaction/api/swagger.json" ]; then
+            spectral lint components/transaction/api/swagger.json --format stylish --ruleset .spectral.yaml || true
+          fi
+
+      - name: Check for spec generation errors
+        run: |
+          # Verify specs were generated
+          if [ ! -f "components/onboarding/api/swagger.json" ]; then
+            echo "ERROR: Onboarding swagger.json was not generated"
+            exit 1
+          fi
+
+          if [ ! -f "components/transaction/api/swagger.json" ]; then
+            echo "ERROR: Transaction swagger.json was not generated"
+            exit 1
+          fi
+
+          echo "All OpenAPI specs generated successfully"
+
+      - name: Upload OpenAPI specs as artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi-specs
+          path: |
+            components/*/api/swagger.json
+            components/*/api/swagger.yaml
+          retention-days: 7
+
+  summary:
+    name: OpenAPI Validation Summary
+    needs: [lint-swag-comments, generate-and-validate]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Report status
+        run: |
+          echo "## OpenAPI Validation Summary"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          echo "| Swag Comment Linting | ${{ needs.lint-swag-comments.result }} |"
+          echo "| OpenAPI Generation & Validation | ${{ needs.generate-and-validate.result }} |"
+          echo ""
+
+          if [[ "${{ needs.generate-and-validate.result }}" == "failure" ]]; then
+            echo "OpenAPI validation failed. Please check the workflow logs."
+            exit 1
+          fi
+
+          echo "All OpenAPI validations completed!"
