@@ -1,8 +1,6 @@
 module github.com/LerianStudio/midaz/v3
 
-go 1.24.2
-
-toolchain go1.25.1
+go 1.25.3
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -103,6 +101,8 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
+require github.com/lerianstudio/monorepo v0.0.0-00010101000000-000000000000
+
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -137,3 +137,5 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
+
+replace github.com/lerianstudio/monorepo => ../..

@@ -7,19 +7,23 @@
     "convert": "node ./convert-openapi.js",
     "workflow": "node ./create-workflow.js",
     "enhance": "node ./enhance-tests.js",
+    "merge-openapi": "cd ../.. && bash scripts/merge-openapi.sh",
     "test:collection": "cd ../.. && make newman",
     "test:collection:verbose": "cd ../.. && newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder \"Complete API Workflow\" --verbose",
     "validate:collection": "cd ../.. && jq . postman/MIDAZ.postman_collection.json > /dev/null && echo 'Collection JSON is valid'",
     "validate:environment": "cd ../.. && jq . postman/MIDAZ.postman_environment.json > /dev/null && echo 'Environment JSON is valid'",
+    "validate:openapi": "npx @stoplight/spectral-cli lint ../../api/midaz-unified.yaml",
     "validate:all": "npm run validate:collection && npm run validate:environment",
     "docs:generate": "cd ../.. && make generate-docs",
     "setup": "cd ../.. && bash scripts/setup-deps.sh"
   },
   "dependencies": {
     "js-yaml": "^4.1.1",
+    "openapi-merge-cli": "^1.3.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@stoplight/spectral-cli": "^6.11.1",
     "commander": "^9.4.1"
   },
   "engines": {
