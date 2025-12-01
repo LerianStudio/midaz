@@ -138,6 +138,14 @@ help:
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
+	@echo "  make lint-swag                   - Lint Swag comments in HTTP handlers"
+	@echo "  make validate-openapi            - Validate generated OpenAPI specifications"
+	@echo "  make validate-openapi-install    - Validate OpenAPI specs (install Spectral if needed)"
+	@echo "  make docs-check                  - Run all documentation quality checks"
+	@echo "  make generate-sdk-samples        - Generate SDK samples from OpenAPI (Go)"
+	@echo "  make generate-sdk-samples-all    - Generate SDK samples for all languages"
+	@echo "  make install-swag-hooks          - Install swag linting pre-commit hook"
+	@echo "  make uninstall-swag-hooks        - Uninstall swag linting pre-commit hook"
 	@echo ""
 	@echo ""
 	@echo "API Testing Commands:"
@@ -531,6 +539,49 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
+
+#-------------------------------------------------------
+# OpenAPI Documentation Quality Commands
+#-------------------------------------------------------
+
+.PHONY: lint-swag
+lint-swag:
+	$(call print_title,"Linting Swag comments in handlers")
+	@./scripts/lint-swag-comments.sh
+
+.PHONY: validate-openapi
+validate-openapi:
+	$(call print_title,"Validating OpenAPI specifications")
+	@./scripts/validate-openapi.sh
+
+.PHONY: validate-openapi-install
+validate-openapi-install:
+	$(call print_title,"Validating OpenAPI specifications (with dependency install)")
+	@./scripts/validate-openapi.sh --install-deps
+
+.PHONY: docs-check
+docs-check: lint-swag validate-openapi
+	@echo "[ok] All documentation checks passed"
+
+.PHONY: generate-sdk-samples
+generate-sdk-samples:
+	$(call print_title,"Generating SDK samples from OpenAPI specs")
+	@./scripts/generate-sdk-samples.sh
+
+.PHONY: generate-sdk-samples-all
+generate-sdk-samples-all:
+	$(call print_title,"Generating SDK samples for all languages")
+	@./scripts/generate-sdk-samples.sh --all
+
+.PHONY: install-swag-hooks
+install-swag-hooks:
+	$(call print_title,"Installing swag pre-commit hooks")
+	@./scripts/install-swag-hooks.sh
+
+.PHONY: uninstall-swag-hooks
+uninstall-swag-hooks:
+	$(call print_title,"Uninstalling swag pre-commit hooks")
+	@./scripts/install-swag-hooks.sh --uninstall
 
 #-------------------------------------------------------
 # Newman / API Testing Commands

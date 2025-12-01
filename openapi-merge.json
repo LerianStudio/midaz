@@ -1,0 +1,32 @@
+{
+  "inputs": [
+    {
+      "inputFile": "./components/onboarding/api/openapi.yaml",
+      "operationSelection": {
+        "includeTags": [
+          "Organizations",
+          "Ledgers",
+          "Assets",
+          "Portfolios",
+          "Segments",
+          "Accounts",
+          "Account Types"
+        ]
+      }
+    },
+    {
+      "inputFile": "./components/transaction/api/openapi.yaml",
+      "operationSelection": {
+        "includeTags": [
+          "Transactions",
+          "Operations",
+          "Balances",
+          "Asset Rates",
+          "Operation Route",
+          "Transaction Route"
+        ]
+      }
+    }
+  ],
+  "output": "./api/midaz-unified.yaml"
+}

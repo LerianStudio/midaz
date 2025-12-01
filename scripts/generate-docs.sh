@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 print_header() {
     echo ""
     echo -e "${BLUE}=================================================${NC}"
-    echo -e "${BLUE}  📝 $1${NC}"
+    echo -e "${BLUE}  $1${NC}"
     echo -e "${BLUE}=================================================${NC}"
     echo ""
 }
@@ -37,11 +37,11 @@ print_step() {
     local time_taken="${3:-}"
     
     if [ "$status" = "SUCCESS" ]; then
-        echo -e "    ${GREEN}✅ ${step_name}${time_taken:+ (${time_taken}s)}${NC}"
+        echo -e "    ${GREEN}[ok] ${step_name}${time_taken:+ (${time_taken}s)}${NC}"
     elif [ "$status" = "FAILED" ]; then
-        echo -e "    ${RED}❌ ${step_name} - FAILED${NC}"
+        echo -e "    ${RED}[error] ${step_name} - FAILED${NC}"
     else
-        echo -e "    ${YELLOW}⏳ ${step_name}...${NC}"
+        echo -e "    ${YELLOW}[...] ${step_name}...${NC}"
     fi
 }
 
@@ -119,12 +119,36 @@ convert_to_postman() {
     fi
 }
 
+# Generate unified OpenAPI specification
+generate_unified_openapi() {
+    print_step "Generating unified OpenAPI specification" "PROCESSING"
+    
+    local merge_out="${LOG_DIR}/merge.out"
+    local merge_err="${LOG_DIR}/merge.err"
+    local start_time=$(date +%s.%N)
+    
+    if "${ROOT_DIR}/scripts/merge-openapi.sh" > "${merge_out}" 2> "${merge_err}"; then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Generated unified OpenAPI specification" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Generate unified OpenAPI specification" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -10 "${merge_err}" 2>/dev/null | sed 's/^/        /' || true
+        return 1
+    fi
+}
+
 # Verify outputs
 verify_outputs() {
     print_step "Verifying generated files" "PROCESSING"
     
     local collection_file="${ROOT_DIR}/postman/MIDAZ.postman_collection.json"
     local environment_file="${ROOT_DIR}/postman/MIDAZ.postman_environment.json"
+    local unified_spec="${ROOT_DIR}/api/midaz-unified.yaml"
+    
+    local all_found=true
     
     if [ -f "${collection_file}" ] && [ -f "${environment_file}" ]; then
         # Check if collection has content
@@ -132,9 +156,21 @@ verify_outputs() {
         local env_vars_count=$(jq '.values | length' "${environment_file}" 2>/dev/null || echo "0")
         
         print_step "Generated collection with ${request_count} folders and ${env_vars_count} environment variables" "SUCCESS"
+    else
+        print_step "Verify Postman collection files" "FAILED"
+        all_found=false
+    fi
+    
+    if [ -f "${unified_spec}" ]; then
+        print_step "Unified OpenAPI spec exists" "SUCCESS"
+    else
+        print_step "Verify unified OpenAPI spec" "FAILED"
+        all_found=false
+    fi
+    
+    if [ "$all_found" = true ]; then
         return 0
     else
-        print_step "Verify generated files" "FAILED"
         return 1
     fi
 }
@@ -163,6 +199,14 @@ main() {
         fi
     fi
     
+    # Generate unified OpenAPI specification
+    if [ "$overall_success" = true ]; then
+        if ! generate_unified_openapi; then
+            # Non-fatal: unified spec generation failure should not block the rest
+            echo -e "    ${YELLOW}[warn] Unified OpenAPI spec generation failed, continuing...${NC}"
+        fi
+    fi
+    
     # Verify outputs
     if [ "$overall_success" = true ]; then
         if ! verify_outputs; then
@@ -173,12 +217,13 @@ main() {
     # Final status
     echo ""
     if [ "$overall_success" = true ]; then
-        echo -e "${GREEN}🎉 Documentation generation completed successfully!${NC}"
-        echo -e "   📄 Collection: postman/MIDAZ.postman_collection.json"
-        echo -e "   🌍 Environment: postman/MIDAZ.postman_environment.json"
+        echo -e "${GREEN}Documentation generation completed successfully!${NC}"
+        echo -e "   Collection: postman/MIDAZ.postman_collection.json"
+        echo -e "   Environment: postman/MIDAZ.postman_environment.json"
+        echo -e "   Unified API: api/midaz-unified.yaml"
     else
-        echo -e "${RED}❌ Documentation generation failed.${NC}"
-        echo -e "   📋 Check logs in: ${LOG_DIR}/"
+        echo -e "${RED}Documentation generation failed.${NC}"
+        echo -e "   Check logs in: ${LOG_DIR}/"
         exit 1
     fi
     

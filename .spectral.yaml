@@ -1,0 +1,83 @@
+# Spectral OpenAPI Linting Rules
+# https://meta.stoplight.io/docs/spectral/
+
+# Extend the default OpenAPI ruleset
+extends: [[spectral:oas, all]]
+
+# Custom rules and severity overrides
+rules:
+  # ============================================
+  # ERRORS - Must fix before merging
+  # ============================================
+
+  # Every operation must have an operationId
+  operation-operationId: error
+
+  # Every operation must have a summary
+  operation-summary: error
+
+  # Every operation must have at least one tag
+  operation-tags: error
+
+  # Tags used in operations must be defined in the global tags section
+  operation-tag-defined: error
+
+  # API must have a description
+  info-description: error
+
+  # Responses must have descriptions
+  oas3-valid-media-example: error
+  oas2-valid-media-example: error
+
+  # ============================================
+  # WARNINGS - Should fix, but not blocking
+  # ============================================
+
+  # Operations should have descriptions (more detail than summary)
+  operation-description: warn
+
+  # Contact information is recommended
+  info-contact: warn
+
+  # License information is recommended
+  info-license: warn
+
+  # $ref siblings are discouraged
+  no-$ref-siblings: warn
+
+  # Path parameters should have descriptions
+  path-params: warn
+
+  # Operation IDs should be unique across the entire spec
+  operation-operationId-unique: error
+
+  # Success responses should define content
+  operation-success-response: warn
+
+  # ============================================
+  # TURNED OFF - Too noisy for this project
+  # ============================================
+
+  # We use examples inline, not in separate example field
+  oas3-unused-component: off
+
+  # Our models may have additional properties
+  oas3-schema: warn
+
+  # Response codes - we handle this in code review
+  operation-2xx-response: off
+
+  # Security definitions are complex in our setup
+  oas3-operation-security-defined: warn
+  oas2-operation-security-defined: warn
+
+  # Allow kebab-case in paths (our convention)
+  path-keys-no-trailing-slash: error
+  path-not-include-query: error
+
+# Override severity for specific paths if needed
+# overrides:
+#   - files:
+#       - "components/*/api/**"
+#     rules:
+#       operation-description: off
