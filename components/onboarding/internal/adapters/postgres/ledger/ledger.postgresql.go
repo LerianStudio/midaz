@@ -24,8 +24,35 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to ledger entities.
-// It defines methods for creating, finding, updating, and deleting ledgers in the database.
+// Repository provides an interface for ledger persistence operations.
+//
+// This interface defines the contract for ledger CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - Organization scoping: All operations require organizationID for multi-tenant isolation
+//   - Name uniqueness: FindByName validates names within organization scope
+//   - Soft delete: Delete marks records, preserving audit trail
+//   - Batch operations: ListByIDs for efficient bulk lookups
+//   - Count operations: For pagination and dashboard metrics
+//
+// Usage:
+//
+//	repo := ledger.NewLedgerPostgreSQLRepository(connection)
+//	led, err := repo.Create(ctx, &ledger)
+//	found, err := repo.Find(ctx, orgID, ledgerID)
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
+//
+// Observability:
+//
+// All methods create OpenTelemetry spans for distributed tracing.
+// Span names follow the pattern: postgres.<operation>_ledger
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
@@ -37,13 +64,58 @@ type Repository interface {
 	Count(ctx context.Context, organizationID uuid.UUID) (int64, error)
 }
 
-// LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
+// LedgerPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides ledger persistence using PostgreSQL as the backing store.
+// It implements the hexagonal architecture pattern by adapting the domain Repository
+// interface to PostgreSQL-specific operations.
+//
+// Connection Management:
+//
+// The repository uses a shared PostgresConnection from lib-commons which provides:
+//   - Connection pooling
+//   - Automatic reconnection
+//   - Health checks
+//
+// Lifecycle:
+//
+//	conn := libPostgres.NewPostgresConnection(cfg)
+//	repo := ledger.NewLedgerPostgreSQLRepository(conn)
+//	// Use repository...
+//	// Connection cleanup handled by PostgresConnection
+//
+// Thread Safety:
+//
+// LedgerPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("ledger")
 type LedgerPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewLedgerPostgreSQLRepository returns a new instance of LedgerPostgresRepository using the given Postgres connection.
+// NewLedgerPostgreSQLRepository creates a new LedgerPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Initialization Process:
+//  1. Store connection reference
+//  2. Set table name to "ledger"
+//  3. Verify connectivity by calling GetDB
+//  4. Panic if connection fails (fail-fast startup)
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *LedgerPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
 func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPostgreSQLRepository {
 	c := &LedgerPostgreSQLRepository{
 		connection: pc,

@@ -22,8 +22,35 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Repository provides an interface for operations related to account entities.
-// It defines methods for creating, retrieving, updating, and deleting accounts in the database.
+// Repository provides an interface for account persistence operations.
+//
+// This interface defines the contract for account CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - Multi-tenant scoping: All operations require organizationID and ledgerID
+//   - Optional portfolio: Many operations accept optional portfolioID for sub-scoping
+//   - Soft delete: Delete marks records, FindWithDeleted retrieves them
+//   - Alias support: Human-readable alternative to UUIDs
+//   - Batch operations: ListByIDs, ListByAlias for efficient bulk lookups
+//
+// Usage:
+//
+//	repo := account.NewAccountPostgreSQLRepository(connection)
+//	acc, err := repo.Create(ctx, &account)
+//	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
+//
+// Observability:
+//
+// All methods create OpenTelemetry spans for distributed tracing.
+// Span names follow the pattern: postgres.<operation>_account
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
@@ -40,13 +67,73 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
+// AccountPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides account persistence using PostgreSQL as the backing store.
+// It implements the hexagonal architecture pattern by adapting the domain Repository
+// interface to PostgreSQL-specific operations using Squirrel query builder.
+//
+// Connection Management:
+//
+// The repository uses a shared PostgresConnection from lib-commons which provides:
+//   - Connection pooling
+//   - Automatic reconnection
+//   - Health checks
+//
+// Query Building:
+//
+// Uses Squirrel for type-safe SQL query construction:
+//   - Prevents SQL injection
+//   - Handles parameter placeholders ($1, $2, etc.)
+//   - Supports dynamic WHERE clause building
+//
+// Lifecycle:
+//
+//	conn := libPostgres.NewPostgresConnection(cfg)
+//	repo := account.NewAccountPostgreSQLRepository(conn)
+//	// Use repository...
+//	// Connection cleanup handled by PostgresConnection
+//
+// Thread Safety:
+//
+// AccountPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("account")
 type AccountPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
+// NewAccountPostgreSQLRepository creates a new AccountPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Initialization Process:
+//  1. Store connection reference
+//  2. Set table name to "account"
+//  3. Verify connectivity by calling GetDB
+//  4. Panic if connection fails (fail-fast startup)
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *AccountPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
+//
+// Why Panic on Failure:
+//
+// This is intentional fail-fast behavior. If PostgreSQL is unavailable at startup,
+// the application cannot function correctly. Panicking here ensures:
+//   - Clear failure mode during deployment
+//   - No silent degradation
+//   - Immediate alerting in orchestration systems
 func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
@@ -61,7 +148,31 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 	return c
 }
 
-// Create a new account entity into Postgresql and returns it.
+// Create inserts a new account entity into PostgreSQL.
+//
+// This method persists a new account with full validation and constraint checking.
+// It uses UUID v7 for time-ordered, globally unique identifiers.
+//
+// Operation Process:
+//  1. Start OpenTelemetry span for tracing
+//  2. Get database connection from pool
+//  3. Convert domain model to PostgreSQL model
+//  4. Build INSERT query with Squirrel
+//  5. Execute query and validate rows affected
+//
+// Parameters:
+//   - ctx: Context with tracing and logging (must not be nil)
+//   - acc: Account domain model to persist
+//
+// Returns:
+//   - *mmodel.Account: Created account with generated ID
+//   - error: Validation, constraint, or database error
+//
+// Error Scenarios:
+//   - ErrEntityNotFound: Insert affected 0 rows (unexpected)
+//   - ErrDuplicateAlias: Alias already exists in ledger
+//   - ErrForeignKeyViolation: Invalid organization/ledger/portfolio reference
+//   - Connection errors
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

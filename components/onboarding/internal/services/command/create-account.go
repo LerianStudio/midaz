@@ -1,3 +1,4 @@
+// Package command provides CQRS command handlers for the onboarding component.
 package command
 
 import (
@@ -18,7 +19,60 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAccountSync creates an account and metadata, then synchronously creates the default balance via gRPC.
+// CreateAccount creates an account with its default balance in a single synchronous operation.
+//
+// This command implements the complete account creation flow, ensuring that every account
+// has a corresponding balance record. The operation uses gRPC to communicate with the
+// transaction component for balance creation.
+//
+// Account Creation Process:
+//
+//	Step 1: Apply accounting validations (account type exists if validation enabled)
+//	Step 2: Validate asset code exists in the ledger
+//	Step 3: Resolve portfolio and entity relationships
+//	Step 4: Validate parent account (if specified) has matching asset code
+//	Step 5: Generate account ID and resolve alias
+//	Step 6: Create account record in PostgreSQL
+//	Step 7: Create default balance via gRPC to transaction component
+//	Step 8: Compensate (delete account) if balance creation fails
+//	Step 9: Create metadata in MongoDB (if provided)
+//
+// Why Synchronous Balance Creation:
+//
+// Accounts without balances are invalid in a double-entry ledger. Using synchronous
+// gRPC ensures atomicity between account and balance creation. If balance creation
+// fails, the account is deleted as compensation.
+//
+// Compensation Pattern:
+//
+// If the gRPC call to create the balance fails, the newly created account is deleted
+// to maintain consistency. This implements a manual saga pattern without distributed
+// transaction coordination.
+//
+// Parameters:
+//   - ctx: Context with tracing and cancellation
+//   - organizationID: Organization UUID (parent of ledger)
+//   - ledgerID: Ledger UUID (parent of account)
+//   - cai: Account creation input (name, alias, type, asset, etc.)
+//   - token: JWT token for gRPC authentication
+//
+// Returns:
+//   - *mmodel.Account: Created account with metadata
+//   - error: Validation errors, database errors, or gRPC errors
+//
+// Error Scenarios:
+//   - ErrAssetCodeNotFound: Asset code does not exist in the ledger
+//   - ErrInvalidParentAccountID: Parent account not found
+//   - ErrMismatchedAssetCode: Parent account has different asset code
+//   - ErrAccountCreationFailed: Balance creation via gRPC failed
+//
+// Usage:
+//
+//	account, err := uc.CreateAccount(ctx, orgID, ledgerID, &mmodel.CreateAccountInput{
+//	    Name:      "Savings Account",
+//	    AssetCode: "USD",
+//	    Type:      "asset",
+//	}, jwtToken)
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -174,7 +228,22 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 }
 
 // resolveAccountAlias resolves and validates the account alias.
-// Returns provided alias when present and valid; otherwise falls back to generated ID.
+//
+// Alias Resolution Strategy:
+//   - If alias provided and unique: Use the provided alias
+//   - If alias provided but exists: Return conflict error
+//   - If no alias provided: Use the generated account ID as alias
+//
+// Parameters:
+//   - ctx: Context for tracing
+//   - organizationID: Organization UUID
+//   - ledgerID: Ledger UUID
+//   - cai: Account creation input containing optional alias
+//   - generatedID: The generated account UUID to use as fallback
+//
+// Returns:
+//   - *string: The resolved alias (either provided or generated ID)
+//   - error: Conflict error if alias already exists
 func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string) (*string, error) {
 	if !libCommons.IsNilOrEmpty(cai.Alias) {
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
@@ -188,7 +257,18 @@ func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledg
 	return &generatedID, nil
 }
 
-// determineStatus determines the status of the account.
+// determineStatus determines the initial status of a new account.
+//
+// Default Status: ACTIVE if not specified in the input.
+//
+// This allows accounts to be created in different states (e.g., PENDING for
+// accounts requiring approval), while defaulting to operational state.
+//
+// Parameters:
+//   - cai: Account creation input containing optional status
+//
+// Returns:
+//   - mmodel.Status: The determined status (ACTIVE if not specified)
 func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
 	var status mmodel.Status
 	if cai.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cai.Status.Code) {
@@ -204,7 +284,30 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	return status
 }
 
-// applyAccountingValidations applies the accounting validations to the account.
+// applyAccountingValidations validates that the account type is valid for the ledger.
+//
+// Account Type Validation:
+//
+// When enabled via ACCOUNT_TYPE_VALIDATION environment variable, this ensures
+// accounts use only predefined account types from the chart of accounts.
+// This enforces accounting standards compliance.
+//
+// Environment Configuration:
+//
+//	ACCOUNT_TYPE_VALIDATION=<org_id>:<ledger_id>,<org_id>:<ledger_id>,...
+//
+// Bypass Conditions:
+//   - Validation not enabled for the org:ledger pair
+//   - Account type is "external" (external accounts bypass validation)
+//
+// Parameters:
+//   - ctx: Context for tracing
+//   - organizationID: Organization UUID
+//   - ledgerID: Ledger UUID
+//   - key: Account type key to validate
+//
+// Returns:
+//   - error: ErrInvalidAccountType if type not found in chart of accounts
 func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

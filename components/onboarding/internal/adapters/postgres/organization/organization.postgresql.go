@@ -25,8 +25,35 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to organization entities.
-// It defines methods for creating, updating, finding, and deleting organizations.
+// Repository provides an interface for organization persistence operations.
+//
+// This interface defines the contract for organization CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - No multi-tenant scoping: Organizations ARE the tenant root
+//   - Hierarchical support: Parent-child organization relationships
+//   - Soft delete: Delete marks records, preserving audit trail
+//   - Batch operations: ListByIDs for efficient bulk lookups
+//   - Count operations: For pagination and dashboard metrics
+//
+// Usage:
+//
+//	repo := organization.NewOrganizationPostgreSQLRepository(connection)
+//	org, err := repo.Create(ctx, &organization)
+//	found, err := repo.Find(ctx, orgID)
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
+//
+// Observability:
+//
+// All methods create OpenTelemetry spans for distributed tracing.
+// Span names follow the pattern: postgres.<operation>_organization
 type Repository interface {
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
@@ -37,13 +64,65 @@ type Repository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-// OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
+// OrganizationPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides organization persistence using PostgreSQL as the backing store.
+// It implements the hexagonal architecture pattern by adapting the domain Repository
+// interface to PostgreSQL-specific operations.
+//
+// Connection Management:
+//
+// The repository uses a shared PostgresConnection from lib-commons which provides:
+//   - Connection pooling
+//   - Automatic reconnection
+//   - Health checks
+//
+// Address Handling:
+//
+// Organization addresses are stored as JSONB, requiring:
+//   - JSON marshaling on write
+//   - JSON unmarshaling on read
+//   - No schema changes for address format updates
+//
+// Lifecycle:
+//
+//	conn := libPostgres.NewPostgresConnection(cfg)
+//	repo := organization.NewOrganizationPostgreSQLRepository(conn)
+//	// Use repository...
+//	// Connection cleanup handled by PostgresConnection
+//
+// Thread Safety:
+//
+// OrganizationPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("organization")
 type OrganizationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
+// NewOrganizationPostgreSQLRepository creates a new OrganizationPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Initialization Process:
+//  1. Store connection reference
+//  2. Set table name to "organization"
+//  3. Verify connectivity by calling GetDB
+//  4. Panic if connection fails (fail-fast startup)
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *OrganizationPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
 func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
 	c := &OrganizationPostgreSQLRepository{
 		connection: pc,

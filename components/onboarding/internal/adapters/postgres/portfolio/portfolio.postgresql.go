@@ -24,8 +24,27 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to portfolio entities.
-// It defines methods for creating, finding, updating, and deleting portfolios in the database.
+// Repository provides an interface for portfolio persistence operations.
+//
+// This interface defines the contract for portfolio CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - Organization and ledger scoping: All operations require both IDs for multi-tenant isolation
+//   - Entity-based lookup: FindByIDEntity enables customer/holder portfolio retrieval
+//   - Soft delete: Delete marks records, preserving audit trail
+//   - Batch operations: ListByIDs for efficient bulk lookups
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
+//
+// Observability:
+//
+// All methods create OpenTelemetry spans for distributed tracing.
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)
@@ -37,13 +56,38 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
+// PortfolioPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides portfolio persistence using PostgreSQL as the backing store.
+// It implements the hexagonal architecture pattern by adapting the domain Repository
+// interface to PostgreSQL-specific operations.
+//
+// Thread Safety:
+//
+// PortfolioPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("portfolio")
 type PortfolioPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
+// NewPortfolioPostgreSQLRepository creates a new PortfolioPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *PortfolioPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
 func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
 	c := &PortfolioPostgreSQLRepository{
 		connection: pc,

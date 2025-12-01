@@ -24,8 +24,27 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to asset entities.
-// It defines methods for creating, finding, updating, and deleting assets in the database.
+// Repository provides an interface for asset persistence operations.
+//
+// This interface defines the contract for asset CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - Organization and ledger scoping: All operations require both IDs for multi-tenant isolation
+//   - Name/Code uniqueness: FindByNameOrCode validates uniqueness within ledger scope
+//   - Soft delete: Delete marks records, preserving audit trail
+//   - Batch operations: ListByIDs for efficient bulk lookups
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
+//
+// Observability:
+//
+// All methods create OpenTelemetry spans for distributed tracing.
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
@@ -37,13 +56,38 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// AssetPostgreSQLRepository is a Postgresql-specific implementation of the AssetRepository.
+// AssetPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides asset persistence using PostgreSQL as the backing store.
+// It implements the hexagonal architecture pattern by adapting the domain Repository
+// interface to PostgreSQL-specific operations.
+//
+// Thread Safety:
+//
+// AssetPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("asset")
 type AssetPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewAssetPostgreSQLRepository returns a new instance of AssetPostgreSQLRepository using the given Postgres connection.
+// NewAssetPostgreSQLRepository creates a new AssetPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *AssetPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
 func NewAssetPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetPostgreSQLRepository {
 	c := &AssetPostgreSQLRepository{
 		connection: pc,

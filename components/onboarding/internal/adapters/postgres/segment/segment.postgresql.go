@@ -24,8 +24,23 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to segment entities.
-// It defines methods for creating, finding, updating, and deleting segments in the database.
+// Repository provides an interface for segment persistence operations.
+//
+// This interface defines the contract for segment CRUD operations, following
+// the repository pattern from Domain-Driven Design. It abstracts PostgreSQL-specific
+// implementation details from the application layer.
+//
+// Design Decisions:
+//
+//   - Organization and ledger scoping: All operations require both IDs for multi-tenant isolation
+//   - Name uniqueness: FindByName validates names within ledger scope
+//   - Soft delete: Delete marks records, preserving audit trail
+//   - Batch operations: FindByIDs for efficient bulk lookups
+//
+// Thread Safety:
+//
+// All methods are thread-safe. The underlying database driver handles connection
+// pooling and concurrent access.
 type Repository interface {
 	Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
@@ -37,13 +52,36 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// SegmentPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
+// SegmentPostgreSQLRepository is the PostgreSQL implementation of the Repository interface.
+//
+// This repository provides segment persistence using PostgreSQL as the backing store.
+//
+// Thread Safety:
+//
+// SegmentPostgreSQLRepository is thread-safe after initialization.
+//
+// Fields:
+//   - connection: Shared PostgreSQL connection (manages pool and lifecycle)
+//   - tableName: Database table name ("segment")
 type SegmentPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
-// NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
+// NewSegmentPostgreSQLRepository creates a new SegmentPostgreSQLRepository instance.
+//
+// This constructor initializes the repository with a PostgreSQL connection and
+// validates connectivity before returning. It panics on connection failure
+// to fail fast during application startup.
+//
+// Parameters:
+//   - pc: Configured PostgreSQL connection from lib-commons
+//
+// Returns:
+//   - *SegmentPostgreSQLRepository: Initialized repository ready for use
+//
+// Panics:
+//   - "Failed to connect database": Connection verification failed
 func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
 	c := &SegmentPostgreSQLRepository{
 		connection: pc,
