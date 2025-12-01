@@ -35,6 +35,7 @@ type SegmentHandler struct {
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
 //	@Param			segment			body		mmodel.CreateSegmentInput	true	"Segment details including name, status, and optional metadata"
 //	@Success		201				{object}	mmodel.Segment				"Successfully created segment"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-ghij-7890123456hi","name":"Retail Banking","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
@@ -92,6 +93,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter segments created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Segment,page=int,limit=int}	"Successfully retrieved segments list"
+//	@Example		response		{"items":[{"id":"a1b2c3d4-e5f6-7890-ghij-7890123456hi","name":"Retail Banking","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -184,6 +186,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Segment ID in UUID format"
 //	@Success		200				{object}	mmodel.Segment	"Successfully retrieved segment"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-ghij-7890123456hi","name":"Retail Banking","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"
@@ -231,6 +234,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 //	@Param			id				path		string						true	"Segment ID in UUID format"
 //	@Param			segment			body		mmodel.UpdateSegmentInput	true	"Segment properties to update including name, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Segment				"Successfully updated segment"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-ghij-7890123456hi","name":"Updated Retail Banking","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"

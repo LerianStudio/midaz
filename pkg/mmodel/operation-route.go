@@ -12,11 +12,11 @@ import (
 // @Description OperationRoute object
 type OperationRoute struct {
 	// The unique identifier of the Operation Route.
-	ID uuid.UUID `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	ID uuid.UUID `json:"id,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// The unique identifier of the Organization.
-	OrganizationID uuid.UUID `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID uuid.UUID `json:"organizationId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// The unique identifier of the Ledger.
-	LedgerID uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID uuid.UUID `json:"ledgerId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
 	Title string `json:"title,omitempty" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.

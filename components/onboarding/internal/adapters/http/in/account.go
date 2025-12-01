@@ -35,6 +35,7 @@ type AccountHandler struct {
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
 //	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata"
 //	@Success		201				{object}	mmodel.Account				"Successfully created account"
+//	@Example		response		{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"Operating Account","assetCode":"USD","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@operating","type":"deposit","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
@@ -101,6 +102,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}	"Successfully retrieved accounts list"
+//	@Example		response		{"items":[{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"Operating Account","assetCode":"USD","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@operating","type":"deposit","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -199,6 +201,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Account ID in UUID format"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Example		response		{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"Operating Account","assetCode":"USD","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@operating","type":"deposit","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
@@ -244,6 +247,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			code			path		string	true	"Account External Code (e.g. BRL)"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Example		response		{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"External BRL Account","assetCode":"BRL","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@external/BRL","type":"external","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
@@ -291,6 +295,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			alias			path		string	true	"Account alias (e.g. @person1)"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Example		response		{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"User Account","assetCode":"USD","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@person1","type":"deposit","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
@@ -338,6 +343,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Param			id				path		string						true	"Account ID in UUID format"
 //	@Param			account			body		mmodel.UpdateAccountInput	true	"Account properties to update including name, status, portfolio, segment, and optional metadata"
 //	@Success		200				{object}	mmodel.Account				"Successfully updated account"
+//	@Example		response		{"id":"c3d4e5f6-a1b2-7890-cdef-3456789012de","name":"Updated Operating Account","assetCode":"USD","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"alias":"@operating","type":"deposit","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"

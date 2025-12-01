@@ -36,6 +36,7 @@ type OrganizationHandler struct {
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization details including legal name, legal document, and optional address information"
 //	@Success		201				{object}	mmodel.Organization				"Successfully created organization"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","legalName":"Acme Corporation","doingBusinessAs":"Acme Corp","legalDocument":"00.000.000/0001-00","address":{"line1":"123 Main St","city":"New York","state":"NY","country":"US","zipCode":"10001"},"status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
@@ -81,6 +82,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Param			id				path		string							true	"Organization ID in UUID format"
 //	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization fields to update. Only supplied fields will be modified."
 //	@Success		200				{object}	mmodel.Organization				"Successfully updated organization"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","legalName":"Updated Acme Corporation","doingBusinessAs":"Acme Corp","legalDocument":"00.000.000/0001-00","address":{"line1":"123 Main St","city":"New York","state":"NY","country":"US","zipCode":"10001"},"status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
@@ -139,6 +141,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			id				path		string	true	"Organization ID in UUID format"
 //	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
+//	@Example		response		{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","legalName":"Acme Corporation","doingBusinessAs":"Acme Corp","legalDocument":"00.000.000/0001-00","address":{"line1":"123 Main St","city":"New York","state":"NY","country":"US","zipCode":"10001"},"status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Organization not found"
@@ -184,6 +187,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
+//	@Example		response		{"items":[{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","legalName":"Acme Corporation","doingBusinessAs":"Acme Corp","legalDocument":"00.000.000/0001-00","address":{"line1":"123 Main St","city":"New York","state":"NY","country":"US","zipCode":"10001"},"status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

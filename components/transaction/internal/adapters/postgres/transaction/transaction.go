@@ -290,7 +290,7 @@ type InputDSL struct {
 	// Transaction type identifier
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	TransactionType uuid.UUID `json:"transactionType" format:"uuid"`
+	TransactionType uuid.UUID `json:"transactionType" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Transaction type code for reference
 	// example: PAYMENT
@@ -343,7 +343,7 @@ type Transaction struct {
 	// Transaction amount value in the smallest unit of the asset
 	// example: 1500
 	// minimum: 0
-	Amount *decimal.Decimal `json:"amount" example:"1500" minimum:"0"`
+	Amount *decimal.Decimal `json:"amount" swaggertype:"string" example:"1500.00" minimum:"0"`
 
 	// Asset code for the transaction
 	// example: BRL
@@ -690,7 +690,7 @@ type CreateTransactionInflowInput struct {
 // @Description SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.
 type SendInflow struct {
 	Asset      string                    `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value      decimal.Decimal           `json:"value,omitempty" validate:"required" example:"1000"`
+	Value      decimal.Decimal           `json:"value,omitempty" validate:"required" swaggertype:"string" example:"1000.00"`
 	Distribute libTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
 } // @name SendInflow
 
@@ -896,7 +896,7 @@ type CreateTransactionOutflowInput struct {
 // @Description SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.
 type SendOutflow struct {
 	Asset  string                `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value  decimal.Decimal       `json:"value,omitempty" validate:"required" example:"1000"`
+	Value  decimal.Decimal       `json:"value,omitempty" validate:"required" swaggertype:"string" example:"1000.00"`
 	Source libTransaction.Source `json:"source,omitempty" validate:"required"`
 } // @name SendOutflow
 

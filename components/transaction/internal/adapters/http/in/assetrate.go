@@ -32,6 +32,7 @@ type AssetRateHandler struct {
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
 //	@Success		200				{object}	assetrate.AssetRate
+//	@Example		response	{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -86,6 +87,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			external_id		path		string	true	"External ID"
 //	@Success		200				{object}	assetrate.AssetRate
+//	@Example		response	{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset rate not found"
@@ -139,6 +141,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
 //	@Param			cursor			query		string		false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"ar123456-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","externalId":"USDBRL-2024","from":"USD","to":"BRL","rate":"5.25","scale":2,"source":"Central Bank","ttl":3600,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6ImFyMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

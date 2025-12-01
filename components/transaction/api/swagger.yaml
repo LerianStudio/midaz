@@ -1,5 +1,7 @@
 basePath: /
 definitions:
+  AccountRule:
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -9,9 +11,8 @@ definitions:
           The amount value in the smallest unit of the asset (e.g., cents)
           example: 1500
           minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+        example: "1500.00"
+        type: string
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
@@ -132,17 +133,15 @@ definitions:
           Amount available for transactions (in the smallest unit of asset)
           example: 1500
           minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+        example: "1500.00"
+        type: string
       onHold:
         description: |-
           Amount on hold and unavailable for transactions (in the smallest unit of asset)
           example: 500
           minimum: 0
-        example: 500
-        minimum: 0
-        type: number
+        example: "500.00"
+        type: string
       version:
         description: |-
           Balance version after the operation
@@ -258,6 +257,8 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateOperationRouteInput:
     type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
@@ -499,6 +500,7 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
+          format: uuid
           type: string
         type: array
       title:
@@ -729,7 +731,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -752,11 +754,13 @@ definitions:
         type: string
       id:
         description: The unique identifier of the Operation Route.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
         description: The unique identifier of the Ledger.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
@@ -768,7 +772,8 @@ definitions:
         type: string
       organizationId:
         description: The unique identifier of the Organization.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       title:
         description: Short text summarizing the purpose of the operation. Used as
@@ -833,9 +838,8 @@ definitions:
           Transaction amount value in the smallest unit of the asset
           example: 1500
           minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+        example: "1500.00"
+        type: string
       assetCode:
         description: |-
           Asset code for the transaction
@@ -977,11 +981,13 @@ definitions:
         type: string
       id:
         description: The unique identifier of the Transaction Route.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
         description: The unique identifier of the Ledger.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
@@ -995,7 +1001,8 @@ definitions:
         type: array
       organizationId:
         description: The unique identifier of the Organization.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -1051,7 +1058,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1110,6 +1117,7 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
+          format: uuid
           type: string
         type: array
       title:
@@ -1289,8 +1297,6 @@ definitions:
           required: false
         type: string
     type: object
-  mmodel.AccountRule:
-    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1348,9 +1354,8 @@ definitions:
           Amount available for transactions (in the smallest unit of the asset, e.g. cents)
           example: 1500
           minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+        example: "1500.00"
+        type: string
       createdAt:
         description: |-
           Timestamp when the balance was created (RFC3339 format)
@@ -1402,9 +1407,8 @@ definitions:
           Amount currently on hold and unavailable for transactions
           example: 500
           minimum: 0
-        example: 500
-        minimum: 0
-        type: number
+        example: "500.00"
+        type: string
       organizationId:
         description: |-
           Organization that owns this balance
@@ -1429,8 +1433,6 @@ definitions:
         example: 1
         minimum: 1
         type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
     type: object
 host: localhost:3001
 info:
@@ -2489,7 +2491,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       produces:
       - application/json
       responses:
@@ -2556,6 +2558,18 @@ paths:
           description: Unauthorized access
           schema:
             $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Operation route not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Retrieve a specific operation route
       tags:
       - Operation Route
@@ -2595,6 +2609,10 @@ paths:
           description: Successfully deleted operation route
         "401":
           description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
         "404":
@@ -2993,6 +3011,10 @@ paths:
             $ref: '#/definitions/Error'
         "403":
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Transaction route not found
           schema:
             $ref: '#/definitions/Error'
         "500":

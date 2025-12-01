@@ -51,6 +51,7 @@ type TransactionHandler struct {
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -97,6 +98,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			ledger_id		path		string								        true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t2345678-9abc-def0-1234-56789abcdef0","description":"Annotation for audit purposes","status":{"code":"NOTED","description":"NOTED"},"amount":"0.00","assetCode":"USD","chartOfAccountsGroupName":"ANNOTATIONS","source":["@treasury"],"destination":["@audit"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -133,6 +135,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t3456789-abcd-ef01-2345-6789abcdef01","description":"Inflow from external source","status":{"code":"APPROVED","description":"APPROVED"},"amount":"10000.00","assetCode":"USD","chartOfAccountsGroupName":"INFLOWS","source":["@external/USD"],"destination":["@treasury"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -176,6 +179,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t4567890-bcde-f012-3456-789abcdef012","description":"Outflow to external destination","status":{"code":"APPROVED","description":"APPROVED"},"amount":"5000.00","assetCode":"USD","chartOfAccountsGroupName":"OUTFLOWS","source":["@treasury"],"destination":["@external/USD"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -222,6 +226,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
 //	@Success		200				{object}	transaction.Transaction
+//	@Example		response	{"id":"t5678901-cdef-0123-4567-89abcdef0123","description":"DSL-defined transaction","status":{"code":"APPROVED","description":"APPROVED"},"amount":"2500.00","assetCode":"USD","chartOfAccountsGroupName":"TRANSFERS","source":["@operating"],"destination":["@savings"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -298,6 +303,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:00:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -341,6 +347,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		201				{object}	transaction.Transaction
+//	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"CANCELED","description":"CANCELED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:00:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -385,6 +392,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Example		response	{"id":"t6789012-def0-1234-5678-9abcdef01234","parentTransactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Revert: Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@vendor"],"destination":["@treasury"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T11:00:00Z","updatedAt":"2024-01-15T11:00:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -483,6 +491,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
 //	@Success		200				{object}	transaction.Transaction
+//	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Updated payment description","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -545,6 +554,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Example		response	{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -617,6 +627,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Example		response	{"items":[{"id":"t1234567-89ab-cdef-0123-456789abcdef","description":"Payment for services","status":{"code":"APPROVED","description":"APPROVED"},"amount":"1500.00","assetCode":"USD","chartOfAccountsGroupName":"PAYMENTS","source":["@treasury"],"destination":["@vendor"],"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6InQxMjM0NTY3In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

@@ -1378,6 +1378,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "404": {
                         "description": "Account type not found",
                         "schema": {
@@ -4058,7 +4064,8 @@ const docTemplate = `{
                 "id": {
                     "description": "The unique identifier of the Account Type.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "keyValue": {
                     "description": "A unique key value identifier for the account type.",
@@ -4068,7 +4075,8 @@ const docTemplate = `{
                 "ledgerId": {
                     "description": "The unique identifier of the Ledger.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "description": "Custom key-value pairs for extending the account type information\nexample: {\"department\": \"Treasury\", \"purpose\": \"Operating Expenses\", \"region\": \"Global\"}",
@@ -4083,7 +4091,8 @@ const docTemplate = `{
                 "organizationId": {
                     "description": "The unique identifier of the Organization.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "updatedAt": {
                     "description": "The timestamp when the account type was last updated.",

@@ -13,11 +13,11 @@ import (
 // @Description TransactionRoute object
 type TransactionRoute struct {
 	// The unique identifier of the Transaction Route.
-	ID uuid.UUID `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	ID uuid.UUID `json:"id,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// The unique identifier of the Organization.
-	OrganizationID uuid.UUID `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID uuid.UUID `json:"organizationId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// The unique identifier of the Ledger.
-	LedgerID uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID uuid.UUID `json:"ledgerId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
 	Title string `json:"title,omitempty" example:"Charge Settlement"`
 	// A description for the Transaction Route.
@@ -46,7 +46,7 @@ type CreateTransactionRouteInput struct {
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required"`
+	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required" swaggertype:"array,string" format:"uuid"`
 } // @name CreateTransactionRouteInput
 
 // UpdateTransactionRouteInput is a struct designed to store transaction route update data.
@@ -61,7 +61,7 @@ type UpdateTransactionRouteInput struct {
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
+	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" swaggertype:"array,string" format:"uuid"`
 } // @name UpdateTransactionRouteInput
 
 // TransactionRouteCache represents the cache structure for transaction routes in Redis

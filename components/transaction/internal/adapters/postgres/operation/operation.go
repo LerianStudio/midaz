@@ -70,7 +70,7 @@ type Amount struct {
 	// The amount value in the smallest unit of the asset (e.g., cents)
 	// example: 1500
 	// minimum: 0
-	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
+	Value *decimal.Decimal `json:"value" swaggertype:"string" example:"1500.00" minimum:"0"`
 } // @name Amount
 
 // IsEmpty method that set empty or nil in fields
@@ -86,12 +86,12 @@ type Balance struct {
 	// Amount available for transactions (in the smallest unit of asset)
 	// example: 1500
 	// minimum: 0
-	Available *decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+	Available *decimal.Decimal `json:"available" swaggertype:"string" example:"1500.00" minimum:"0"`
 
 	// Amount on hold and unavailable for transactions (in the smallest unit of asset)
 	// example: 500
 	// minimum: 0
-	OnHold *decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+	OnHold *decimal.Decimal `json:"onHold" swaggertype:"string" example:"500.00" minimum:"0"`
 
 	// Balance version after the operation
 	// example: 2

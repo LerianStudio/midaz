@@ -36,6 +36,7 @@ type BalanceHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@operating","key":"default","assetCode":"USD","available":"15000.00","onHold":"500.00","version":1,"accountType":"deposit","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6ImIxMjM0NTY3In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -111,6 +112,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@savings","key":"default","assetCode":"USD","available":"25000.00","onHold":"1000.00","version":2,"accountType":"savings","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:00:00Z"}],"limit":10,"nextCursor":"eyJpZCI6ImIxMjM0NTY3In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -183,6 +185,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
+//	@Example		response	{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@operating","key":"default","assetCode":"USD","available":"15000.00","onHold":"500.00","version":1,"accountType":"deposit","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -276,6 +279,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Param			balance_id		path		string					true	"Balance ID"
 //	@Param			balance			body		mmodel.UpdateBalance	true	"Balance Input"
 //	@Success		200				{object}	mmodel.Balance
+//	@Example		response	{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@operating","key":"default","assetCode":"USD","available":"18000.00","onHold":"200.00","version":2,"accountType":"deposit","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -339,6 +343,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@person1","key":"default","assetCode":"USD","available":"5000.00","onHold":"100.00","version":1,"accountType":"checking","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -391,6 +396,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@external/BRL","key":"default","assetCode":"BRL","available":"50000.00","onHold":"0.00","version":1,"accountType":"external","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -446,6 +452,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Param			account_id		path		string							true	"Account ID"
 //	@Param			balance			body		mmodel.CreateAdditionalBalance	true	"Balance Input"
 //	@Success		201				{object}	mmodel.Balance
+//	@Example		response	{"id":"b1234567-89ab-cdef-0123-456789abcdef","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","alias":"@operating#bonus","key":"default","assetCode":"USD","available":"0.00","onHold":"0.00","version":1,"accountType":"deposit","allowSending":true,"allowReceiving":true,"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

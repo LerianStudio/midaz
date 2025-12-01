@@ -35,6 +35,7 @@ type AssetHandler struct {
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
 //	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset details including name, code, type, status, and optional metadata"
 //	@Success		201				{object}	mmodel.Asset			"Successfully created asset"
+//	@Example		response		{"id":"e5f6a1b2-c3d4-7890-efgh-5678901234fg","name":"US Dollar","type":"currency","code":"USD","status":{"code":"ACTIVE"},"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error			"Forbidden access"
@@ -97,6 +98,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}	"Successfully retrieved assets list"
+//	@Example		response		{"items":[{"id":"e5f6a1b2-c3d4-7890-efgh-5678901234fg","name":"US Dollar","type":"currency","code":"USD","status":{"code":"ACTIVE"},"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -190,6 +192,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Asset ID in UUID format"
 //	@Success		200				{object}	mmodel.Asset	"Successfully retrieved asset"
+//	@Example		response		{"id":"e5f6a1b2-c3d4-7890-efgh-5678901234fg","name":"US Dollar","type":"currency","code":"USD","status":{"code":"ACTIVE"},"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
@@ -237,6 +240,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Param			id				path		string					true	"Asset ID in UUID format"
 //	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset properties to update including name, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Asset			"Successfully updated asset"
+//	@Example		response		{"id":"e5f6a1b2-c3d4-7890-efgh-5678901234fg","name":"Updated US Dollar","type":"currency","code":"USD","status":{"code":"ACTIVE"},"ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error			"Forbidden access"

@@ -31,6 +31,7 @@ type TransactionRouteHandler struct {
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction-route	body		mmodel.CreateTransactionRouteInput	true	"Transaction Route Input"
 //	@Success		201				{object}	mmodel.TransactionRoute				"Successfully created transaction route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -89,6 +90,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
 //	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -135,9 +137,11 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
 //	@Param			transaction-route	body		mmodel.UpdateTransactionRouteInput	true	"Transaction Route Input"
 //	@Success		200				{object}	mmodel.TransactionRoute				"Successfully updated transaction route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Updated Wire Transfer Route","description":"Updated route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Transaction route not found"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [patch]
 func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
@@ -260,6 +264,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Param			sort_order		query		string								false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string								false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Example		response	{"items":[{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Wire Transfer Route","description":"Route for wire transfer operations","operationRoutes":[{"id":"d4e5f6a1-b2c3-7890-defa-4567890123ef","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Source Account","code":"WIRE_SOURCE","operationType":"source","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6InRyMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"

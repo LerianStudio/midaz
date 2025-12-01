@@ -37,6 +37,7 @@ type OperationHandler struct {
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Param			type			query		string	false	"DEBIT, CREDIT"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
+//	@Example		response	{"items":[{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6Im9wMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -130,6 +131,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			operation_id	path		string	true	"Operation ID"
 //	@Success		200				{object}	operation.Operation
+//	@Example		response	{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Operation not found"
@@ -179,6 +181,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Param			operation_id	path		string							true	"Operation ID"
 //	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
 //	@Success		200				{object}	operation.Operation
+//	@Example		response	{"id":"op123456-89ab-cdef-0123-456789abcdef","transactionId":"t1234567-89ab-cdef-0123-456789abcdef","description":"Updated debit operation","type":"DEBIT","assetCode":"USD","chartOfAccounts":"1000","amount":{"value":"1500.00"},"balance":{"available":"16500.00","onHold":"500.00"},"balanceAfter":{"available":"15000.00","onHold":"500.00"},"status":{"code":"ACTIVE"},"accountId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","accountAlias":"@treasury","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

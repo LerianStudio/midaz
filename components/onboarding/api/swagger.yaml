@@ -150,7 +150,8 @@ definitions:
         type: string
       id:
         description: The unique identifier of the Account Type.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       keyValue:
         description: A unique key value identifier for the account type.
@@ -158,7 +159,8 @@ definitions:
         type: string
       ledgerId:
         description: The unique identifier of the Ledger.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
@@ -172,7 +174,8 @@ definitions:
         type: string
       organizationId:
         description: The unique identifier of the Organization.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       updatedAt:
         description: The timestamp when the account type was last updated.
@@ -1946,6 +1949,10 @@ paths:
           description: Successfully deleted account type
         "401":
           description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
         "404":

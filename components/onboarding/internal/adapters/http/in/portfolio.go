@@ -35,6 +35,7 @@ type PortfolioHandler struct {
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
 //	@Param			portfolio		body		mmodel.CreatePortfolioInput	true	"Portfolio details including name, optional entity ID, status, and metadata"
 //	@Success		201				{object}	mmodel.Portfolio			"Successfully created portfolio"
+//	@Example		response		{"id":"f6a1b2c3-d4e5-7890-fghi-6789012345gh","name":"Investment Portfolio","entityId":"ENT-001","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
@@ -93,6 +94,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter portfolios created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}	"Successfully retrieved portfolios list"
+//	@Example		response		{"items":[{"id":"f6a1b2c3-d4e5-7890-fghi-6789012345gh","name":"Investment Portfolio","entityId":"ENT-001","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -185,6 +187,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Portfolio ID in UUID format"
 //	@Success		200				{object}	mmodel.Portfolio	"Successfully retrieved portfolio"
+//	@Example		response		{"id":"f6a1b2c3-d4e5-7890-fghi-6789012345gh","name":"Investment Portfolio","entityId":"ENT-001","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Portfolio, ledger, or organization not found"
@@ -232,6 +235,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 //	@Param			id				path		string						true	"Portfolio ID in UUID format"
 //	@Param			portfolio		body		mmodel.UpdatePortfolioInput	true	"Portfolio properties to update including name, entity ID, status, and optional metadata"
 //	@Success		200				{object}	mmodel.Portfolio			"Successfully updated portfolio"
+//	@Example		response		{"id":"f6a1b2c3-d4e5-7890-fghi-6789012345gh","name":"Updated Investment Portfolio","entityId":"ENT-001","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"

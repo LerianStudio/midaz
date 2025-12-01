@@ -37,6 +37,7 @@ type LedgerHandler struct {
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger details including name, status, and optional metadata"
 //	@Success		201				{object}	mmodel.Ledger				"Successfully created ledger"
+//	@Example		response		{"id":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","name":"General Ledger","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
@@ -84,6 +85,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			id				path		string	true	"Ledger ID in UUID format"
 //	@Success		200				{object}	mmodel.Ledger	"Successfully retrieved ledger"
+//	@Example		response		{"id":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","name":"General Ledger","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
@@ -132,6 +134,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}	"Successfully retrieved ledgers list"
+//	@Example		response		{"items":[{"id":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","name":"General Ledger","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"page":1,"limit":10}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -222,6 +225,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Param			id				path		string						true	"Ledger ID in UUID format"
 //	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger fields to update. Only supplied fields will be modified."
 //	@Success		200				{object}	mmodel.Ledger				"Successfully updated ledger"
+//	@Example		response		{"id":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","name":"Updated General Ledger","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"

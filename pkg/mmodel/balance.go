@@ -55,12 +55,12 @@ type Balance struct {
 	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
 	// example: 1500
 	// minimum: 0
-	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+	Available decimal.Decimal `json:"available" swaggertype:"string" example:"1500.00" minimum:"0"`
 
 	// Amount currently on hold and unavailable for transactions
 	// example: 500
 	// minimum: 0
-	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+	OnHold decimal.Decimal `json:"onHold" swaggertype:"string" example:"500.00" minimum:"0"`
 
 	// Optimistic concurrency control version
 	// example: 1
@@ -232,10 +232,10 @@ type BalanceRedis struct {
 	AssetCode string `json:"assetCode"`
 
 	// Amount available for transactions
-	Available decimal.Decimal `json:"available"`
+	Available decimal.Decimal `json:"available" swaggertype:"string" example:"1500.00"`
 
 	// Amount currently on hold
-	OnHold decimal.Decimal `json:"onHold"`
+	OnHold decimal.Decimal `json:"onHold" swaggertype:"string" example:"500.00"`
 
 	// Optimistic concurrency control version
 	Version int64 `json:"version"`
@@ -412,9 +412,9 @@ type BalanceOperation struct {
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
 	HeaderID          string                     `json:"header_id"`
-	TransactionID     uuid.UUID                  `json:"transaction_id"`
-	OrganizationID    uuid.UUID                  `json:"organization_id"`
-	LedgerID          uuid.UUID                  `json:"ledger_id"`
+	TransactionID     uuid.UUID                  `json:"transaction_id" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID    uuid.UUID                  `json:"organization_id" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID          uuid.UUID                  `json:"ledger_id" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Balances          []BalanceRedis             `json:"balances"`
 	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`

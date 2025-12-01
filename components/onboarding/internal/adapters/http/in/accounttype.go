@@ -31,6 +31,7 @@ type AccountTypeHandler struct {
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
 //	@Param			accountType		body		mmodel.CreateAccountTypeInput	true	"Account Type Input"
 //	@Success		201				{object}	mmodel.AccountType				"Successfully created account type"
+//	@Example		response		{"id":"d4e5f6a1-b2c3-7890-defg-4567890123ef","name":"Checking","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
@@ -81,6 +82,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Account Type ID in UUID format"
 //	@Success		200				{object}	mmodel.AccountType	"Successfully retrieved account type"
+//	@Example		response		{"id":"d4e5f6a1-b2c3-7890-defg-4567890123ef","name":"Checking","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error		"Account type, ledger, or organization not found"
@@ -128,6 +130,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			id				path		string							true	"Account Type ID in UUID format"
 //	@Param			accountType		body		mmodel.UpdateAccountTypeInput	true	"Account Type Update Input"
 //	@Success		200				{object}	mmodel.AccountType				"Successfully updated account type"
+//	@Example		response		{"id":"d4e5f6a1-b2c3-7890-defg-4567890123ef","name":"Updated Checking","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T10:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
@@ -191,6 +194,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 //	@Param			id				path		string	true	"Account Type ID in UUID format"
 //	@Success		204				"Successfully deleted account type"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account type not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id} [delete]
@@ -239,6 +243,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start date for filtering (YYYY-MM-DD)"
 //	@Param			end_date		query		string	false	"End date for filtering (YYYY-MM-DD)"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.AccountType,next_cursor=string,prev_cursor=string,limit=int,page=nil}	"Successfully retrieved account types"
+//	@Example		response		{"items":[{"id":"d4e5f6a1-b2c3-7890-defg-4567890123ef","name":"Checking","organizationId":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","ledgerId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","status":{"code":"ACTIVE"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10}
 //	@Failure		400				{object}	mmodel.Error							"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error							"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error							"Forbidden access"

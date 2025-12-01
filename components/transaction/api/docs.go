@@ -1602,7 +1602,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
+                            "$ref": "#/definitions/CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -1698,6 +1698,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -1754,6 +1772,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -2346,6 +2370,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction route not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3521,15 +3551,17 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "AccountRule": {
+            "type": "object"
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
             "properties": {
                 "value": {
                     "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "type": "string",
+                    "example": "1500.00"
                 }
             }
         },
@@ -3623,15 +3655,13 @@ const docTemplate = `{
             "properties": {
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "type": "string",
+                    "example": "1500.00"
                 },
                 "onHold": {
                     "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
+                    "type": "string",
+                    "example": "500.00"
                 },
                 "version": {
                     "description": "Balance version after the operation\nexample: 2\nminimum: 0",
@@ -3724,6 +3754,9 @@ const docTemplate = `{
                     "example": 3600
                 }
             }
+        },
+        "CreateOperationRouteInput": {
+            "type": "object"
         },
         "CreateTransactionInflowSwaggerModel": {
             "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
@@ -3928,7 +3961,8 @@ const docTemplate = `{
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -4133,7 +4167,7 @@ const docTemplate = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4162,12 +4196,14 @@ const docTemplate = `{
                 "id": {
                     "description": "The unique identifier of the Operation Route.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
                     "description": "The unique identifier of the Ledger.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "description": "Additional metadata stored as JSON",
@@ -4182,7 +4218,8 @@ const docTemplate = `{
                 "organizationId": {
                     "description": "The unique identifier of the Organization.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "title": {
                     "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
@@ -4246,9 +4283,8 @@ const docTemplate = `{
             "properties": {
                 "amount": {
                     "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "type": "string",
+                    "example": "1500.00"
                 },
                 "assetCode": {
                     "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
@@ -4381,12 +4417,14 @@ const docTemplate = `{
                 "id": {
                     "description": "The unique identifier of the Transaction Route.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
                     "description": "The unique identifier of the Ledger.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "description": "Additional metadata stored as JSON",
@@ -4403,7 +4441,8 @@ const docTemplate = `{
                 "organizationId": {
                     "description": "The unique identifier of the Organization.",
                     "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "title": {
                     "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
@@ -4458,7 +4497,7 @@ const docTemplate = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4523,7 +4562,8 @@ const docTemplate = `{
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -4673,9 +4713,6 @@ const docTemplate = `{
                 }
             }
         },
-        "mmodel.AccountRule": {
-            "type": "object"
-        },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
             "type": "object",
@@ -4717,9 +4754,8 @@ const docTemplate = `{
                 },
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "type": "string",
+                    "example": "1500.00"
                 },
                 "createdAt": {
                     "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -4758,9 +4794,8 @@ const docTemplate = `{
                 },
                 "onHold": {
                     "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
+                    "type": "string",
+                    "example": "500.00"
                 },
                 "organizationId": {
                     "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -4781,9 +4816,6 @@ const docTemplate = `{
                     "example": 1
                 }
             }
-        },
-        "mmodel.CreateOperationRouteInput": {
-            "type": "object"
         }
     }
 }`

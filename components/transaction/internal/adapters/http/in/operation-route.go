@@ -38,6 +38,7 @@ type OperationRouteHandler struct {
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
 //	@Param			operation-route	body		mmodel.CreateOperationRouteInput	true	"Operation Route Input"
 //	@Success		201				{object}	mmodel.OperationRoute				"Successfully created operation route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Card Payment Route","description":"Route for card payment operations","code":"CARD_PAYMENTS","operationType":"source","account":{"ruleType":"alias","validIf":"@cards"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -93,7 +94,11 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			id				path		string	true	"Operation Route ID in UUID format"
 //	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Card Payment Route","description":"Route for card payment operations","code":"CARD_PAYMENTS","operationType":"source","account":{"ruleType":"alias","validIf":"@cards"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Operation route not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -137,6 +142,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 //	@Param			operation_route_id	path		string								true	"Operation Route ID in UUID format"
 //	@Param			operation-route	body		mmodel.UpdateOperationRouteInput	true	"Operation Route Input"
 //	@Success		200				{object}	mmodel.OperationRoute				"Successfully updated operation route"
+//	@Example		response	{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Card Payment Route","description":"Updated route for card payment operations","code":"CARD_PAYMENTS","operationType":"source","account":{"ruleType":"alias","validIf":"@cards"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T14:45:00Z"}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -210,6 +216,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 //	@Param			operation_route_id	path		string	true	"Operation Route ID in UUID format"
 //	@Success		204				"Successfully deleted operation route"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [delete]
@@ -256,6 +263,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.OperationRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Example		response	{"items":[{"id":"a1b2c3d4-e5f6-7890-abcd-1234567890ab","organizationId":"b2c3d4e5-f6a1-7890-bcde-2345678901cd","ledgerId":"c3d4e5f6-a1b2-7890-cdef-3456789012de","title":"Card Payment Route","description":"Route for card payment operations","code":"CARD_PAYMENTS","operationType":"source","account":{"ruleType":"alias","validIf":"@cards"},"createdAt":"2024-01-15T09:30:00Z","updatedAt":"2024-01-15T09:30:00Z"}],"limit":10,"nextCursor":"eyJpZCI6Im9yMTIzNDU2In0="}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

@@ -14,22 +14,22 @@ type Queue struct {
 	// Organization identifier for the queue message
 	// format: uuid
 	// example: 00000000-0000-0000-0000-000000000000
-	OrganizationID uuid.UUID `json:"organizationId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID uuid.UUID `json:"organizationId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Ledger identifier for the queue message
 	// format: uuid
 	// example: 00000000-0000-0000-0000-000000000000
-	LedgerID uuid.UUID `json:"ledgerId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID uuid.UUID `json:"ledgerId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Audit trail identifier for tracking queue operations
 	// format: uuid
 	// example: 00000000-0000-0000-0000-000000000000
-	AuditID uuid.UUID `json:"auditId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	AuditID uuid.UUID `json:"auditId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Account identifier for the queue message
 	// format: uuid
 	// example: 00000000-0000-0000-0000-000000000000
-	AccountID uuid.UUID `json:"accountId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID uuid.UUID `json:"accountId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Array of data items contained in this queue message
 	// required: true
@@ -44,7 +44,7 @@ type QueueData struct {
 	// Unique identifier for this queue data item
 	// format: uuid
 	// example: 00000000-0000-0000-0000-000000000000
-	ID uuid.UUID `json:"id" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	ID uuid.UUID `json:"id" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Raw JSON payload data
 	// example: {"type": "transaction", "amount": 1000}
