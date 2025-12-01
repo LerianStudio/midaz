@@ -14,7 +14,53 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
+// GetAccountByIDWithDeleted retrieves an account by ID, including soft-deleted records.
+//
+// This query is specifically designed for scenarios where access to deleted accounts
+// is required, such as:
+//   - Audit trail reconstruction
+//   - Historical balance verification
+//   - Transaction reversal validation
+//   - Compliance reporting
+//
+// Unlike GetAccountByID, this method does NOT filter out soft-deleted records,
+// allowing retrieval of accounts that have been logically deleted but still
+// exist in the database.
+//
+// Query Process:
+//
+//	Step 1: Context Extraction
+//	  - Extract logger and tracer from context
+//	  - Start tracing span "query.get_account_by_id_with_deleted"
+//
+//	Step 2: PostgreSQL Query
+//	  - Call AccountRepo.FindWithDeleted (bypasses deleted_at filter)
+//	  - Handle ErrDatabaseItemNotFound as "account not found"
+//
+//	Step 3: Metadata Enrichment
+//	  - Fetch metadata from MongoDB by entity ID
+//	  - Attach metadata to account if found
+//
+// Parameters:
+//   - ctx: Context with observability (logger, tracer, metrics)
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID containing the account
+//   - portfolioID: Optional portfolio UUID for filtering (nil = any portfolio)
+//   - id: Account UUID to retrieve
+//
+// Returns:
+//   - *mmodel.Account: Account with metadata (may have non-nil DeletedAt)
+//   - error: Business error (ErrAccountIDNotFound) or infrastructure error
+//
+// Error Scenarios:
+//   - ErrAccountIDNotFound: Account does not exist (even including deleted)
+//   - Database errors: PostgreSQL connection or query failures
+//   - Metadata errors: MongoDB query failures
+//
+// Security Note:
+//
+// Access to deleted accounts should be restricted to authorized users
+// (e.g., auditors, compliance officers) as it may expose historical data.
 func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

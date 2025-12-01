@@ -17,7 +17,67 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetAllAccountType fetch all Account Types from the repository
+// GetAllAccountType retrieves all account types for a ledger with metadata enrichment.
+//
+// Account types define the classification system for accounts within a ledger.
+// They determine account behavior, reporting categories, and transaction rules.
+// This method fetches all account types with their associated metadata.
+//
+// Domain Context:
+//
+// Account types serve fundamental accounting purposes:
+//   - ASSET: Resources owned (e.g., cash, receivables)
+//   - LIABILITY: Obligations owed (e.g., payables, loans)
+//   - EQUITY: Owner's interest (e.g., retained earnings)
+//   - REVENUE: Income earned (e.g., sales, fees)
+//   - EXPENSE: Costs incurred (e.g., salaries, utilities)
+//
+// Custom account types can extend this with business-specific classifications
+// (e.g., "SETTLEMENT", "ESCROW", "SUSPENSE").
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for observability
+//
+//	Step 2: Fetch Account Types from PostgreSQL
+//	  - Query all account types for the organization/ledger
+//	  - Apply cursor-based pagination
+//	  - Handle not-found with business error
+//
+//	Step 3: Prepare Metadata Filter
+//	  - Initialize empty BSON filter if not provided
+//	  - Ensures consistent MongoDB query behavior
+//
+//	Step 4: Fetch Metadata from MongoDB
+//	  - Query metadata documents matching filter criteria
+//	  - Build lookup map indexed by entity ID
+//
+//	Step 5: Enrich Account Types with Metadata
+//	  - Assign metadata from lookup map
+//	  - Convert UUID to string for map lookup
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope account types
+//   - filter: Query parameters with cursor pagination and optional metadata filter
+//
+// Returns:
+//   - []*mmodel.AccountType: Account types with metadata, nil if none found
+//   - libHTTP.CursorPagination: Cursor for paginated results
+//   - error: Business error (ErrNoAccountTypesFound) or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoAccountTypesFound: No account types configured for ledger
+//   - ErrEntityNotFound: Metadata lookup failed
+//   - Database errors: PostgreSQL or MongoDB connection issues
+//
+// Pagination:
+//
+// This method uses cursor-based pagination for efficient traversal of large
+// account type lists. The cursor encodes the position for the next page.
 func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -14,7 +14,51 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetSegmentByID get a Segment from the repository by given id.
+// GetSegmentByID retrieves a single segment by its unique identifier.
+//
+// Segments organize accounts into logical groups within a ledger. This method
+// fetches a specific segment with its associated metadata, useful for segment
+// management interfaces and account organization workflows.
+//
+// Domain Context:
+//
+// A segment represents:
+//   - A logical grouping of accounts (e.g., "Revenue Accounts", "Cost Centers")
+//   - A node in the chart of accounts hierarchy
+//   - A reporting boundary for financial aggregations
+//   - Custom classification via metadata
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for distributed tracing
+//	  - Log the segment ID being retrieved
+//
+//	Step 2: Fetch Segment from PostgreSQL
+//	  - Query by organization, ledger, and segment ID
+//	  - Handle not-found with business error
+//	  - Handle other errors as infrastructure errors
+//
+//	Step 3: Fetch Metadata from MongoDB (if segment found)
+//	  - Query metadata document by segment ID
+//	  - Assign metadata to segment if present
+//	  - Handle metadata errors as infrastructure errors
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope the segment
+//   - id: Segment UUID to retrieve
+//
+// Returns:
+//   - *mmodel.Segment: Complete segment with metadata
+//   - error: Business error (not found) or infrastructure error
+//
+// Error Scenarios:
+//   - ErrSegmentIDNotFound: Segment does not exist
+//   - Database error: PostgreSQL connection or query failure
+//   - Metadata error: MongoDB query failure
 func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

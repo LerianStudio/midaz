@@ -15,7 +15,51 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllLedgers fetch all Ledgers from the repository
+// GetAllLedgers retrieves all ledgers for an organization with pagination and metadata.
+//
+// This query fetches ledgers from PostgreSQL scoped to a specific organization
+// and enriches each with its associated metadata from MongoDB. It supports
+// offset-based pagination via the filter parameter.
+//
+// Multi-Tenancy:
+//
+// The organizationID parameter enforces tenant isolation at the query level.
+// Only ledgers belonging to the specified organization are returned, preventing
+// cross-tenant data access.
+//
+// Query Process:
+//
+//	Step 1: Context Extraction
+//	  - Extract logger and tracer from context
+//	  - Start tracing span "query.get_all_ledgers"
+//
+//	Step 2: PostgreSQL Query
+//	  - Call LedgerRepo.FindAll with organization scope and pagination
+//	  - Handle ErrDatabaseItemNotFound as "no ledgers found"
+//	  - Return early if result is empty (valid empty response)
+//
+//	Step 3: Metadata Enrichment
+//	  - Collect all ledger IDs
+//	  - Batch fetch metadata from MongoDB by entity IDs
+//	  - Build ID-to-metadata map for efficient lookup
+//
+//	Step 4: Result Assembly
+//	  - Attach metadata to each ledger
+//	  - Return enriched ledger list
+//
+// Parameters:
+//   - ctx: Context with observability (logger, tracer, metrics)
+//   - organizationID: Organization UUID for tenant isolation
+//   - filter: Query parameters including pagination (limit, offset)
+//
+// Returns:
+//   - []*mmodel.Ledger: List of ledgers with metadata
+//   - error: Business error (ErrNoLedgersFound) or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoLedgersFound: No ledgers exist for this organization
+//   - Database errors: PostgreSQL connection or query failures
+//   - Metadata errors: MongoDB query failures (returns error, not partial result)
 func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

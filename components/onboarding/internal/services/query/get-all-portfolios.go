@@ -15,7 +15,62 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllPortfolio fetch all Portfolio from the repository
+// GetAllPortfolio retrieves all portfolios for a ledger with metadata enrichment.
+//
+// Portfolios group related accounts for reporting, management, and access control.
+// This method fetches all portfolios with their associated metadata, providing a
+// complete view of account groupings within the ledger.
+//
+// Domain Context:
+//
+// Portfolios serve multiple purposes:
+//   - Group accounts by customer (e.g., "Customer A Accounts")
+//   - Organize accounts by product (e.g., "Savings Products")
+//   - Define access control boundaries
+//   - Enable aggregated reporting and analytics
+//
+// Query Process:
+//
+//	Step 1: Initialize Tracing
+//	  - Extract logger and tracer from context
+//	  - Start OpenTelemetry span for distributed tracing
+//
+//	Step 2: Fetch Portfolios from PostgreSQL
+//	  - Query all portfolios for the organization/ledger
+//	  - Apply offset-based pagination
+//	  - Handle not-found with business error
+//
+//	Step 3: Collect Portfolio IDs
+//	  - Build slice for bulk metadata lookup
+//	  - Return empty slice early if no portfolios found
+//
+//	Step 4: Fetch Metadata from MongoDB
+//	  - Bulk query metadata by portfolio IDs
+//	  - Build lookup map indexed by entity ID
+//
+//	Step 5: Enrich Portfolios with Metadata
+//	  - Assign metadata from lookup map
+//	  - Portfolios without metadata retain nil
+//
+// Parameters:
+//   - ctx: Request context with tenant and tracing information
+//   - organizationID: Organization UUID for tenant isolation
+//   - ledgerID: Ledger UUID to scope portfolios
+//   - filter: Query parameters with offset pagination
+//
+// Returns:
+//   - []*mmodel.Portfolio: Portfolios with metadata, empty slice if none found
+//   - error: Business or infrastructure error
+//
+// Error Scenarios:
+//   - ErrNoPortfoliosFound: No portfolios exist for ledger
+//   - Metadata error: MongoDB query failure
+//   - Database error: PostgreSQL connection or query failure
+//
+// Pagination:
+//
+// This method uses offset-based pagination (Limit/Page) rather than cursor-based.
+// For large portfolio lists, consider using cursor pagination for better performance.
 func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
