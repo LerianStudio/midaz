@@ -1,3 +1,35 @@
+// Package operation provides PostgreSQL data models for financial operation persistence.
+//
+// This package implements the infrastructure layer for operation storage in PostgreSQL,
+// following the hexagonal architecture pattern. Operations represent individual
+// debit/credit entries within a transaction, forming the atomic units of double-entry
+// accounting.
+//
+// Domain Concept:
+//
+// An Operation in the ledger system:
+//   - Represents a single debit or credit affecting an account balance
+//   - Belongs to exactly one transaction (parent relationship)
+//   - Records balance state before and after the operation
+//   - Supports optimistic locking via balance versioning
+//   - Enables audit trail with full balance snapshots
+//
+// Double-Entry Accounting:
+//
+// Each transaction contains multiple operations that must balance:
+//   - DEBIT operations decrease source account balances
+//   - CREDIT operations increase destination account balances
+//   - Sum of debits must equal sum of credits per transaction
+//
+// Data Flow:
+//
+//	Domain Entity (Operation) -> OperationPostgreSQLModel -> PostgreSQL
+//	PostgreSQL -> OperationPostgreSQLModel -> Domain Entity (Operation)
+//
+// Related Packages:
+//   - transaction: Parent transaction containing operations
+//   - balance: Account balances affected by operations
+//   - mmodel: Domain model definitions
 package operation
 
 import (
@@ -8,7 +40,58 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
+// OperationPostgreSQLModel represents the operation entity in PostgreSQL.
+//
+// This model maps directly to the 'operation' table with SQL-specific types.
+// It captures the complete state of a financial operation including balance
+// snapshots before and after execution for audit purposes.
+//
+// Table Schema:
+//
+//	CREATE TABLE operation (
+//	    id UUID PRIMARY KEY,
+//	    transaction_id UUID NOT NULL REFERENCES transaction(id),
+//	    description TEXT,
+//	    type VARCHAR(10) NOT NULL,  -- 'DEBIT' or 'CREDIT'
+//	    asset_code VARCHAR(10) NOT NULL,
+//	    amount DECIMAL(38,18) NOT NULL,
+//	    available_balance DECIMAL(38,18),
+//	    on_hold_balance DECIMAL(38,18),
+//	    version_balance BIGINT,
+//	    available_balance_after DECIMAL(38,18),
+//	    on_hold_balance_after DECIMAL(38,18),
+//	    version_balance_after BIGINT,
+//	    status VARCHAR(50) NOT NULL,
+//	    status_description TEXT,
+//	    account_id UUID NOT NULL,
+//	    account_alias VARCHAR(256),
+//	    balance_key VARCHAR(100),
+//	    balance_id UUID NOT NULL,
+//	    chart_of_accounts VARCHAR(100),
+//	    organization_id UUID NOT NULL,
+//	    ledger_id UUID NOT NULL,
+//	    route VARCHAR(256),
+//	    balance_affected BOOLEAN DEFAULT true,
+//	    created_at TIMESTAMP WITH TIME ZONE,
+//	    updated_at TIMESTAMP WITH TIME ZONE,
+//	    deleted_at TIMESTAMP WITH TIME ZONE
+//	);
+//
+// Balance Snapshots:
+//
+// The model captures balance state at two points:
+//   - Before: AvailableBalance, OnHoldBalance, VersionBalance
+//   - After: AvailableBalanceAfter, OnHoldBalanceAfter, VersionBalanceAfter
+//
+// This enables:
+//   - Audit reconstruction of balance history
+//   - Idempotency verification (version checking)
+//   - Transaction reversal calculations
+//
+// Thread Safety:
+//
+// OperationPostgreSQLModel is not thread-safe. Each goroutine should work
+// with its own instance.
 //
 // @Description Database model for storing operation information in PostgreSQL
 type OperationPostgreSQLModel struct {
@@ -211,7 +294,20 @@ type Operation struct {
 	Metadata map[string]any `json:"metadata"`
 } // @name Operation
 
-// ToEntity converts an OperationPostgreSQLModel to entity Operation
+// ToEntity converts an OperationPostgreSQLModel to the domain Operation model.
+//
+// This method implements the outbound mapping in hexagonal architecture,
+// transforming the persistence model back to the domain representation.
+//
+// Mapping Process:
+//  1. Create Status value object from code and description
+//  2. Create Amount value object from decimal value
+//  3. Create Balance value objects for before/after states
+//  4. Map all direct fields including timestamps
+//  5. Handle nullable Route and DeletedAt fields
+//
+// Returns:
+//   - *Operation: Domain model with all fields mapped
 func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	status := Status{
 		Code:        t.Status,
@@ -269,7 +365,27 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	return Operation
 }
 
-// FromEntity converts an entity Operation to OperationPostgreSQLModel
+// FromEntity converts a domain Operation model to OperationPostgreSQLModel.
+//
+// This method implements the inbound mapping in hexagonal architecture,
+// transforming the domain representation to the persistence model.
+//
+// Mapping Process:
+//  1. Generate UUIDv7 if ID not provided (new operation)
+//  2. Extract values from embedded value objects (Status, Amount, Balance)
+//  3. Map all direct fields with type conversions
+//  4. Handle optional Route field
+//  5. Convert nullable DeletedAt to sql.NullTime
+//
+// Parameters:
+//   - operation: Domain Operation model to convert
+//
+// ID Generation:
+//
+// Uses UUID v7 which provides:
+//   - Time-ordered IDs for index efficiency
+//   - Globally unique identifiers
+//   - Sortable by creation time
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if operation.ID != "" {
@@ -429,7 +545,28 @@ type OperationLog struct {
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 }
 
-// ToLog converts an Operation excluding the fields that are not immutable
+// ToLog converts an Operation to an immutable audit log entry.
+//
+// This method creates a snapshot of the operation for audit purposes,
+// excluding mutable fields like Description and Metadata that may change
+// after creation.
+//
+// Audit Log Purpose:
+//
+// The OperationLog captures the financial state at execution time:
+//   - Transaction reference (immutable)
+//   - Amount and balance changes (immutable)
+//   - Account associations (immutable)
+//   - Creation timestamp (immutable)
+//
+// Excluded Fields:
+//   - Description: May be updated for clarification
+//   - Metadata: May be extended with additional context
+//   - UpdatedAt: Changes on any modification
+//   - DeletedAt: Represents soft delete state
+//
+// Returns:
+//   - *OperationLog: Immutable snapshot for audit storage
 func (o *Operation) ToLog() *OperationLog {
 	return &OperationLog{
 		ID:              o.ID,

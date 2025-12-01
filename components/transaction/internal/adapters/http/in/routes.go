@@ -1,3 +1,39 @@
+// Package in provides HTTP inbound adapters for the transaction component.
+//
+// This package implements the HTTP transport layer for the transaction bounded context,
+// exposing REST API endpoints for transaction processing, balance management, and
+// routing configuration. It follows the hexagonal architecture pattern where HTTP
+// handlers adapt external requests to internal use cases.
+//
+// Architecture Overview:
+//
+// The HTTP adapter layer provides:
+//   - REST API endpoints for all transaction operations
+//   - Request validation and parameter parsing
+//   - Authentication and authorization middleware
+//   - OpenTelemetry tracing integration
+//   - CORS and security headers configuration
+//   - Swagger documentation generation
+//
+// API Organization:
+//
+// Endpoints are organized by resource:
+//   - /transactions: Create, read, update, commit, cancel, revert transactions
+//   - /operations: Query and update individual operations
+//   - /balances: Manage account balances
+//   - /asset-rates: Currency exchange rate management
+//   - /operation-routes: Operation routing rules
+//   - /transaction-routes: Transaction routing configuration
+//
+// Security:
+//
+// All endpoints (except health/version) require authentication via the auth middleware.
+// Authorization is enforced per resource and action (get, post, patch, delete).
+//
+// Related Packages:
+//   - handlers: Request handlers implementing business logic delegation
+//   - middleware: Auth client for JWT/API key validation
+//   - versioning: API version management
 package in
 
 import (
@@ -22,7 +58,52 @@ import (
 const midazName = "midaz"
 const routingName = "routing"
 
-// NewRouter register NewRouter routes to the Server.
+// NewRouter creates and configures the HTTP router for the transaction component.
+//
+// This function sets up the complete HTTP infrastructure including:
+//   - Fiber application with custom error handling
+//   - OpenTelemetry middleware for distributed tracing
+//   - CORS configuration for cross-origin requests
+//   - Security headers middleware (HSTS, CSP, etc.)
+//   - Structured logging middleware
+//   - Versioned route registration
+//   - Health and version endpoints
+//   - Swagger documentation endpoint
+//
+// Router Configuration:
+//
+//	Step 1: Fiber App Initialization
+//	  - Disable startup message for clean logs
+//	  - Configure custom error handler for consistent responses
+//
+//	Step 2: Middleware Stack
+//	  - Telemetry (tracing context propagation)
+//	  - CORS (configurable allowed origins)
+//	  - Security headers (HSTS, X-Frame-Options, CSP)
+//	  - HTTP logging (structured logs)
+//
+//	Step 3: Route Registration
+//	  - v1 routes: All transaction resources
+//	  - Health endpoint: /health
+//	  - Version endpoint: /version
+//	  - Swagger endpoint: /swagger/*
+//
+// Parameters:
+//   - lg: Structured logger for request logging
+//   - tl: OpenTelemetry telemetry instance
+//   - auth: Authentication client for JWT/API key validation
+//   - th: Transaction handler
+//   - oh: Operation handler
+//   - ah: Asset rate handler
+//   - bh: Balance handler
+//   - orh: Operation route handler
+//   - trh: Transaction route handler
+//
+// Returns:
+//   - *fiber.App: Configured Fiber application ready to serve
+//
+// Environment Variables:
+//   - ALLOWED_ORIGINS: Comma-separated list of allowed CORS origins
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -81,7 +162,23 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	return f
 }
 
-// registerTransactionRoutes registers all transaction-related routes.
+// registerTransactionRoutes registers all transaction-related HTTP routes.
+//
+// Transaction endpoints follow RESTful conventions with additional action endpoints
+// for lifecycle operations (commit, cancel, revert).
+//
+// Endpoints:
+//   - POST /transactions/dsl: Create transaction from DSL format
+//   - POST /transactions/json: Create transaction from JSON format
+//   - POST /transactions/inflow: Create inflow transaction (credit only)
+//   - POST /transactions/outflow: Create outflow transaction (debit only)
+//   - POST /transactions/annotation: Create annotation transaction
+//   - POST /transactions/:id/commit: Commit pending transaction
+//   - POST /transactions/:id/cancel: Cancel pending transaction
+//   - POST /transactions/:id/revert: Revert completed transaction
+//   - PATCH /transactions/:id: Update transaction metadata
+//   - GET /transactions/:id: Get transaction by ID
+//   - GET /transactions: List all transactions with pagination
 func registerTransactionRoutes(r fiber.Router, auth *middleware.AuthClient, h *TransactionHandler) {
 	txns := r.Group("/organizations/:organization_id/ledgers/:ledger_id/transactions")
 
@@ -103,7 +200,15 @@ func registerTransactionRoutes(r fiber.Router, auth *middleware.AuthClient, h *T
 	txns.Get("", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), h.GetAllTransactions)
 }
 
-// registerOperationRoutes registers all operation-related routes.
+// registerOperationRoutes registers all operation-related HTTP routes.
+//
+// Operations are accessed via their parent account or transaction for proper
+// scoping and authorization.
+//
+// Endpoints:
+//   - GET /accounts/:id/operations: List operations by account
+//   - GET /accounts/:id/operations/:op_id: Get operation by account
+//   - PATCH /transactions/:id/operations/:op_id: Update operation metadata
 func registerOperationRoutes(r fiber.Router, auth *middleware.AuthClient, h *OperationHandler) {
 	// Operations by account
 	accountOps := r.Group("/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations")
@@ -115,7 +220,14 @@ func registerOperationRoutes(r fiber.Router, auth *middleware.AuthClient, h *Ope
 	txnOps.Patch("/:operation_id", auth.Authorize(midazName, "operations", "patch"), http.ParseUUIDPathParameters("operation"), http.WithBody(new(operation.UpdateOperationInput), h.UpdateOperation))
 }
 
-// registerAssetRateRoutes registers all asset-rate-related routes.
+// registerAssetRateRoutes registers all asset-rate-related HTTP routes.
+//
+// Asset rates define currency conversion rates for multi-currency transactions.
+//
+// Endpoints:
+//   - PUT /asset-rates: Create or update asset rate (upsert)
+//   - GET /asset-rates/:external_id: Get rate by external ID
+//   - GET /asset-rates/from/:asset_code: List rates from a source asset
 func registerAssetRateRoutes(r fiber.Router, auth *middleware.AuthClient, h *AssetRateHandler) {
 	assetRates := r.Group("/organizations/:organization_id/ledgers/:ledger_id/asset-rates")
 	assetRates.Put("", auth.Authorize(midazName, "asset-rates", "put"), http.ParseUUIDPathParameters("asset-rate"), http.WithBody(new(assetrate.CreateAssetRateInput), h.CreateOrUpdateAssetRate))
@@ -123,7 +235,20 @@ func registerAssetRateRoutes(r fiber.Router, auth *middleware.AuthClient, h *Ass
 	assetRates.Get("/from/:asset_code", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), h.GetAllAssetRatesByAssetCode)
 }
 
-// registerBalanceRoutes registers all balance-related routes.
+// registerBalanceRoutes registers all balance-related HTTP routes.
+//
+// Balances can be accessed via ledger scope (all balances) or account scope
+// (balances for specific account).
+//
+// Endpoints:
+//   - GET /balances: List all balances in ledger
+//   - GET /balances/:id: Get balance by ID
+//   - PATCH /balances/:id: Update balance
+//   - DELETE /balances/:id: Delete balance
+//   - GET /accounts/:id/balances: List balances by account
+//   - POST /accounts/:id/balances: Create additional balance
+//   - GET /accounts/alias/:alias/balances: Get balances by alias
+//   - GET /accounts/external/:code/balances: Get balances by external code
 func registerBalanceRoutes(r fiber.Router, auth *middleware.AuthClient, h *BalanceHandler) {
 	// Balances by ledger
 	ledgerBalances := r.Group("/organizations/:organization_id/ledgers/:ledger_id/balances")
@@ -146,7 +271,16 @@ func registerBalanceRoutes(r fiber.Router, auth *middleware.AuthClient, h *Balan
 	externalBalances.Get("", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), h.GetBalancesExternalByCode)
 }
 
-// registerOperationRouteRoutes registers all operation-route-related routes.
+// registerOperationRouteRoutes registers all operation-route-related HTTP routes.
+//
+// Operation routes define validation rules for individual debit/credit operations.
+//
+// Endpoints:
+//   - POST /operation-routes: Create operation route
+//   - GET /operation-routes: List operation routes
+//   - GET /operation-routes/:id: Get operation route by ID
+//   - PATCH /operation-routes/:id: Update operation route
+//   - DELETE /operation-routes/:id: Delete operation route
 func registerOperationRouteRoutes(r fiber.Router, auth *middleware.AuthClient, h *OperationRouteHandler) {
 	opRoutes := r.Group("/organizations/:organization_id/ledgers/:ledger_id/operation-routes")
 	opRoutes.Post("", auth.Authorize(routingName, "operation-routes", "post"), http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.CreateOperationRouteInput), h.CreateOperationRoute))
@@ -156,7 +290,16 @@ func registerOperationRouteRoutes(r fiber.Router, auth *middleware.AuthClient, h
 	opRoutes.Get("", auth.Authorize(routingName, "operation-routes", "get"), http.ParseUUIDPathParameters("operation_route"), h.GetAllOperationRoutes)
 }
 
-// registerTransactionRouteRoutes registers all transaction-route-related routes.
+// registerTransactionRouteRoutes registers all transaction-route-related HTTP routes.
+//
+// Transaction routes group operation routes into complete routing configurations.
+//
+// Endpoints:
+//   - POST /transaction-routes: Create transaction route
+//   - GET /transaction-routes: List transaction routes
+//   - GET /transaction-routes/:id: Get transaction route by ID
+//   - PATCH /transaction-routes/:id: Update transaction route
+//   - DELETE /transaction-routes/:id: Delete transaction route
 func registerTransactionRouteRoutes(r fiber.Router, auth *middleware.AuthClient, h *TransactionRouteHandler) {
 	txnRoutes := r.Group("/organizations/:organization_id/ledgers/:ledger_id/transaction-routes")
 	txnRoutes.Post("", auth.Authorize(routingName, "transaction-routes", "post"), http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.CreateTransactionRouteInput), h.CreateTransactionRoute))
@@ -166,8 +309,27 @@ func registerTransactionRouteRoutes(r fiber.Router, auth *middleware.AuthClient,
 	txnRoutes.Get("", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters("transaction_route"), h.GetAllTransactionRoutes)
 }
 
-// securityHeadersMiddleware adds security headers to all responses.
-// These headers protect against common web vulnerabilities.
+// securityHeadersMiddleware adds security headers to all HTTP responses.
+//
+// This middleware implements defense-in-depth by adding headers that protect
+// against common web vulnerabilities:
+//
+// Headers Applied:
+//   - Strict-Transport-Security: Force HTTPS for 1 year
+//   - X-Frame-Options: DENY (prevent clickjacking)
+//   - X-Content-Type-Options: nosniff (prevent MIME sniffing)
+//   - X-XSS-Protection: 1; mode=block (legacy XSS protection)
+//   - Referrer-Policy: strict-origin-when-cross-origin
+//   - Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
+//
+// Security Rationale:
+//
+// These headers provide defense against:
+//   - Clickjacking attacks (X-Frame-Options, CSP frame-ancestors)
+//   - MIME type confusion (X-Content-Type-Options)
+//   - XSS attacks (X-XSS-Protection, CSP)
+//   - Protocol downgrade (HSTS)
+//   - Information leakage (Referrer-Policy)
 func securityHeadersMiddleware(c *fiber.Ctx) error {
 	// HSTS - Force HTTPS for 1 year (31536000 seconds)
 	c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

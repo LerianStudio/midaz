@@ -1,3 +1,40 @@
+// Package transaction provides PostgreSQL data models for financial transaction persistence.
+//
+// This package implements the infrastructure layer for transaction storage in PostgreSQL,
+// following the hexagonal architecture pattern. Transactions are the primary unit of
+// financial activity in the ledger system, containing multiple operations that implement
+// double-entry accounting.
+//
+// Domain Concept:
+//
+// A Transaction in the ledger system:
+//   - Represents a complete financial event (payment, transfer, adjustment)
+//   - Contains multiple operations (debits and credits) that must balance
+//   - Supports parent-child relationships for reversals and amendments
+//   - Stores the original DSL/JSON body for audit and replay
+//   - Maintains lifecycle status (PENDING, ACTIVE, CANCELLED, REVERTED)
+//
+// Transaction Lifecycle:
+//
+//	PENDING -> ACTIVE (commit) or CANCELLED (cancel)
+//	ACTIVE -> REVERTED (with child reversal transaction)
+//
+// Double-Entry Guarantee:
+//
+// Every transaction enforces accounting integrity:
+//   - Sum of DEBIT amounts == Sum of CREDIT amounts
+//   - At least one debit and one credit operation
+//   - Atomic commit (all operations succeed or none)
+//
+// Data Flow:
+//
+//	CreateTransactionInput -> libTransaction.Transaction -> TransactionPostgreSQLModel -> PostgreSQL
+//	PostgreSQL -> TransactionPostgreSQLModel -> Transaction (domain) -> API Response
+//
+// Related Packages:
+//   - operation: Individual debit/credit entries within transaction
+//   - balance: Account balances affected by transaction
+//   - mmodel: Domain model definitions
 package transaction
 
 import (
@@ -15,7 +52,43 @@ import (
 	"github.com/google/uuid"
 )
 
-// TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
+// TransactionPostgreSQLModel represents the transaction entity in PostgreSQL.
+//
+// This model maps directly to the 'transaction' table with SQL-specific types.
+// It stores both the transaction metadata and the original request body for
+// audit and potential replay scenarios.
+//
+// Table Schema:
+//
+//	CREATE TABLE transaction (
+//	    id UUID PRIMARY KEY,
+//	    parent_transaction_id UUID REFERENCES transaction(id),
+//	    description TEXT,
+//	    status VARCHAR(50) NOT NULL,
+//	    status_description TEXT,
+//	    amount DECIMAL(38,18),
+//	    asset_code VARCHAR(10) NOT NULL,
+//	    chart_of_accounts_group_name VARCHAR(256),
+//	    ledger_id UUID NOT NULL,
+//	    organization_id UUID NOT NULL,
+//	    body JSONB,
+//	    route VARCHAR(256),
+//	    created_at TIMESTAMP WITH TIME ZONE,
+//	    updated_at TIMESTAMP WITH TIME ZONE,
+//	    deleted_at TIMESTAMP WITH TIME ZONE
+//	);
+//
+// Body Field:
+//
+// The Body field stores the complete transaction DSL/JSON as JSONB, enabling:
+//   - Audit trail of original request
+//   - Transaction replay for testing
+//   - Reversal calculation from original operations
+//
+// Thread Safety:
+//
+// TransactionPostgreSQLModel is not thread-safe. Each goroutine should work
+// with its own instance.
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
@@ -410,7 +483,19 @@ func (t Transaction) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(t.ID)
 }
 
-// ToEntity converts an TransactionPostgreSQLModel to entity Transaction
+// ToEntity converts a TransactionPostgreSQLModel to the domain Transaction model.
+//
+// This method implements the outbound mapping in hexagonal architecture,
+// transforming the persistence model back to the domain representation.
+//
+// Mapping Process:
+//  1. Create Status value object from code and description
+//  2. Map all direct fields including parent reference
+//  3. Restore Body if present (non-empty DSL)
+//  4. Handle nullable Route and DeletedAt fields
+//
+// Returns:
+//   - *Transaction: Domain model with all fields mapped
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	status := Status{
 		Code:        t.Status,
@@ -447,7 +532,20 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	return transaction
 }
 
-// FromEntity converts an entity Transaction to TransactionPostgreSQLModel
+// FromEntity converts a domain Transaction model to TransactionPostgreSQLModel.
+//
+// This method implements the inbound mapping in hexagonal architecture,
+// transforming the domain representation to the persistence model.
+//
+// Mapping Process:
+//  1. Generate UUIDv7 if ID not provided (new transaction)
+//  2. Extract values from embedded Status value object
+//  3. Store Body only if non-empty (preserve original DSL)
+//  4. Handle optional Route and parent transaction ID
+//  5. Convert nullable DeletedAt to sql.NullTime
+//
+// Parameters:
+//   - transaction: Domain Transaction model to convert
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if transaction.ID != "" {
@@ -483,7 +581,19 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// FromDSL converts an entity FromDSL to goldModel.Transaction
+// FromDSL converts a CreateTransactionInput to the internal DSL representation.
+//
+// This method transforms the API input into the canonical transaction DSL format
+// used for processing. It ensures the IsFrom flag is set correctly for source
+// operations to distinguish debit from credit sides.
+//
+// Transformation Process:
+//  1. Map all direct fields (description, code, metadata)
+//  2. Copy Send block with source and distribute operations
+//  3. Mark all source.from operations with IsFrom=true
+//
+// Returns:
+//   - *libTransaction.Transaction: Canonical DSL for transaction processing
 func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 	dsl := &libTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
@@ -506,7 +616,26 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 	return dsl
 }
 
-// TransactionRevert is a func that revert transaction
+// TransactionRevert generates a reversal DSL from an executed transaction.
+//
+// This method creates a new transaction DSL that reverses all operations
+// of the original transaction by swapping debits and credits:
+//   - Original CREDIT operations become DEBIT (source.from)
+//   - Original DEBIT operations become CREDIT (distribute.to)
+//
+// Reversal Rules:
+//   - Preserves original amounts (no partial reversals)
+//   - Maintains account associations
+//   - Copies metadata and descriptions
+//   - Sets Pending=false (reversals commit immediately)
+//
+// Use Cases:
+//   - Transaction correction (wrong amount/account)
+//   - Payment refund
+//   - Accounting adjustment
+//
+// Returns:
+//   - libTransaction.Transaction: DSL for the reversal transaction
 func (t Transaction) TransactionRevert() libTransaction.Transaction {
 	froms := make([]libTransaction.FromTo, 0)
 	tos := make([]libTransaction.FromTo, 0)
