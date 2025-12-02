@@ -68,6 +68,20 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		return nil, err
 	}
 
+	err = uc.ValidateHolderLinkConstraints(ctx, organizationID, *createdAccount.ID, cai.LinkType)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to validate holder link constraints", err)
+
+		logger.Errorf("Failed to validate holder link constraints: %v", err)
+
+		deleteErr := uc.AliasRepo.Delete(ctx, organizationID, holderID, *createdAccount.ID, true)
+		if deleteErr != nil {
+			logger.Errorf("Failed to rollback alias creation after validation error: %v", deleteErr)
+		}
+
+		return nil, err
+	}
+
 	holderLinkID := libCommons.GenerateUUIDv7()
 	linkTypeStr := cai.LinkType
 

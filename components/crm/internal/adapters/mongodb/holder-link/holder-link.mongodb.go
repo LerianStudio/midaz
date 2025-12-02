@@ -29,6 +29,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID string, input *mmodel.HolderLink) (*mmodel.HolderLink, error)
 	Find(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.HolderLink, error)
+	FindByAliasIDAndLinkType(ctx context.Context, organizationID string, aliasID uuid.UUID, linkType string, includeDeleted bool) (*mmodel.HolderLink, error)
 	FindAll(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.HolderLink, error)
 	Update(ctx context.Context, organizationID string, id uuid.UUID, input *mmodel.HolderLink, fieldsToRemove []string) (*mmodel.HolderLink, error)
 	Delete(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error
@@ -158,6 +159,56 @@ func (hlm *MongoDBRepository) Find(ctx context.Context, organizationID string, i
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name())
+		}
+
+		return nil, err
+	}
+
+	result := record.ToEntity()
+	return result, nil
+}
+
+// FindByAliasIDAndLinkType finds a holder link by alias ID and link type
+func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, organizationID string, aliasID uuid.UUID, linkType string, includeDeleted bool) (*mmodel.HolderLink, error) {
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_holder_link_by_alias_and_type")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.link_type", linkType),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := hlm.connection.GetDB(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
+
+	var record MongoDBModel
+
+	filter := bson.D{
+		{Key: "alias_id", Value: aliasID},
+		{Key: "link_type", Value: linkType},
+	}
+
+	if !includeDeleted {
+		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
+	}
+
+	err = coll.FindOne(ctx, filter).Decode(&record)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder link by alias and type", err)
+
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil // Return nil if not found (not an error, used for validation)
 		}
 
 		return nil, err
