@@ -637,15 +637,6 @@ func createIndexes(collection *mongo.Collection) error {
 					{Key: "deleted_at", Value: nil},
 				}),
 		},
-		{
-			Keys: bson.D{
-				{Key: "holder_link_id", Value: 1},
-			},
-			Options: options.Index().
-				SetPartialFilterExpression(bson.D{
-					{Key: "deleted_at", Value: nil},
-				}),
-		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

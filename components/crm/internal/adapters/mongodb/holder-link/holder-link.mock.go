@@ -102,6 +102,21 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, filter, inclu
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, filter, includeDeleted)
 }
 
+// FindByAliasID mocks base method.
+func (m *MockRepository) FindByAliasID(ctx context.Context, organizationID string, aliasID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByAliasID", ctx, organizationID, aliasID, includeDeleted)
+	ret0, _ := ret[0].([]*mmodel.HolderLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByAliasID indicates an expected call of FindByAliasID.
+func (mr *MockRepositoryMockRecorder) FindByAliasID(ctx, organizationID, aliasID, includeDeleted any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAliasID", reflect.TypeOf((*MockRepository)(nil).FindByAliasID), ctx, organizationID, aliasID, includeDeleted)
+}
+
 // FindByAliasIDAndLinkType mocks base method.
 func (m *MockRepository) FindByAliasIDAndLinkType(ctx context.Context, organizationID string, aliasID uuid.UUID, linkType string, includeDeleted bool) (*mmodel.HolderLink, error) {
 	m.ctrl.T.Helper()
@@ -115,6 +130,21 @@ func (m *MockRepository) FindByAliasIDAndLinkType(ctx context.Context, organizat
 func (mr *MockRepositoryMockRecorder) FindByAliasIDAndLinkType(ctx, organizationID, aliasID, linkType, includeDeleted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAliasIDAndLinkType", reflect.TypeOf((*MockRepository)(nil).FindByAliasIDAndLinkType), ctx, organizationID, aliasID, linkType, includeDeleted)
+}
+
+// FindByHolderID mocks base method.
+func (m *MockRepository) FindByHolderID(ctx context.Context, organizationID string, holderID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByHolderID", ctx, organizationID, holderID, includeDeleted)
+	ret0, _ := ret[0].([]*mmodel.HolderLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByHolderID indicates an expected call of FindByHolderID.
+func (mr *MockRepositoryMockRecorder) FindByHolderID(ctx, organizationID, holderID, includeDeleted any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByHolderID", reflect.TypeOf((*MockRepository)(nil).FindByHolderID), ctx, organizationID, holderID, includeDeleted)
 }
 
 // Update mocks base method.

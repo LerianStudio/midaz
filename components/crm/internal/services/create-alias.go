@@ -2,11 +2,14 @@ package services
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -96,12 +99,22 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 		holderLinkID := libCommons.GenerateUUIDv7()
 		linkTypeStr := *cai.LinkType
+		linkType := mmodel.LinkType(linkTypeStr)
+
+		tpVinc, ok := mmodel.GetTpVincValue(linkType)
+		if !ok {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", nil)
+			logger.Errorf("Failed to get TpVinc value for link type: %v", linkTypeStr)
+
+			return nil, pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
+		}
 
 		holderLink := &mmodel.HolderLink{
 			ID:        &holderLinkID,
 			HolderID:  &holderID,
 			AliasID:   createdAccount.ID,
 			LinkType:  &linkTypeStr,
+			TpVinc:    &tpVinc,
 			Metadata:  make(map[string]any),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -116,8 +129,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			return nil, err
 		}
 
-		alias.HolderLinkID = createdHolderLink.ID
-		alias.LinkType = createdHolderLink.LinkType
+		alias.HolderLinks = []*mmodel.HolderLink{createdHolderLink}
 		alias.UpdatedAt = time.Now()
 
 		updatedAccount, err := uc.AliasRepo.Update(ctx, organizationID, holderID, *createdAccount.ID, alias, nil)
@@ -129,7 +141,10 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			return nil, err
 		}
 
-		updatedAccount.LinkType = createdHolderLink.LinkType
+		err = uc.enrichAliasWithLinkType(ctx, organizationID, updatedAccount)
+		if err != nil {
+			logger.Warnf("Failed to enrich alias with holder links: %v", err)
+		}
 
 		return updatedAccount, nil
 	}

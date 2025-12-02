@@ -7,19 +7,22 @@ import (
 )
 
 // enrichAliasWithLinkType enriches an alias with linkType from HolderLink
+// It fetches all holder links for the alias and populates the HolderLinks array
 func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID string, alias *mmodel.Alias) error {
-	if alias.HolderLinkID == nil {
+	if alias.ID == nil {
 		return nil
 	}
 
-	holderLink, err := uc.HolderLinkRepo.Find(ctx, organizationID, *alias.HolderLinkID, false)
+	holderLinks, err := uc.HolderLinkRepo.FindByAliasID(ctx, organizationID, *alias.ID, false)
 	if err != nil {
 		return nil
 	}
 
-	if holderLink != nil && holderLink.LinkType != nil {
-		alias.LinkType = holderLink.LinkType
+	if len(holderLinks) == 0 {
+		return nil
 	}
+
+	alias.HolderLinks = holderLinks
 
 	return nil
 }

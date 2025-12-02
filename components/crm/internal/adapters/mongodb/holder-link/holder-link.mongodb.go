@@ -30,6 +30,8 @@ type Repository interface {
 	Create(ctx context.Context, organizationID string, input *mmodel.HolderLink) (*mmodel.HolderLink, error)
 	Find(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.HolderLink, error)
 	FindByAliasIDAndLinkType(ctx context.Context, organizationID string, aliasID uuid.UUID, linkType string, includeDeleted bool) (*mmodel.HolderLink, error)
+	FindByAliasID(ctx context.Context, organizationID string, aliasID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error)
+	FindByHolderID(ctx context.Context, organizationID string, holderID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error)
 	FindAll(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.HolderLink, error)
 	Update(ctx context.Context, organizationID string, id uuid.UUID, input *mmodel.HolderLink, fieldsToRemove []string) (*mmodel.HolderLink, error)
 	Delete(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error
@@ -222,6 +224,69 @@ func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, orga
 	result := record.ToEntity()
 
 	return result, nil
+}
+
+// FindByAliasID finds all holder links by alias ID
+func (hlm *MongoDBRepository) FindByAliasID(ctx context.Context, organizationID string, aliasID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error) {
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_holder_links_by_alias_id")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.alias_id", aliasID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := hlm.connection.GetDB(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
+
+	filter := bson.D{
+		{Key: "alias_id", Value: aliasID},
+	}
+
+	if !includeDeleted {
+		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
+	}
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_holder_links_by_alias_id.find")
+	defer spanFind.End()
+
+	spanFind.SetAttributes(attributes...)
+
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder links by alias id", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var holderLinks []*mmodel.HolderLink
+
+	for cursor.Next(ctx) {
+		var record MongoDBModel
+		if err := cursor.Decode(&record); err != nil {
+			libOpenTelemetry.HandleSpanError(&spanFind, "Failed to decode holder link", err)
+			return nil, err
+		}
+
+		holderLinks = append(holderLinks, record.ToEntity())
+	}
+
+	if err := cursor.Err(); err != nil {
+		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to iterate holder links", err)
+		return nil, err
+	}
+
+	return holderLinks, nil
 }
 
 // FindAll returns all holder links matching the filter
@@ -517,9 +582,10 @@ func checkErrorByKeyPatternFromMessage(errMsg string) (string, bool) {
 	}
 
 	if hasAliasID {
-		if strings.Contains(errMsg, "PRIMARY_HOLDER") {
+		if strings.Contains(errMsg, string(mmodel.LinkTypePrimaryHolder)) {
 			return "primary_holder_exists", true
 		}
+
 		if strings.Contains(errMsg, "alias_id_primary_holder_unique") {
 			return "primary_holder_exists", true
 		}
@@ -571,7 +637,7 @@ func createIndexes(collection *mongo.Collection) error {
 				SetName("alias_id_primary_holder_unique").
 				SetPartialFilterExpression(bson.D{
 					{Key: "deleted_at", Value: nil},
-					{Key: "link_type", Value: "PRIMARY_HOLDER"},
+					{Key: "link_type", Value: string(mmodel.LinkTypePrimaryHolder)},
 				}),
 		},
 	}
@@ -582,4 +648,67 @@ func createIndexes(collection *mongo.Collection) error {
 	_, err := collection.Indexes().CreateMany(ctx, indexModels)
 
 	return err
+}
+
+// FindByHolderID finds all holder links by holder ID
+func (hlm *MongoDBRepository) FindByHolderID(ctx context.Context, organizationID string, holderID uuid.UUID, includeDeleted bool) ([]*mmodel.HolderLink, error) {
+	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_holder_links_by_holder_id")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := hlm.connection.GetDB(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
+
+	filter := bson.D{
+		{Key: "holder_id", Value: holderID},
+	}
+
+	if !includeDeleted {
+		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
+	}
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_holder_links_by_holder_id.find")
+	defer spanFind.End()
+
+	spanFind.SetAttributes(attributes...)
+
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder links by holder id", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var holderLinks []*mmodel.HolderLink
+
+	for cursor.Next(ctx) {
+		var record MongoDBModel
+		if err := cursor.Decode(&record); err != nil {
+			libOpenTelemetry.HandleSpanError(&spanFind, "Failed to decode holder link", err)
+			return nil, err
+		}
+
+		holderLinks = append(holderLinks, record.ToEntity())
+	}
+
+	if err := cursor.Err(); err != nil {
+		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to iterate holder links", err)
+		return nil, err
+	}
+
+	return holderLinks, nil
 }

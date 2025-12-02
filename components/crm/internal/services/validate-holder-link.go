@@ -39,7 +39,8 @@ func (uc *UseCase) ValidateHolderLinkConstraints(ctx context.Context, organizati
 	}
 
 	if existingLink != nil {
-		if linkType == string(mmodel.LinkTypePrimaryHolder) {
+		linkTypeEnum := mmodel.LinkType(linkType)
+		if linkTypeEnum == mmodel.LinkTypePrimaryHolder {
 			existingLinkErr := pkg.ValidateBusinessError(constant.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
 
 			libOpenTelemetry.HandleSpanError(&span, "Primary holder already exists for this alias", constant.ErrPrimaryHolderAlreadyExists)

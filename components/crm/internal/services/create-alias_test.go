@@ -120,22 +120,37 @@ func TestCreateAlias(t *testing.T) {
 				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Alias{
-						ID:           &id,
-						Document:     &holderDocument,
-						AccountID:    &accountID,
-						LedgerID:     &ledgerID,
-						HolderLinkID: &holderLinkID,
-						LinkType:     &linkTypePrimaryHolder,
+						ID:        &id,
+						Document:  &holderDocument,
+						AccountID: &accountID,
+						LedgerID:  &ledgerID,
+					}, nil)
+
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasID(gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return([]*mmodel.HolderLink{
+						{
+							ID:       &holderLinkID,
+							HolderID: &holderID,
+							AliasID:  &id,
+							LinkType: &linkTypePrimaryHolder,
+						},
 					}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: &mmodel.Alias{
-				ID:           &id,
-				Document:     &holderDocument,
-				AccountID:    &accountID,
-				LedgerID:     &ledgerID,
-				HolderLinkID: &holderLinkID,
-				LinkType:     &linkTypePrimaryHolder,
+				ID:        &id,
+				Document:  &holderDocument,
+				AccountID: &accountID,
+				LedgerID:  &ledgerID,
+				HolderLinks: []*mmodel.HolderLink{
+					{
+						ID:       &holderLinkID,
+						HolderID: &holderID,
+						AliasID:  &id,
+						LinkType: &linkTypePrimaryHolder,
+					},
+				},
 			},
 		},
 		{
@@ -267,9 +282,12 @@ func TestCreateAlias(t *testing.T) {
 					assert.Equal(t, testCase.expectedResult.ID, result.ID)
 					assert.Equal(t, testCase.expectedResult.AccountID, result.AccountID)
 					assert.Equal(t, testCase.expectedResult.LedgerID, result.LedgerID)
-					if testCase.expectedResult.LinkType != nil {
-						assert.Equal(t, testCase.expectedResult.LinkType, result.LinkType)
-						assert.Equal(t, testCase.expectedResult.HolderLinkID, result.HolderLinkID)
+					if testCase.expectedResult.HolderLinks != nil {
+						assert.Equal(t, len(testCase.expectedResult.HolderLinks), len(result.HolderLinks))
+						if len(testCase.expectedResult.HolderLinks) > 0 {
+							assert.Equal(t, testCase.expectedResult.HolderLinks[0].ID, result.HolderLinks[0].ID)
+							assert.Equal(t, testCase.expectedResult.HolderLinks[0].LinkType, result.HolderLinks[0].LinkType)
+						}
 					}
 				}
 			}

@@ -30,19 +30,14 @@ func (uc *UseCase) ValidateLinkType(ctx context.Context, linkType *string) error
 		attribute.String("app.request.link_type", *linkType),
 	)
 
-	validLinkTypes := map[string]bool{
-		string(mmodel.LinkTypePrimaryHolder):       true,
-		string(mmodel.LinkTypeLegalRepresentative): true,
-		string(mmodel.LinkTypeResponsibleParty):    true,
-	}
-
 	normalizedLinkType := strings.TrimSpace(*linkType)
-	if !validLinkTypes[normalizedLinkType] {
+	if !mmodel.IsValidLinkType(normalizedLinkType) {
 		err := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
 
 		libOpenTelemetry.HandleSpanError(&span, "Invalid linkType value", err)
 
-		logger.Errorf("Invalid linkType value: %s. Valid values are: PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY", *linkType)
+		validTypes := mmodel.GetValidLinkTypes()
+		logger.Errorf("Invalid linkType value: %s. Valid values are: %v", *linkType, validTypes)
 
 		return err
 	}

@@ -26,6 +26,24 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Infof("Trying to update alias: %v", id.String())
 
+	if uai.AddHolderLink != nil {
+		linkHolderID, err := uuid.Parse(uai.AddHolderLink.HolderID)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID for new link", err)
+			logger.Errorf("Failed to parse holder ID for new link: %v", err)
+
+			return nil, err
+		}
+
+		_, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to add holder link to alias", err)
+			logger.Errorf("Failed to add holder link to alias: %v", err)
+
+			return nil, err
+		}
+	}
+
 	alias := &mmodel.Alias{
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,

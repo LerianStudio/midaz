@@ -25,6 +25,47 @@ var TpVincMapping = map[LinkType]int{
 	LinkTypeResponsibleParty:    3,
 }
 
+// GetTpVincValue converts a LinkType to its numeric TpVinc value.
+// Returns 0 and false if the LinkType is invalid.
+func GetTpVincValue(linkType LinkType) (int, bool) {
+	value, ok := TpVincMapping[linkType]
+	return value, ok
+}
+
+// GetTpVincValueFromString converts a LinkType string to its numeric TpVinc value.
+// Returns 0 and false if the string is not a valid LinkType.
+func GetTpVincValueFromString(linkTypeStr string) (int, bool) {
+	linkType := LinkType(linkTypeStr)
+	return GetTpVincValue(linkType)
+}
+
+// GetLinkTypeFromTpVinc converts a numeric TpVinc value to its LinkType.
+// Returns empty string and false if the value is invalid.
+func GetLinkTypeFromTpVinc(tpVinc int) (LinkType, bool) {
+	for linkType, value := range TpVincMapping {
+		if value == tpVinc {
+			return linkType, true
+		}
+	}
+	return "", false
+}
+
+// IsValidLinkType checks if a string is a valid LinkType.
+func IsValidLinkType(linkTypeStr string) bool {
+	linkType := LinkType(linkTypeStr)
+	_, ok := TpVincMapping[linkType]
+	return ok
+}
+
+// GetValidLinkTypes returns a slice of all valid LinkType strings.
+func GetValidLinkTypes() []string {
+	validTypes := make([]string, 0, len(TpVincMapping))
+	for linkType := range TpVincMapping {
+		validTypes = append(validTypes, string(linkType))
+	}
+	return validTypes
+}
+
 // CreateHolderLinkInput is a struct designed to encapsulate request create payload data.
 //
 // swagger:model CreateHolderLinkInput
@@ -61,6 +102,7 @@ type HolderLink struct {
 	HolderID  *uuid.UUID     `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
 	AliasID   *uuid.UUID     `json:"aliasId" example:"00000000-0000-0000-0000-000000000000"`
 	LinkType  *string        `json:"linkType" example:"PRIMARY_HOLDER" enums:"PRIMARY_HOLDER,LEGAL_REPRESENTATIVE,RESPONSIBLE_PARTY"`
+	TpVinc    *int           `json:"tpVinc,omitempty" example:"1" description:"Numeric TpVinc value (1=PRIMARY_HOLDER, 2=LEGAL_REPRESENTATIVE, 3=RESPONSIBLE_PARTY)"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
 	CreatedAt time.Time      `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	UpdatedAt time.Time      `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
