@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Restart onboarding/transaction services; APIs should return and state remains accessible.

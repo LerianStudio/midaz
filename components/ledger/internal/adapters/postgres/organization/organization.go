@@ -6,7 +6,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database

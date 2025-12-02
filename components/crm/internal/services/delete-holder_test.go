@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/holder"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

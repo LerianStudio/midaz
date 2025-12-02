@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/holder"
 )
 
 type UseCase struct {

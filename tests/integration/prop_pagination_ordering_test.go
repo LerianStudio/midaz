@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Validates pagination invariants for accounts: union of pages equals full set; stable order; no duplicates.

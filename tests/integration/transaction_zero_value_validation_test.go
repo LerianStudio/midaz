@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Verifies that creating a transaction with send.value <= "0" returns HTTP 422 with code 0125.

@@ -9,10 +9,10 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/crm/internal/services"
 )
 
 // Config is the top level configuration struct for the entire application.

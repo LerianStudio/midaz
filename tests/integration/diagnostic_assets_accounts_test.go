@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Confirms that after creating USD asset (and verifying via GET), account creation should not 404.

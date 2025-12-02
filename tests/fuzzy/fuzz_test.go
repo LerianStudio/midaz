@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // FuzzCreateOrganizationName fuzzes organization legalName to validate input handling.

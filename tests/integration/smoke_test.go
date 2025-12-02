@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 func TestSmoke_OnboardingHealthAndVersion(t *testing.T) {

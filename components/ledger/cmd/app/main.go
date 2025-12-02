@@ -2,7 +2,7 @@ package main
 
 import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )
 
 // @title			Midaz Transaction API

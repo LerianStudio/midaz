@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Validates that metadata value length > 2000 on JSON endpoint is rejected with 400 and code 0051.

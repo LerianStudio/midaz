@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 func TestFuzz_Structural_OmittedUnknownInvalidJSONLarge(t *testing.T) {

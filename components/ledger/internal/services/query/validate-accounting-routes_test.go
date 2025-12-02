@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v4/pkg/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

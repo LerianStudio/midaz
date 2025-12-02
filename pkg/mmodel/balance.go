@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v4/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -253,7 +253,7 @@ type BalanceRedis struct {
 	Key string `json:"key"`
 }
 
-// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
+// ConvertBalancesToPkgBalances is a func that convert []*Balance to []*pkgTransaction.Balance
 func ConvertBalancesToPkgBalances(balances []*Balance) []*pkgTransaction.Balance {
 	out := make([]*pkgTransaction.Balance, 0, len(balances))
 
@@ -266,7 +266,7 @@ func ConvertBalancesToPkgBalances(balances []*Balance) []*pkgTransaction.Balance
 	return out
 }
 
-// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
+// ConvertBalanceOperationsToPkgBalances is a func that convert []*BalanceOperation to []*pkgTransaction.Balance
 func ConvertBalanceOperationsToPkgBalances(operations []BalanceOperation) []*pkgTransaction.Balance {
 	out := make([]*pkgTransaction.Balance, 0, len(operations))
 	for _, op := range operations {
@@ -276,7 +276,7 @@ func ConvertBalanceOperationsToPkgBalances(operations []BalanceOperation) []*pkg
 	return out
 }
 
-// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
+// ConvertToPkgBalance is a func that convert Balance to pkgTransaction.Balance
 func (b *Balance) ConvertToPkgBalance() *pkgTransaction.Balance {
 	return &pkgTransaction.Balance{
 		ID:             b.ID,

@@ -3,7 +3,7 @@ package chaos
 import (
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 func TestMain(m *testing.M) {

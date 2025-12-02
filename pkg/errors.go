@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -312,7 +312,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 // ValidateBusinessError validates the error and returns the appropriate business error code, title, and message.
 //
 // Parameters:
-//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/v3/common/constant/errors.go).
+//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/v4/common/constant/errors.go).
 //   - entityType: The type of the entity related to the error.
 //   - args: Additional arguments for formatting error messages.
 //

@@ -3,7 +3,7 @@ package mmodel
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func TestStatus_IsEmpty(t *testing.T) {

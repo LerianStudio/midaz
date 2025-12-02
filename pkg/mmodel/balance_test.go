@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v4/pkg/transaction"
 	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"

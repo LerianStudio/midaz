@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // This test only runs when RABBITMQ_TRANSACTION_ASYNC=true in the service configuration and

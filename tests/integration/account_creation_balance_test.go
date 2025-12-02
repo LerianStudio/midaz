@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Verifies that creating an account results in a default balance record that can be listed by account ID.

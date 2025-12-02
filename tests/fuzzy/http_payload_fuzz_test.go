@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	h "github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
 // Run with: MIDAZ_TEST_FUZZ=true go test -v ./tests/fuzzy -run Fuzz -count=1
