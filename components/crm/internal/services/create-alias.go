@@ -29,6 +29,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to validate link type", err)
 			logger.Errorf("Failed to validate link type: %v", err)
+
 			return nil, err
 		}
 	}

@@ -108,6 +108,7 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "link_type") {
 				return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
 			}
+
 			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "PRIMARY_HOLDER") {
 				return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
 			}
@@ -117,6 +118,7 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 	}
 
 	result := record.ToEntity()
+
 	return result, nil
 }
 
@@ -165,6 +167,7 @@ func (hlm *MongoDBRepository) Find(ctx context.Context, organizationID string, i
 	}
 
 	result := record.ToEntity()
+
 	return result, nil
 }
 
@@ -215,6 +218,7 @@ func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, orga
 	}
 
 	result := record.ToEntity()
+
 	return result, nil
 }
 
@@ -342,6 +346,7 @@ func (hlm *MongoDBRepository) Update(ctx context.Context, organizationID string,
 			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "link_type") {
 				return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
 			}
+
 			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "PRIMARY_HOLDER") {
 				return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
 			}
@@ -368,6 +373,7 @@ func (hlm *MongoDBRepository) Update(ctx context.Context, organizationID string,
 	}
 
 	result := record.ToEntity()
+
 	return result, nil
 }
 

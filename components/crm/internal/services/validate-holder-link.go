@@ -34,6 +34,7 @@ func (uc *UseCase) ValidateHolderLinkConstraints(ctx context.Context, organizati
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to check for existing holder link", err)
 		logger.Errorf("Failed to check for existing holder link: %v", err)
+
 		return err
 	}
 
@@ -53,7 +54,7 @@ func (uc *UseCase) ValidateHolderLinkConstraints(ctx context.Context, organizati
 		libOpenTelemetry.HandleSpanError(&span, "Holder link already exists with same alias and link type", constant.ErrDuplicateHolderLink)
 
 		logger.Errorf("Holder link already exists for alias %v with link type %v", aliasID.String(), linkType)
-		
+
 		return err
 	}
 
