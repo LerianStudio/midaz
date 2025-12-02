@@ -589,8 +589,3 @@ dev-setup:
 		echo ""; \
 	done
 	@echo "[ok] Development environment set up successfully for all components"
-
-
-.PHONY: grpc-gen
-grpc-gen:
-	@protoc --proto_path=./pkg/mgrpc --go-grpc_out=./pkg/mgrpc --go_out=./pkg/mgrpc ./pkg/mgrpc/balance/balance.proto
