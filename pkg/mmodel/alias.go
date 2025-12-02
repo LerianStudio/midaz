@@ -49,6 +49,7 @@ type Alias struct {
 	AccountID      *string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
 	HolderID       *uuid.UUID      `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
 	HolderLinkID   *uuid.UUID      `json:"holderLinkId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	LinkType       *string         `json:"linkType,omitempty" example:"PRIMARY_HOLDER" enums:"PRIMARY_HOLDER,LEGAL_REPRESENTATIVE,RESPONSIBLE_PARTY"`
 	Metadata       map[string]any  `json:"metadata,omitempty"`
 	BankingDetails *BankingDetails `json:"bankingDetails,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt" example:"2025-01-01T00:00:00Z"`

@@ -105,6 +105,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 	}
 
 	alias.HolderLinkID = createdHolderLink.ID
+	alias.LinkType = createdHolderLink.LinkType
 	alias.UpdatedAt = time.Now()
 
 	updatedAccount, err := uc.AliasRepo.Update(ctx, organizationID, holderID, *createdAccount.ID, alias, nil)
@@ -115,6 +116,8 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 		return nil, err
 	}
+
+	updatedAccount.LinkType = createdHolderLink.LinkType
 
 	return updatedAccount, nil
 }

@@ -41,5 +41,10 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		return nil, err
 	}
 
+	err = uc.enrichAliasWithLinkType(ctx, organizationID, updatedAlias)
+	if err != nil {
+		logger.Warnf("Failed to enrich alias with link type: %v", err)
+	}
+
 	return updatedAlias, nil
 }
