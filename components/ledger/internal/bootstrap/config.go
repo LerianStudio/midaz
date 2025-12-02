@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,8 +67,6 @@ type Config struct {
 	MaxOnboardingOpenConnections int    `env:"DB_ONBOARDING_MAX_OPEN_CONNS"`
 	MaxOnboardingIdleConnections int    `env:"DB_ONBOARDING_MAX_IDLE_CONNS"`
 
-	MigrationsPathOnboarding string `env:"MIGRATIONS_PATH_ONBOARDING"`
-
 	// -- MongoDB configuration
 	MongoOnboardingURI        string `env:"MONGO_ONBOARDING_URI"`
 	MongoOnboardingHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -98,8 +96,6 @@ type Config struct {
 	ReplicaTransactionDBSSLMode   string `env:"DB_TRANSACTION_REPLICA_SSLMODE"`
 	MaxTransactionOpenConnections int    `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
 	MaxTransactionIdleConnections int    `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
-
-	MigrationsPathTransaction string `env:"MIGRATIONS_PATH_TRANSACTION"`
 
 	// -- MongoDB configuration
 	MongoTransactionURI        string `env:"MONGO_TRANSACTION_URI"`
@@ -198,7 +194,7 @@ func InitServers() *Service {
 		Logger:                  logger,
 		MaxOpenConnections:      cfg.MaxOnboardingOpenConnections,
 		MaxIdleConnections:      cfg.MaxOnboardingIdleConnections,
-		MigrationsPath:          cfg.MigrationsPathOnboarding,
+		MigrationsPath:          filepath.Join("components", "ledger", "migrations", "onboarding"),
 	}
 
 	mongoSourceOnboarding := fmt.Sprintf("%s://%s:%s@%s:%s/",
@@ -236,7 +232,7 @@ func InitServers() *Service {
 		Logger:                  logger,
 		MaxOpenConnections:      cfg.MaxTransactionOpenConnections,
 		MaxIdleConnections:      cfg.MaxTransactionIdleConnections,
-		MigrationsPath:          cfg.MigrationsPathTransaction,
+		MigrationsPath:          filepath.Join("components", "ledger", "migrations", "transaction"),
 	}
 
 	mongoSourceTransaction := fmt.Sprintf("%s://%s:%s@%s:%s/",
