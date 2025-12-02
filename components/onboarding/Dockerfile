@@ -33,3 +33,4 @@ EXPOSE 3000
 
 # Set entrypoint to the compiled binary
 ENTRYPOINT ["/app"]
+RUN echo "build completed"
