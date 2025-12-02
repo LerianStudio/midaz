@@ -105,12 +105,14 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 		libOpenTelemetry.HandleSpanError(&spanInsert, "Failed to insert holder link", err)
 
 		if mongo.IsDuplicateKeyError(err) {
-			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "link_type") {
-				return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
-			}
-
-			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "PRIMARY_HOLDER") {
-				return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			errorType, isKnownError := getDuplicateKeyErrorType(err)
+			if isKnownError {
+				switch errorType {
+				case "duplicate_holder_link":
+					return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
+				case "primary_holder_exists":
+					return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
+				}
 			}
 		}
 
@@ -211,7 +213,7 @@ func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, orga
 		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder link by alias and type", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, nil // Return nil if not found (not an error, used for validation)
+			return nil, nil
 		}
 
 		return nil, err
@@ -343,12 +345,14 @@ func (hlm *MongoDBRepository) Update(ctx context.Context, organizationID string,
 		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update holder link", err)
 
 		if mongo.IsDuplicateKeyError(err) {
-			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "link_type") {
-				return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
-			}
-
-			if strings.Contains(err.Error(), "alias_id") && strings.Contains(err.Error(), "PRIMARY_HOLDER") {
-				return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			errorType, isKnownError := getDuplicateKeyErrorType(err)
+			if isKnownError {
+				switch errorType {
+				case "duplicate_holder_link":
+					return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
+				case "primary_holder_exists":
+					return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
+				}
 			}
 		}
 
@@ -462,6 +466,68 @@ func buildHolderLinkFilter(includeDeleted bool) bson.D {
 	return filterDoc
 }
 
+// getDuplicateKeyErrorType determines the type of duplicate key error based on KeyPattern
+// It uses named indexes to identify which constraint was violated
+func getDuplicateKeyErrorType(err error) (string, bool) {
+	var writeException mongo.WriteException
+	if !errors.As(err, &writeException) {
+		return "", false
+	}
+
+	for _, writeErr := range writeException.WriteErrors {
+		if writeErr.Code == 11000 || writeErr.Code == 11001 {
+			if result, found := checkErrorByIndexName(writeErr.Message); found {
+				return result, true
+			}
+
+			return checkErrorByKeyPatternFromMessage(writeErr.Message)
+		}
+	}
+
+	return "", false
+}
+
+// checkErrorByIndexName determines error type by checking which index name appears in the error message
+func checkErrorByIndexName(errMsg string) (string, bool) {
+	if strings.Contains(errMsg, "alias_id_link_type_unique") {
+		return "duplicate_holder_link", true
+	}
+
+	if strings.Contains(errMsg, "alias_id_primary_holder_unique") {
+		return "primary_holder_exists", true
+	}
+
+	return "", false
+}
+
+// checkErrorByKeyPatternFromMessage extracts KeyPattern from error message and determines the error type
+func checkErrorByKeyPatternFromMessage(errMsg string) (string, bool) {
+	dupKeyIndex := strings.Index(errMsg, "dup key:")
+	if dupKeyIndex < 0 {
+		return "", false
+	}
+
+	dupKeySection := errMsg[dupKeyIndex:]
+
+	hasAliasID := strings.Contains(dupKeySection, "alias_id")
+	hasLinkType := strings.Contains(dupKeySection, "link_type")
+
+	if hasAliasID && hasLinkType {
+		return "duplicate_holder_link", true
+	}
+
+	if hasAliasID {
+		if strings.Contains(errMsg, "PRIMARY_HOLDER") {
+			return "primary_holder_exists", true
+		}
+		if strings.Contains(errMsg, "alias_id_primary_holder_unique") {
+			return "primary_holder_exists", true
+		}
+	}
+
+	return "", false
+}
+
 // createIndexes creates indexes for specific fields, if it not exists
 func createIndexes(collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
@@ -490,6 +556,7 @@ func createIndexes(collection *mongo.Collection) error {
 			},
 			Options: options.Index().
 				SetUnique(true).
+				SetName("alias_id_link_type_unique").
 				SetPartialFilterExpression(bson.D{
 					{Key: "deleted_at", Value: nil},
 				}),
@@ -501,6 +568,7 @@ func createIndexes(collection *mongo.Collection) error {
 			},
 			Options: options.Index().
 				SetUnique(true).
+				SetName("alias_id_primary_holder_unique").
 				SetPartialFilterExpression(bson.D{
 					{Key: "deleted_at", Value: nil},
 					{Key: "link_type", Value: "PRIMARY_HOLDER"},

@@ -38,7 +38,7 @@ func (uc *UseCase) ValidateLinkType(ctx context.Context, linkType *string) error
 
 	normalizedLinkType := strings.TrimSpace(*linkType)
 	if !validLinkTypes[normalizedLinkType] {
-		err := pkg.ValidateBusinessError(cn.ErrInvalidType, reflect.TypeOf(mmodel.HolderLink{}).Name())
+		err := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
 
 		libOpenTelemetry.HandleSpanError(&span, "Invalid linkType value", err)
 

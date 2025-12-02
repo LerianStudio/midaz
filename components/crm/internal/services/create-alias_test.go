@@ -162,7 +162,7 @@ func TestCreateAlias(t *testing.T) {
 				LinkType:  utils.StringPtr("INVALID_TYPE"),
 			},
 			mockSetup:      func() {},
-			expectedErr:    cn.ErrInvalidType,
+			expectedErr:    cn.ErrInvalidLinkType,
 			expectedResult: nil,
 		},
 		{

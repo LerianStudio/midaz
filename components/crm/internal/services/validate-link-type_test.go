@@ -54,10 +54,10 @@ func TestValidateLinkType(t *testing.T) {
 			name:        "Error with invalid linkType value",
 			linkType:    utils.StringPtr("INVALID_TYPE"),
 			expectError: true,
-			errorCode:   cn.ErrInvalidType,
+			errorCode:   cn.ErrInvalidLinkType,
 		},
 		{
-			name:        "Error with empty string but valid when trimmed",
+			name:        "Success with whitespace-padded PRIMARY_HOLDER",
 			linkType:    utils.StringPtr(" PRIMARY_HOLDER "),
 			expectError: false,
 		},

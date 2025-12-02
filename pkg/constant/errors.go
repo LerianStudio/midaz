@@ -147,4 +147,5 @@ var (
 	ErrPrimaryHolderAlreadyExists = errors.New("CRM-0019")
 	ErrDuplicateHolderLink        = errors.New("CRM-0020")
 	ErrHolderLinkTypeRequired     = errors.New("CRM-0021")
+	ErrInvalidLinkType            = errors.New("CRM-0022")
 )

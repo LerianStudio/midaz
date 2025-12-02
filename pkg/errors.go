@@ -1104,6 +1104,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Holder Link Type Required",
 			Message:    "The holder link type is required. Please provide a valid holder link type.",
 		},
+		constant.ErrInvalidLinkType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidLinkType.Error(),
+			Title:      "Invalid Link Type",
+			Message:    "The provided 'linkType' is not valid. Accepted types are PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY. Please provide a valid link type.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
