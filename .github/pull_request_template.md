@@ -6,11 +6,10 @@
 - [ ] Console
 - [ ] Documentation
 - [ ] Infra
-- [ ] Onboarding
-- [ ] Pipeline
-- [ ] Transaction
-- [ ] Tests
+- [ ] Ledger
 - [ ] CRM
+- [ ] Pipeline
+- [ ] Tests
 
 ## Checklist
 Please check each item after it's completed.
