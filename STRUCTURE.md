@@ -16,31 +16,16 @@ MIDAZ
  |---   |   postgres
  |---   |   rabbitmq
  |---   |---   etc
- |---   ledger
+ |---   crm
  |---   |   api
- |---   |   artifacts
  |---   |   cmd
- |---   |---   app
  |---   |   internal
  |---   |---   adapters
  |---   |---   |   http
  |---   |---   |---   in
- |---   |---   |---   out
  |---   |---   |   mongodb
- |---   |---   |   postgres
- |---   |---   |---   account
- |---   |---   |---   asset
- |---   |---   |---   ledger
- |---   |---   |---   organization
- |---   |---   |---   portfolio
- |---   |---   |---   segment
- |---   |---   |   rabbitmq
- |---   |---   |   redis
- |---   |---   bootstrap
  |---   |---   services
- |---   |---   |   command
- |---   |---   |   query
- |---   |   migrations
+ |---   |   scripts
  |---   ledger
  |---   |   api
  |---   |   artifacts

@@ -22,7 +22,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      onboarding: ${{ steps.changes.outputs.onboarding }}
+      crm: ${{ steps.changes.outputs.crm }}
       ledger: ${{ steps.changes.outputs.ledger }}
     steps:
       - uses: actions/checkout@v4
@@ -32,15 +32,15 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            onboarding:
-              - 'components/onboarding/**'
             ledger:
               - 'components/ledger/**'
+            crm:
+              - 'components/crm/**'
 
   CodeQL:
     name: Run CodeQL to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.ledger == 'true'
+    if: needs.detect-changes.outputs.crm == 'true' || needs.detect-changes.outputs.ledger == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -70,7 +70,7 @@ jobs:
   GolangCI-Lint:
     name: Run GolangCI-Lint to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.ledger == 'true'
+    if: needs.detect-changes.outputs.crm == 'true' || needs.detect-changes.outputs.ledger == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
   GoSec:
     name: Run GoSec to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.ledger == 'true'
+    if: needs.detect-changes.outputs.crm == 'true' || needs.detect-changes.outputs.ledger == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +109,7 @@ jobs:
   unit-tests:
     name: Run Unit Tests to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.ledger == 'true'
+    if: needs.detect-changes.outputs.crm == 'true' || needs.detect-changes.outputs.ledger == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

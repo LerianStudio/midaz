@@ -1,3 +1,44 @@
+## [v3.5.0-beta.12] - 2025-12-01
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.11...v3.5.0-beta.12)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **CRM Integration**: The CRM plugin is now integrated into midaz, offering users a comprehensive and unified CRM experience across backend, database, and frontend components. This enhancement streamlines customer relationship management processes within the platform.
+
+### 🐛 Bug Fixes
+- **Documentation Validation**: Resolved issues in the Makefile that previously hindered document validation, ensuring that all documentation processes are accurate and up-to-date.
+
+### ⚡ Performance
+- **Build Process Optimization**: Streamlined the Dockerfile by removing unnecessary obfuscation, resulting in a more efficient build process and reduced complexity, which speeds up deployment and maintenance tasks.
+
+### 🔄 Changes
+- **Database Reliability**: Improved address mapping in MongoDB models by handling nil values, enhancing data storage and retrieval reliability.
+- **Encryption Upgrade**: Replaced lcrypto with libCrypto for better encryption handling in CRM MongoDB models, boosting security and performance.
+- **Metadata Management**: Enhanced metadata validation and removed unused files, contributing to better system organization and maintainability.
+
+### 📚 Documentation
+- **Changelog and Templates**: Updated the CHANGELOG and added a CRM checklist item to the pull request template, improving documentation practices and ensuring thorough review processes.
+
+### 🔧 Maintenance
+- **Configuration Updates**: Updated the .env.example file for the CRM component and enhanced the Makefile to generate LCRYPTO_ENCRYPT_SECRET_KEY, ensuring configuration files are current and secure.
+- **Workflow Integration**: Integrated the CRM component into build and workflow configurations, aligning development processes with the new CRM capabilities.
+
+
+## [v3.5.0-beta.11] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.10...v3.5.0-beta.11)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Date Handling**: Resolved an issue in the `validateDates` function to correct default date handling. This fix ensures accurate date validations, preventing potential errors in date-dependent functionalities.
+
+### 🔧 Maintenance
+- **Testing Improvements**: Enhanced the test suite for `ValidateParameters` and related utilities within `httputils`. This improvement provides more comprehensive coverage, leading to more robust application behavior.
+- **Changelog Updates**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring documentation remains current and helpful for users.
+- **Test Enhancements**: Improved the `TestValidateDates_BothZero` test case to better assess edge cases where both dates are zero, increasing the reliability of date validation logic.
+
+
 ## [v3.5.0-beta.10] - 2025-11-27
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.9...v3.5.0-beta.10)

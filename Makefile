@@ -9,13 +9,14 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
+CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 
 # Define component groups for easier management
 BACKEND_COMPONENTS := $(LEDGER_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(LEDGER_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(LEDGER_DIR) $(CONSOLE_DIR) $(CRM_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -129,9 +130,9 @@ help:
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (ledger)"
-	@echo "  make down-backend                 - Stop only backend services (ledger)"
-	@echo "  make restart-backend              - Restart only backend services (ledger)"
+	@echo "  make up-backend                   - Start only backend services (ledger and crm)"
+	@echo "  make down-backend                 - Stop only backend services (ledger and crm)"
+	@echo "  make restart-backend              - Restart only backend services (ledger and crm)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
