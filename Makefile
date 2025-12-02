@@ -77,6 +77,7 @@ export DOCKER_CMD
 MK_DIR := $(abspath mk)
 
 include $(MK_DIR)/tests.mk
+include $(MK_DIR)/dev.mk
 
 #-------------------------------------------------------
 # Help Command
@@ -97,9 +98,21 @@ help:
 	@echo "  make cover                       - Run test coverage"
 	@echo ""
 	@echo ""
+	@echo "Development Tools (mk/dev.mk):"
+	@echo "  make dev-setup                   - Set up complete development environment (hooks + tools)"
+	@echo "  make tools-dev                   - Install all development tools"
+	@echo "  make pre-commit                  - Run pre-commit checks (format + lint)"
+	@echo ""
+	@echo ""
+	@echo "Code Formatting:"
+	@echo "  make format                      - Run all formatters (goimports + gofumpt)"
+	@echo "  make gofumpt                     - Run gofumpt (stricter formatting)"
+	@echo "  make goimports                   - Run goimports (organize imports)"
+	@echo ""
+	@echo ""
 	@echo "Code Quality Commands:"
-	@echo "  make lint                        - Run linting on all components"
-	@echo "  make format                      - Format code in all components"
+	@echo "  make lint                        - Run linters on all components"
+	@echo "  make lint-fix                    - Run linters with auto-fix enabled"
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
@@ -114,7 +127,6 @@ help:
 	@echo ""
 	@echo "Setup Commands:"
 	@echo "  make set-env                     - Copy .env.example to .env for all components"
-	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
@@ -148,7 +160,6 @@ help:
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run Go integration tests"
-	@echo "  make test-e2e                    - Run Apidog E2E tests"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests"
 	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests"
 	@echo "  make test-chaos                  - Run chaos/resilience tests"
@@ -245,124 +256,6 @@ restart-backend:
 	@make down-backend && make up-backend
 	@echo "[ok] Backend services restarted successfully ✔️"
 
-#-------------------------------------------------------
-# Code Quality Commands
-#-------------------------------------------------------
-
-.PHONY: lint
-lint:
-	$(call print_title,Running linters on all components)
-	@for dir in $(COMPONENTS); do \
-		echo "Checking for Go files in $$dir..."; \
-		if find "$$dir" -name "*.go" -type f | grep -q .; then \
-			echo "Linting in $$dir..."; \
-			(cd $$dir && $(MAKE) lint) || exit 1; \
-		else \
-			echo "No Go files found in $$dir, skipping linting"; \
-		fi; \
-	done
-	@echo "Checking for Go files in $(TESTS_DIR)..."
-	@if [ -d "$(TESTS_DIR)" ]; then \
-		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
-			echo "Linting in $(TESTS_DIR)..."; \
-			if ! command -v golangci-lint >/dev/null 2>&1; then \
-				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-			else \
-				echo "golangci-lint already installed ✔️"; \
-			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
-		else \
-			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
-		fi; \
-	else \
-		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
-	fi
-	@echo "[ok] Linting completed successfully"
-
-.PHONY: format
-format:
-	$(call print_title,Formatting code in all components)
-	@for dir in $(COMPONENTS); do \
-		echo "Checking for Go files in $$dir..."; \
-		if find "$$dir" -name "*.go" -type f | grep -q .; then \
-			echo "Formatting in $$dir..."; \
-			(cd $$dir && $(MAKE) format) || exit 1; \
-		else \
-			echo "No Go files found in $$dir, skipping formatting"; \
-		fi; \
-	done
-	@echo "[ok] Formatting completed successfully"
-
-.PHONY: tidy
-tidy:
-	$(call print_title,Cleaning dependencies in root directory)
-	@echo "Tidying root go.mod..."
-	@go mod tidy
-	@echo "[ok] Dependencies cleaned successfully"
-
-.PHONY: check-logs
-check-logs:
-	$(call print_title,Verifying error logging in usecases)
-	@sh ./scripts/check-logs.sh
-	@echo "[ok] Error logging verification completed"
-
-.PHONY: check-tests
-check-tests:
-	$(call print_title,Verifying test coverage for components)
-	@sh ./scripts/check-tests.sh
-	@echo "[ok] Test coverage verification completed"
-
-.PHONY: sec
-sec:
-	$(call print_title,Running security checks using gosec)
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "Installing gosec..."; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
-		echo "Running security checks on components/ and pkg/ folders..."; \
-		gosec ./components/... ./pkg/...; \
-		echo "[ok] Security checks completed"; \
-	else \
-		echo "No Go files found, skipping security checks"; \
-	fi
-
-#-------------------------------------------------------
-# Git Hook Commands
-#-------------------------------------------------------
-
-.PHONY: setup-git-hooks
-setup-git-hooks:
-	$(call print_title,Installing and configuring git hooks)
-	@sh ./scripts/setup-git-hooks.sh
-	@echo "[ok] Git hooks installed successfully"
-
-.PHONY: check-hooks
-check-hooks:
-	$(call print_title,Verifying git hooks installation status)
-	@err=0; \
-	for hook_dir in .githooks/*; do \
-		hook_name=$$(basename $$hook_dir); \
-		if [ ! -f ".git/hooks/$$hook_name" ]; then \
-			echo "Git hook $$hook_name is not installed"; \
-			err=1; \
-		else \
-			echo "Git hook $$hook_name is installed"; \
-		fi; \
-	done; \
-	if [ $$err -eq 0 ]; then \
-		echo "[ok] All git hooks are properly installed"; \
-	else \
-		echo "[error] Some git hooks are missing. Run 'make setup-git-hooks' to fix."; \
-		exit 1; \
-	fi
-
-.PHONY: check-envs
-check-envs:
-	$(call print_title,Checking if github hooks are installed and secret env files are not exposed)
-	@sh ./scripts/check-envs.sh
-	@echo "[ok] Environment check completed"
 
 #-------------------------------------------------------
 # Setup Commands
@@ -572,20 +465,3 @@ newman: newman-install newman-env-check
 	@echo "📊 Test Reports Generated:"
 	@echo "  - CLI Summary: displayed above"
 	@echo "  - JSON Report: ./reports/newman/workflow-json.json"
-
-#-------------------------------------------------------
-# Developer Helper Commands
-#-------------------------------------------------------
-
-.PHONY: dev-setup
-dev-setup:
-	$(call print_title,"Setting up development environment for all components")
-	@echo "Setting up git hooks..."
-	@$(MAKE) setup-git-hooks
-	@for dir in $(COMPONENTS); do \
-		component_name=$$(basename $$dir); \
-		echo "Setting up development environment for component: $$component_name"; \
-		(cd $$dir && $(MAKE) dev-setup) || exit 1; \
-		echo ""; \
-	done
-	@echo "[ok] Development environment set up successfully for all components"
