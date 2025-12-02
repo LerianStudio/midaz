@@ -512,7 +512,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 	ctx, span := tracer.Start(ctx, "postgres.count_organizations")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

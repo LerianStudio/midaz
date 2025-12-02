@@ -232,7 +232,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-		expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).

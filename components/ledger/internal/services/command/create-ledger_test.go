@@ -34,7 +34,6 @@ func TestCreateLedger(t *testing.T) {
 		expectedErr error
 		expectedRes *mmodel.Ledger
 	}{
-
 		{
 			name: "success - ledger created",
 			input: &mmodel.CreateLedgerInput{

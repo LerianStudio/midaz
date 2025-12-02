@@ -11,8 +11,9 @@ package holder
 
 import (
 	context "context"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	reflect "reflect"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	uuid "github.com/google/uuid"

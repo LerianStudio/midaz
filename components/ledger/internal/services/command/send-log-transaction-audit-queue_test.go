@@ -2,13 +2,14 @@ package command
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
 )
 
 func TestSendLogTransactionAuditQueue(t *testing.T) {
@@ -47,7 +48,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 	transactionID := uuid.New()
 
 	// Create int64 values for Amount and Scale
-	var amountValue = decimal.NewFromInt(50)
+	amountValue := decimal.NewFromInt(50)
 
 	// Create operations
 	operations := []*operation.Operation{

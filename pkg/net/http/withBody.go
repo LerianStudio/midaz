@@ -420,7 +420,7 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
 }

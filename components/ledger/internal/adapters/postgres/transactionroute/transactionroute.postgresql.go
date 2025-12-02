@@ -679,7 +679,8 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID) error {
+}, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID,
+) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")

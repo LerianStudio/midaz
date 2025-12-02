@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"

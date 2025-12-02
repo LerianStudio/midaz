@@ -1,8 +1,9 @@
 package mmodel
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreateAliasInput is a struct designed to encapsulate request create payload data.

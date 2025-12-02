@@ -538,7 +538,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.count_portfolios")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

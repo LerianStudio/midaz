@@ -260,13 +260,15 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 	outflow := func(alias, val string) (int, []byte, error) {
 		p := map[string]any{
 			"code": isolation.UniqueTransactionCode("OUT"),
-			"send": map[string]any{"asset": "USD", "value": val, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": val}}}}}}
+			"send": map[string]any{"asset": "USD", "value": val, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": val}}}}},
+		}
 		return trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, p)
 	}
 	inflow := func(alias, val string) (int, []byte, error) {
 		p := map[string]any{
 			"code": isolation.UniqueTransactionCode("INF"),
-			"send": map[string]any{"asset": "USD", "value": val, "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": val}}}}}}
+			"send": map[string]any{"asset": "USD", "value": val, "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": val}}}}},
+		}
 		return trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, p)
 	}
 

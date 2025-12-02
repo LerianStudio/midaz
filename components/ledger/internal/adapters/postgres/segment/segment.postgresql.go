@@ -497,7 +497,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.count_segments")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := p.connection.GetDB()
 	if err != nil {

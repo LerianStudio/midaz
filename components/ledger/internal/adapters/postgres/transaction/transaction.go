@@ -88,7 +88,7 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	//Route
+	// Route
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -377,7 +377,7 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body libTransaction.Transaction `json:"-"`
 
-	//Route
+	// Route
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: string
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`

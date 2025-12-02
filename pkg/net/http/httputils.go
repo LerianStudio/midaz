@@ -31,7 +31,7 @@ type QueryHeader struct {
 	UseMetadata           bool
 	PortfolioID           string
 	OperationType         string
-	ToAssetCodes          []string	
+	ToAssetCodes          []string
 	HolderID              *string
 	ExternalID            *string
 	Document              *string
@@ -184,7 +184,7 @@ func validateDates(startDate, endDate *time.Time) error {
 		now := time.Now()
 
 		defaultStartDate := time.Unix(0, 0).UTC()
-		
+
 		if maxDateRangeMonths != 0 {
 			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
 		}

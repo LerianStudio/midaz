@@ -12,7 +12,8 @@ import (
 func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, headers map[string]string, fields map[string]string, files map[string]struct {
 	Field, Filename string
 	Content         []byte
-}) (int, []byte, http.Header, error) {
+},
+) (int, []byte, http.Header, error) {
 	var buf bytes.Buffer
 
 	mw := multipart.NewWriter(&buf)

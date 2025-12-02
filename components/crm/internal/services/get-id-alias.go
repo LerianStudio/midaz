@@ -2,11 +2,12 @@ package services
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // GetAliasByID retrieves alias by id and its holder id

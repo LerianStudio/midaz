@@ -1086,7 +1086,6 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 
 	token := "Bearer test-token"
 	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, token)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

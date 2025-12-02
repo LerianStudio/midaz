@@ -19,9 +19,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-const CronTimeToRun = 30 * time.Minute
-const MessageTimeOfLife = 30
-const MaxWorkers = 100
+const (
+	CronTimeToRun     = 30 * time.Minute
+	MessageTimeOfLife = 30
+	MaxWorkers        = 100
+)
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
