@@ -99,7 +99,7 @@ func TestCreateMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockSetup()
 
-			result, err := uc.CreateMetadata(ctx, tt.entityName, tt.entityID, tt.metadata)
+			result, err := uc.CreateMetadataOnboarding(ctx, tt.entityName, tt.entityID, tt.metadata)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

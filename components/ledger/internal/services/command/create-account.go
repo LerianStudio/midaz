@@ -156,7 +156,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	metadataDoc, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
+	metadataDoc, err := uc.CreateMetadataOnboarding(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account metadata", err)
 

@@ -59,7 +59,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadataOnboarding(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment metadata", err)
 

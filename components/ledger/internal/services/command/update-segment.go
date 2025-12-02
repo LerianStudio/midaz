@@ -47,7 +47,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String(), upi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadataOnboarding(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
 		logger.Errorf("Error updating metadata: %v", err)
 

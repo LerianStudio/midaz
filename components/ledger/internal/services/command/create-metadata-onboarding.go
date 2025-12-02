@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb"
 )
 
-func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
+func (uc *UseCase) CreateMetadataOnboarding(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)

@@ -47,7 +47,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
+	metadataUpdated, err := uc.UpdateMetadataOnboarding(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
 	if err != nil {
 		logger.Errorf("Error updating metadata: %v", err)
 

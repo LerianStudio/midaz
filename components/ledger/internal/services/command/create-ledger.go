@@ -59,7 +59,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
 
-	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
+	metadata, err := uc.CreateMetadataOnboarding(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger metadata", err)
 

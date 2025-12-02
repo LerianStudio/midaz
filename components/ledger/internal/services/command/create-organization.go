@@ -68,7 +68,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
+	metadata, err := uc.CreateMetadataOnboarding(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization metadata", err)
 

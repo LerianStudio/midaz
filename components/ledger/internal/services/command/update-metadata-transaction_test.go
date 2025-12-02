@@ -128,7 +128,7 @@ func TestUpdateMetadataTransaction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.UpdateMetadata(ctx, entityName, entityID, tt.inputMetadata)
+			result, err := uc.UpdateMetadataOnboarding(ctx, entityName, entityID, tt.inputMetadata)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

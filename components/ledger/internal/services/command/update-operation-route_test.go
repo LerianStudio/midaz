@@ -63,7 +63,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 
 	useCase := &UseCase{
 		OperationRouteRepo:      mockOperationRouteRepo,
-		MetadataOnboardingRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -119,7 +119,7 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 
 	useCase := &UseCase{
 		OperationRouteRepo:      mockOperationRouteRepo,
-		MetadataOnboardingRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -167,7 +167,7 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 
 	uc := &UseCase{
 		OperationRouteRepo:      mockRepo,
-		MetadataOnboardingRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -280,7 +280,7 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 
 	uc := &UseCase{
 		OperationRouteRepo:      mockRepo,
-		MetadataOnboardingRepo: mockMetadataRepo,
+		MetadataTransactionRepo: mockMetadataRepo,
 	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
