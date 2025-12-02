@@ -68,5 +68,39 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		return nil, err
 	}
 
-	return createdAccount, nil
+	holderLinkID := libCommons.GenerateUUIDv7()
+	linkTypeStr := cai.LinkType
+
+	holderLink := &mmodel.HolderLink{
+		ID:        &holderLinkID,
+		HolderID:  &holderID,
+		AliasID:   createdAccount.ID,
+		LinkType:  &linkTypeStr,
+		Metadata:  make(map[string]any),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	createdHolderLink, err := uc.HolderLinkRepo.Create(ctx, organizationID, holderLink)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder link", err)
+
+		logger.Errorf("Failed to create holder link: %v", err)
+
+		return nil, err
+	}
+
+	alias.HolderLinkID = createdHolderLink.ID
+	alias.UpdatedAt = time.Now()
+
+	updatedAccount, err := uc.AliasRepo.Update(ctx, organizationID, holderID, *createdAccount.ID, alias, nil)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to update alias with holder link", err)
+
+		logger.Errorf("Failed to update alias with holder link: %v", err)
+
+		return nil, err
+	}
+
+	return updatedAccount, nil
 }

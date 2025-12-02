@@ -1050,6 +1050,60 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Datetime Format Error",
 			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' or 'yyyy-mm-dd hh:mm:ss' format and try again.",
 		},
+		constant.ErrHolderNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderNotFound.Error(),
+			Title:      "Holder ID Not Found",
+			Message:    "The provided holder ID does not exist in our records. Please verify the holder ID and try again.",
+		},
+		constant.ErrAliasNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAliasNotFound.Error(),
+			Title:      "Alias ID Not Found",
+			Message:    "The provided alias ID does not exist in our records. Please verify the account ID and try again.",
+		},
+		constant.ErrDocumentAssociationError: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDocumentAssociationError.Error(),
+			Title:      "Document Association Error",
+			Message:    "A document can only be associated with one holder.",
+		},
+		constant.ErrAccountAlreadyAssociated: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAlreadyAssociated.Error(),
+			Title:      "Account Already Associated",
+			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
+		},
+		constant.ErrHolderHasAliases: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderHasAliases.Error(),
+			Title:      "Unable to Delete Holder",
+			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
+		},
+		constant.ErrHolderLinkNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderLinkNotFound.Error(),
+			Title:      "Holder Link Not Found",
+			Message:    "The provided holder link ID does not exist in our records. Please verify the holder link ID and try again.",
+		},
+		constant.ErrPrimaryHolderAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrPrimaryHolderAlreadyExists.Error(),
+			Title:      "Primary Holder Already Exists",
+			Message:    "A primary holder already exists for this organization and ledger. Please use a different holder.",
+		},
+		constant.ErrDuplicateHolderLink: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateHolderLink.Error(),
+			Title:      "Duplicate Holder Link Error",
+			Message:    "A holder link with the same holder ID and alias ID already exists for this organization and ledger. Please use a different holder ID or alias ID.",
+		},
+		constant.ErrHolderLinkTypeRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderLinkTypeRequired.Error(),
+			Title:      "Holder Link Type Required",
+			Message:    "The holder link type is required. Please provide a valid holder link type.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
