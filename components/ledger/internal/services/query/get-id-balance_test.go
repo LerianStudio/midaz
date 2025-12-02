@@ -13,6 +13,7 @@ import (
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -51,7 +52,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(bal, nil)
 
-		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		internalKey := utils.BalanceInternalKey(orgID, ledgerID, bal.Alias+"#"+bal.Key)
 
 		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", nil)
 
@@ -129,7 +130,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		b, _ := json.Marshal(cached)
 
-		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
+		internalKey := utils.BalanceInternalKey(orgID, ledgerID, base.Alias+"#"+base.Key)
 
 		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(string(b), nil)
 
@@ -168,7 +169,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 
-		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
+		internalKey := utils.BalanceInternalKey(orgID, ledgerID, base.Alias+"#"+base.Key)
 
 		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", errors.New("redis down"))
 
@@ -207,7 +208,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 
-		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
+		internalKey := utils.BalanceInternalKey(orgID, ledgerID, base.Alias+"#"+base.Key)
 
 		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("{not-json}", nil)
 

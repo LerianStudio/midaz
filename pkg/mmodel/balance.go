@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -254,12 +254,12 @@ type BalanceRedis struct {
 }
 
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
-func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(balances))
+func ConvertBalancesToPkgBalances(balances []*Balance) []*pkgTransaction.Balance {
+	out := make([]*pkgTransaction.Balance, 0, len(balances))
 
 	for _, b := range balances {
 		if b != nil {
-			out = append(out, b.ConvertToLibBalance())
+			out = append(out, b.ConvertToPkgBalance())
 		}
 	}
 
@@ -267,18 +267,18 @@ func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance
 }
 
 // ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
-func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(operations))
+func ConvertBalanceOperationsToPkgBalances(operations []BalanceOperation) []*pkgTransaction.Balance {
+	out := make([]*pkgTransaction.Balance, 0, len(operations))
 	for _, op := range operations {
-		out = append(out, op.Balance.ConvertToLibBalance())
+		out = append(out, op.Balance.ConvertToPkgBalance())
 	}
 
 	return out
 }
 
 // ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
-func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
-	return &libTransaction.Balance{
+func (b *Balance) ConvertToPkgBalance() *pkgTransaction.Balance {
+	return &pkgTransaction.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
@@ -405,7 +405,7 @@ type BalanceErrorResponse struct {
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
-	Amount      libTransaction.Amount
+	Amount      pkgTransaction.Amount
 	InternalKey string
 }
 
@@ -416,9 +416,9 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
+	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
-	Validate          *libTransaction.Responses  `json:"validate"`
+	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 }

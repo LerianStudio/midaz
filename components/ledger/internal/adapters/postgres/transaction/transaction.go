@@ -9,9 +9,9 @@ import (
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -29,7 +29,7 @@ type TransactionPostgreSQLModel struct {
 	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
 	LedgerID                 string                      // Ledger ID
 	OrganizationID           string                      // Organization ID
-	Body                     *libTransaction.Transaction // Transaction body containing detailed operation data
+	Body                     *pkgTransaction.Transaction // Transaction body containing detailed operation data
 	CreatedAt                time.Time                   // Creation timestamp
 	UpdatedAt                time.Time                   // Last update timestamp
 	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
@@ -101,7 +101,7 @@ type CreateTransactionInput struct {
 	// Send operation details including source and distribution
 	// required: true
 	// swagger:type object
-	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
+	Send *pkgTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 //		@example {
@@ -375,7 +375,7 @@ type Transaction struct {
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Transaction body containing detailed operation data (not exposed in JSON)
-	Body libTransaction.Transaction `json:"-"`
+	Body pkgTransaction.Transaction `json:"-"`
 
 	// Route
 	// example: 00000000-0000-0000-0000-000000000000
@@ -484,8 +484,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 }
 
 // FromDSL converts an entity FromDSL to goldModel.Transaction
-func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
-	dsl := &libTransaction.Transaction{
+func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
+	dsl := &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
 		Code:                     cti.Code,
@@ -507,17 +507,17 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 }
 
 // TransactionRevert is a func that revert transaction
-func (t Transaction) TransactionRevert() libTransaction.Transaction {
-	froms := make([]libTransaction.FromTo, 0)
-	tos := make([]libTransaction.FromTo, 0)
+func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+	froms := make([]pkgTransaction.FromTo, 0)
+	tos := make([]pkgTransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
 		switch op.Type {
 		case constant.CREDIT:
-			from := libTransaction.FromTo{
+			from := pkgTransaction.FromTo{
 				IsFrom:       true,
 				AccountAlias: op.AccountAlias,
-				Amount: &libTransaction.Amount{
+				Amount: &pkgTransaction.Amount{
 					Asset: op.AssetCode,
 					Value: *op.Amount.Value,
 				},
@@ -529,10 +529,10 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 
 			froms = append(froms, from)
 		case constant.DEBIT:
-			to := libTransaction.FromTo{
+			to := pkgTransaction.FromTo{
 				IsFrom:       false,
 				AccountAlias: op.AccountAlias,
-				Amount: &libTransaction.Amount{
+				Amount: &pkgTransaction.Amount{
 					Asset: op.AssetCode,
 					Value: *op.Amount.Value,
 				},
@@ -546,18 +546,18 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 		}
 	}
 
-	send := libTransaction.Send{
+	send := pkgTransaction.Send{
 		Asset: t.AssetCode,
 		Value: *t.Amount,
-		Source: libTransaction.Source{
+		Source: pkgTransaction.Source{
 			From: froms,
 		},
-		Distribute: libTransaction.Distribute{
+		Distribute: pkgTransaction.Distribute{
 			To: tos,
 		},
 	}
 
-	transaction := libTransaction.Transaction{
+	transaction := pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Description:              t.Description,
 		Pending:                  false,
@@ -574,7 +574,7 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 // @Description Container for transaction data exchanged via message queues, including validation responses, balances, and transaction details.
 type TransactionQueue struct {
 	// Validation responses from the transaction processing
-	Validate *libTransaction.Responses `json:"validate"`
+	Validate *pkgTransaction.Responses `json:"validate"`
 
 	// Account balances affected by the transaction
 	Balances []*mmodel.Balance `json:"balances"`
@@ -583,7 +583,7 @@ type TransactionQueue struct {
 	Transaction *Transaction `json:"transaction"`
 
 	// Parsed transaction DSL
-	ParseDSL *libTransaction.Transaction `json:"parseDSL"`
+	ParseDSL *pkgTransaction.Transaction `json:"parseDSL"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.
@@ -691,7 +691,7 @@ type CreateTransactionInflowInput struct {
 type SendInflow struct {
 	Asset      string                    `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value      decimal.Decimal           `json:"value,omitempty" validate:"required" example:"1000"`
-	Distribute libTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
+	Distribute pkgTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
 } // @name SendInflow
 
 // CreateTransactionInflowSwaggerModel is a struct that mirrors CreateTransactionInflowInput but with explicit types for Swagger
@@ -779,14 +779,14 @@ type CreateTransactionInflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionInflowSwaggerModel
 
-// InflowFromDSL converts an entity InflowFromDSL to a libTransaction.Transaction
-func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transaction {
-	listFrom := make([]libTransaction.FromTo, 0)
+// InflowFromDSL converts an entity InflowFromDSL to a pkgTransaction.Transaction
+func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transaction {
+	listFrom := make([]pkgTransaction.FromTo, 0)
 
-	from := libTransaction.FromTo{
+	from := pkgTransaction.FromTo{
 		IsFrom:       true,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &libTransaction.Amount{
+		Amount: &pkgTransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
 		},
@@ -794,18 +794,18 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 
 	listFrom = append(listFrom, from)
 
-	return &libTransaction.Transaction{
+	return &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
-		Send: libTransaction.Send{
+		Send: pkgTransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
 			Distribute: c.Send.Distribute,
-			Source: libTransaction.Source{
+			Source: pkgTransaction.Source{
 				From: listFrom,
 			},
 		},
@@ -897,7 +897,7 @@ type CreateTransactionOutflowInput struct {
 type SendOutflow struct {
 	Asset  string                `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value  decimal.Decimal       `json:"value,omitempty" validate:"required" example:"1000"`
-	Source libTransaction.Source `json:"source,omitempty" validate:"required"`
+	Source pkgTransaction.Source `json:"source,omitempty" validate:"required"`
 } // @name SendOutflow
 
 // CreateTransactionOutflowSwaggerModel is a struct that mirrors CreateTransactionOutflowInput but with explicit types for Swagger
@@ -990,14 +990,14 @@ type CreateTransactionOutflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionOutflowSwaggerModel
 
-// OutflowFromDSL converts an entity OutflowFromDSL to a libTransaction.Transaction
-func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transaction {
-	listTo := make([]libTransaction.FromTo, 0)
+// OutflowFromDSL converts an entity OutflowFromDSL to a pkgTransaction.Transaction
+func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transaction {
+	listTo := make([]pkgTransaction.FromTo, 0)
 
-	to := libTransaction.FromTo{
+	to := pkgTransaction.FromTo{
 		IsFrom:       false,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &libTransaction.Amount{
+		Amount: &pkgTransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
 		},
@@ -1005,7 +1005,7 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 
 	listTo = append(listTo, to)
 
-	dsl := &libTransaction.Transaction{
+	dsl := &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
@@ -1013,10 +1013,10 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
-		Send: libTransaction.Send{
+		Send: pkgTransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
-			Distribute: libTransaction.Distribute{
+			Distribute: pkgTransaction.Distribute{
 				To: listTo,
 			},
 		},

@@ -8,14 +8,14 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
 // GetBalances methods responsible to get balances from a database.
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
@@ -106,7 +106,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
@@ -119,7 +119,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
 
 		for k, v := range validate.From {
-			if libTransaction.SplitAliasWithKey(k) == aliasKey {
+			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
 				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 					Balance:     balance,
 					Alias:       k,
@@ -130,7 +130,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		}
 
 		for k, v := range validate.To {
-			if libTransaction.SplitAliasWithKey(k) == aliasKey {
+			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
 				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 					Balance:     balance,
 					Alias:       k,
@@ -155,11 +155,11 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	}
 
 	if parserDSL != nil {
-		if err = libTransaction.ValidateBalancesRules(
+		if err = pkgTransaction.ValidateBalancesRules(
 			ctx,
 			*parserDSL,
 			*validate,
-			mmodel.ConvertBalanceOperationsToLibBalances(balanceOperations),
+			mmodel.ConvertBalanceOperationsToPkgBalances(balanceOperations),
 		); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate balances", err)
 

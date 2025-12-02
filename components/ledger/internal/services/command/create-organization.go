@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
@@ -38,7 +39,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
 
-	if err := libCommons.ValidateCountryAddress(coi.Address.Country); err != nil {
+	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
