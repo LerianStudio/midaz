@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -22,6 +23,15 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
+
+	if cai.LinkType != nil {
+		err := uc.ValidateLinkType(ctx, cai.LinkType)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to validate link type", err)
+			logger.Errorf("Failed to validate link type: %v", err)
+			return nil, err
+		}
+	}
 
 	accountID := libCommons.GenerateUUIDv7()
 
@@ -68,56 +78,60 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		return nil, err
 	}
 
-	err = uc.ValidateHolderLinkConstraints(ctx, organizationID, *createdAccount.ID, cai.LinkType)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to validate holder link constraints", err)
+	if cai.LinkType != nil && strings.TrimSpace(*cai.LinkType) != "" {
+		err = uc.ValidateHolderLinkConstraints(ctx, organizationID, *createdAccount.ID, *cai.LinkType)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to validate holder link constraints", err)
 
-		logger.Errorf("Failed to validate holder link constraints: %v", err)
+			logger.Errorf("Failed to validate holder link constraints: %v", err)
 
-		deleteErr := uc.AliasRepo.Delete(ctx, organizationID, holderID, *createdAccount.ID, true)
-		if deleteErr != nil {
-			logger.Errorf("Failed to rollback alias creation after validation error: %v", deleteErr)
+			deleteErr := uc.AliasRepo.Delete(ctx, organizationID, holderID, *createdAccount.ID, true)
+			if deleteErr != nil {
+				logger.Errorf("Failed to rollback alias creation after validation error: %v", deleteErr)
+			}
+
+			return nil, err
 		}
 
-		return nil, err
+		holderLinkID := libCommons.GenerateUUIDv7()
+		linkTypeStr := *cai.LinkType
+
+		holderLink := &mmodel.HolderLink{
+			ID:        &holderLinkID,
+			HolderID:  &holderID,
+			AliasID:   createdAccount.ID,
+			LinkType:  &linkTypeStr,
+			Metadata:  make(map[string]any),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		createdHolderLink, err := uc.HolderLinkRepo.Create(ctx, organizationID, holderLink)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to create holder link", err)
+
+			logger.Errorf("Failed to create holder link: %v", err)
+
+			return nil, err
+		}
+
+		alias.HolderLinkID = createdHolderLink.ID
+		alias.LinkType = createdHolderLink.LinkType
+		alias.UpdatedAt = time.Now()
+
+		updatedAccount, err := uc.AliasRepo.Update(ctx, organizationID, holderID, *createdAccount.ID, alias, nil)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to update alias with holder link", err)
+
+			logger.Errorf("Failed to update alias with holder link: %v", err)
+
+			return nil, err
+		}
+
+		updatedAccount.LinkType = createdHolderLink.LinkType
+
+		return updatedAccount, nil
 	}
 
-	holderLinkID := libCommons.GenerateUUIDv7()
-	linkTypeStr := cai.LinkType
-
-	holderLink := &mmodel.HolderLink{
-		ID:        &holderLinkID,
-		HolderID:  &holderID,
-		AliasID:   createdAccount.ID,
-		LinkType:  &linkTypeStr,
-		Metadata:  make(map[string]any),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	createdHolderLink, err := uc.HolderLinkRepo.Create(ctx, organizationID, holderLink)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder link", err)
-
-		logger.Errorf("Failed to create holder link: %v", err)
-
-		return nil, err
-	}
-
-	alias.HolderLinkID = createdHolderLink.ID
-	alias.LinkType = createdHolderLink.LinkType
-	alias.UpdatedAt = time.Now()
-
-	updatedAccount, err := uc.AliasRepo.Update(ctx, organizationID, holderID, *createdAccount.ID, alias, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to update alias with holder link", err)
-
-		logger.Errorf("Failed to update alias with holder link: %v", err)
-
-		return nil, err
-	}
-
-	updatedAccount.LinkType = createdHolderLink.LinkType
-
-	return updatedAccount, nil
+	return createdAccount, nil
 }
