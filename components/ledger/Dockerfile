@@ -15,6 +15,6 @@ FROM gcr.io/distroless/static-debian12
 COPY --from=builder /app /app
 COPY --from=builder /ledger-app/components/ledger/migrations /components/ledger/migrations
 
-EXPOSE 3001 3011
+EXPOSE 3001
 
 ENTRYPOINT ["/app"]
