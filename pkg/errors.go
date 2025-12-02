@@ -1060,7 +1060,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrAliasNotFound.Error(),
 			Title:      "Alias ID Not Found",
-			Message:    "The provided alias ID does not exist in our records. Please verify the account ID and try again.",
+			Message:    "The provided alias ID does not exist in our records. Please verify the alias ID and try again.",
 		},
 		constant.ErrDocumentAssociationError: EntityConflictError{
 			EntityType: entityType,
@@ -1090,13 +1090,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrPrimaryHolderAlreadyExists.Error(),
 			Title:      "Primary Holder Already Exists",
-			Message:    "A primary holder already exists for this organization and ledger. Please use a different holder.",
+			Message:    "A primary holder already exists for this alias. Only one PRIMARY_HOLDER link is allowed per alias.",
 		},
 		constant.ErrDuplicateHolderLink: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateHolderLink.Error(),
 			Title:      "Duplicate Holder Link Error",
-			Message:    "A holder link with the same holder ID and alias ID already exists for this organization and ledger. Please use a different holder ID or alias ID.",
+			Message:    "A holder link with the same alias ID and link type already exists. Please use a different link type.",
 		},
 		constant.ErrHolderLinkTypeRequired: ValidationError{
 			EntityType: entityType,

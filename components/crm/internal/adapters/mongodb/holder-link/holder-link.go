@@ -39,14 +39,22 @@ func (hmm *MongoDBModel) FromEntity(hl *mmodel.HolderLink) {
 
 // ToEntity maps a MongoDB model to a holder link entity
 func (hmm *MongoDBModel) ToEntity() *mmodel.HolderLink {
+	var createdAt, updatedAt time.Time
+	if hmm.CreatedAt != nil {
+		createdAt = *hmm.CreatedAt
+	}
+	if hmm.UpdatedAt != nil {
+		updatedAt = *hmm.UpdatedAt
+	}
+
 	return &mmodel.HolderLink{
 		ID:        hmm.ID,
 		HolderID:  hmm.HolderID,
 		AliasID:   hmm.AliasID,
 		LinkType:  hmm.LinkType,
 		Metadata:  hmm.Metadata,
-		CreatedAt: *hmm.CreatedAt,
-		UpdatedAt: *hmm.UpdatedAt,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 		DeletedAt: hmm.DeletedAt,
 	}
 }
