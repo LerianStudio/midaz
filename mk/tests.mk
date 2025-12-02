@@ -103,28 +103,6 @@ test-unit:
 	  fi; \
 	fi
 
-.PHONY: coverage-unit
-coverage-unit: test-unit
-	$(call print_title,Generate and open unit test coverage report)
-	@set -e; \
-	if [ -f $(TEST_REPORTS_DIR)/unit/coverage.out ]; then \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/unit/coverage.out -o $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  echo "Coverage report generated at $(TEST_REPORTS_DIR)/unit/coverage.html"; \
-	  if command -v open >/dev/null 2>&1; then \
-	    open $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  elif command -v xdg-open >/dev/null 2>&1; then \
-	    xdg-open $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  else \
-	    echo "Open the file manually: $(TEST_REPORTS_DIR)/unit/coverage.html"; \
-	  fi; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/unit/coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
-	else \
-	  echo "coverage.out not found at $(TEST_REPORTS_DIR)/unit/coverage.out"; \
-	  exit 1; \
-	fi
-
 # Integration tests (Go) – spins up stack, runs tests/integration
 .PHONY: test-integration
 test-integration:
@@ -154,22 +132,6 @@ endif
 	else \
 	  LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
 	fi
-
-
-# E2E tests (Apidog CLI) – brings up stack, runs Apidog JSON workflow, saves report
-.PHONY: test-e2e
-test-e2e:
-	$(call print_title,Running E2E tests with Apidog CLI (with Docker stack))
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-	@set -e; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
-	mkdir -p ./reports/e2e; \
-	echo "Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json"; \
-	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
-	npx --yes apidog-cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e
 
 # Property tests (model-level)
 .PHONY: test-property
@@ -286,6 +248,67 @@ test-security:
 	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
 	LEDGER_URL=$(TEST_LEDGER_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration -run Security
 
+# Combined test report generation - aggregates JUnit XML from multiple test suites
+REPORT_TOOL ?= allure
+REPORT_TOOL_BIN := $(shell command -v $(REPORT_TOOL) 2>/dev/null)
+COMBINED_REPORT_DIR ?= $(TEST_REPORTS_DIR)/combined
+REPORT_SUITES ?= unit integration property fuzzy
+
+.PHONY: report
+report: ## Generate and open combined test report from all test suites
+	$(call print_title,Generating combined test report)
+	@if [ -z "$(REPORT_TOOL_BIN)" ]; then \
+	  echo "[error] $(REPORT_TOOL) not found. Install it first."; \
+	  exit 1; \
+	fi
+	@set -e; \
+	rm -rf $(COMBINED_REPORT_DIR); \
+	mkdir -p $(COMBINED_REPORT_DIR)/results; \
+	found=0; \
+	for suite in $(REPORT_SUITES); do \
+	  xml_file="$(TEST_REPORTS_DIR)/$$suite/$$suite.xml"; \
+	  if [ -f "$$xml_file" ]; then \
+	    echo "Including $$suite test results"; \
+	    cp "$$xml_file" "$(COMBINED_REPORT_DIR)/results/$$suite.xml"; \
+	    found=1; \
+	  else \
+	    echo "[warn] No results found for $$suite"; \
+	  fi; \
+	done; \
+	if [ "$$found" = "0" ]; then \
+	  echo "[error] No test results found. Run tests first."; \
+	  exit 1; \
+	fi; \
+	echo "Generating report..."; \
+	$(REPORT_TOOL_BIN) generate $(COMBINED_REPORT_DIR)/results -o $(COMBINED_REPORT_DIR)/report --clean; \
+	echo "Opening report..."; \
+	$(REPORT_TOOL_BIN) open $(COMBINED_REPORT_DIR)/report
+
+.PHONY: report-serve
+report-serve: ## Serve combined test report without generating static files
+	$(call print_title,Serving combined test report)
+	@if [ -z "$(REPORT_TOOL_BIN)" ]; then \
+	  echo "[error] $(REPORT_TOOL) not found. Install it first."; \
+	  exit 1; \
+	fi
+	@set -e; \
+	rm -rf $(COMBINED_REPORT_DIR)/results; \
+	mkdir -p $(COMBINED_REPORT_DIR)/results; \
+	found=0; \
+	for suite in $(REPORT_SUITES); do \
+	  xml_file="$(TEST_REPORTS_DIR)/$$suite/$$suite.xml"; \
+	  if [ -f "$$xml_file" ]; then \
+	    echo "Including $$suite test results"; \
+	    cp "$$xml_file" "$(COMBINED_REPORT_DIR)/results/$$suite.xml"; \
+	    found=1; \
+	  fi; \
+	done; \
+	if [ "$$found" = "0" ]; then \
+	  echo "[error] No test results found. Run tests first."; \
+	  exit 1; \
+	fi; \
+	$(REPORT_TOOL_BIN) serve $(COMBINED_REPORT_DIR)/results
+
 # Run all tests
 .PHONY: test-all
 test-all:
@@ -300,8 +323,6 @@ test-all:
 	$(MAKE) test-property
 	$(call print_title,Running chaos tests)
 	$(MAKE) test-chaos
-	$(call print_title,Running e2e tests)
-	$(MAKE) test-e2e
 	$(call print_title,Running integration e2e tests)
 	$(MAKE) test-integration-e2e
 	$(call print_title,Running fuzzy tests)
