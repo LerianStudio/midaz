@@ -28,7 +28,6 @@ jobs:
         uses: LerianStudio/github-actions-changed-paths@main
         with:
           filter_paths: |-
-            components/onboarding
             components/ledger
             components/console
             components/crm

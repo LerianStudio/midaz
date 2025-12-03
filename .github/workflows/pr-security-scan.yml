@@ -20,7 +20,6 @@ jobs:
     with:
       runner_type: "firmino-lxc-runners"
       filter_paths: |-
-        components/onboarding
         components/ledger
         components/console
         components/crm
