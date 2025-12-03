@@ -27,6 +27,8 @@ import (
 
 // Repository provides an interface for operations related to transaction template entities.
 // It defines methods for creating, retrieving, updating, and deleting transactions.
+//
+//go:generate mockgen --destination=transaction.postgresql_mock.go --package=transaction . Repository
 type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)

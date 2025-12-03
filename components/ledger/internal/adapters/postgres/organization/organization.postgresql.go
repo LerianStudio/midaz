@@ -27,6 +27,8 @@ import (
 
 // Repository provides an interface for operations related to organization entities.
 // It defines methods for creating, updating, finding, and deleting organizations.
+//
+//go:generate mockgen --destination=organization.postgresql_mock.go --package=organization . Repository
 type Repository interface {
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
