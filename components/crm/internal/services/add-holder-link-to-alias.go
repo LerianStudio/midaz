@@ -50,12 +50,16 @@ func (uc *UseCase) AddHolderLinkToAlias(ctx context.Context, organizationID stri
 	holderLinkID := libCommons.GenerateUUIDv7()
 	linkTypeEnum := mmodel.LinkType(linkType)
 
+	
 	tpVinc, ok := mmodel.GetTpVincValue(linkTypeEnum)
 	if !ok {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", nil)
-		logger.Errorf("Failed to get TpVinc value for link type: %v", linkType)
+		businessErr := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
 
-		return nil, pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", businessErr)
+
+		logger.Errorf("Failed to get TpVinc value for link type: %v", linkType)
+		
+		return nil, businessErr
 	}
 
 	holderLink := &mmodel.HolderLink{

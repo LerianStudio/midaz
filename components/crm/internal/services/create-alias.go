@@ -27,13 +27,27 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	if cai.LinkType != nil {
+	var tpVinc int
+
+	if cai.LinkType != nil && strings.TrimSpace(*cai.LinkType) != "" {
 		err := uc.ValidateLinkType(ctx, cai.LinkType)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to validate link type", err)
 			logger.Errorf("Failed to validate link type: %v", err)
 
 			return nil, err
+		}
+
+		linkType := mmodel.LinkType(*cai.LinkType)
+
+		var ok bool
+
+		tpVinc, ok = mmodel.GetTpVincValue(linkType)
+		if !ok {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", nil)
+			logger.Errorf("Failed to get TpVinc value for link type: %v", *cai.LinkType)
+
+			return nil, pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
 		}
 	}
 
@@ -99,15 +113,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 		holderLinkID := libCommons.GenerateUUIDv7()
 		linkTypeStr := *cai.LinkType
-		linkType := mmodel.LinkType(linkTypeStr)
-
-		tpVinc, ok := mmodel.GetTpVincValue(linkType)
-		if !ok {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", nil)
-			logger.Errorf("Failed to get TpVinc value for link type: %v", linkTypeStr)
-
-			return nil, pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
-		}
 
 		holderLink := &mmodel.HolderLink{
 			ID:        &holderLinkID,
@@ -137,6 +142,12 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			libOpenTelemetry.HandleSpanError(&span, "Failed to update alias with holder link", err)
 
 			logger.Errorf("Failed to update alias with holder link: %v", err)
+
+			// Cleanup: delete the orphaned HolderLink
+			deleteErr := uc.HolderLinkRepo.Delete(ctx, organizationID, *createdHolderLink.ID, true)
+			if deleteErr != nil {
+				logger.Errorf("Failed to rollback holder link creation after alias update error: %v", deleteErr)
+			}
 
 			return nil, err
 		}

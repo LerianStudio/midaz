@@ -83,7 +83,7 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
 
-	err = createIndexes(coll)
+	err = createIndexes(ctx, coll)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create indexes", err)
 		return nil, err
@@ -311,7 +311,11 @@ func (hlm *MongoDBRepository) FindAll(ctx context.Context, organizationID string
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
 
-	filterDoc := buildHolderLinkFilter(includeDeleted)
+	filterDoc, err := buildHolderLinkFilter(filter, includeDeleted)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to build filter", err)
+		return nil, err
+	}
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_holder_links.find")
 	defer spanFind.End()
@@ -520,15 +524,35 @@ func (hlm *MongoDBRepository) Delete(ctx context.Context, organizationID string,
 	return nil
 }
 
-// buildHolderLinkFilter builds the MongoDB filter
-func buildHolderLinkFilter(includeDeleted bool) bson.D {
-	filterDoc := bson.D{}
+// buildHolderLinkFilter builds the MongoDB filter based on query parameters
+func buildHolderLinkFilter(query http.QueryHeader, includeDeleted bool) (bson.D, error) {
+	filter := bson.D{}
 
 	if !includeDeleted {
-		filterDoc = append(filterDoc, bson.E{Key: "deleted_at", Value: nil})
+		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
 	}
 
-	return filterDoc
+	if query.HolderID != nil && *query.HolderID != "" {
+		holderID, err := uuid.Parse(*query.HolderID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.HolderLink{}).Name(), "holder_id")
+		}
+
+		filter = append(filter, bson.E{Key: "holder_id", Value: holderID})
+	}
+
+	if query.Metadata != nil {
+		for k, v := range *query.Metadata {
+			safeValue, err := http.ValidateMetadataValue(v)
+			if err != nil {
+				return nil, err
+			}
+
+			filter = append(filter, bson.E{Key: k, Value: safeValue})
+		}
+	}
+
+	return filter, nil
 }
 
 // getDuplicateKeyErrorType determines the type of duplicate key error based on KeyPattern
@@ -595,7 +619,7 @@ func checkErrorByKeyPatternFromMessage(errMsg string) (string, bool) {
 }
 
 // createIndexes creates indexes for specific fields, if it not exists
-func createIndexes(collection *mongo.Collection) error {
+func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -642,7 +666,7 @@ func createIndexes(collection *mongo.Collection) error {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	_, err := collection.Indexes().CreateMany(ctx, indexModels)
