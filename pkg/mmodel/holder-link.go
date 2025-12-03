@@ -25,7 +25,6 @@ var ValidLinkTypeMapping = map[LinkType]bool{
 	LinkTypeResponsibleParty:    true,
 }
 
-
 // IsValidLinkType checks if a string is a valid LinkType.
 func IsValidLinkType(linkTypeStr string) bool {
 	linkType := LinkType(linkTypeStr)
@@ -77,7 +76,6 @@ type HolderLink struct {
 	HolderID  *uuid.UUID     `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
 	AliasID   *uuid.UUID     `json:"aliasId" example:"00000000-0000-0000-0000-000000000000"`
 	LinkType  *string        `json:"linkType" example:"PRIMARY_HOLDER" enums:"PRIMARY_HOLDER,LEGAL_REPRESENTATIVE,RESPONSIBLE_PARTY"`
-	TpVinc    *int           `json:"tpVinc,omitempty" example:"1" description:"Numeric TpVinc value (1=PRIMARY_HOLDER, 2=LEGAL_REPRESENTATIVE, 3=RESPONSIBLE_PARTY)"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
 	CreatedAt time.Time      `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	UpdatedAt time.Time      `json:"updatedAt" example:"2025-01-01T00:00:00Z"`

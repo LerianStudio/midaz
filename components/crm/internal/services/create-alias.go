@@ -24,8 +24,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	var tpVinc int
-
 	if cai.LinkType != nil && strings.TrimSpace(*cai.LinkType) != "" {
 		err := uc.ValidateLinkType(ctx, cai.LinkType)
 		if err != nil {
@@ -104,7 +102,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			HolderID:  &holderID,
 			AliasID:   createdAccount.ID,
 			LinkType:  &linkTypeStr,
-			TpVinc:    &tpVinc,
 			Metadata:  make(map[string]any),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
