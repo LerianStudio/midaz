@@ -6444,7 +6444,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -6715,7 +6715,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -9481,7 +9481,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+        "github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",
             "type": "object",
             "properties": {
