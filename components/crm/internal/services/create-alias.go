@@ -44,10 +44,11 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 		tpVinc, ok = mmodel.GetTpVincValue(linkType)
 		if !ok {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", nil)
+			businessErr := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", businessErr)
 			logger.Errorf("Failed to get TpVinc value for link type: %v", *cai.LinkType)
 
-			return nil, pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			return nil, businessErr
 		}
 	}
 
@@ -143,7 +144,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 			logger.Errorf("Failed to update alias with holder link: %v", err)
 
-			// Cleanup: delete the orphaned HolderLink
 			deleteErr := uc.HolderLinkRepo.Delete(ctx, organizationID, *createdHolderLink.ID, true)
 			if deleteErr != nil {
 				logger.Errorf("Failed to rollback holder link creation after alias update error: %v", deleteErr)
