@@ -48,7 +48,7 @@ type UseCase struct {
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository
 
-	// AssetRateRepo provides an abstraction on top of the operation data source.
+	// AssetRateRepo provides an abstraction on top of the asset rate data source.
 	AssetRateRepo assetrate.Repository
 
 	// BalanceRepo provides an abstraction on top of the balance data source.
