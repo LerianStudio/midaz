@@ -39,11 +39,18 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const ApplicationName = "transaction"
+const (
+	// ApplicationName is the name of this service for telemetry and identification
+	ApplicationName = "ledger"
+
+	// OtelLibraryName is the OpenTelemetry instrumentation library name (Go module path)
+	OtelLibraryName = "github.com/LerianStudio/midaz/v4/components/ledger"
+)
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName       string `env:"ENV_NAME"`
+	Version       string `env:"VERSION"`
 	LogLevel      string `env:"LOG_LEVEL"`
 	ServerAddress string `env:"SERVER_ADDRESS"`
 
@@ -122,10 +129,6 @@ type Config struct {
 	RabbitMQHealthCheckURL     string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 
 	// -- Otel configuration
-	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
 
@@ -168,10 +171,10 @@ func InitServers() *Service {
 	logger := libZap.InitializeLogger()
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		LibraryName:               OtelLibraryName,
+		ServiceName:               ApplicationName,
+		ServiceVersion:            cfg.Version,
+		DeploymentEnv:             cfg.EnvName,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,

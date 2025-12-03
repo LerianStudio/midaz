@@ -14,7 +14,6 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		envVars := map[string]*string{
 			"SWAGGER_TITLE":       &api.SwaggerInfo.Title,
 			"SWAGGER_DESCRIPTION": &api.SwaggerInfo.Description,
-			"SWAGGER_VERSION":     &api.SwaggerInfo.Version,
 			"SWAGGER_HOST":        &api.SwaggerInfo.Host,
 			"SWAGGER_BASE_PATH":   &api.SwaggerInfo.BasePath,
 			"SWAGGER_LEFT_DELIM":  &api.SwaggerInfo.LeftDelim,
@@ -29,6 +28,10 @@ func WithSwaggerEnvConfig() fiber.Handler {
 
 				*field = value
 			}
+		}
+
+		if version := os.Getenv("VERSION"); !libCommons.IsNilOrEmpty(&version) {
+			api.SwaggerInfo.Version = version
 		}
 
 		if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
