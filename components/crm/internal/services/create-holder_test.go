@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -53,6 +54,20 @@ func TestCreateHolder(t *testing.T) {
 				Name:     &name,
 				Document: &document,
 			},
+		},
+		{
+			name: "Error when repository fails",
+			input: &mmodel.CreateHolderInput{
+				Name:     name,
+				Document: document,
+			},
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("database connection error"))
+			},
+			expectErr:      true,
+			expectedHolder: nil,
 		},
 	}
 
