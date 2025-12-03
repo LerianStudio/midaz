@@ -2,14 +2,11 @@ package services
 
 import (
 	"context"
-	"reflect"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,19 +33,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			logger.Errorf("Failed to validate link type: %v", err)
 
 			return nil, err
-		}
-
-		linkType := mmodel.LinkType(*cai.LinkType)
-
-		var ok bool
-
-		tpVinc, ok = mmodel.GetTpVincValue(linkType)
-		if !ok {
-			businessErr := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
-			libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", businessErr)
-			logger.Errorf("Failed to get TpVinc value for link type: %v", *cai.LinkType)
-
-			return nil, businessErr
 		}
 	}
 

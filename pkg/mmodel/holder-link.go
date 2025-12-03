@@ -19,48 +19,23 @@ const (
 )
 
 // TpVincMapping maps LinkType to its numeric TpVinc value
-var TpVincMapping = map[LinkType]int{
-	LinkTypePrimaryHolder:       1,
-	LinkTypeLegalRepresentative: 2,
-	LinkTypeResponsibleParty:    3,
+var ValidLinkTypeMapping = map[LinkType]bool{
+	LinkTypePrimaryHolder:       true,
+	LinkTypeLegalRepresentative: true,
+	LinkTypeResponsibleParty:    true,
 }
 
-// GetTpVincValue converts a LinkType to its numeric TpVinc value.
-// Returns 0 and false if the LinkType is invalid.
-func GetTpVincValue(linkType LinkType) (int, bool) {
-	value, ok := TpVincMapping[linkType]
-	return value, ok
-}
-
-// GetTpVincValueFromString converts a LinkType string to its numeric TpVinc value.
-// Returns 0 and false if the string is not a valid LinkType.
-func GetTpVincValueFromString(linkTypeStr string) (int, bool) {
-	linkType := LinkType(linkTypeStr)
-	return GetTpVincValue(linkType)
-}
-
-// GetLinkTypeFromTpVinc converts a numeric TpVinc value to its LinkType.
-// Returns empty string and false if the value is invalid.
-func GetLinkTypeFromTpVinc(tpVinc int) (LinkType, bool) {
-	for linkType, value := range TpVincMapping {
-		if value == tpVinc {
-			return linkType, true
-		}
-	}
-	return "", false
-}
 
 // IsValidLinkType checks if a string is a valid LinkType.
 func IsValidLinkType(linkTypeStr string) bool {
 	linkType := LinkType(linkTypeStr)
-	_, ok := TpVincMapping[linkType]
-	return ok
+	return ValidLinkTypeMapping[linkType]
 }
 
 // GetValidLinkTypes returns a slice of all valid LinkType strings.
 func GetValidLinkTypes() []string {
-	validTypes := make([]string, 0, len(TpVincMapping))
-	for linkType := range TpVincMapping {
+	validTypes := make([]string, 0, len(ValidLinkTypeMapping))
+	for linkType := range ValidLinkTypeMapping {
 		validTypes = append(validTypes, string(linkType))
 	}
 	return validTypes

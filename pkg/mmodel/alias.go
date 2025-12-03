@@ -16,9 +16,6 @@ type CreateAliasInput struct {
 	// Unique identifier of the related account on ledger.
 	AccountID string `json:"accountId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	// Type of relationship between the holder and the alias (TpVinc). Optional - if not provided, no HolderLink will be created.
-	// * PRIMARY_HOLDER (TpVinc=1) - Primary account holder
-	// * LEGAL_REPRESENTATIVE (TpVinc=2) - Legal Representative or Proxy
-	// * RESPONSIBLE_PARTY (TpVinc=3) - Responsible Party
 	LinkType *string `json:"linkType,omitempty" validate:"omitempty,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"PRIMARY_HOLDER"`
 	// An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
@@ -47,9 +44,6 @@ type AddHolderLinkInput struct {
 	// Unique identifier of the holder to be linked.
 	HolderID string `json:"holderId" validate:"required,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	// Type of relationship between the holder and the alias (TpVinc).
-	// * PRIMARY_HOLDER (TpVinc=1) - Primary account holder
-	// * LEGAL_REPRESENTATIVE (TpVinc=2) - Legal Representative or Proxy
-	// * RESPONSIBLE_PARTY (TpVinc=3) - Responsible Party
 	LinkType string `json:"linkType" validate:"required,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"LEGAL_REPRESENTATIVE"`
 } // @name AddHolderLinkInput
 

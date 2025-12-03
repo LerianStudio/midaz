@@ -2,13 +2,10 @@ package services
 
 import (
 	"context"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -48,26 +45,12 @@ func (uc *UseCase) AddHolderLinkToAlias(ctx context.Context, organizationID stri
 	}
 
 	holderLinkID := libCommons.GenerateUUIDv7()
-	linkTypeEnum := mmodel.LinkType(linkType)
-
-	
-	tpVinc, ok := mmodel.GetTpVincValue(linkTypeEnum)
-	if !ok {
-		businessErr := pkg.ValidateBusinessError(cn.ErrInvalidLinkType, reflect.TypeOf(mmodel.HolderLink{}).Name())
-
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get TpVinc value from LinkType", businessErr)
-
-		logger.Errorf("Failed to get TpVinc value for link type: %v", linkType)
-		
-		return nil, businessErr
-	}
 
 	holderLink := &mmodel.HolderLink{
 		ID:        &holderLinkID,
 		HolderID:  &holderID,
 		AliasID:   &aliasID,
 		LinkType:  &linkType,
-		TpVinc:    &tpVinc,
 		Metadata:  make(map[string]any),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
