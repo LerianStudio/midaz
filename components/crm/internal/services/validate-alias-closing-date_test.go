@@ -51,7 +51,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:     "Success when closing date is before creation date",
+			name:     "Error when closing date is before creation date",
 			holderID: holderID,
 			aliasID:  aliasID,
 			closingDate: func() *time.Time {
@@ -70,10 +70,11 @@ func TestValidateAliasClosingDate(t *testing.T) {
 					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
 					Return([]*mmodel.HolderLink{}, nil)
 			},
-			expectError: false,
+			expectError:   true,
+			expectedError: cn.ErrAliasClosingDateBeforeCreationDate,
 		},
 		{
-			name:     "Error when closing date is after creation date",
+			name:     "Success when closing date is after creation date",
 			holderID: holderID,
 			aliasID:  aliasID,
 			closingDate: func() *time.Time {
@@ -92,8 +93,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
 					Return([]*mmodel.HolderLink{}, nil)
 			},
-			expectError:   true,
-			expectedError: cn.ErrAliasClosingDateBeforeCreationDate,
+			expectError: false,
 		},
 		{
 			name:     "Error when alias not found",
