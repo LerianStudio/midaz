@@ -8,6 +8,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"testing"
@@ -19,6 +20,7 @@ func TestUpdateAliasByID(t *testing.T) {
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	holderID := libCommons.GenerateUUIDv7()
 	id := libCommons.GenerateUUIDv7()
@@ -28,8 +30,9 @@ func TestUpdateAliasByID(t *testing.T) {
 	branch := "0001"
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		AliasRepo:      mockAliasRepo,
+		HolderLinkRepo: mockHolderLinkRepo,
 	}
 
 	testCases := []struct {
@@ -63,6 +66,9 @@ func TestUpdateAliasByID(t *testing.T) {
 							Branch: &branch,
 						},
 					}, nil)
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasID(gomock.Any(), gomock.Any(), id, false).
+					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: &mmodel.Alias{

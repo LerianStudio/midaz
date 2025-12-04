@@ -91,6 +91,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	c.Locals("fields", diffFields)
+	c.Locals("patchRemove", findNilFields(originalMap, ""))
 
 	parseMetadata(s, originalMap)
 
@@ -741,4 +742,30 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 	}
 
 	return true
+}
+
+// findNilFields recursively traverses the map and returns the paths
+// of the fields whose value is nil.
+// The prefix parameter is used to build the complete path (e.g., "object.field").
+func findNilFields(data map[string]any, prefix string) []string {
+	var nilFields []string
+
+	for key, value := range data {
+		var fullPath string
+		if prefix == "" {
+			fullPath = key
+		} else {
+			fullPath = prefix + "." + key
+		}
+
+		if value == nil {
+			nilFields = append(nilFields, fullPath)
+		} else {
+			if nestedMap, ok := value.(map[string]any); ok {
+				nilFields = append(nilFields, findNilFields(nestedMap, fullPath)...)
+			}
+		}
+	}
+
+	return nilFields
 }

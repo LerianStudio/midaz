@@ -26,10 +26,34 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Infof("Trying to update alias: %v", id.String())
 
+	var newHolderLink *mmodel.HolderLink
+
+	if uai.AddHolderLink != nil {
+		linkHolderID, err := uuid.Parse(uai.AddHolderLink.HolderID)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID for new link", err)
+			logger.Errorf("Failed to parse holder ID for new link: %v", err)
+
+			return nil, err
+		}
+
+		newHolderLink, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to add holder link to alias", err)
+			logger.Errorf("Failed to add holder link to alias: %v", err)
+
+			return nil, err
+		}
+	}
+
 	alias := &mmodel.Alias{
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,
 		UpdatedAt:      time.Now(),
+	}
+
+	if newHolderLink != nil {
+		alias.HolderLinks = append(alias.HolderLinks, newHolderLink)
 	}
 
 	updatedAlias, err := uc.AliasRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
@@ -39,6 +63,11 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		logger.Errorf("Failed to update alias: %v", err)
 
 		return nil, err
+	}
+
+	err = uc.enrichAliasWithLinkType(ctx, organizationID, updatedAlias)
+	if err != nil {
+		logger.Warnf("Failed to enrich alias with link type: %v", err)
 	}
 
 	return updatedAlias, nil

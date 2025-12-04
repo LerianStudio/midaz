@@ -7,6 +7,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
+	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ func TestGetAliasByID(t *testing.T) {
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	holderID := libCommons.GenerateUUIDv7()
 	id := libCommons.GenerateUUIDv7()
@@ -28,8 +30,9 @@ func TestGetAliasByID(t *testing.T) {
 	holderDocument := "90217469051"
 
 	uc := &UseCase{
-		HolderRepo: mockHolderRepo,
-		AliasRepo:  mockAliasRepo,
+		HolderRepo:     mockHolderRepo,
+		AliasRepo:      mockAliasRepo,
+		HolderLinkRepo: mockHolderLinkRepo,
 	}
 
 	testCases := []struct {
@@ -54,6 +57,9 @@ func TestGetAliasByID(t *testing.T) {
 						HolderID:  &holderID,
 						AccountID: &accountID,
 					}, nil)
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasID(gomock.Any(), gomock.Any(), id, false).
+					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: &mmodel.Alias{
