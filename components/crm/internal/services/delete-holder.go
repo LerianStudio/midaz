@@ -50,13 +50,15 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return err
 	}
 
-	err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLinks[0].ID, hardDelete)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
+	for _, holderLink := range holderLinks {
+		err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
 
-		logger.Errorf("Failed to delete holder link by id: %v", err)
+			logger.Errorf("Failed to delete holder link by id: %v", err)
 
-		return err
+			return err
+		}
 	}
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)

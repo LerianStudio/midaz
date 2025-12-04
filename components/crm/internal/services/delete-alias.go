@@ -5,7 +5,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -35,21 +34,15 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		return err
 	}
 
-	if len(holderLinks) == 0 {
-		libOpenTelemetry.HandleSpanError(&span, "No holder links found for alias id", cn.ErrHolderLinkNotFound)
+	for _, holderLink := range holderLinks {
+		err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
 
-		logger.Errorf("No holder links found for alias id: %v", id)
+			logger.Errorf("Failed to delete holder link by id: %v", err)
 
-		return cn.ErrHolderLinkNotFound
-	}
-
-	err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLinks[0].ID, hardDelete)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
-
-		logger.Errorf("Failed to delete holder link by id: %v", err)
-
-		return err
+			return err
+		}
 	}
 
 	err = uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
