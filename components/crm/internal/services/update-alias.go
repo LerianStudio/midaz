@@ -26,6 +26,8 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Infof("Trying to update alias: %v", id.String())
 
+	var newHolderLink *mmodel.HolderLink
+
 	if uai.AddHolderLink != nil {
 		linkHolderID, err := uuid.Parse(uai.AddHolderLink.HolderID)
 		if err != nil {
@@ -35,7 +37,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 			return nil, err
 		}
 
-		_, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
+		newHolderLink, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to add holder link to alias", err)
 			logger.Errorf("Failed to add holder link to alias: %v", err)
@@ -48,6 +50,10 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,
 		UpdatedAt:      time.Now(),
+	}
+
+	if newHolderLink != nil {
+		alias.HolderLinks = append(alias.HolderLinks, newHolderLink)
 	}
 
 	updatedAlias, err := uc.AliasRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)

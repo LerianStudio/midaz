@@ -2,13 +2,16 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"testing"
 )
 
 func TestDeleteAliasByID(t *testing.T) {
@@ -16,9 +19,11 @@ func TestDeleteAliasByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
+	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AliasRepo: mockAliasRepo,
+		AliasRepo:      mockAliasRepo,
+		HolderLinkRepo: mockHolderLinkRepo,
 	}
 
 	id := libCommons.GenerateUUIDv7()
@@ -36,6 +41,16 @@ func TestDeleteAliasByID(t *testing.T) {
 			holderID: holderID,
 			id:       id,
 			mockSetup: func() {
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasID(gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return([]*mmodel.HolderLink{
+						{
+							ID: &id,
+						},
+					}, nil)
+				mockHolderLinkRepo.EXPECT().
+					Delete(gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil)
 				mockAliasRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(nil)
@@ -43,15 +58,15 @@ func TestDeleteAliasByID(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:     "Error when alias mongodb document not found",
+			name:     "Error when holder link not found for alias",
 			holderID: holderID,
 			id:       id,
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
-					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(cn.ErrAliasNotFound)
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasID(gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil, nil)
 			},
-			expectedError: cn.ErrAliasNotFound,
+			expectedError: cn.ErrHolderLinkNotFound,
 		},
 	}
 

@@ -22,7 +22,16 @@ func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID s
 		return nil
 	}
 
-	alias.HolderLinks = holderLinks
+	for _, holderLink := range holderLinks {
+		formatedHolderLink := &mmodel.HolderLink{
+			ID:        holderLink.ID,
+			LinkType:  holderLink.LinkType,
+			CreatedAt: holderLink.CreatedAt,
+			UpdatedAt: holderLink.UpdatedAt,
+			DeletedAt: holderLink.DeletedAt,
+		}
+		alias.HolderLinks = append(alias.HolderLinks, formatedHolderLink)
+	}
 
 	return nil
 }

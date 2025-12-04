@@ -73,8 +73,8 @@ type UpdateHolderLinkInput struct {
 // @Description HolderLinkResponse payload - represents the relationship (TpVinc) between a Holder and an Alias
 type HolderLink struct {
 	ID        *uuid.UUID     `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	HolderID  *uuid.UUID     `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
-	AliasID   *uuid.UUID     `json:"aliasId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderID  *uuid.UUID     `json:"holderId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	AliasID   *uuid.UUID     `json:"aliasId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	LinkType  *string        `json:"linkType" example:"PRIMARY_HOLDER" enums:"PRIMARY_HOLDER,LEGAL_REPRESENTATIVE,RESPONSIBLE_PARTY"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
 	CreatedAt time.Time      `json:"createdAt" example:"2025-01-01T00:00:00Z"`
