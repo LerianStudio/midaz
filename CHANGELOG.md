@@ -4,6 +4,21 @@
 Contributors: Augusto Alvarenga, lerian-studio
 
 ### 🐛 Bug Fixes
+- **Frontend/Deps**: Updated the Next.js framework to version 15.5.7 and React to version 19.1.2. These updates improve compatibility with the latest features and security patches, leading to smoother interactions and enhanced reliability for users.
+
+### 📚 Documentation
+- **Changelog**: The CHANGELOG file has been updated to reflect the latest changes and improvements. This ensures that users and developers have access to accurate and current information, aiding in version tracking and maintaining transparency.
+
+### 🔧 Maintenance
+- Ensuring all dependencies are current and documentation is up-to-date contributes to the overall robustness and reliability of the application, providing a stable foundation for future development.
+
+
+## [v3.4.6] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
 - **Frontend/Dependencies**: Updated Next.js to version 15.5.7 and React to version 19.1.2. These updates resolve previous compatibility issues, ensuring a more stable and reliable user experience. Users will notice smoother performance and fewer disruptions when using the application.
 
 ### 🔧 Maintenance
