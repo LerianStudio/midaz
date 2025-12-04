@@ -1110,6 +1110,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Link Type",
 			Message:    "The provided 'linkType' is not valid. Accepted types are PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY. Please provide a valid link type.",
 		},
+		constant.ErrAliasClosingDateBeforeCreationDate: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAliasClosingDateBeforeCreationDate.Error(),
+			Title:      "Alias Closing Date Before Creation Date",
+			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -34,14 +34,16 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		return err
 	}
 
-	for _, holderLink := range holderLinks {
-		err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
+	if len(holderLinks) > 0 {
+		for _, holderLink := range holderLinks {
+			err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
+			if err != nil {
+				libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
 
-			logger.Errorf("Failed to delete holder link by id: %v", err)
+				logger.Errorf("Failed to delete holder link by id: %v", err)
 
-			return err
+				return err
+			}
 		}
 	}
 

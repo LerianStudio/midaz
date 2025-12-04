@@ -7,7 +7,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -58,15 +57,18 @@ func TestDeleteAliasByID(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:     "Error when holder link not found for alias",
+			name:     "Success when no holder links found for alias",
 			holderID: holderID,
 			id:       id,
 			mockSetup: func() {
 				mockHolderLinkRepo.EXPECT().
 					FindByAliasID(gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(nil, nil)
+				mockAliasRepo.EXPECT().
+					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil)
 			},
-			expectedError: cn.ErrHolderLinkNotFound,
+			expectedError: nil,
 		},
 	}
 
