@@ -57,7 +57,7 @@ generate_openapi_spec() {
     local out_log="${LOG_DIR}/${component}_swag.out"
     local err_log="${LOG_DIR}/${component}_swag.err"
     
-    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal > "${out_log}" 2> "${err_log}"); then
+    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "${component}" > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"

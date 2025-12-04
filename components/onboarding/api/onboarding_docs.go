@@ -3,7 +3,7 @@ package api
 
 import "github.com/swaggo/swag"
 
-const docTemplate = `{
+const docTemplateonboarding = `{
     "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
@@ -5058,20 +5058,20 @@ const docTemplate = `{
     }
 }`
 
-// SwaggerInfo holds exported Swagger Info so clients can modify it
-var SwaggerInfo = &swag.Spec{
+// SwaggerInfoonboarding holds exported Swagger Info so clients can modify it
+var SwaggerInfoonboarding = &swag.Spec{
 	Version:          "v1.48.0",
 	Host:             "localhost:3000",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Midaz Onboarding API",
 	Description:      "This is a swagger documentation for the Midaz Ledger API",
-	InfoInstanceName: "swagger",
-	SwaggerTemplate:  docTemplate,
+	InfoInstanceName: "onboarding",
+	SwaggerTemplate:  docTemplateonboarding,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }
 
 func init() {
-	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+	swag.Register(SwaggerInfoonboarding.InstanceName(), SwaggerInfoonboarding)
 }

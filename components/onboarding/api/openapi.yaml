@@ -3273,6 +3273,7 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         portfolioId: 00000000-0000-0000-0000-000000000000
+        blocked: true
         segmentId: 00000000-0000-0000-0000-000000000000
         name: Corporate Checking Account
         alias: '@treasury_checking'
@@ -3296,6 +3297,9 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: Indicates if the account is blocked
+          type: boolean
         createdAt:
           description: |-
             Timestamp when the account was created (RFC3339 format)
@@ -3606,6 +3610,7 @@ components:
           key: '{}'
         assetCode: USD
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Corporate Checking Account
         alias: '@treasury_checking'
@@ -3631,6 +3636,12 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: |-
+            Whether the account should start blocked
+            required: false
+            default: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -4361,11 +4372,17 @@ components:
         metadata:
           key: '{}'
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
         entityId: EXT-ACC-12345
         status: '{}'
       properties:
+        blocked:
+          description: |-
+            Whether the account should be blocked
+            required: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -4789,6 +4806,7 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
@@ -4806,6 +4824,7 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
