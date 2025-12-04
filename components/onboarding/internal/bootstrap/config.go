@@ -13,7 +13,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
+	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -34,25 +35,81 @@ import (
 
 const ApplicationName = "onboarding"
 
+// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
+func envFallback(prefixed, fallback string) string {
+	if prefixed != "" {
+		return prefixed
+	}
+	return fallback
+}
+
+// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
+func envFallbackInt(prefixed, fallback int) int {
+	if prefixed != 0 {
+		return prefixed
+	}
+	return fallback
+}
+
 // Config is the top level configuration struct for the entire application.
+// Supports prefixed env vars (DB_ONBOARDING_*) with fallback to non-prefixed (DB_*) for backward compatibility.
 type Config struct {
-	EnvName                      string `env:"ENV_NAME"`
-	LogLevel                     string `env:"LOG_LEVEL"`
-	ServerAddress                string `env:"SERVER_ADDRESS"`
-	PrimaryDBHost                string `env:"DB_HOST"`
-	PrimaryDBUser                string `env:"DB_USER"`
-	PrimaryDBPassword            string `env:"DB_PASSWORD"`
-	PrimaryDBName                string `env:"DB_NAME"`
-	PrimaryDBPort                string `env:"DB_PORT"`
-	PrimaryDBSSLMode             string `env:"DB_SSLMODE"`
-	ReplicaDBHost                string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser                string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword            string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName                string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort                string `env:"DB_REPLICA_PORT"`
-	ReplicaDBSSLMode             string `env:"DB_REPLICA_SSLMODE"`
-	MaxOpenConnections           int    `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections           int    `env:"DB_MAX_IDLE_CONNS"`
+	EnvName  string `env:"ENV_NAME"`
+	LogLevel string `env:"LOG_LEVEL"`
+
+	// Server address - prefixed for unified ledger deployment
+	PrefixedServerAddress string `env:"SERVER_ADDRESS_ONBOARDING"`
+	ServerAddress         string `env:"SERVER_ADDRESS"`
+
+	// PostgreSQL Primary - prefixed vars for unified ledger deployment
+	PrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
+	PrefixedPrimaryDBUser     string `env:"DB_ONBOARDING_USER"`
+	PrefixedPrimaryDBPassword string `env:"DB_ONBOARDING_PASSWORD"`
+	PrefixedPrimaryDBName     string `env:"DB_ONBOARDING_NAME"`
+	PrefixedPrimaryDBPort     string `env:"DB_ONBOARDING_PORT"`
+	PrefixedPrimaryDBSSLMode  string `env:"DB_ONBOARDING_SSLMODE"`
+
+	// PostgreSQL Primary - fallback vars for standalone deployment
+	PrimaryDBHost     string `env:"DB_HOST"`
+	PrimaryDBUser     string `env:"DB_USER"`
+	PrimaryDBPassword string `env:"DB_PASSWORD"`
+	PrimaryDBName     string `env:"DB_NAME"`
+	PrimaryDBPort     string `env:"DB_PORT"`
+	PrimaryDBSSLMode  string `env:"DB_SSLMODE"`
+
+	// PostgreSQL Replica - prefixed vars for unified ledger deployment
+	PrefixedReplicaDBHost     string `env:"DB_ONBOARDING_REPLICA_HOST"`
+	PrefixedReplicaDBUser     string `env:"DB_ONBOARDING_REPLICA_USER"`
+	PrefixedReplicaDBPassword string `env:"DB_ONBOARDING_REPLICA_PASSWORD"`
+	PrefixedReplicaDBName     string `env:"DB_ONBOARDING_REPLICA_NAME"`
+	PrefixedReplicaDBPort     string `env:"DB_ONBOARDING_REPLICA_PORT"`
+	PrefixedReplicaDBSSLMode  string `env:"DB_ONBOARDING_REPLICA_SSLMODE"`
+
+	// PostgreSQL Replica - fallback vars for standalone deployment
+	ReplicaDBHost     string `env:"DB_REPLICA_HOST"`
+	ReplicaDBUser     string `env:"DB_REPLICA_USER"`
+	ReplicaDBPassword string `env:"DB_REPLICA_PASSWORD"`
+	ReplicaDBName     string `env:"DB_REPLICA_NAME"`
+	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
+	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
+
+	// PostgreSQL connection pool - prefixed with fallback
+	PrefixedMaxOpenConnections int `env:"DB_ONBOARDING_MAX_OPEN_CONNS"`
+	PrefixedMaxIdleConnections int `env:"DB_ONBOARDING_MAX_IDLE_CONNS"`
+	MaxOpenConnections         int `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections         int `env:"DB_MAX_IDLE_CONNS"`
+
+	// MongoDB - prefixed vars for unified ledger deployment
+	PrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
+	PrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
+	PrefixedMongoDBName       string `env:"MONGO_ONBOARDING_NAME"`
+	PrefixedMongoDBUser       string `env:"MONGO_ONBOARDING_USER"`
+	PrefixedMongoDBPassword   string `env:"MONGO_ONBOARDING_PASSWORD"`
+	PrefixedMongoDBPort       string `env:"MONGO_ONBOARDING_PORT"`
+	PrefixedMongoDBParameters string `env:"MONGO_ONBOARDING_PARAMETERS"`
+	PrefixedMaxPoolSize       int    `env:"MONGO_ONBOARDING_MAX_POOL_SIZE"`
+
+	// MongoDB - fallback vars for standalone deployment
 	MongoURI                     string `env:"MONGO_URI"`
 	MongoDBHost                  string `env:"MONGO_HOST"`
 	MongoDBName                  string `env:"MONGO_NAME"`
@@ -95,8 +152,29 @@ type Config struct {
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
 }
 
-// InitServers initiate http and grpc servers.
+// Options contains optional dependencies that can be injected when running
+// in unified ledger mode. When nil, defaults to gRPC-based communication.
+type Options struct {
+	// UnifiedMode indicates the service is running as part of the unified ledger.
+	// When true, all ports must be provided for in-process communication.
+	// When false (or Options is nil), uses gRPC adapters for remote communication.
+	UnifiedMode bool
+
+	// BalancePort is the transaction module's BalancePort for direct calls.
+	// Required when UnifiedMode is true.
+	// This is typically the transaction.UseCase which implements mbootstrap.BalancePort.
+	BalancePort mbootstrap.BalancePort
+}
+
+// InitServers initiate http and grpc servers using default gRPC communication.
 func InitServers() *Service {
+	return InitServersWithOptions(nil)
+}
+
+// InitServersWithOptions initiates http servers with optional dependency injection.
+// When opts is nil or opts.BalancePort is nil, uses gRPC for balance operations.
+// When opts.BalancePort is provided, uses direct in-process calls (unified ledger mode).
+func InitServersWithOptions(opts *Options) *Service {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
@@ -115,39 +193,67 @@ func InitServers() *Service {
 		Logger:                    logger,
 	})
 
+	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
+	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+
+	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
+	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
+	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
+	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
+	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
+	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
+
+	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
+	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
+
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort, cfg.PrimaryDBSSLMode)
+		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
 
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
+		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
 
 	postgresConnection := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
 		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           cfg.PrimaryDBName,
-		ReplicaDBName:           cfg.ReplicaDBName,
+		PrimaryDBName:           dbName,
+		ReplicaDBName:           dbReplicaName,
 		Component:               ApplicationName,
 		Logger:                  logger,
-		MaxOpenConnections:      cfg.MaxOpenConnections,
-		MaxIdleConnections:      cfg.MaxIdleConnections,
+		MaxOpenConnections:      maxOpenConns,
+		MaxIdleConnections:      maxIdleConns,
 	}
+
+	// Apply fallback for MongoDB prefixed env vars
+	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
+	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
+	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
+	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
+	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
+	mongoPort := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParameters := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
 
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
+	if mongoPoolSize <= 0 {
+		mongoPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
-		Database:               cfg.MongoDBName,
+		Database:               mongoName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            uint64(mongoPoolSize),
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -173,15 +279,6 @@ func InitServers() *Service {
 		MaxRetries:                   cfg.RedisMaxRetries,
 		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
-	}
-
-	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-		logger.Fatal("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
-	}
-
-	grpcConnection := &mgrpc.GRPCConnection{
-		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
-		Logger: logger,
 	}
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
@@ -213,7 +310,30 @@ func InitServers() *Service {
 		}
 	}
 
-	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
+	// Choose balance port based on UnifiedMode:
+	// - If UnifiedMode is true, validate and use provided ports for in-process calls
+	// - Otherwise, use gRPC adapter to call the separate transaction service
+	var balancePort mbootstrap.BalancePort
+	if opts != nil && opts.UnifiedMode {
+		if opts.BalancePort == nil {
+			logger.Fatal("UnifiedMode requires BalancePort to be provided")
+		}
+
+		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
+		balancePort = opts.BalancePort
+	} else {
+		if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
+			logger.Fatal("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
+		}
+
+		grpcConnection := &mgrpc.GRPCConnection{
+			Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+			Logger: logger,
+		}
+
+		logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
+		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
+	}
 
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
@@ -225,7 +345,7 @@ func InitServers() *Service {
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
-		BalanceGRPCRepo:  balanceGRPCRepository,
+		BalancePort:      balancePort,
 	}
 
 	queryUseCase := &query.UseCase{
