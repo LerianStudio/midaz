@@ -39,6 +39,8 @@ export class FetchAllTransactionsUseCase implements FetchAllTransactions {
         searchEntity
       )
 
+    console.log('transactionsResult', transactionsResult)
+
     return TransactionMapper.toCursorPaginationResponseDto(transactionsResult)
   }
 }

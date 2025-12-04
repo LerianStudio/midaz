@@ -637,6 +637,8 @@
   "signIn.toast.error": "Invalid credentials.",
   "status.approved": "Approved",
   "status.canceled": "Canceled",
+  "status.pending": "Pending",
+  "status.other": "Other",
   "success.accountTypes.created": "{accountTypeName} account type successfully created",
   "success.accountTypes.updated": "{accountTypeName} account type successfully updated",
   "success.accounts.created": "{accountName} account successfully created",

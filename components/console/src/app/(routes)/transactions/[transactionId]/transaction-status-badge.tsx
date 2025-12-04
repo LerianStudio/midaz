@@ -4,7 +4,7 @@ import { cva } from 'class-variance-authority'
 import { CheckCheckIcon, X } from 'lucide-react'
 import { defineMessages, useIntl } from 'react-intl'
 
-type TransactionStatus = 'APPROVED' | 'CANCELLED'
+type TransactionStatus = 'APPROVED' | 'CANCELLED' | 'PENDING' | 'OTHER'
 
 const statusMessages = defineMessages({
   APPROVED: {
@@ -14,6 +14,14 @@ const statusMessages = defineMessages({
   CANCELLED: {
     id: 'transactions.status.canceled',
     defaultMessage: 'Canceled'
+  },
+  PENDING: {
+    id: 'transactions.status.pending',
+    defaultMessage: 'Pending'
+  },
+  OTHER: {
+    id: 'transactions.status.other',
+    defaultMessage: 'Other'
   }
 })
 
@@ -23,7 +31,9 @@ const statusBadgeVariants = cva(
     variants: {
       status: {
         APPROVED: 'bg-[#16A34A] text-white hover:bg-emerald-600',
-        CANCELLED: 'border-gray-400 bg-gray-100 text-gray-700'
+        CANCELLED: 'border-gray-400 bg-gray-100 text-gray-700',
+        PENDING: 'bg-[#F59E0B] text-white hover:bg-amber-600',
+        OTHER: 'border-gray-400 bg-gray-100 text-gray-700'
       }
     },
     defaultVariants: {
@@ -60,7 +70,8 @@ export function TransactionStatusBadge({
       >
         {status &&
           intl.formatMessage(
-            statusMessages[status as keyof typeof statusMessages]
+            statusMessages[status as keyof typeof statusMessages] ||
+              statusMessages['OTHER' as keyof typeof statusMessages]
           )}
         <Icon className="h-4 w-4" />
       </Badge>
