@@ -38,6 +38,8 @@ type UpdateAliasInput struct {
 	AddHolderLink *AddHolderLinkInput `json:"addHolderLink,omitempty"`
 	// The date the alias was closed.
 	ClosingDate *time.Time `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
+	// Document of the participant (identifies which financial-group entity owns the relationship)
+	ParticipantDocument *string `json:"participantDocument,omitempty" validate:"omitempty,cnpj" example:"12345678912345"`
 } // @name UpdateAliasRequest
 
 // AddHolderLinkInput is a struct designed to add a new holder link to an alias.
