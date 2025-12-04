@@ -34,6 +34,8 @@ type UpdateAliasInput struct {
 	BankingDetails *BankingDetails `json:"bankingDetails"`
 	// Add a new holder link to the alias (optional).
 	AddHolderLink *AddHolderLinkInput `json:"addHolderLink,omitempty"`
+	// The date the alias was closed.
+	ClosingDate *time.Time `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
 } // @name UpdateAliasRequest
 
 // AddHolderLinkInput is a struct designed to add a new holder link to an alias.
@@ -61,6 +63,7 @@ type Alias struct {
 	HolderLinks    []*HolderLink   `json:"holderLinks,omitempty" example:"[]"`
 	Metadata       map[string]any  `json:"metadata,omitempty"`
 	BankingDetails *BankingDetails `json:"bankingDetails,omitempty"`
+	ClosingDate    *time.Time      `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
 	CreatedAt      time.Time       `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	UpdatedAt      time.Time       `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
 	DeletedAt      *time.Time      `json:"deletedAt" example:"2025-01-01T00:00:00Z"`

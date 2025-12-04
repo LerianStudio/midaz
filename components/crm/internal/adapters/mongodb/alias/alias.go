@@ -18,6 +18,7 @@ type MongoDBModel struct {
 	Metadata       map[string]any       `bson:"metadata"`
 	Search         map[string]string    `bson:"search,omitempty"`
 	BankingDetails *BankingMongoDBModel `bson:"banking_details,omitempty"`
+	ClosingDate    *time.Time           `bson:"closing_date,omitempty"`
 	CreatedAt      *time.Time           `bson:"created_at,omitempty"`
 	UpdatedAt      *time.Time           `bson:"updated_at"`
 	DeletedAt      *time.Time           `bson:"deleted_at"`
@@ -41,15 +42,16 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	}
 
 	*amm = MongoDBModel{
-		ID:        a.ID,
-		Document:  document,
-		Type:      a.Type,
-		LedgerID:  a.LedgerID,
-		AccountID: a.AccountID,
-		HolderID:  a.HolderID,
-		CreatedAt: &a.CreatedAt,
-		UpdatedAt: &a.UpdatedAt,
-		DeletedAt: a.DeletedAt,
+		ID:          a.ID,
+		Document:    document,
+		Type:        a.Type,
+		LedgerID:    a.LedgerID,
+		AccountID:   a.AccountID,
+		HolderID:    a.HolderID,
+		ClosingDate: a.ClosingDate,
+		CreatedAt:   &a.CreatedAt,
+		UpdatedAt:   &a.UpdatedAt,
+		DeletedAt:   a.DeletedAt,
 	}
 
 	amm.Search = make(map[string]string)
@@ -105,16 +107,17 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	account := &mmodel.Alias{
-		ID:        amm.ID,
-		Document:  document,
-		Type:      amm.Type,
-		LedgerID:  amm.LedgerID,
-		AccountID: amm.AccountID,
-		HolderID:  amm.HolderID,
-		Metadata:  amm.Metadata,
-		CreatedAt: *amm.CreatedAt,
-		UpdatedAt: *amm.UpdatedAt,
-		DeletedAt: amm.DeletedAt,
+		ID:          amm.ID,
+		Document:    document,
+		Type:        amm.Type,
+		LedgerID:    amm.LedgerID,
+		AccountID:   amm.AccountID,
+		HolderID:    amm.HolderID,
+		Metadata:    amm.Metadata,
+		ClosingDate: amm.ClosingDate,
+		CreatedAt:   *amm.CreatedAt,
+		UpdatedAt:   *amm.UpdatedAt,
+		DeletedAt:   amm.DeletedAt,
 	}
 
 	if amm.BankingDetails != nil {

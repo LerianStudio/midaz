@@ -1,3 +1,14 @@
+## [v3.4.6] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Frontend/Dependencies**: Updated Next.js to version 15.5.7 and React to version 19.1.2. These updates resolve previous compatibility issues, ensuring a more stable and reliable user experience. Users will notice smoother performance and fewer disruptions when using the application.
+
+### 🔧 Maintenance
+- **Changelog**: The CHANGELOG has been updated to reflect recent changes and improvements, ensuring users and developers have access to the latest information about the project's evolution. This aids in better understanding and tracking of updates, contributing to a more informed user base.
+
 ## [v3.5.0-beta.12] - 2025-12-01
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.11...v3.5.0-beta.12)

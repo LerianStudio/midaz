@@ -26,6 +26,25 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Infof("Trying to update alias: %v", id.String())
 
+	alias := &mmodel.Alias{
+		Metadata:       uai.Metadata,
+		BankingDetails: uai.BankingDetails,
+		UpdatedAt:      time.Now(),
+	}
+
+	if uai.ClosingDate != nil {
+		err := uc.validateAliasClosingDate(ctx, organizationID, holderID, id, uai.ClosingDate)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to validate alias closing date", err)
+
+			logger.Errorf("Failed to validate alias closing date: %v", err)
+
+			return nil, err
+		}
+
+		alias.ClosingDate = uai.ClosingDate
+	}
+
 	var newHolderLink *mmodel.HolderLink
 
 	if uai.AddHolderLink != nil {
@@ -44,12 +63,6 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 			return nil, err
 		}
-	}
-
-	alias := &mmodel.Alias{
-		Metadata:       uai.Metadata,
-		BankingDetails: uai.BankingDetails,
-		UpdatedAt:      time.Now(),
 	}
 
 	if newHolderLink != nil {
