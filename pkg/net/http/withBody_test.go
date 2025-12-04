@@ -367,3 +367,236 @@ func TestIsDecimalEqual(t *testing.T) {
 	}
 }
 
+func TestValidateCPF(t *testing.T) {
+	tests := []struct {
+		name     string
+		cpf      string
+		expected bool
+	}{
+		{
+			name:     "valid CPF",
+			cpf:      "52998224725",
+			expected: true,
+		},
+		{
+			name:     "valid CPF 2",
+			cpf:      "11144477735",
+			expected: true,
+		},
+		{
+			name:     "valid CPF 3",
+			cpf:      "91315026015",
+			expected: true,
+		},
+		{
+			name:     "invalid CPF - wrong check digits",
+			cpf:      "52998224700",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - all same digits 1",
+			cpf:      "11111111111",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - all same digits 0",
+			cpf:      "00000000000",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - all same digits 9",
+			cpf:      "99999999999",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - wrong length short",
+			cpf:      "1234567890",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - wrong length long",
+			cpf:      "123456789012",
+			expected: false,
+		},
+		{
+			name:     "invalid CPF - contains letters",
+			cpf:      "5299822472a",
+			expected: false,
+		},
+		{
+			name:     "empty CPF",
+			cpf:      "",
+			expected: true,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				CPF string `validate:"cpf"`
+			}
+			s := testStruct{CPF: tc.cpf}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateCNPJ(t *testing.T) {
+	tests := []struct {
+		name     string
+		cnpj     string
+		expected bool
+	}{
+		{
+			name:     "valid CNPJ",
+			cnpj:     "11222333000181",
+			expected: true,
+		},
+		{
+			name:     "valid CNPJ 2",
+			cnpj:     "11444777000161",
+			expected: true,
+		},
+		{
+			name:     "valid CNPJ 3",
+			cnpj:     "45997418000153",
+			expected: true,
+		},
+		{
+			name:     "invalid CNPJ - wrong check digits",
+			cnpj:     "11222333000100",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - all same digits 1",
+			cnpj:     "11111111111111",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - all same digits 0",
+			cnpj:     "00000000000000",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - all same digits 9",
+			cnpj:     "99999999999999",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - wrong length short",
+			cnpj:     "1122233300018",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - wrong length long",
+			cnpj:     "112223330001811",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ - contains letters",
+			cnpj:     "1122233300018a",
+			expected: false,
+		},
+		{
+			name:     "empty CNPJ",
+			cnpj:     "",
+			expected: true,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				CNPJ string `validate:"cnpj"`
+			}
+			s := testStruct{CNPJ: tc.cnpj}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateCPFCNPJ(t *testing.T) {
+	tests := []struct {
+		name     string
+		document string
+		expected bool
+	}{
+		{
+			name:     "valid CPF",
+			document: "52998224725",
+			expected: true,
+		},
+		{
+			name:     "valid CNPJ",
+			document: "11222333000181",
+			expected: true,
+		},
+		{
+			name:     "invalid CPF",
+			document: "12345678901",
+			expected: false,
+		},
+		{
+			name:     "invalid CNPJ",
+			document: "12345678901234",
+			expected: false,
+		},
+		{
+			name:     "invalid - wrong length 10 digits",
+			document: "1234567890",
+			expected: false,
+		},
+		{
+			name:     "invalid - wrong length 12 digits",
+			document: "123456789012",
+			expected: false,
+		},
+		{
+			name:     "invalid - wrong length 13 digits",
+			document: "1234567890123",
+			expected: false,
+		},
+		{
+			name:     "invalid - wrong length 15 digits",
+			document: "123456789012345",
+			expected: false,
+		},
+		{
+			name:     "empty document",
+			document: "",
+			expected: true,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				Document string `validate:"cpfcnpj"`
+			}
+			s := testStruct{Document: tc.document}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
