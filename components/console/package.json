@@ -2,6 +2,7 @@
   "name": "midaz-console",
   "version": "0.1.0",
   "private": true,
+  "description": "Lerian Midaz Console",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LerianStudio/midaz-console.git"
