@@ -9,6 +9,7 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
+LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
@@ -135,6 +136,10 @@ help:
 	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
 	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
 	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
+	@echo "  make up-ledger                    - Start unified ledger service (onboarding + transaction in one process)"
+	@echo "  make down-ledger                  - Stop unified ledger service"
+	@echo "  make restart-ledger               - Restart unified ledger service"
+	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -246,6 +251,35 @@ restart-backend:
 	$(call print_title,Restarting backend services)
 	@make down-backend && make up-backend
 	@echo "[ok] Backend services restarted successfully ✔️"
+
+#-------------------------------------------------------
+# Unified Ledger Commands
+#-------------------------------------------------------
+
+.PHONY: up-ledger
+up-ledger:
+	$(call print_title,Starting unified ledger service)
+	$(call check_env_files)
+	@echo "Starting infrastructure services first..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "Starting unified ledger (onboarding + transaction)..."
+	@cd $(LEDGER_DIR) && $(MAKE) up
+	@echo "[ok] Unified ledger service started successfully ✔️"
+
+.PHONY: down-ledger
+down-ledger:
+	$(call print_title,Stopping unified ledger service)
+	@echo "Stopping unified ledger..."
+	@cd $(LEDGER_DIR) && $(MAKE) down
+	@echo "Stopping infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) down
+	@echo "[ok] Unified ledger service stopped successfully ✔️"
+
+.PHONY: restart-ledger
+restart-ledger:
+	$(call print_title,Restarting unified ledger service)
+	@make down-ledger && make up-ledger
+	@echo "[ok] Unified ledger service restarted successfully ✔️"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -480,7 +514,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction console all-components
+.PHONY: infra onboarding transaction ledger console all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -504,6 +538,14 @@ transaction:
 		exit 1; \
 	fi
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
+
+ledger:
+	$(call print_title,"Running command in ledger component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
 
 console:
 	$(call print_title,"Running command in console component")
