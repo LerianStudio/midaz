@@ -21,7 +21,6 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -42,30 +41,30 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // CreateBalance mocks base method.
-func (m *MockRepository) CreateBalance(ctx context.Context, token string, req *balance.BalanceRequest) (*balance.BalanceResponse, error) {
+func (m *MockRepository) CreateBalance(arg0 context.Context, arg1 string, arg2 *balance.BalanceRequest) (*balance.BalanceResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBalance", ctx, token, req)
+	ret := m.ctrl.Call(m, "CreateBalance", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*balance.BalanceResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateBalance indicates an expected call of CreateBalance.
-func (mr *MockRepositoryMockRecorder) CreateBalance(ctx, token, req any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateBalance(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalance", reflect.TypeOf((*MockRepository)(nil).CreateBalance), ctx, token, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalance", reflect.TypeOf((*MockRepository)(nil).CreateBalance), arg0, arg1, arg2)
 }
 
 // DeleteAllBalancesByAccountID mocks base method.
-func (m *MockRepository) DeleteAllBalancesByAccountID(ctx context.Context, token string, req *balance.DeleteAllBalancesByAccountIDRequest) error {
+func (m *MockRepository) DeleteAllBalancesByAccountID(arg0 context.Context, arg1 string, arg2 *balance.DeleteAllBalancesByAccountIDRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", ctx, token, req)
+	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAllBalancesByAccountID indicates an expected call of DeleteAllBalancesByAccountID.
-func (mr *MockRepositoryMockRecorder) DeleteAllBalancesByAccountID(ctx, token, req any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteAllBalancesByAccountID(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockRepository)(nil).DeleteAllBalancesByAccountID), ctx, token, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockRepository)(nil).DeleteAllBalancesByAccountID), arg0, arg1, arg2)
 }
