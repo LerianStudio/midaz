@@ -1,0 +1,27 @@
+services:
+  ledger:
+    container_name: midaz-ledger
+    restart: always
+    build:
+      context: ../../
+      dockerfile: ./components/ledger/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT_ONBOARDING}:${SERVER_PORT_ONBOARDING}
+      - ${SERVER_PORT_TRANSACTION}:${SERVER_PORT_TRANSACTION}
+      - ${PROTO_PORT}:${PROTO_PORT}
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - infra-network
+      - ledger-network
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
+  ledger-network:
+    name: ledger-network
+    driver: bridge
