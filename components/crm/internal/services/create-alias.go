@@ -37,13 +37,14 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 	accountID := libCommons.GenerateUUIDv7()
 
 	alias := &mmodel.Alias{
-		ID:        &accountID,
-		LedgerID:  &cai.LedgerID,
-		AccountID: &cai.AccountID,
-		HolderID:  &holderID,
-		Metadata:  cai.Metadata,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                  &accountID,
+		LedgerID:            &cai.LedgerID,
+		AccountID:           &cai.AccountID,
+		HolderID:            &holderID,
+		Metadata:            cai.Metadata,
+		ParticipantDocument: cai.ParticipantDocument,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 
 	if cai.BankingDetails != nil {

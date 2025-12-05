@@ -235,12 +235,37 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
+	_ = v.RegisterValidation("cpfcnpj", validateCPFCNPJ)
+	_ = v.RegisterValidation("cpf", validateCPF)
+	_ = v.RegisterValidation("cnpj", validateCNPJ)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("required", formatErrorFieldName(fe.Namespace()))
 
+		return t
+	})
+
+	_ = v.RegisterTranslation("cpfcnpj", trans, func(ut ut.Translator) error {
+		return ut.Add("cpfcnpj", "{0} must be a valid CPF or CNPJ", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("cpfcnpj", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("cpf", trans, func(ut ut.Translator) error {
+		return ut.Add("cpf", "{0} must be a valid CPF", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("cpf", formatErrorFieldName(fe.Namespace()))
+		return t
+	})
+
+	_ = v.RegisterTranslation("cnpj", trans, func(ut ut.Translator) error {
+		return ut.Add("cnpj", "{0} must be a valid CNPJ", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("cnpj", formatErrorFieldName(fe.Namespace()))
 		return t
 	})
 
@@ -768,4 +793,155 @@ func findNilFields(data map[string]any, prefix string) []string {
 	}
 
 	return nilFields
+}
+
+func validateCPFCNPJ(fl validator.FieldLevel) bool {
+	value := fl.Field().Interface().(string)
+	if value == "" {
+		return true
+	}
+
+	if len(value) != 11 && len(value) != 14 {
+		return false
+	}
+
+	if len(value) == 11 {
+		return validateCPF(fl)
+	}
+
+	return validateCNPJ(fl)
+}
+
+func validateCPF(fl validator.FieldLevel) bool {
+	cpf := fl.Field().Interface().(string)
+	if cpf == "" {
+		return true
+	}
+
+	if len(cpf) != 11 {
+		return false
+	}
+
+	// Check if all digits are the same (invalid CPF)
+	allEqual := true
+
+	for i := 1; i < len(cpf); i++ {
+		if cpf[i] != cpf[0] {
+			allEqual = false
+			break
+		}
+	}
+
+	if allEqual {
+		return false
+	}
+
+	// Validate first check digit
+	sum := 0
+
+	for i := 0; i < 9; i++ {
+		digit := int(cpf[i] - '0')
+		if digit < 0 || digit > 9 {
+			return false
+		}
+
+		sum += digit * (10 - i)
+	}
+
+	remainder := (sum * 10) % 11
+	if remainder == 10 {
+		remainder = 0
+	}
+
+	if remainder != int(cpf[9]-'0') {
+		return false
+	}
+
+	// Validate second check digit
+	sum = 0
+	
+	for i := 0; i < 10; i++ {
+		digit := int(cpf[i] - '0')
+		sum += digit * (11 - i)
+	}
+
+	remainder = (sum * 10) % 11
+
+	if remainder == 10 {
+		remainder = 0
+	}
+
+	return remainder == int(cpf[10]-'0')
+}
+
+func validateCNPJ(fl validator.FieldLevel) bool {
+	cnpj := fl.Field().Interface().(string)
+	if cnpj == "" {
+		return true
+	}
+
+	if len(cnpj) != 14 {
+		return false
+	}
+
+	// Check if all digits are the same (invalid CNPJ)
+	allEqual := true
+
+	for i := 1; i < len(cnpj); i++ {
+		if cnpj[i] != cnpj[0] {
+			allEqual = false
+			break
+		}
+	}
+
+	if allEqual {
+		return false
+	}
+
+	// Weights for first check digit
+	weights1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
+	// Weights for second check digit
+	weights2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
+
+	// Validate first check digit
+	sum := 0
+
+	for i := 0; i < 12; i++ {
+		digit := int(cnpj[i] - '0')
+		if digit < 0 || digit > 9 {
+			return false
+		}
+
+		sum += digit * weights1[i]
+	}
+
+	remainder := sum % 11
+
+	firstDigit := 0
+
+	if remainder >= 2 {
+		firstDigit = 11 - remainder
+	}
+
+	if firstDigit != int(cnpj[12]-'0') {
+		return false
+	}
+
+	// Validate second check digit
+	sum = 0
+
+	for i := 0; i < 13; i++ {
+		digit := int(cnpj[i] - '0')
+		sum += digit * weights2[i]
+	}
+
+	remainder = sum % 11
+
+	secondDigit := 0
+
+	if remainder >= 2 {
+		secondDigit = 11 - remainder
+	}
+
+	return secondDigit == int(cnpj[13]-'0')
 }

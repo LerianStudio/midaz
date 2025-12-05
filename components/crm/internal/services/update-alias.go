@@ -27,9 +27,10 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	logger.Infof("Trying to update alias: %v", id.String())
 
 	alias := &mmodel.Alias{
-		Metadata:       uai.Metadata,
-		BankingDetails: uai.BankingDetails,
-		UpdatedAt:      time.Now(),
+		Metadata:            uai.Metadata,
+		BankingDetails:      uai.BankingDetails,
+		ParticipantDocument: uai.ParticipantDocument,
+		UpdatedAt:           time.Now(),
 	}
 
 	if uai.ClosingDate != nil {
