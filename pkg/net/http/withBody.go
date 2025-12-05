@@ -824,6 +824,7 @@ func validateCPF(fl validator.FieldLevel) bool {
 
 	// Check if all digits are the same (invalid CPF)
 	allEqual := true
+
 	for i := 1; i < len(cpf); i++ {
 		if cpf[i] != cpf[0] {
 			allEqual = false
@@ -837,6 +838,7 @@ func validateCPF(fl validator.FieldLevel) bool {
 
 	// Validate first check digit
 	sum := 0
+
 	for i := 0; i < 9; i++ {
 		digit := int(cpf[i] - '0')
 		if digit < 0 || digit > 9 {
@@ -857,12 +859,14 @@ func validateCPF(fl validator.FieldLevel) bool {
 
 	// Validate second check digit
 	sum = 0
+	
 	for i := 0; i < 10; i++ {
 		digit := int(cpf[i] - '0')
 		sum += digit * (11 - i)
 	}
 
 	remainder = (sum * 10) % 11
+
 	if remainder == 10 {
 		remainder = 0
 	}
@@ -882,6 +886,7 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 
 	// Check if all digits are the same (invalid CNPJ)
 	allEqual := true
+
 	for i := 1; i < len(cnpj); i++ {
 		if cnpj[i] != cnpj[0] {
 			allEqual = false
@@ -900,6 +905,7 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 
 	// Validate first check digit
 	sum := 0
+
 	for i := 0; i < 12; i++ {
 		digit := int(cnpj[i] - '0')
 		if digit < 0 || digit > 9 {
@@ -910,7 +916,9 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 	}
 
 	remainder := sum % 11
+
 	firstDigit := 0
+
 	if remainder >= 2 {
 		firstDigit = 11 - remainder
 	}
@@ -921,13 +929,16 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 
 	// Validate second check digit
 	sum = 0
+
 	for i := 0; i < 13; i++ {
 		digit := int(cnpj[i] - '0')
 		sum += digit * weights2[i]
 	}
 
 	remainder = sum % 11
+
 	secondDigit := 0
+
 	if remainder >= 2 {
 		secondDigit = 11 - remainder
 	}
