@@ -1,3 +1,22 @@
+## [v3.5.0-beta.16] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.15...v3.5.0-beta.16)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Participant Data Management**: We've added a new 'participant document' field to our database model, allowing for more comprehensive handling of participant-specific documents. This enhancement enables better data organization and retrieval, improving user interactions with participant data.
+
+### 🐛 Bug Fixes
+- **Data Consistency in Alias Model**: Fixed an issue where the 'participant document' field was inconsistently stored due to an incorrect 'omitempty' tag. This ensures all participant data is reliably saved and available when needed.
+- **Code Quality Improvements**: Resolved various lint errors across the codebase, enhancing overall stability and maintainability.
+
+### 📚 Documentation
+- **Updated Documentation**: The documentation now includes detailed guidance on the new participant document handling capabilities, ensuring developers and users can easily understand and implement the new features.
+
+### 🔧 Maintenance
+- **Changelog Updates**: We've ensured the changelog accurately reflects all recent changes, providing a reliable resource for tracking modifications and understanding their impacts.
+
+
 ## [v3.5.0-beta.15] - 2025-12-05
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.14...v3.5.0-beta.15)
