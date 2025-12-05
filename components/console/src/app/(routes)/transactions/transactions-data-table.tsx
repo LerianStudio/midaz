@@ -174,7 +174,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
             {capitalizeFirstLetter(
               intl.formatMessage(
                 statusMessages[code as keyof typeof statusMessages] ||
-                  statusMessages[Status.PENDING]
+                  statusMessages[Status.OTHER]
               )
             )}
           </Badge>
@@ -187,8 +187,9 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                disabled={transaction.original.status.code !== Status.APPROVED}
                 variant="secondary"
-                className="h-auto w-max p-2"
+                className={'h-auto w-max p-2'}
                 data-testid="actions"
               >
                 <MoreVertical size={16} />
