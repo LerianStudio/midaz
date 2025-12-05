@@ -1,3 +1,20 @@
+## [v3.5.0-beta.15] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.14...v3.5.0-beta.15)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security and Stability**: Updated critical dependencies including 'jws', 'jwa', 'next', 'react', and 'react-dom' to their latest versions. These updates address known security vulnerabilities and compatibility issues, ensuring a more secure and stable environment for your applications.
+- **Transaction Display Accuracy**: Fixed an issue with transaction status handling in the data table. This correction ensures that the transaction information displayed is accurate and reliable, eliminating previous inconsistencies.
+
+### 🔧 Maintenance
+- **Code Quality**: Removed unnecessary console logs from the transaction fetch process. This cleanup reduces console noise, making it easier to debug and maintain the code.
+- **Changelog Updates**: Updated the CHANGELOG file to reflect recent changes and improvements, keeping documentation current and helpful for tracking project updates.
+
+### ✨ Improvements
+- **Transaction Status Handling**: We've added new statuses 'Pending' and 'Other' to the transaction interface, complete with translations. This enhancement allows you to track your transactions more accurately and understand their current state, improving your overall experience.
+
+
 ## [v3.5.0-beta.14] - 2025-12-05
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.13...v3.5.0-beta.14)
