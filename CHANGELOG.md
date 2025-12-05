@@ -1,3 +1,15 @@
+## [v3.5.0-beta.14] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.13...v3.5.0-beta.14)
+Contributors: dependabot[bot], lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: Revised the CHANGELOG to include the latest changes and improvements. This ensures that users and developers have clear and updated information on project modifications, aiding in better understanding and tracking of project evolution.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded the `go-redis` library from version 9.17.0 to 9.17.2. This update brings minor improvements and bug fixes, enhancing the stability and performance of applications using Redis for data storage and caching. Keeping dependencies current is crucial for security and compatibility.
+
+
 ## [v3.5.0-beta.13] - 2025-12-04
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.12...v3.5.0-beta.13)
