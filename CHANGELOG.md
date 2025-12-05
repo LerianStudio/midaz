@@ -1,3 +1,22 @@
+## [v3.5.0-beta.13] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.12...v3.5.0-beta.13)
+Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: A new closing date field in the MongoDB model allows for better lifecycle management of aliases, giving users more control over their alias operations.
+- **Comprehensive Link Functionality**: Users can now manage alias link associations with improved validation and repository methods, providing more flexibility and control.
+
+### 🐛 Bug Fixes
+- **Accurate Date Handling**: Resolved issues with alias closing date validation, ensuring precise date management and reducing errors.
+- **Improved Alias Creation**: Enhanced error handling for invalid link types, leading to more reliable alias creation processes.
+- **Data Integrity**: Fixed issues with nil values in the holder link entity, ensuring consistent data integrity.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
+- **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
+
+
 ## [v3.4.6] - 2025-12-04
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
