@@ -22,7 +22,7 @@ jobs:
       go_version: "1.25"
       golangci_lint_version: "v2.4.0"
       golangci_lint_args: "--timeout=5m"
-      coverage_threshold: 25
+      coverage_threshold: 85
       fail_on_coverage_threshold: false
       enable_lint: true
       enable_security: true
