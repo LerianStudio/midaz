@@ -16,7 +16,7 @@ on:
 
 jobs:
   security-scan:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@main
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@feature/go-workflows
     with:
       runner_type: "firmino-lxc-runners"
       filter_paths: |-
@@ -25,6 +25,4 @@ jobs:
         components/console
       path_level: "2"
       dockerhub_org: "lerianstudio"
-    secrets:
-      docker_username: ${{ secrets.DOCKER_USERNAME }}
-      docker_password: ${{ secrets.DOCKER_PASSWORD }}
+    secrets: inherit

@@ -4,121 +4,29 @@ on:
   pull_request:
     branches:
       - develop
+      - release-candidate
       - main
     types:
       - opened
-      - edited
       - synchronize
       - reopened
 
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
-  actions: read
-  security-events: write
-
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      onboarding: ${{ steps.changes.outputs.onboarding }}
-      transaction: ${{ steps.changes.outputs.transaction }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Detect backend changes
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            onboarding:
-              - 'components/onboarding/**'
-            transaction:
-              - 'components/transaction/**'
-
-  CodeQL:
-    name: Run CodeQL to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: go
-            build-mode: autobuild
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
-
-  GolangCI-Lint:
-    name: Run GolangCI-Lint to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run GoLangCI Lint
-        uses: LerianStudio/github-actions-golangci-lint@main
-        with:
-          lerian_studio_midaz_push_bot_app_id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          lerian_studio_midaz_push_bot_private_key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-          lerian_ci_cd_user_gpg_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
-          lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
-          lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: '1.25'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: 'v2.4.0'
-
-  GoSec:
-    name: Run GoSec to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Gosec Scanner
-        uses: securego/gosec@master
-        with:
-          args: ./components/... ./pkg/...
-
-  unit-tests:
-    name: Run Unit Tests to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Unit Tests (unit only)
-        shell: bash
-        run: make test-unit
+  go-analysis:
+    name: Go Analysis
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@feature/go-workflows
+    with:
+      filter_paths: '["components/onboarding", "components/transaction"]'
+      path_level: 2
+      app_name_prefix: "midaz"
+      go_version: "1.25"
+      golangci_lint_version: "v2.4.0"
+      golangci_lint_args: "--timeout=5m"
+      coverage_threshold: 25
+      fail_on_coverage_threshold: false
+      enable_lint: true
+      enable_security: true
+      enable_tests: true
+      enable_coverage: true
+      enable_build: true
+    secrets: inherit
