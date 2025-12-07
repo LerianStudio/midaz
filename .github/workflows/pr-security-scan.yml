@@ -23,6 +23,7 @@ jobs:
         components/onboarding
         components/transaction
         components/console
+        components/crm
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets: inherit

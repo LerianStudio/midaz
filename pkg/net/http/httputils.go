@@ -21,17 +21,25 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata      *bson.M
-	Limit         int
-	Page          int
-	Cursor        string
-	SortOrder     string
-	StartDate     time.Time
-	EndDate       time.Time
-	UseMetadata   bool
-	PortfolioID   string
-	OperationType string
-	ToAssetCodes  []string
+	Metadata              *bson.M
+	Limit                 int
+	Page                  int
+	Cursor                string
+	SortOrder             string
+	StartDate             time.Time
+	EndDate               time.Time
+	UseMetadata           bool
+	PortfolioID           string
+	OperationType         string
+	ToAssetCodes          []string	
+	HolderID              *string
+	ExternalID            *string
+	Document              *string
+	AccountID             *string
+	LedgerID              *string
+	BankingDetailsBranch  *string
+	BankingDetailsAccount *string
+	BankingDetailsIban    *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -47,17 +55,25 @@ type Pagination struct {
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
-		metadata      *bson.M
-		portfolioID   string
-		operationType string
-		toAssetCodes  []string
-		startDate     time.Time
-		endDate       time.Time
-		cursor        string
-		limit         = 10
-		page          = 1
-		sortOrder     = "asc"
-		useMetadata   = false
+		metadata              *bson.M
+		portfolioID           string
+		operationType         string
+		toAssetCodes          []string
+		startDate             time.Time
+		endDate               time.Time
+		cursor                string
+		limit                 = 10
+		page                  = 1
+		sortOrder             = "asc"
+		useMetadata           = false
+		holderID              *string
+		externalID            *string
+		document              *string
+		accountID             *string
+		ledgerID              *string
+		bankingDetailsBranch  *string
+		bankingDetailsAccount *string
+		bankingDetailsIban    *string
 	)
 
 	for key, value := range params {
@@ -74,15 +90,41 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
-			startDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, false)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
-			endDate, _ = time.Parse("2006-01-02", value)
+			parsedDate, _, err := libCommons.ParseDateTime(value, true)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+			}
+
+			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
+		case strings.Contains(key, "holder_id"):
+			holderID = &value
+		case strings.Contains(key, "external_id"):
+			externalID = &value
+		case strings.Contains(key, "document"):
+			document = &value
+		case strings.Contains(key, "account_id"):
+			accountID = &value
+		case strings.Contains(key, "ledger_id"):
+			ledgerID = &value
+		case strings.Contains(key, "banking_details_branch"):
+			bankingDetailsBranch = &value
+		case strings.Contains(key, "banking_details_account"):
+			bankingDetailsAccount = &value
+		case strings.Contains(key, "banking_details_iban"):
+			bankingDetailsIban = &value
 		}
 	}
 
@@ -104,34 +146,51 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	query := &QueryHeader{
-		Metadata:      metadata,
-		Limit:         limit,
-		Page:          page,
-		Cursor:        cursor,
-		SortOrder:     sortOrder,
-		StartDate:     startDate,
-		EndDate:       endDate,
-		UseMetadata:   useMetadata,
-		PortfolioID:   portfolioID,
-		OperationType: operationType,
-		ToAssetCodes:  toAssetCodes,
+		Metadata:              metadata,
+		Limit:                 limit,
+		Page:                  page,
+		Cursor:                cursor,
+		SortOrder:             sortOrder,
+		StartDate:             startDate,
+		EndDate:               endDate,
+		UseMetadata:           useMetadata,
+		PortfolioID:           portfolioID,
+		OperationType:         operationType,
+		ToAssetCodes:          toAssetCodes,
+		HolderID:              holderID,
+		ExternalID:            externalID,
+		Document:              document,
+		AccountID:             accountID,
+		LedgerID:              ledgerID,
+		BankingDetailsBranch:  bankingDetailsBranch,
+		BankingDetailsAccount: bankingDetailsAccount,
+		BankingDetailsIban:    bankingDetailsIban,
 	}
 
 	return query, nil
 }
 
-// ValidateDates validate dates
+// validateDates validates and normalizes start/end date range for pagination queries.
+// Mutates the provided pointers to apply defaults when both dates are zero.
+// Default range: last N months (via MAX_PAGINATION_MONTH_DATE_RANGE env var, default=1).
+// Set MAX_PAGINATION_MONTH_DATE_RANGE=0 for unlimited range (since epoch).
+// Enforces all-or-nothing: both dates required if any provided.
+// Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
+	// Limits query range to prevent expensive DB operations on large datasets
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	if startDate.IsZero() && endDate.IsZero() {
+		now := time.Now()
+
 		defaultStartDate := time.Unix(0, 0).UTC()
+		
 		if maxDateRangeMonths != 0 {
-			defaultStartDate = time.Now().AddDate(0, -maxDateRangeMonths, 0)
+			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
 		}
 
 		*startDate = defaultStartDate
-		*endDate = time.Now()
+		*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
 
 		return nil
 	}
@@ -141,7 +200,7 @@ func validateDates(startDate, endDate *time.Time) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
 	}
 
-	if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) || !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 
@@ -176,18 +235,18 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-    ikey := c.Get(libConstants.IdempotencyKey)
-    iTTL := c.Get(libConstants.IdempotencyTTL)
+	ikey := c.Get(libConstants.IdempotencyKey)
+	iTTL := c.Get(libConstants.IdempotencyTTL)
 
-    // Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-    t, err := strconv.Atoi(iTTL)
-    if err != nil || t <= 0 {
-        t = libRedis.TTL
-    }
+	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+	t, err := strconv.Atoi(iTTL)
+	if err != nil || t <= 0 {
+		t = libRedis.TTL
+	}
 
-    ttl := time.Duration(t)
+	ttl := time.Duration(t)
 
-    return ikey, ttl
+	return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
@@ -244,5 +303,48 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+	}
+}
+
+func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
+	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
+}
+
+// ValidateMetadataValue validates a metadata value, ensuring it meets specific criteria for type and length.
+// It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
+func ValidateMetadataValue(value any) (any, error) {
+	return validateMetadataValueWithDepth(value, 0)
+}
+
+func validateMetadataValueWithDepth(value any, depth int) (any, error) {
+	const maxDepth = 10
+	if depth > maxDepth {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	}
+
+	switch v := value.(type) {
+	case string:
+		if len(v) > 2000 {
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
+		}
+		return v, nil
+	case float64, int, int64, float32, bool:
+		return v, nil
+	case nil:
+		return nil, nil
+	case map[string]any:
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+	case []any:
+		validatedArray := make([]any, 0, len(v))
+		for _, item := range v {
+			validItem, err := validateMetadataValueWithDepth(item, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			validatedArray = append(validatedArray, validItem)
+		}
+		return validatedArray, nil
+	default:
+		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
 	}
 }

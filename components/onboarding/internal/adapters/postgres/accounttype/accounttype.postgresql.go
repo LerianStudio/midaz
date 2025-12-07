@@ -89,7 +89,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&record.LedgerID,
 		&record.Name,
 		&record.Description,
-		strings.ToLower(record.KeyValue),
+		&record.KeyValue,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 		&record.DeletedAt,

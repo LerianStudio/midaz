@@ -52,6 +52,7 @@ type RedisRepository interface {
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
+	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -349,6 +350,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
 
 	var balanceJSON []byte
+
 	switch v := result.(type) {
 	case string:
 		balanceJSON = []byte(v)
@@ -575,6 +577,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	}
 
 	var out []string
+
 	switch vv := res.(type) {
 	case []any:
 		out = make([]string, 0, len(vv))
@@ -629,4 +632,59 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	logger.Infof("Unscheduled synced balance: %s", member)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.list_balance_by_key")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
+
+		return nil, err
+	}
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
+
+	value, err := rds.Get(ctx, internalKey).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on redis", err)
+
+		logger.Errorf("Failed to get balance on redis: %v", err)
+
+		return nil, err
+	}
+
+	var balanceRedis mmodel.BalanceRedis
+
+	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
+
+		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
+
+		return nil, err
+	}
+
+	balance := &mmodel.Balance{
+		ID:             balanceRedis.ID,
+		AccountID:      balanceRedis.AccountID,
+		Alias:          balanceRedis.Alias,
+		AssetCode:      balanceRedis.AssetCode,
+		Available:      balanceRedis.Available,
+		OnHold:         balanceRedis.OnHold,
+		Version:        balanceRedis.Version,
+		AccountType:    balanceRedis.AccountType,
+		AllowSending:   balanceRedis.AllowSending == 1,
+		AllowReceiving: balanceRedis.AllowReceiving == 1,
+		Key:            balanceRedis.Key,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+	}
+
+	return balance, nil
 }
