@@ -1,8 +1,13 @@
 # Default owners for the entire repository
-*                                 @LerianStudio/G_Github_Dev
+*                                   @LerianStudio/G_Github_Dev
 
-# Owners for specific directories and files
-.github/*                         @LerianStudio/G_Github_Devops
-.githooks/*                       @LerianStudio/G_Github_Devops
-components/*/.env.example         @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
-components/*                      @LerianStudio/G_Github_Dev
+# CI/CD and DevOps configurations
+.github/*                           @LerianStudio/G_Github_Devops
+.githooks/*                         @LerianStudio/G_Github_Devops
+
+# Components (monorepo)
+components/*/Dockerfile             @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
+components/*/docker-compose*.yml    @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
+components/*/.env.example           @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
+components/*/migrations/*           @LerianStudio/G_Github_Dev @LerianStudio/G_Github_Devops
+components/*                        @LerianStudio/G_Github_Dev
