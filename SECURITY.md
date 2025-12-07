@@ -1,46 +1,85 @@
-# Security & Compliance
+# Security Policy
 
-Welcome to the Midaz Security Practices documentation. This document provides an overview of our security measures, policies for responsible disclosure, and recommendations for secure usage.
+## Reporting a Vulnerability
 
-## 1. Overview of Security Practices
+We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
 
-Midaz utilizes the Ory Open-source Stack, which is designed with robust security measures to protect both the software and its users. Our security infrastructure includes multiple components:
+### How to Report
 
-* **Identity Management and Authentication** : An identity and user management server that handles user registration, login, and user profile management using modern identity.
-* **Authorization and Access Control** : OAuth2 provider, which handles authentication and authorization.
-* **Token Issuance and Management** : Implementation of attribute-based access control (ABAC) and access control policies.
-* **Identity and Access Proxy** : Identity and Access Proxy (IAP) that validates incoming requests.
+You can report security vulnerabilities through:
 
-These components ensure that Midaz maintains high security standards and protects against unauthorized access and other potential security threats.
+1. **GitHub Security Advisory** (Preferred)
+   - Go to the **Security** tab of this repository
+   - Click **"Report a vulnerability"**
+   - This allows private discussion until a fix is ready
 
-If you have more interest about the Ory Open-source Stack, see more in [Ory Website](https://www.ory.sh/).
+2. **Email**
+   - Send details to: [security@lerian.studio](mailto:security@lerian.studio)
+   - PGP key available for encrypted communications
+   - We recommend [Mailvelope](https://mailvelope.com/en) for email encryption
 
-## 2. Recommendations for Secure Usage and Configuration
+**Please do NOT disclose the vulnerability publicly until we have addressed it.**
 
-To ensure the security of your deployments, we recommend the following best practices:
+## Response Timeline
 
-* **Avoid Hardcoding Sensitive Information** : Hardcoding passwords, API keys, or other sensitive data directly in the source code can lead to security vulnerabilities if the codebase is exposed or accessed by unauthorized individuals. Use environment variables or secure secrets management tools like HashiCorp Vault to manage sensitive configurations securely.
-* **Use Secrets Management** : Store sensitive configuration such as passwords and API keys using secrets management tools. This prevents sensitive data from being exposed in your configuration files or source code.
-* **Regular Updates** : Keep your Midaz installation and its dependencies up-to-date to protect against vulnerabilities.
-* **Secure Configuration** : Follow our configuration guidelines to set up Midaz securely, available in the official documentation.
+| Action | Timeframe |
+|--------|-----------|
+| Acknowledgment | Within 24 hours |
+| Initial assessment | Within 72 hours |
+| Status update | Within 7 days |
+| Resolution target | Within 90 days (severity dependent) |
 
-## 3. Responsible Disclosure Policy
+## Disclosure Process
 
-For transparency, any known securities improvements join in our **[Github Discussions](https://github.com/LerianStudio/midaz/v3/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
+1. **Initial Contact**: You submit vulnerability via GitHub Advisory or email
+2. **Acknowledgment**: We confirm receipt within 24 hours
+3. **Verification**: Our security team verifies the vulnerability
+4. **Assessment**: We determine severity and potential impact
+5. **Resolution**: We develop and deploy a fix
+6. **Notification**: We inform you of the resolution
+7. **Public Disclosure**: We coordinate with you to disclose responsibly
 
-If you discover a security vulnerability within Midaz, please report it using our responsible disclosure policy. Do not disclose the issue publicly until we have had the opportunity to address it.
+## Supported Versions
 
-* **Initial Contact** : Researcher submits vulnerability via secure email.
-* **Acknowledgment** : Your team acknowledges receipt within 24 hours.
-* **Verification** : Your security team verifies the vulnerability.
-* **Impact Assessment** : Determine the severity and potential impact of the vulnerability.
-* **Resolution** : Develop and deploy a fix.
-* **Notification** : Inform the researcher of the resolution.
-* **Public Disclosure** : Coordinate with the researcher to publicly disclose the vulnerability responsibly.
+| Version | Supported |
+|---------|-----------|
+| Latest release | Yes |
+| Previous minor | Security fixes only |
+| Older versions | No |
 
-### Contact Information:
+We recommend always running the latest version.
 
-* **Security Email** : [security@lerian.studio](security@lerian.studio)
-* **PGP Key** : Available for secure communications on our security page - We strongly recommend [Mailvelope](https://mailvelope.com/en) tool to encrypt sender and receiver emails.
+## Scope
 
-We aim to review all reports within 24 hours and will work with you to understand and resolve the issue quickly and confidentially.
+### In Scope
+- Authentication and authorization vulnerabilities
+- Data exposure or leakage
+- Injection vulnerabilities (SQL, command, etc.)
+- Cryptographic issues
+- Business logic flaws
+
+### Out of Scope
+- Denial of service (DoS) attacks
+- Social engineering
+- Physical security
+- Issues in dependencies (report to upstream)
+
+## Security Best Practices
+
+When deploying this application:
+
+- **Never hardcode secrets** - Use environment variables or secrets management (e.g., HashiCorp Vault)
+- **Keep updated** - Regularly update to the latest version
+- **Secure configuration** - Follow our documentation for secure setup
+- **Network security** - Use TLS, firewalls, and network segmentation
+- **Access control** - Apply principle of least privilege
+
+## Recognition
+
+We appreciate security researchers who help keep our project secure. With your permission, we'll acknowledge your contribution in our release notes.
+
+## Contact
+
+- **Security Email**: [security@lerian.studio](mailto:security@lerian.studio)
+- **General Issues**: Use GitHub Issues for non-security bugs
+- **Discussions**: [GitHub Discussions](https://github.com/LerianStudio/midaz/discussions)
