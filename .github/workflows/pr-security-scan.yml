@@ -13,6 +13,17 @@ on:
       - opened
       - synchronize
       - reopened
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'LICENSE'
+      - 'CODEOWNERS'
+      - '.gitignore'
+      - '.editorconfig'
+      - '*.png'
+      - '*.jpg'
+      - '*.svg'
 
 jobs:
   security-scan:
