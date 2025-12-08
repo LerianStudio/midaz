@@ -19,7 +19,7 @@ const midazName = "midaz"
 const routingName = "routing"
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, mdi *MetadataIndexHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -84,6 +84,11 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "patch"), http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "delete"), http.ParseUUIDPathParameters("transaction_route"), trh.DeleteTransactionRouteByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)
+
+	// Metadata Indexes
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", auth.Authorize(midazName, "metadata-indexes", "post"), http.ParseUUIDPathParameters("metadata_index"), http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", auth.Authorize(midazName, "metadata-indexes", "get"), http.ParseUUIDPathParameters("metadata_index"), mdi.GetAllMetadataIndexes)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes/:index_name", auth.Authorize(midazName, "metadata-indexes", "delete"), http.ParseUUIDPathParameters("metadata_index"), mdi.DeleteMetadataIndex)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

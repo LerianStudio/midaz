@@ -291,6 +291,11 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	metadataIndexHandler := &in.MetadataIndexHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -311,7 +316,7 @@ func InitServers() *Service {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, metadataIndexHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
