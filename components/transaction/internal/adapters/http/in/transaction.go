@@ -1040,6 +1040,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
+	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
 	ttl := time.Duration(300)
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
