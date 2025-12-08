@@ -89,6 +89,7 @@ type MetadataIndex struct {
 	MetadataKey string
 	Unique      bool
 	Sparse      bool
+	CreatedAt   time.Time
 }
 
 // ToEntity converts an MetadataIndexMongoDBModel to entity.MetadataIndex
@@ -99,6 +100,7 @@ func (mim *MetadataIndexMongoDBModel) ToEntity() *MetadataIndex {
 		MetadataKey: mim.MetadataKey,
 		Unique:      mim.Unique,
 		Sparse:      mim.Sparse,
+		CreatedAt:   mim.CreatedAt,
 	}
 }
 
@@ -109,6 +111,7 @@ func (mim *MetadataIndexMongoDBModel) FromEntity(mi *MetadataIndex) error {
 	mim.MetadataKey = mi.MetadataKey
 	mim.Unique = mi.Unique
 	mim.Sparse = mi.Sparse
+	mim.CreatedAt = time.Now()
 
 	return nil
 }

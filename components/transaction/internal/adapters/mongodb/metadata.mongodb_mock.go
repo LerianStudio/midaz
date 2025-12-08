@@ -99,18 +99,18 @@ func (mr *MockRepositoryMockRecorder) DeleteIndex(ctx, collection, indexName any
 }
 
 // FindAllIndexes mocks base method.
-func (m *MockRepository) FindAllIndexes(ctx context.Context, collection string, filter http.QueryHeader) ([]*MetadataIndex, error) {
+func (m *MockRepository) FindAllIndexes(ctx context.Context, collection string) ([]*MetadataIndex, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllIndexes", ctx, collection, filter)
+	ret := m.ctrl.Call(m, "FindAllIndexes", ctx, collection)
 	ret0, _ := ret[0].([]*MetadataIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAllIndexes indicates an expected call of FindAllIndexes.
-func (mr *MockRepositoryMockRecorder) FindAllIndexes(ctx, collection, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllIndexes(ctx, collection any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllIndexes", reflect.TypeOf((*MockRepository)(nil).FindAllIndexes), ctx, collection, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllIndexes", reflect.TypeOf((*MockRepository)(nil).FindAllIndexes), ctx, collection)
 }
 
 // FindByEntity mocks base method.

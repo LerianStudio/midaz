@@ -1,7 +1,7 @@
 package in
 
 import (
-	"errors"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 type MetadataIndexHandler struct {
@@ -46,9 +45,6 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.create_metadata_index")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
@@ -70,7 +66,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	payload := p.(*mmodel.CreateMetadataIndexInput)
 	logger.Infof("Request to create a metadata index with details: %#v", payload)
 
-	metadataIndex, err := handler.Command.CreateMetadataIndex(ctx, organizationID, ledgerID, payload)
+	metadataIndex, err := handler.Command.CreateMetadataIndex(ctx, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
 
@@ -114,9 +110,6 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_metadata_indexes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
@@ -135,7 +128,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	metadataIndexes, err := handler.Query.GetAllMetadataIndexes(ctx, organizationID, ledgerID, *headerParams)
+	metadataIndexes, err := handler.Query.GetAllMetadataIndexes(ctx, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all metadata indexes", err)
 
@@ -177,25 +170,27 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_metadata_index")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	indexName := c.Locals("index_name").(string)
 	entityName := c.Query("entity_name")
 
 	if indexName == "" {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get index name", errors.New("index name is empty"))
+		err := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.MetadataIndex{}).Name(), "index_name")
 
-		logger.Errorf("Failed to get index name, Error: %s", errors.New("index name is empty").Error())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get index name", err)
 
-		return http.WithError(c, errors.New("index name is empty"))
+		logger.Errorf("Failed to get index name, Error: %s", err.Error())
+
+		return http.WithError(c, err)
 	}
 
 	if entityName == "" {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get entity name", errors.New("entity_name query parameter is required"))
+		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, reflect.TypeOf(mmodel.MetadataIndex{}).Name(), "entity_name")
 
-		logger.Errorf("Failed to get entity name, Error: %s", errors.New("entity_name query parameter is required").Error())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get entity name", err)
 
-		return http.WithError(c, errors.New("entity_name query parameter is required"))
+		logger.Errorf("Failed to get entity name, Error: %s", err.Error())
+
+		return http.WithError(c, err)
 	}
 
 	if !mmodel.IsValidMetadataIndexEntity(entityName) {
@@ -208,7 +203,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err := handler.Command.DeleteMetadataIndex(ctx, organizationID, ledgerID, entityName, indexName)
+	err := handler.Command.DeleteMetadataIndex(ctx, entityName, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete metadata index", err)
 

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,8 +21,6 @@ func TestDeleteMetadataIndex(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	tests := []struct {
 		name        string
@@ -150,7 +147,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			err := uc.DeleteMetadataIndex(ctx, orgID, ledgerID, tt.entityName, tt.indexName)
+			err := uc.DeleteMetadataIndex(ctx, tt.entityName, tt.indexName)
 
 			if tt.expectedErr {
 				assert.Error(t, err)
@@ -176,8 +173,6 @@ func TestDeleteMetadataIndexValidatesPrefix(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	invalidIndexNames := []string{
 		"tier_1",
@@ -192,7 +187,7 @@ func TestDeleteMetadataIndexValidatesPrefix(t *testing.T) {
 
 	for _, indexName := range invalidIndexNames {
 		t.Run(indexName, func(t *testing.T) {
-			err := uc.DeleteMetadataIndex(ctx, orgID, ledgerID, "transaction", indexName)
+			err := uc.DeleteMetadataIndex(ctx, "transaction", indexName)
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "0134")
@@ -212,8 +207,6 @@ func TestDeleteMetadataIndexValidPrefixes(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	validIndexNames := []string{
 		"metadata.tier_1",
@@ -230,7 +223,7 @@ func TestDeleteMetadataIndexValidPrefixes(t *testing.T) {
 				Return(nil).
 				Times(1)
 
-			err := uc.DeleteMetadataIndex(ctx, orgID, ledgerID, "transaction", indexName)
+			err := uc.DeleteMetadataIndex(ctx, "transaction", indexName)
 
 			assert.NoError(t, err)
 		})
@@ -249,8 +242,6 @@ func TestDeleteMetadataIndexAllEntities(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	entities := []string{
 		"transaction",
@@ -268,7 +259,7 @@ func TestDeleteMetadataIndexAllEntities(t *testing.T) {
 				Return(nil).
 				Times(1)
 
-			err := uc.DeleteMetadataIndex(ctx, orgID, ledgerID, entity, indexName)
+			err := uc.DeleteMetadataIndex(ctx, entity, indexName)
 
 			assert.NoError(t, err)
 		})

@@ -8,7 +8,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -24,8 +23,6 @@ func TestCreateMetadataIndex(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	tests := []struct {
 		name           string
@@ -224,7 +221,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.CreateMetadataIndex(ctx, orgID, ledgerID, tt.input)
+			result, err := uc.CreateMetadataIndex(ctx, tt.input)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
@@ -253,8 +250,6 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	testCases := []struct {
 		metadataKey       string
@@ -285,7 +280,7 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 				}, nil).
 				Times(1)
 
-			result, err := uc.CreateMetadataIndex(ctx, orgID, ledgerID, input)
+			result, err := uc.CreateMetadataIndex(ctx, input)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -306,8 +301,6 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	input := &mmodel.CreateMetadataIndexInput{
 		EntityName:  "transaction",
@@ -331,7 +324,7 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	result, err := uc.CreateMetadataIndex(ctx, orgID, ledgerID, input)
+	result, err := uc.CreateMetadataIndex(ctx, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -350,8 +343,6 @@ func TestCreateMetadataIndexCreatedAtIsSet(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 
 	input := &mmodel.CreateMetadataIndexInput{
 		EntityName:  "transaction",
@@ -370,7 +361,7 @@ func TestCreateMetadataIndexCreatedAtIsSet(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	result, err := uc.CreateMetadataIndex(ctx, orgID, ledgerID, input)
+	result, err := uc.CreateMetadataIndex(ctx, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

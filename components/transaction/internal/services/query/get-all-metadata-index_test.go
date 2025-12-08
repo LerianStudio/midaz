@@ -7,7 +7,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -25,9 +24,6 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
 	t.Run("Success_WithoutEntityFilter", func(t *testing.T) {
 		filter := http.QueryHeader{
 			Limit: 10,
@@ -35,30 +31,30 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), "transaction", filter).
+			FindAllIndexes(gomock.Any(), "transaction").
 			Return([]*mongodb.MetadataIndex{
 				{MetadataKey: "tier", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), "operation", filter).
+			FindAllIndexes(gomock.Any(), "operation").
 			Return([]*mongodb.MetadataIndex{
 				{MetadataKey: "category", Unique: true, Sparse: false},
 			}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), "operation_route", filter).
+			FindAllIndexes(gomock.Any(), "operation_route").
 			Return([]*mongodb.MetadataIndex{}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), "transaction_route", filter).
+			FindAllIndexes(gomock.Any(), "transaction_route").
 			Return([]*mongodb.MetadataIndex{}, nil).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -74,14 +70,14 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName, filter).
+			FindAllIndexes(gomock.Any(), entityName).
 			Return([]*mongodb.MetadataIndex{
 				{MetadataKey: "tier", Unique: false, Sparse: true},
 				{MetadataKey: "priority", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -102,11 +98,11 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName, filter).
+			FindAllIndexes(gomock.Any(), entityName).
 			Return([]*mongodb.MetadataIndex{}, nil).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.NoError(t, err)
 		assert.Empty(t, result)
@@ -121,14 +117,14 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName, filter).
+			FindAllIndexes(gomock.Any(), entityName).
 			Return([]*mongodb.MetadataIndex{
 				{MetadataKey: "metadata.existing_index", Unique: false, Sparse: true},
 				{MetadataKey: "tier", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -145,14 +141,14 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName, filter).
+			FindAllIndexes(gomock.Any(), entityName).
 			Return([]*mongodb.MetadataIndex{
 				{MetadataKey: "", Unique: false, Sparse: true},
 				{MetadataKey: "tier", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -171,11 +167,11 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		repoError := errors.New("database connection error")
 
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName, filter).
+			FindAllIndexes(gomock.Any(), entityName).
 			Return(nil, repoError).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -192,17 +188,17 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		// First call succeeds
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), gomock.Any(), filter).
+			FindAllIndexes(gomock.Any(), gomock.Any()).
 			Return([]*mongodb.MetadataIndex{}, nil).
 			Times(1)
 
 		// Second call fails
 		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), gomock.Any(), filter).
+			FindAllIndexes(gomock.Any(), gomock.Any()).
 			Return(nil, repoError).
 			Times(1)
 
-		result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -221,8 +217,6 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 	entityName := "transaction"
 	filter := http.QueryHeader{
 		Limit:      10,
@@ -231,13 +225,13 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), entityName, filter).
+		FindAllIndexes(gomock.Any(), entityName).
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "custom_field", Unique: true, Sparse: false},
 		}, nil).
 		Times(1)
 
-	result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -260,8 +254,6 @@ func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 	entityName := "operation"
 	filter := http.QueryHeader{
 		Limit:      10,
@@ -270,14 +262,14 @@ func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), entityName, filter).
+		FindAllIndexes(gomock.Any(), entityName).
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "unique_key", Unique: true, Sparse: true},
 			{MetadataKey: "non_unique_key", Unique: false, Sparse: false},
 		}, nil).
 		Times(1)
 
-	result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -303,8 +295,6 @@ func TestGetAllMetadataIndexesWithEmptyEntityName(t *testing.T) {
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 	emptyEntityName := ""
 	filter := http.QueryHeader{
 		Limit:      10,
@@ -313,11 +303,11 @@ func TestGetAllMetadataIndexesWithEmptyEntityName(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), gomock.Any(), filter).
+		FindAllIndexes(gomock.Any(), gomock.Any()).
 		Return([]*mongodb.MetadataIndex{}, nil).
 		Times(4)
 
-	result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.Empty(t, result)
@@ -334,42 +324,40 @@ func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	orgID := uuid.New()
-	ledgerID := uuid.New()
 	filter := http.QueryHeader{
 		Limit: 10,
 		Page:  1,
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), "transaction", filter).
+		FindAllIndexes(gomock.Any(), "transaction").
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "tx_field", Unique: false, Sparse: true},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), "operation", filter).
+		FindAllIndexes(gomock.Any(), "operation").
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "op_field", Unique: true, Sparse: false},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), "operation_route", filter).
+		FindAllIndexes(gomock.Any(), "operation_route").
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "or_field", Unique: false, Sparse: true},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindAllIndexes(gomock.Any(), "transaction_route", filter).
+		FindAllIndexes(gomock.Any(), "transaction_route").
 		Return([]*mongodb.MetadataIndex{
 			{MetadataKey: "tr_field", Unique: true, Sparse: true},
 		}, nil).
 		Times(1)
 
-	result, err := uc.GetAllMetadataIndexes(context.Background(), orgID, ledgerID, filter)
+	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

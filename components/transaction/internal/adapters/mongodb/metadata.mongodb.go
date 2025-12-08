@@ -30,7 +30,7 @@ type Repository interface {
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	Delete(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, metadata *MetadataIndex) (*MetadataIndex, error)
-	FindAllIndexes(ctx context.Context, collection string, filter http.QueryHeader) ([]*MetadataIndex, error)
+	FindAllIndexes(ctx context.Context, collection string) ([]*MetadataIndex, error)
 	DeleteIndex(ctx context.Context, collection, indexName string) error
 }
 
@@ -401,6 +401,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 		SetSparse(metadata.Sparse)
 
 	ctx, spanCreateIndex := tracer.Start(ctx, "mongodb.create_index.create_one")
+	defer spanCreateIndex.End()
 
 	_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: indexName, Value: 1}},
@@ -411,8 +412,6 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 
 		return nil, err
 	}
-
-	spanCreateIndex.End()
 
 	logger.Infof("Created index %s on collection %s", indexName, collection)
 
@@ -428,10 +427,11 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 }
 
 // FindAllIndexes retrieves all indexes from the mongodb.
-func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collection string, filter http.QueryHeader) ([]*MetadataIndex, error) {
+func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collection string) ([]*MetadataIndex, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_indexes")
+	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
@@ -445,6 +445,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 	opts := options.ListIndexes()
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_indexes.find")
+	defer spanFind.End()
 
 	cur, err := coll.Indexes().List(ctx, opts)
 	if err != nil {
@@ -452,8 +453,6 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 		return nil, err
 	}
-
-	defer cur.Close(ctx)
 
 	var metadataIndexes []*MetadataIndexMongoDBModel
 
