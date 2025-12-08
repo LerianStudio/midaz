@@ -75,6 +75,8 @@ jobs:
     name: Create Release
     needs: [integration_tests_go, integration_tests_console]
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@feature/go-workflows
+    with:
+      runner_type: "firmino-lxc-runners"
     secrets: inherit
 
   # =========================
