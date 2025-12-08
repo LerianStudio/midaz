@@ -383,6 +383,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_index")
+	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
@@ -415,15 +416,15 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 
 	logger.Infof("Created index %s on collection %s", indexName, collection)
 
-	metadaIndex := &MetadataIndexMongoDBModel{}
+	metadataIndex := &MetadataIndexMongoDBModel{}
 
-	if err := metadaIndex.FromEntity(metadata); err != nil {
+	if err := metadataIndex.FromEntity(metadata); err != nil {
 		libOpentelemetry.HandleSpanError(&spanCreateIndex, "Failed to convert metadata index to model", err)
 
 		return nil, err
 	}
 
-	return metadaIndex.ToEntity(), nil
+	return metadataIndex.ToEntity(), nil
 }
 
 // FindAllIndexes retrieves all indexes from the mongodb.
@@ -500,11 +501,12 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_index")
+	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
-		
+
 		logger.Errorf("Failed to get database: %v", err)
 
 		return err
