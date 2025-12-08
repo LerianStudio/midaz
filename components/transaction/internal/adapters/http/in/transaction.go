@@ -1017,6 +1017,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
+	// this duration is of 300 seconds (time.Seconds is set inside the SetNX method)
 	ttl := time.Duration(300)
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
@@ -1037,15 +1038,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		logger.Errorf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error())
 
 		return http.WithError(c, err)
-	} else {
-		// only delete lock key if it was able to acquire the lock
-		defer func() {
-			if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+	}
 
-				logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
-			}
-		}()
+	// deleteLockOnError removes the lock only when an error occurs, allowing immediate retry.
+	// On success, the lock remains until TTL expires to prevent duplicate processing.
+	deleteLockOnError := func() {
+		if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+
+			logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
+		}
 	}
 
 	parserDSL := tran.Body
@@ -1069,6 +1071,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error())
 
+		deleteLockOnError()
+
 		return http.WithError(c, err)
 	}
 
@@ -1079,6 +1083,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		logger.Error("Failed to validate send source and distribute: %v", err.Error())
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1091,6 +1097,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 		spanGetBalances.End()
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1113,6 +1121,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
 		logger.Errorf("Failed to validate balance: %v", err.Error())
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1138,6 +1148,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "failed to update BTO", err)
 
 		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
