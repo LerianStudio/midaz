@@ -9,7 +9,7 @@ on:
 
 jobs:
   notify_devops:
-    runs-on: ubuntu-latest
+    runs-on: firmino-lxc-runners
     steps:
       # Checkout the repository with full history to compare changes
       - name: Checkout repository

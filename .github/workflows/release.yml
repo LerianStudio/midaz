@@ -18,7 +18,7 @@ jobs:
   # =========================
   integration_tests_go:
     name: Go Integration Tests
-    runs-on: ubuntu-24.04
+    runs-on: firmino-lxc-runners
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
   # =========================
   integration_tests_console:
     name: Console Integration Tests
-    runs-on: ubuntu-24.04
+    runs-on: firmino-lxc-runners
     defaults:
       run:
         working-directory: components/console
@@ -82,7 +82,7 @@ jobs:
   # =========================
   generate_changelog:
     name: Generate AI-powered Changelog
-    runs-on: ubuntu-22.04
+    runs-on: firmino-lxc-runners
     needs: release
     steps:
       - uses: actions/create-github-app-token@v1
