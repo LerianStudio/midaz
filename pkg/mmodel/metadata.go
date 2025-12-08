@@ -1,5 +1,30 @@
 package mmodel
 
+import "time"
+
+// validMetadataIndexEntities contains the valid entity names for metadata indexes
+var validMetadataIndexEntities = map[string]bool{
+	"transaction":       true,
+	"operation":         true,
+	"operation_route":   true,
+	"transaction_route": true,
+}
+
+// IsValidMetadataIndexEntity checks if the entity name is valid for metadata index operations
+func IsValidMetadataIndexEntity(entityName string) bool {
+	return validMetadataIndexEntities[entityName]
+}
+
+// GetValidMetadataIndexEntities returns a slice of valid entity names for metadata indexes
+func GetValidMetadataIndexEntities() []string {
+	entities := make([]string, 0, len(validMetadataIndexEntities))
+	for entity := range validMetadataIndexEntities {
+		entities = append(entities, entity)
+	}
+
+	return entities
+}
+
 // CreateMetadataIndexInput is a struct designed to store CreateMetadataIndexInput data.
 //
 // swagger:model CreateMetadataIndexInput
@@ -32,6 +57,12 @@ type MetadataIndex struct {
 	EntityName string `json:"entityName" example:"transaction"`
 	// The metadata key that is indexed
 	MetadataKey string `json:"metadataKey" example:"tier"`
+	// Whether the index enforces uniqueness
+	Unique bool `json:"unique" example:"false"`
+	// Whether the index is sparse
+	Sparse bool `json:"sparse" example:"true"`
+	// When the index was created
+	CreatedAt time.Time `json:"createdAt,omitempty"`
 } // @name MetadataIndex
 
 // MetadataIndexes represents a paginated list of metadata indexes

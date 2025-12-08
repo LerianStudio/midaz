@@ -5,9 +5,10 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -86,13 +87,14 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 // Get all metadata indexes.
 //
 //	@Summary		Get all Metadata Indexes
-//	@Description	Get all metadata indexes
+//	@Description	Get all metadata indexes, optionally filtered by entity name
 //	@Tags			Metadata Indexes
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			entity_name		query		string	false	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
@@ -133,14 +135,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	pagination := libPostgres.Pagination{
-		Limit:     headerParams.Limit,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
-	}
-
-	metadataIndexes, cur, err := handler.Query.GetAllMetadataIndexes(ctx, organizationID, ledgerID, *headerParams)
+	metadataIndexes, err := handler.Query.GetAllMetadataIndexes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all metadata indexes", err)
 
@@ -150,9 +145,6 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully retrieved all metadata indexes")
-
-	pagination.SetItems(metadataIndexes)
-	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, metadataIndexes)
 }
@@ -169,7 +161,9 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			index_name		path		string					true	"Index Name"
+//	@Param			entity_name		query		string					true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
 //	@Success		204				{string}	string					"Metadata index successfully deleted"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error						"Metadata index not found"
@@ -186,6 +180,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	indexName := c.Locals("index_name").(string)
+	entityName := c.Query("entity_name")
 
 	if indexName == "" {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get index name", errors.New("index name is empty"))
@@ -195,7 +190,25 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 		return http.WithError(c, errors.New("index name is empty"))
 	}
 
-	err := handler.Command.DeleteMetadataIndex(ctx, organizationID, ledgerID, indexName)
+	if entityName == "" {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get entity name", errors.New("entity_name query parameter is required"))
+
+		logger.Errorf("Failed to get entity name, Error: %s", errors.New("entity_name query parameter is required").Error())
+
+		return http.WithError(c, errors.New("entity_name query parameter is required"))
+	}
+
+	if !mmodel.IsValidMetadataIndexEntity(entityName) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
+
+		logger.Errorf("Invalid entity name, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	err := handler.Command.DeleteMetadataIndex(ctx, organizationID, ledgerID, entityName, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete metadata index", err)
 

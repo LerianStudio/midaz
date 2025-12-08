@@ -1116,6 +1116,48 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
 		},
+		constant.ErrMetadataIndexAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexAlreadyExists.Error(),
+			Title:      "Metadata Index Already Exists",
+			Message:    "A metadata index with the same key already exists for this entity. Please use a different key or update the existing index.",
+		},
+		constant.ErrMetadataIndexNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexNotFound.Error(),
+			Title:      "Metadata Index Not Found",
+			Message:    "The specified metadata index does not exist. Please verify the index name and try again.",
+		},
+		constant.ErrMetadataIndexInvalidKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexInvalidKey.Error(),
+			Title:      "Invalid Metadata Key Format",
+			Message:    "The metadata key format is invalid. Keys must start with a letter and contain only alphanumeric characters and underscores.",
+		},
+		constant.ErrMetadataIndexLimitExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexLimitExceeded.Error(),
+			Title:      "Metadata Index Limit Exceeded",
+			Message:    "The maximum number of metadata indexes has been reached for this entity. Please delete unused indexes before creating new ones.",
+		},
+		constant.ErrMetadataIndexCreationFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexCreationFailed.Error(),
+			Title:      "Metadata Index Creation Failed",
+			Message:    "The metadata index could not be created. Please try again later or contact support.",
+		},
+		constant.ErrMetadataIndexDeletionForbidden: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataIndexDeletionForbidden.Error(),
+			Title:      "Metadata Index Deletion Forbidden",
+			Message:    "System indexes cannot be deleted. Please ensure you are deleting a custom metadata index.",
+		},
+		constant.ErrInvalidEntityName: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidEntityName.Error(),
+			Title:      "Invalid Entity Name",
+			Message:    "The provided entity name is not valid. Accepted values are: transaction, operation, operation_route, transaction_route.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

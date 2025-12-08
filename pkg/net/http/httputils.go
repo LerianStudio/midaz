@@ -31,7 +31,7 @@ type QueryHeader struct {
 	UseMetadata           bool
 	PortfolioID           string
 	OperationType         string
-	ToAssetCodes          []string	
+	ToAssetCodes          []string
 	HolderID              *string
 	ExternalID            *string
 	Document              *string
@@ -40,6 +40,7 @@ type QueryHeader struct {
 	BankingDetailsBranch  *string
 	BankingDetailsAccount *string
 	BankingDetailsIban    *string
+	EntityName            *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -74,6 +75,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		bankingDetailsBranch  *string
 		bankingDetailsAccount *string
 		bankingDetailsIban    *string
+		entityName            *string
 	)
 
 	for key, value := range params {
@@ -125,6 +127,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			bankingDetailsAccount = &value
 		case strings.Contains(key, "banking_details_iban"):
 			bankingDetailsIban = &value
+		case strings.Contains(key, "entity_name"):
+			entityName = &value
 		}
 	}
 
@@ -165,6 +169,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		BankingDetailsBranch:  bankingDetailsBranch,
 		BankingDetailsAccount: bankingDetailsAccount,
 		BankingDetailsIban:    bankingDetailsIban,
+		EntityName:            entityName,
 	}
 
 	return query, nil

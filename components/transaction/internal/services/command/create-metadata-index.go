@@ -2,8 +2,12 @@ package command
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -17,5 +21,33 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, organizationID, ledg
 
 	logger.Infof("Initializing the create metadata index operation: %v", input)
 
-	return nil, nil
+	sparse := true
+	if input.Sparse != nil {
+		sparse = *input.Sparse
+	}
+
+	metadataIndex, err := uc.MetadataRepo.CreateIndex(ctx, input.EntityName, &mongodb.MetadataIndex{
+		EntityName:  input.EntityName,
+		MetadataKey: input.MetadataKey,
+		Unique:      input.Unique,
+		Sparse:      sparse,
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
+
+		logger.Errorf("Failed to create metadata index: %v", err)
+
+		return nil, err
+	}
+
+	result := &mmodel.MetadataIndex{
+		IndexName:   fmt.Sprintf("metadata.%s_1", metadataIndex.MetadataKey),
+		EntityName:  metadataIndex.EntityName,
+		MetadataKey: metadataIndex.MetadataKey,
+		Unique:      metadataIndex.Unique,
+		Sparse:      metadataIndex.Sparse,
+		CreatedAt:   time.Now(),
+	}
+
+	return result, nil
 }
