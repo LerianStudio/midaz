@@ -605,6 +605,8 @@ definitions:
     properties:
       createdAt:
         description: When the index was created
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       entityName:
         description: The entity/collection name where the index exists
@@ -2497,9 +2499,9 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
+                next_cursor:
                   type: string
-                ' prev_cursor':
+                prev_cursor:
                   type: string
                 items:
                   items:
@@ -2585,8 +2587,6 @@ paths:
       - Metadata Indexes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}:
     delete:
-      consumes:
-      - application/json
       description: Delete a metadata index with the input payload
       parameters:
       - description: Authorization Bearer Token

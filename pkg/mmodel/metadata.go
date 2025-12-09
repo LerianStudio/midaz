@@ -62,7 +62,9 @@ type MetadataIndex struct {
 	// Whether the index is sparse
 	Sparse bool `json:"sparse" example:"true"`
 	// When the index was created
-	CreatedAt time.Time `json:"createdAt,omitempty"`
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
 } // @name MetadataIndex
 
 // MetadataIndexes represents a paginated list of metadata indexes

@@ -1509,10 +1509,10 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
+                                        "next_cursor": {
                                             "type": "string"
                                         },
-                                        " prev_cursor": {
+                                        "prev_cursor": {
                                             "type": "string"
                                         },
                                         "items": {
@@ -1642,9 +1642,6 @@ const docTemplate = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}": {
             "delete": {
                 "description": "Delete a metadata index with the input payload",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4347,7 +4344,9 @@ const docTemplate = `{
             "properties": {
                 "createdAt": {
                     "description": "When the index was created",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "entityName": {
                     "description": "The entity/collection name where the index exists",

@@ -1053,9 +1053,9 @@ paths:
                 allOf:
                 - $ref: '#/components/schemas/Pagination'
                 - properties:
-                    ' next_cursor':
+                    next_cursor:
                       type: string
-                    ' prev_cursor':
+                    prev_cursor:
                       type: string
                     items:
                       items:
@@ -3334,6 +3334,8 @@ components:
       properties:
         createdAt:
           description: When the index was created
+          example: "2021-01-01T00:00:00Z"
+          format: date-time
           type: string
         entityName:
           description: The entity/collection name where the index exists

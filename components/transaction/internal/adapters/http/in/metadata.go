@@ -96,7 +96,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.MetadataIndex, next_cursor=string, prev_cursor=string,limit=int}
+//	@Success		200				{object}	postgres.Pagination{items=[]mmodel.MetadataIndex,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error						"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -147,7 +147,6 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Summary		Delete Metadata Index
 //	@Description	Delete a metadata index with the input payload
 //	@Tags			Metadata Indexes
-//	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string					false	"Request ID"
