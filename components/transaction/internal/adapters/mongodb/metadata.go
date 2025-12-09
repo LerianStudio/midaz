@@ -82,6 +82,14 @@ type MetadataIndexMongoDBModel struct {
 	UpdatedAt   time.Time          `bson:"updated_at"`
 }
 
+// MongoDBIndexInfo represents the native MongoDB index structure returned by Indexes().List()
+type MongoDBIndexInfo struct {
+	Key    primitive.D `bson:"key"`
+	Name   string      `bson:"name"`
+	Unique bool        `bson:"unique"`
+	Sparse bool        `bson:"sparse"`
+}
+
 // MetadataIndex is a struct designed to encapsulate payload data.
 type MetadataIndex struct {
 	ID          primitive.ObjectID

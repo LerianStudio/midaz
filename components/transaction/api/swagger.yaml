@@ -1,5 +1,7 @@
 basePath: /
 definitions:
+  AccountRule:
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -258,6 +260,49 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateMetadataIndexInput:
+    description: CreateMetadataIndexInput payload
+    properties:
+      entityName:
+        description: |-
+          The entity/collection name to create the index on
+          required: true
+          enum: transaction,operation,operation_route,transaction_route
+        enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        example: transaction
+        type: string
+      metadataKey:
+        description: |-
+          The metadata key to index (without "metadata." prefix)
+          required: true
+          maxLength: 100
+        example: tier
+        maxLength: 100
+        type: string
+      sparse:
+        description: |-
+          Whether the index should be sparse (only include documents with the field)
+          required: false
+          default: true
+        example: true
+        type: boolean
+      unique:
+        description: |-
+          Whether the index should enforce uniqueness
+          required: false
+          default: false
+        example: false
+        type: boolean
+    required:
+    - entityName
+    - metadataKey
+    type: object
+  CreateOperationRouteInput:
     type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
@@ -559,6 +604,33 @@ definitions:
         maxLength: 100
         type: string
     type: object
+  MetadataIndex:
+    description: Represents a custom MongoDB index on a metadata field
+    properties:
+      createdAt:
+        description: When the index was created
+        type: string
+      entityName:
+        description: The entity/collection name where the index exists
+        example: transaction
+        type: string
+      indexName:
+        description: The name of the index in MongoDB
+        example: metadata.tier_1
+        type: string
+      metadataKey:
+        description: The metadata key that is indexed
+        example: tier
+        type: string
+      sparse:
+        description: Whether the index is sparse
+        example: true
+        type: boolean
+      unique:
+        description: Whether the index enforces uniqueness
+        example: false
+        type: boolean
+    type: object
   Operation:
     description: Operation is a struct designed to store operation data. Represents
       a financial operation that affects account balances, including details such
@@ -729,7 +801,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1051,7 +1123,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1289,8 +1361,6 @@ definitions:
           required: false
         type: string
     type: object
-  mmodel.AccountRule:
-    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1429,8 +1499,6 @@ definitions:
         example: 1
         minimum: 1
         type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
     type: object
 host: localhost:3001
 info:
@@ -2367,6 +2435,224 @@ paths:
       summary: Update Balance
       tags:
       - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes:
+    get:
+      description: Get all metadata indexes, optionally filtered by entity name
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Entity Name
+        enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        in: query
+        name: entity_name
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/MetadataIndex'
+                  type: array
+                limit:
+                  type: integer
+              type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all Metadata Indexes
+      tags:
+      - Metadata Indexes
+    post:
+      consumes:
+      - application/json
+      description: Create a metadata index with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Metadata Index Input
+        in: body
+        name: metadata-index
+        required: true
+        schema:
+          $ref: '#/definitions/CreateMetadataIndexInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created metadata index
+          schema:
+            $ref: '#/definitions/MetadataIndex'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create Metadata Index
+      tags:
+      - Metadata Indexes
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a metadata index with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Index Name
+        in: path
+        name: index_name
+        required: true
+        type: string
+      - description: Entity Name
+        enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        in: query
+        name: entity_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Metadata index successfully deleted
+          schema:
+            type: string
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Metadata index not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete Metadata Index
+      tags:
+      - Metadata Indexes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       description: Returns a list of all operation routes within the specified ledger
@@ -2489,7 +2775,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       produces:
       - application/json
       responses:

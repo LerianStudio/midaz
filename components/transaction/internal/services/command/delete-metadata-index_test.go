@@ -122,11 +122,11 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					DeleteIndex(gomock.Any(), "transaction", "metadata.nonexistent_1").
-					Return(errors.New("index not found")).
+					Return(errors.New("0130")).
 					Times(1)
 			},
 			expectedErr: true,
-			errContains: "index not found",
+			errContains: "0130",
 		},
 		{
 			name:       "failure - database connection error",

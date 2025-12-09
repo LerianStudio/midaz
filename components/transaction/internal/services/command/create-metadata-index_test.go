@@ -41,6 +41,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
+					FindAllIndexes(gomock.Any(), "transaction").
+					Return([]*mongodb.MetadataIndex{}, nil).
+					Times(1)
+				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "transaction", &mongodb.MetadataIndex{
 						EntityName:  "transaction",
 						MetadataKey: "tier",
@@ -75,6 +79,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
+					FindAllIndexes(gomock.Any(), "operation").
+					Return([]*mongodb.MetadataIndex{}, nil).
+					Times(1)
+				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "operation", &mongodb.MetadataIndex{
 						EntityName:  "operation",
 						MetadataKey: "category",
@@ -107,6 +115,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 				Sparse:      utils.BoolPtr(false),
 			},
 			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindAllIndexes(gomock.Any(), "transaction_route").
+					Return([]*mongodb.MetadataIndex{}, nil).
+					Times(1)
 				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "transaction_route", &mongodb.MetadataIndex{
 						EntityName:  "transaction_route",
@@ -141,6 +153,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
+					FindAllIndexes(gomock.Any(), "operation_route").
+					Return([]*mongodb.MetadataIndex{}, nil).
+					Times(1)
+				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "operation_route", &mongodb.MetadataIndex{
 						EntityName:  "operation_route",
 						MetadataKey: "external_id",
@@ -165,7 +181,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "failure - repository error",
+			name: "failure - repository error on create",
 			input: &mmodel.CreateMetadataIndexInput{
 				EntityName:  "transaction",
 				MetadataKey: "tier",
@@ -173,6 +189,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 				Sparse:      nil,
 			},
 			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindAllIndexes(gomock.Any(), "transaction").
+					Return([]*mongodb.MetadataIndex{}, nil).
+					Times(1)
 				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
 					Return(nil, errors.New("failed to create index")).
@@ -182,7 +202,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			validateResult: nil,
 		},
 		{
-			name: "failure - duplicate index error",
+			name: "failure - index already exists",
 			input: &mmodel.CreateMetadataIndexInput{
 				EntityName:  "transaction",
 				MetadataKey: "existing_key",
@@ -191,15 +211,17 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
-					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
-					Return(nil, errors.New("index already exists")).
+					FindAllIndexes(gomock.Any(), "transaction").
+					Return([]*mongodb.MetadataIndex{
+						{MetadataKey: "metadata.existing_key", Unique: false, Sparse: true},
+					}, nil).
 					Times(1)
 			},
-			expectedErr:    errors.New("index already exists"),
+			expectedErr:    nil,
 			validateResult: nil,
 		},
 		{
-			name: "failure - database connection error",
+			name: "failure - error checking existing indexes",
 			input: &mmodel.CreateMetadataIndexInput{
 				EntityName:  "operation",
 				MetadataKey: "field",
@@ -208,7 +230,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
-					CreateIndex(gomock.Any(), "operation", gomock.Any()).
+					FindAllIndexes(gomock.Any(), "operation").
 					Return(nil, errors.New("database connection error")).
 					Times(1)
 			},
@@ -226,6 +248,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+			} else if tt.name == "failure - index already exists" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "metadata index with the same key already exists")
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
@@ -271,6 +297,10 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 			}
 
 			mockMetadataRepo.EXPECT().
+				FindAllIndexes(gomock.Any(), "transaction").
+				Return([]*mongodb.MetadataIndex{}, nil).
+				Times(1)
+			mockMetadataRepo.EXPECT().
 				CreateIndex(gomock.Any(), "transaction", gomock.Any()).
 				Return(&mongodb.MetadataIndex{
 					EntityName:  "transaction",
@@ -309,6 +339,10 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 		Sparse:      nil,
 	}
 
+	mockMetadataRepo.EXPECT().
+		FindAllIndexes(gomock.Any(), "transaction").
+		Return([]*mongodb.MetadataIndex{}, nil).
+		Times(1)
 	mockMetadataRepo.EXPECT().
 		CreateIndex(gomock.Any(), "transaction", &mongodb.MetadataIndex{
 			EntityName:  "transaction",
@@ -351,6 +385,10 @@ func TestCreateMetadataIndexCreatedAtIsSet(t *testing.T) {
 		Sparse:      nil,
 	}
 
+	mockMetadataRepo.EXPECT().
+		FindAllIndexes(gomock.Any(), "transaction").
+		Return([]*mongodb.MetadataIndex{}, nil).
+		Times(1)
 	mockMetadataRepo.EXPECT().
 		CreateIndex(gomock.Any(), "transaction", gomock.Any()).
 		Return(&mongodb.MetadataIndex{

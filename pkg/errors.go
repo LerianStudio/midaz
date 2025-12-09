@@ -1120,7 +1120,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexAlreadyExists.Error(),
 			Title:      "Metadata Index Already Exists",
-			Message:    "A metadata index with the same key already exists for this entity. Please use a different key or update the existing index.",
+			Message:    "A metadata index with the same key already exists for this entity. Please use a different key from the existing index.",
 		},
 		constant.ErrMetadataIndexNotFound: EntityNotFoundError{
 			EntityType: entityType,

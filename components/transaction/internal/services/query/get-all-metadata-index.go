@@ -22,7 +22,7 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 
 	logger.Infof("Initializing the get all metadata indexes operation: %v", filter)
 
-	var metadataIndexesResponse []*mmodel.MetadataIndex
+	metadataIndexesResponse := make([]*mmodel.MetadataIndex, 0)
 
 	entitiesToQuery := mmodel.GetValidMetadataIndexEntities()
 
@@ -45,16 +45,26 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 		}
 
 		for _, idx := range metadataIndexes {
-			if !strings.HasPrefix(idx.MetadataKey, "metadata.") && idx.MetadataKey != "" {
-				metadataIndexesResponse = append(metadataIndexesResponse, &mmodel.MetadataIndex{
-					IndexName:   fmt.Sprintf("metadata.%s_1", idx.MetadataKey),
-					EntityName:  entityName,
-					MetadataKey: idx.MetadataKey,
-					Unique:      idx.Unique,
-					Sparse:      idx.Sparse,
-					CreatedAt:   idx.CreatedAt,
-				})
+			metadataKey := idx.MetadataKey
+
+			if metadataKey == "" || metadataKey == "_id" {
+				continue
 			}
+
+			if !strings.HasPrefix(metadataKey, "metadata.") {
+				continue
+			}
+
+			metadataKey = strings.TrimPrefix(metadataKey, "metadata.")
+
+			metadataIndexesResponse = append(metadataIndexesResponse, &mmodel.MetadataIndex{
+				IndexName:   fmt.Sprintf("metadata.%s_1", metadataKey),
+				EntityName:  entityName,
+				MetadataKey: metadataKey,
+				Unique:      idx.Unique,
+				Sparse:      idx.Sparse,
+				CreatedAt:   idx.CreatedAt,
+			})
 		}
 	}
 

@@ -454,10 +454,10 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 		return nil, err
 	}
 
-	var metadataIndexes []*MetadataIndexMongoDBModel
+	var metadataIndexes []*MetadataIndex
 
 	for cur.Next(ctx) {
-		var record MetadataIndexMongoDBModel
+		var record MongoDBIndexInfo
 
 		if err := cur.Decode(&record); err != nil {
 			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata index", err)
@@ -467,7 +467,13 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 			return nil, err
 		}
 
-		metadataIndexes = append(metadataIndexes, &record)
+		for _, elem := range record.Key {
+			metadataIndexes = append(metadataIndexes, &MetadataIndex{
+				MetadataKey: elem.Key,
+				Unique:      record.Unique,
+				Sparse:      record.Sparse,
+			})
+		}
 	}
 
 	if err := cur.Err(); err != nil {
@@ -486,13 +492,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 		return nil, err
 	}
 
-	metadataIndexesResponse := make([]*MetadataIndex, 0, len(metadataIndexes))
-
-	for i := range metadataIndexes {
-		metadataIndexesResponse = append(metadataIndexesResponse, metadataIndexes[i].ToEntity())
-	}
-
-	return metadataIndexesResponse, nil
+	return metadataIndexes, nil
 }
 
 // DeleteIndex deletes an index from the mongodb.
@@ -519,6 +519,11 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	_, err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanDelete, "Failed to delete index", err)
+
+		var cmdErr mongo.CommandError
+		if errors.As(err, &cmdErr) && cmdErr.Name == "IndexNotFound" {
+			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+		}
 
 		return err
 	}

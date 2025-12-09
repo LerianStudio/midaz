@@ -3,11 +3,14 @@ package command
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -19,6 +22,26 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.Create
 	defer span.End()
 
 	logger.Infof("Initializing the create metadata index operation: %v", input)
+
+	existingIndexes, err := uc.MetadataRepo.FindAllIndexes(ctx, input.EntityName)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check existing indexes", err)
+
+		logger.Errorf("Failed to check existing indexes: %v", err)
+
+		return nil, err
+	}
+
+	expectedIndexKey := fmt.Sprintf("metadata.%s", input.MetadataKey)
+	for _, idx := range existingIndexes {
+		if idx.MetadataKey == expectedIndexKey {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Metadata index already exists", nil)
+
+			logger.Errorf("Metadata index already exists for key: %s", input.MetadataKey)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataIndexAlreadyExists, "MetadataIndex", strings.ToLower(input.MetadataKey))
+		}
+	}
 
 	sparse := true
 	if input.Sparse != nil {
