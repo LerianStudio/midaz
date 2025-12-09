@@ -1145,8 +1145,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed to validate balance: %v", err.Error())
 
-		deleteLockOnError()
-
 		return http.WithError(c, err)
 	}
 
@@ -1171,8 +1169,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "failed to update BTO", err)
 
 		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
-
-		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
