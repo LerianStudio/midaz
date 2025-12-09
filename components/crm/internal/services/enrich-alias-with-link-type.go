@@ -8,18 +8,15 @@ import (
 
 // enrichAliasWithLinkType enriches an alias with linkType from HolderLink
 // It fetches all holder links for the alias and populates the HolderLinks array
-func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID string, alias *mmodel.Alias) error {
+func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID string, alias *mmodel.Alias) {
 	if alias.ID == nil {
-		return nil
+		return
 	}
 
-	holderLinks, err := uc.HolderLinkRepo.FindByAliasID(ctx, organizationID, *alias.ID, false)
-	if err != nil {
-		return nil
-	}
+	holderLinks, _ := uc.HolderLinkRepo.FindByAliasID(ctx, organizationID, *alias.ID, false)
 
 	if len(holderLinks) == 0 {
-		return nil
+		return
 	}
 
 	for _, holderLink := range holderLinks {
@@ -32,6 +29,4 @@ func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID s
 		}
 		alias.HolderLinks = append(alias.HolderLinks, formatedHolderLink)
 	}
-
-	return nil
 }
