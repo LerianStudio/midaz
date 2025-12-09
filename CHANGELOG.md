@@ -64,6 +64,19 @@ Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
 - **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
 - **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
 
+## [v3.4.7] - 2025-12-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
+Contributors: Clara Tersi
+
+### 🐛 Bug Fixes
+- **Transaction Handling**: Fixed an issue where pending transaction locks were not removed after errors occurred. This ensures smoother transaction processes and prevents unnecessary restrictions, allowing users to continue their activities seamlessly.
+- **Account Management**: Addressed a problem with incorrect unlocking after balance updates, enhancing the accuracy and reliability of account balances.
+
+### 🔧 Maintenance
+- **Dependencies Update**: Updated console dependencies to the latest versions. This change ensures compatibility with the latest improvements and security patches, contributing to a more secure and efficient system.
+- **Documentation and Configuration**: Updated version information across documentation and configuration files to reflect the latest release, ensuring clarity and consistency for both users and developers.
+
 
 ## [v3.4.6] - 2025-12-04
 
