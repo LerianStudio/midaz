@@ -35,6 +35,7 @@ type MetadataIndexHandler struct {
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		409				{object}	mmodel.Error						"Conflict: Metadata index already exists"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [post]
 func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {

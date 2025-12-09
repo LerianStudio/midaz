@@ -1630,6 +1630,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "409": {
+                        "description": "Conflict: Metadata index already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
