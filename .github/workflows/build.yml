@@ -18,7 +18,7 @@ env:
 
 jobs:
   detect_changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       matrix: ${{ steps.changed-paths.outputs.matrix }}
     name: Detect changed paths
@@ -38,7 +38,7 @@ jobs:
   build_and_publish:
     needs: detect_changes
     if: needs.detect_changes.outputs.matrix != '[]'  # Skip if no relevant changes
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       matrix:
         app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}  # Build each changed app
@@ -48,8 +48,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4  # Checkout repository code
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3  # Enable multi-arch builds
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -70,7 +70,7 @@ jobs:
       # ----------------- Push final multi-arch image -----------------
 
       - name: Build and Push Docker image (Multi-Arch)
-        uses: docker/build-push-action@v5
+        uses: useblacksmith/build-push-action@v2
         with:
           context: .
           file: ${{ matrix.app.working_dir }}/Dockerfile
@@ -100,7 +100,7 @@ jobs:
   update_gitops:
     needs: [build_and_publish]
     if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
         with:

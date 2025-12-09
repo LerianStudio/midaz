@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       console: ${{ steps.changes.outputs.console }}
     steps:
@@ -49,7 +49,7 @@ jobs:
     name: Run npm audit and fix vulnerabilities
     needs: detect-changes
     if: needs.detect-changes.outputs.console == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     defaults:
       run:
         working-directory: components/console
@@ -85,7 +85,7 @@ jobs:
     name: Run Unit Tests for Console
     needs: detect-changes
     if: needs.detect-changes.outputs.console == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     defaults:
       run:
         working-directory: components/console

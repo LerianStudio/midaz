@@ -25,7 +25,7 @@ permissions:
 jobs:
   integration_tests_go:
     name: Go Integration test
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       # Checkout the repository code
       - name: Checkout
@@ -45,7 +45,7 @@ jobs:
 
   integration_tests_console:
     name: Console Integration test
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     defaults:
       run:
         working-directory: components/console
@@ -76,7 +76,7 @@ jobs:
         run: npm test
 
   publish_release:
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [integration_tests_go, integration_tests_console]
     environment:
       name: create_release
@@ -179,7 +179,7 @@ jobs:
   # Generate changelog with gptchangelog custom module
   generate_changelog:
     name: 📝 Generate AI-powered Changelog
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     needs: publish_release
     steps:
       - uses: actions/create-github-app-token@v1

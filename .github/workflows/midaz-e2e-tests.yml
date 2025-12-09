@@ -8,7 +8,7 @@ on:
 jobs:
   midaz-e2e-tests:
     name: Run Midaz E2E Tests
-    runs-on: firmino-gh-actions-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 

@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       onboarding: ${{ steps.changes.outputs.onboarding }}
       transaction: ${{ steps.changes.outputs.transaction }}
@@ -41,7 +41,7 @@ jobs:
     name: Run CodeQL to Midaz
     needs: detect-changes
     if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -71,7 +71,7 @@ jobs:
     name: Run GolangCI-Lint to Midaz
     needs: detect-changes
     if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 
@@ -92,7 +92,7 @@ jobs:
     name: Run GoSec to Midaz
     needs: detect-changes
     if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 
@@ -110,7 +110,7 @@ jobs:
     name: Run Unit Tests to Midaz
     needs: detect-changes
     if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 
