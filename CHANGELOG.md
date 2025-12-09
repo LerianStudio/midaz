@@ -1,3 +1,22 @@
+## [v3.5.0-beta.17] - 2025-12-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.16...v3.5.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: The backend now includes improved alias enrichment with advanced tracing and error handling. This enhancement provides users with more reliable and informative alias management, facilitating smoother operations and easier debugging when issues arise.
+
+### 🐛 Bug Fixes
+- **Frontend Stability**: Updated console dependencies to resolve compatibility issues, resulting in fewer disruptions and a more responsive user interface.
+- **Transaction Reliability**: Fixed an issue where pending transaction locks were not removed after errors, ensuring transactions are processed correctly and reducing the likelihood of system hang-ups.
+- **Balance Accuracy**: Addressed a bug causing errors after balance updates by removing unnecessary unlocking, which improves transaction reliability and user confidence in balance accuracy.
+- **Documentation Accuracy**: Corrected version information in configuration and documentation, providing users with accurate guidance and system references.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Routine updates to OpenTelemetry and related dependencies ensure compatibility with the latest standards and improve system observability, aiding in performance monitoring and troubleshooting.
+- **Code Quality Improvements**: Comprehensive code linting and refactoring enhance code quality and maintainability, reducing potential errors and improving the overall development experience.
+
+
 ## [v3.5.0-beta.16] - 2025-12-05
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.15...v3.5.0-beta.16)
