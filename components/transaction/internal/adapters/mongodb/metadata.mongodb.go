@@ -514,6 +514,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
+	defer spanDelete.End()
 
 	_, err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
@@ -521,8 +522,6 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 
 		return err
 	}
-
-	spanDelete.End()
 
 	logger.Infof("Deleted index %s on collection %s", indexName, collection)
 

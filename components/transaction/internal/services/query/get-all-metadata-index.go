@@ -25,10 +25,12 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 	var metadataIndexesResponse []*mmodel.MetadataIndex
 
 	entitiesToQuery := mmodel.GetValidMetadataIndexEntities()
+
 	if filter.EntityName != nil && *filter.EntityName != "" {
 		if !mmodel.IsValidMetadataIndexEntity(*filter.EntityName) {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
 		}
+
 		entitiesToQuery = []string{*filter.EntityName}
 	}
 
