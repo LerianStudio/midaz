@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Components to process
-COMPONENTS=("onboarding" "transaction")
+COMPONENTS=("onboarding" "transaction" "crm")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
