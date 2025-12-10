@@ -36,5 +36,9 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 		return nil, err
 	}
 
+	for _, alias := range aliases {
+		uc.enrichAliasWithLinkType(ctx, organizationID, alias)
+	}
+
 	return aliases, nil
 }

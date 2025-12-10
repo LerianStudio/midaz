@@ -1,3 +1,113 @@
+## [v3.5.0-beta.17] - 2025-12-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.16...v3.5.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: The backend now includes improved alias enrichment with advanced tracing and error handling. This enhancement provides users with more reliable and informative alias management, facilitating smoother operations and easier debugging when issues arise.
+
+### 🐛 Bug Fixes
+- **Frontend Stability**: Updated console dependencies to resolve compatibility issues, resulting in fewer disruptions and a more responsive user interface.
+- **Transaction Reliability**: Fixed an issue where pending transaction locks were not removed after errors, ensuring transactions are processed correctly and reducing the likelihood of system hang-ups.
+- **Balance Accuracy**: Addressed a bug causing errors after balance updates by removing unnecessary unlocking, which improves transaction reliability and user confidence in balance accuracy.
+- **Documentation Accuracy**: Corrected version information in configuration and documentation, providing users with accurate guidance and system references.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Routine updates to OpenTelemetry and related dependencies ensure compatibility with the latest standards and improve system observability, aiding in performance monitoring and troubleshooting.
+- **Code Quality Improvements**: Comprehensive code linting and refactoring enhance code quality and maintainability, reducing potential errors and improving the overall development experience.
+
+
+## [v3.5.0-beta.16] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.15...v3.5.0-beta.16)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Participant Data Management**: We've added a new 'participant document' field to our database model, allowing for more comprehensive handling of participant-specific documents. This enhancement enables better data organization and retrieval, improving user interactions with participant data.
+
+### 🐛 Bug Fixes
+- **Data Consistency in Alias Model**: Fixed an issue where the 'participant document' field was inconsistently stored due to an incorrect 'omitempty' tag. This ensures all participant data is reliably saved and available when needed.
+- **Code Quality Improvements**: Resolved various lint errors across the codebase, enhancing overall stability and maintainability.
+
+### 📚 Documentation
+- **Updated Documentation**: The documentation now includes detailed guidance on the new participant document handling capabilities, ensuring developers and users can easily understand and implement the new features.
+
+### 🔧 Maintenance
+- **Changelog Updates**: We've ensured the changelog accurately reflects all recent changes, providing a reliable resource for tracking modifications and understanding their impacts.
+
+
+## [v3.5.0-beta.15] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.14...v3.5.0-beta.15)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security and Stability**: Updated critical dependencies including 'jws', 'jwa', 'next', 'react', and 'react-dom' to their latest versions. These updates address known security vulnerabilities and compatibility issues, ensuring a more secure and stable environment for your applications.
+- **Transaction Display Accuracy**: Fixed an issue with transaction status handling in the data table. This correction ensures that the transaction information displayed is accurate and reliable, eliminating previous inconsistencies.
+
+### 🔧 Maintenance
+- **Code Quality**: Removed unnecessary console logs from the transaction fetch process. This cleanup reduces console noise, making it easier to debug and maintain the code.
+- **Changelog Updates**: Updated the CHANGELOG file to reflect recent changes and improvements, keeping documentation current and helpful for tracking project updates.
+
+### ✨ Improvements
+- **Transaction Status Handling**: We've added new statuses 'Pending' and 'Other' to the transaction interface, complete with translations. This enhancement allows you to track your transactions more accurately and understand their current state, improving your overall experience.
+
+
+## [v3.5.0-beta.14] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.13...v3.5.0-beta.14)
+Contributors: dependabot[bot], lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: Revised the CHANGELOG to include the latest changes and improvements. This ensures that users and developers have clear and updated information on project modifications, aiding in better understanding and tracking of project evolution.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded the `go-redis` library from version 9.17.0 to 9.17.2. This update brings minor improvements and bug fixes, enhancing the stability and performance of applications using Redis for data storage and caching. Keeping dependencies current is crucial for security and compatibility.
+
+
+## [v3.5.0-beta.13] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.12...v3.5.0-beta.13)
+Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: A new closing date field in the MongoDB model allows for better lifecycle management of aliases, giving users more control over their alias operations.
+- **Comprehensive Link Functionality**: Users can now manage alias link associations with improved validation and repository methods, providing more flexibility and control.
+
+### 🐛 Bug Fixes
+- **Accurate Date Handling**: Resolved issues with alias closing date validation, ensuring precise date management and reducing errors.
+- **Improved Alias Creation**: Enhanced error handling for invalid link types, leading to more reliable alias creation processes.
+- **Data Integrity**: Fixed issues with nil values in the holder link entity, ensuring consistent data integrity.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
+- **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
+
+## [v3.4.7] - 2025-12-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
+Contributors: Clara Tersi
+
+### 🐛 Bug Fixes
+- **Transaction Handling**: Fixed an issue where pending transaction locks were not removed after errors occurred. This ensures smoother transaction processes and prevents unnecessary restrictions, allowing users to continue their activities seamlessly.
+- **Account Management**: Addressed a problem with incorrect unlocking after balance updates, enhancing the accuracy and reliability of account balances.
+
+### 🔧 Maintenance
+- **Dependencies Update**: Updated console dependencies to the latest versions. This change ensures compatibility with the latest improvements and security patches, contributing to a more secure and efficient system.
+- **Documentation and Configuration**: Updated version information across documentation and configuration files to reflect the latest release, ensuring clarity and consistency for both users and developers.
+
+
+## [v3.4.6] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Frontend/Dependencies**: Updated Next.js to version 15.5.7 and React to version 19.1.2. These updates resolve previous compatibility issues, ensuring a more stable and reliable user experience. Users will notice smoother performance and fewer disruptions when using the application.
+
+### 🔧 Maintenance
+- **Changelog**: The CHANGELOG has been updated to reflect recent changes and improvements, ensuring users and developers have access to the latest information about the project's evolution. This aids in better understanding and tracking of updates, contributing to a more informed user base.
+
 ## [v3.5.0-beta.12] - 2025-12-01
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.11...v3.5.0-beta.12)

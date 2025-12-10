@@ -89,7 +89,9 @@ const getBadgeVariant = (status: string) =>
 
 enum Status {
   APPROVED = 'APPROVED',
-  CANCELED = 'CANCELED'
+  CANCELED = 'CANCELED',
+  PENDING = 'PENDING',
+  OTHER = 'OTHER'
 }
 
 const statusMessages = defineMessages({
@@ -100,6 +102,14 @@ const statusMessages = defineMessages({
   [Status.CANCELED]: {
     id: 'status.canceled',
     defaultMessage: 'Canceled'
+  },
+  [Status.PENDING]: {
+    id: 'status.pending',
+    defaultMessage: 'Pending'
+  },
+  [Status.OTHER]: {
+    id: 'status.other',
+    defaultMessage: 'Other'
   }
 })
 
@@ -163,7 +173,8 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
           <Badge variant={badgeVariant}>
             {capitalizeFirstLetter(
               intl.formatMessage(
-                statusMessages[code as keyof typeof statusMessages]
+                statusMessages[code as keyof typeof statusMessages] ||
+                  statusMessages[Status.OTHER]
               )
             )}
           </Badge>
@@ -176,8 +187,9 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                disabled={transaction.original.status.code !== Status.APPROVED}
                 variant="secondary"
-                className="h-auto w-max p-2"
+                className={'h-auto w-max p-2'}
                 data-testid="actions"
               >
                 <MoreVertical size={16} />

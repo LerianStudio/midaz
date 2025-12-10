@@ -637,6 +637,8 @@
   "signIn.toast.error": "Credenciais inválidas.",
   "status.approved": "Aprovada",
   "status.canceled": "Cancelada",
+  "status.pending": "Pendente",
+  "status.other": "Outro",
   "success.accountTypes.created": "Tipo de conta {accountTypeName} criado com sucesso",
   "success.accountTypes.updated": "Tipo de conta {accountTypeName} atualizado com sucesso",
   "success.accounts.created": "Conta {accountName} criada com sucesso",

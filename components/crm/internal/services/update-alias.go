@@ -27,9 +27,47 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	logger.Infof("Trying to update alias: %v", id.String())
 
 	alias := &mmodel.Alias{
-		Metadata:       uai.Metadata,
-		BankingDetails: uai.BankingDetails,
-		UpdatedAt:      time.Now(),
+		Metadata:            uai.Metadata,
+		BankingDetails:      uai.BankingDetails,
+		ParticipantDocument: uai.ParticipantDocument,
+		UpdatedAt:           time.Now(),
+	}
+
+	if uai.ClosingDate != nil {
+		err := uc.validateAliasClosingDate(ctx, organizationID, holderID, id, uai.ClosingDate)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to validate alias closing date", err)
+
+			logger.Errorf("Failed to validate alias closing date: %v", err)
+
+			return nil, err
+		}
+
+		alias.ClosingDate = uai.ClosingDate
+	}
+
+	var newHolderLink *mmodel.HolderLink
+
+	if uai.AddHolderLink != nil {
+		linkHolderID, err := uuid.Parse(uai.AddHolderLink.HolderID)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID for new link", err)
+			logger.Errorf("Failed to parse holder ID for new link: %v", err)
+
+			return nil, err
+		}
+
+		newHolderLink, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to add holder link to alias", err)
+			logger.Errorf("Failed to add holder link to alias: %v", err)
+
+			return nil, err
+		}
+	}
+
+	if newHolderLink != nil {
+		alias.HolderLinks = append(alias.HolderLinks, newHolderLink)
 	}
 
 	updatedAlias, err := uc.AliasRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)
@@ -40,6 +78,8 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 		return nil, err
 	}
+
+	uc.enrichAliasWithLinkType(ctx, organizationID, updatedAlias)
 
 	return updatedAlias, nil
 }

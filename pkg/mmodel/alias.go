@@ -1,8 +1,9 @@
 package mmodel
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreateAliasInput is a struct designed to encapsulate request create payload data.
@@ -14,6 +15,10 @@ type CreateAliasInput struct {
 	LedgerID string `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	// Unique identifier of the related account on ledger.
 	AccountID string `json:"accountId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
+	// Type of relationship between the holder and the alias (TpVinc). Optional - if not provided, no HolderLink will be created.
+	LinkType *string `json:"linkType,omitempty" validate:"omitempty,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"PRIMARY_HOLDER"`
+	// Document of the participant (identifies which financial-group entity owns the relationship)
+	ParticipantDocument *string `json:"participantDocument" validate:"required,cnpj" example:"12345678912345"`
 	// An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	// Object with banking information of the related account.
@@ -28,25 +33,45 @@ type UpdateAliasInput struct {
 	// An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// Object with banking information of the related account.
-	BankingDetails *BankingDetails `json:"bankingDetails" `
+	BankingDetails *BankingDetails `json:"bankingDetails"`
+	// Add a new holder link to the alias (optional).
+	AddHolderLink *AddHolderLinkInput `json:"addHolderLink,omitempty"`
+	// The date the alias was closed.
+	ClosingDate *time.Time `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
+	// Document of the participant (identifies which financial-group entity owns the relationship)
+	ParticipantDocument *string `json:"participantDocument,omitempty" validate:"omitempty,cnpj" example:"12345678912345"`
 } // @name UpdateAliasRequest
+
+// AddHolderLinkInput is a struct designed to add a new holder link to an alias.
+//
+// swagger:model AddHolderLinkInput
+// @Description AddHolderLinkInput payload
+type AddHolderLinkInput struct {
+	// Unique identifier of the holder to be linked.
+	HolderID string `json:"holderId" validate:"required,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// Type of relationship between the holder and the alias (TpVinc).
+	LinkType string `json:"linkType" validate:"required,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"LEGAL_REPRESENTATIVE"`
+} // @name AddHolderLinkInput
 
 // Alias is a struct designed to store account data.
 //
 // swagger:model Alias
 // @Description AliasResponse payload
 type Alias struct {
-	ID             *uuid.UUID      `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Document       *string         `json:"document,omitempty" example:"91315026015"`
-	Type           *string         `json:"type,omitempty" example:"LEGAL_PERSON"`
-	LedgerID       *string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	AccountID      *string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
-	HolderID       *uuid.UUID      `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
-	Metadata       map[string]any  `json:"metadata,omitempty"`
-	BankingDetails *BankingDetails `json:"bankingDetails,omitempty"`
-	CreatedAt      time.Time       `json:"createdAt" example:"2025-01-01T00:00:00Z"`
-	UpdatedAt      time.Time       `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
-	DeletedAt      *time.Time      `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
+	ID                  *uuid.UUID      `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Document            *string         `json:"document,omitempty" example:"91315026015"`
+	Type                *string         `json:"type,omitempty" example:"LEGAL_PERSON"`
+	LedgerID            *string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	AccountID           *string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderID            *uuid.UUID      `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
+	HolderLinks         []*HolderLink   `json:"holderLinks,omitempty" example:"[]"`
+	Metadata            map[string]any  `json:"metadata,omitempty"`
+	BankingDetails      *BankingDetails `json:"bankingDetails,omitempty"`
+	ClosingDate         *time.Time      `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
+	ParticipantDocument *string         `json:"participantDocument,omitempty" example:"12345678901234"`
+	CreatedAt           time.Time       `json:"createdAt" example:"2025-01-01T00:00:00Z"`
+	UpdatedAt           time.Time       `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
+	DeletedAt           *time.Time      `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name AliasResponse
 
 // BankingDetails is a struct designed to store account banking details data.
