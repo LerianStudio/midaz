@@ -27,8 +27,8 @@ type HolderHandler struct {
 //	@Produce		json
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
-//	@Param			holder				body		model.CreateHolderInput	true	"Holder Input"
-//	@Success		201					{object}	model.Holder
+//	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
+//	@Success		201					{object}	mmodel.Holder
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -76,7 +76,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"
-//	@Success		200					{object}	model.Holder
+//	@Success		200					{object}	mmodel.Holder
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -124,8 +124,8 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			id					path		string					true	"The unique identifier of the Holder."
-//	@Param			holder				body		model.UpdateHolderInput	true	"Holder Input"
-//	@Success		200					{object}	model.Holder
+//	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
+//	@Success		200					{object}	mmodel.Holder
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -243,7 +243,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Param			include_deleted		query		string	false	"Return includes logically deleted holders."
 //	@Param			external_id			query		string	false	"Filter holders by externalID"
 //	@Param			document			query		string	false	"Filter holders by document"
-//	@Success		200					{object}	model.Pagination{items=[]model.Holder,page=int,limit=int}
+//	@Success		200					{object}	libPostgres.Pagination{items=[]mmodel.Holder,page=int,limit=int}
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
