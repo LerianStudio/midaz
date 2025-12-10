@@ -6,12 +6,12 @@ import (
 	"sort"
 	"testing"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -40,28 +40,28 @@ func TestGetBalances(t *testing.T) {
 	t.Run("get balances from redis and database", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
-		toAmount2 := libTransaction.Amount{
+		toAmount2 := pkgTransaction.Amount{
 			Asset:     "EUR",
 			Value:     decimal.NewFromFloat(40),
 			Operation: constant.CREDIT,
 		}
-		toAmount3 := libTransaction.Amount{
+		toAmount3 := pkgTransaction.Amount{
 			Asset:     "GBP",
 			Value:     decimal.NewFromFloat(30),
 			Operation: constant.CREDIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
-			To: map[string]libTransaction.Amount{
+			To: map[string]pkgTransaction.Amount{
 				"alias2": toAmount2,
 				"alias3": toAmount3,
 			},
@@ -203,24 +203,24 @@ func TestGetBalances(t *testing.T) {
 	t.Run("all balances from redis", func(t *testing.T) {
 		// Test data
 		aliases := []string{"alias1#default", "alias2#default"}
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		toAmount := libTransaction.Amount{
+		toAmount := pkgTransaction.Amount{
 			Asset:     "EUR",
 			Value:     decimal.NewFromFloat(40),
 			Operation: constant.CREDIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
-			To: map[string]libTransaction.Amount{
+			To: map[string]pkgTransaction.Amount{
 				"alias2": toAmount,
 			},
 		}
@@ -339,15 +339,15 @@ func TestGetAccountAndLock(t *testing.T) {
 		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
 		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
 
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: []string{"alias1"},
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
 		}

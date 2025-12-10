@@ -8,6 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -98,6 +99,29 @@ type Balance struct {
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
+func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
+	return &pkgTransaction.Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   b.AllowSending,
+		AllowReceiving: b.AllowReceiving,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+		DeletedAt:      b.DeletedAt,
+		Metadata:       b.Metadata,
+	}
 }
 
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
@@ -405,7 +429,7 @@ type BalanceErrorResponse struct {
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
-	Amount      libTransaction.Amount
+	Amount      pkgTransaction.Amount
 	InternalKey string
 }
 
@@ -416,9 +440,9 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
+	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
-	Validate          *libTransaction.Responses  `json:"validate"`
+	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 }

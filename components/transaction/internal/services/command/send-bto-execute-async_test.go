@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
@@ -51,17 +51,17 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 
 	// Create test data
 	// Using the correct struct for transaction data
-	parseDSL := &libTransaction.Transaction{}
+	parseDSL := &pkgTransaction.Transaction{}
 
-	validate := &libTransaction.Responses{
+	validate := &pkgTransaction.Responses{
 		Aliases: []string{"alias1", "alias2"},
-		From: map[string]libTransaction.Amount{
+		From: map[string]pkgTransaction.Amount{
 			"alias1": {
 				Asset: "USD",
 				Value: decimal.NewFromInt(50), // Value should be an int64
 			},
 		},
-		To: map[string]libTransaction.Amount{
+		To: map[string]pkgTransaction.Amount{
 			"alias2": {
 				Asset: "EUR",
 				Value: decimal.NewFromInt(40), // Value should be an int64
