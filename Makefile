@@ -116,6 +116,7 @@ help:
 	@echo ""
 	@echo "Setup Commands:"
 	@echo "  make set-env                     - Copy .env.example to .env for all components"
+	@echo "  make clear-envs                  - Remove .env files from all components"
 	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
@@ -136,9 +137,9 @@ help:
 	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
 	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
 	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
-	@echo "  make up-ledger                    - Start unified ledger service (onboarding + transaction in one process)"
-	@echo "  make down-ledger                  - Stop unified ledger service"
-	@echo "  make restart-ledger               - Restart unified ledger service"
+	@echo "  make up-unified-backend           - Start unified ledger service (onboarding + transaction in one process)"
+	@echo "  make down-unified-backend         - Stop unified ledger service"
+	@echo "  make restart-unified-backend      - Restart unified ledger service"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo ""
 	@echo ""
@@ -253,33 +254,33 @@ restart-backend:
 	@echo "[ok] Backend services restarted successfully ✔️"
 
 #-------------------------------------------------------
-# Unified Ledger Commands
+# Unified Backend Commands
 #-------------------------------------------------------
 
-.PHONY: up-ledger
-up-ledger:
-	$(call print_title,Starting unified ledger service)
+.PHONY: up-unified-backend
+up-unified-backend:
+	$(call print_title,Starting unified backend service)
 	$(call check_env_files)
 	@echo "Starting infrastructure services first..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting unified ledger (onboarding + transaction)..."
+	@echo "Starting unified backend (onboarding + transaction)..."
 	@cd $(LEDGER_DIR) && $(MAKE) up
-	@echo "[ok] Unified ledger service started successfully ✔️"
+	@echo "[ok] Unified backend service started successfully ✔️"
 
-.PHONY: down-ledger
-down-ledger:
-	$(call print_title,Stopping unified ledger service)
-	@echo "Stopping unified ledger..."
+.PHONY: down-unified-backend
+down-unified-backend:
+	$(call print_title,Stopping unified backend service)
+	@echo "Stopping unified backend..."
 	@cd $(LEDGER_DIR) && $(MAKE) down
 	@echo "Stopping infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "[ok] Unified ledger service stopped successfully ✔️"
+	@echo "[ok] Unified backend service stopped successfully ✔️"
 
-.PHONY: restart-ledger
-restart-ledger:
-	$(call print_title,Restarting unified ledger service)
-	@make down-ledger && make up-ledger
-	@echo "[ok] Unified ledger service restarted successfully ✔️"
+.PHONY: restart-unified-backend
+restart-unified-backend:
+	$(call print_title,Restarting unified backend service)
+	@make down-unified-backend && make up-unified-backend
+	@echo "[ok] Unified backend service restarted successfully ✔️"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -418,6 +419,19 @@ set-env:
 		fi; \
 	done
 	@echo "[ok] Environment files set up successfully"
+
+.PHONY: clear-envs
+clear-envs:
+	$(call print_title,Removing environment files)
+	@for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/.env" ]; then \
+			echo "Removing .env in $$dir"; \
+			rm "$$dir/.env"; \
+		else \
+			echo "No .env found in $$dir"; \
+		fi; \
+	done
+	@echo "[ok] Environment files removed successfully"
 
 #-------------------------------------------------------
 # Service Commands
