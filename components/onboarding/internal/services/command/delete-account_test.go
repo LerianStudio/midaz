@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,11 +21,11 @@ func TestDeleteAccountByID(t *testing.T) {
 
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPCRepo := grpcout.NewMockRepository(ctrl)
+	mockBalanceGRPCRepo := mbootstrap.NewMockBalancePort(ctrl)
 
 	uc := &UseCase{
 		AccountRepo:     mockAccountRepo,
-		BalanceGRPCRepo: mockBalanceGRPCRepo,
+		BalancePort: mockBalanceGRPCRepo,
 	}
 
 	ctx := context.Background()
@@ -51,7 +50,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 					Return(nil).
 					Times(1)
 
@@ -94,7 +93,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), "token", gomock.AssignableToTypeOf(&balanceproto.DeleteAllBalancesByAccountIDRequest{})).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 					Return(nil).
 					Times(1)
 
