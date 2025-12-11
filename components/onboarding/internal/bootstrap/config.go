@@ -40,6 +40,7 @@ func envFallback(prefixed, fallback string) string {
 	if prefixed != "" {
 		return prefixed
 	}
+
 	return fallback
 }
 
@@ -48,6 +49,7 @@ func envFallbackInt(prefixed, fallback int) int {
 	if prefixed != 0 {
 		return prefixed
 	}
+
 	return fallback
 }
 
@@ -314,12 +316,14 @@ func InitServersWithOptions(opts *Options) *Service {
 	// - If UnifiedMode is true, validate and use provided ports for in-process calls
 	// - Otherwise, use gRPC adapter to call the separate transaction service
 	var balancePort mbootstrap.BalancePort
+
 	if opts != nil && opts.UnifiedMode {
 		if opts.BalancePort == nil {
 			logger.Fatal("UnifiedMode requires BalancePort to be provided")
 		}
 
 		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
+
 		balancePort = opts.BalancePort
 	} else {
 		if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
@@ -332,6 +336,7 @@ func InitServersWithOptions(opts *Options) *Service {
 		}
 
 		logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
+
 		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
 	}
 

@@ -33,6 +33,7 @@ func InitServiceWithOptions(opts *Options) mbootstrap.Service {
 	if opts == nil {
 		return bootstrap.InitServers()
 	}
+
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
 		UnifiedMode: opts.UnifiedMode,
 		BalancePort: opts.BalancePort,

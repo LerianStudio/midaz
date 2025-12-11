@@ -40,6 +40,7 @@ func envFallback(prefixed, fallback string) string {
 	if prefixed != "" {
 		return prefixed
 	}
+
 	return fallback
 }
 
@@ -48,6 +49,7 @@ func envFallbackInt(prefixed, fallback int) int {
 	if prefixed != 0 {
 		return prefixed
 	}
+
 	return fallback
 }
 
