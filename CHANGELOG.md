@@ -1,3 +1,15 @@
+## [v3.5.0-beta.19] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.18...v3.5.0-beta.19)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Improved Test Reliability**: We've refactored the internal key generation process used in balance retrieval tests. This improvement makes our test suite more maintainable and efficient, resulting in faster development cycles and more accurate testing of balance-related functionalities.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The changelog has been refreshed to include the latest updates and improvements. This ensures transparency and keeps all stakeholders informed about the project's progress and changes.
+
+
 ## [v3.5.0-beta.18] - 2025-12-10
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.17...v3.5.0-beta.18)
