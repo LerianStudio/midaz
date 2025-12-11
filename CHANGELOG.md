@@ -1,3 +1,19 @@
+## [v3.5.0-beta.20] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.19...v3.5.0-beta.20)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend/Database**: Fixed an issue where stale balances were incorrectly processed, ensuring users receive up-to-date and accurate balance information.
+
+### ⚡ Performance
+- **Backend/Database**: Improved database efficiency by implementing filtering of stale balances, resulting in faster data access and reduced processing time for balance updates.
+
+### 🔧 Maintenance
+- **Testing**: Enhanced balance transaction tests with a mock RedisRepo to validate stale balance handling, improving software robustness and reliability.
+- **Release Management**: Updated the CHANGELOG to provide clear and current information on recent improvements and fixes.
+
+
 ## [v3.5.0-beta.19] - 2025-12-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.18...v3.5.0-beta.19)
