@@ -5,8 +5,8 @@ SERVICE_NAME := ledger-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
-# Ensure artifacts directory exists
-$(shell mkdir -p $(ARTIFACTS_DIR))
+# Ensure build/output directories exist
+$(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
 
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
