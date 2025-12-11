@@ -1,3 +1,46 @@
+## [v3.5.0-beta.20] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.19...v3.5.0-beta.20)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend/Database**: Fixed an issue where stale balances were incorrectly processed, ensuring users receive up-to-date and accurate balance information.
+
+### ⚡ Performance
+- **Backend/Database**: Improved database efficiency by implementing filtering of stale balances, resulting in faster data access and reduced processing time for balance updates.
+
+### 🔧 Maintenance
+- **Testing**: Enhanced balance transaction tests with a mock RedisRepo to validate stale balance handling, improving software robustness and reliability.
+- **Release Management**: Updated the CHANGELOG to provide clear and current information on recent improvements and fixes.
+
+
+## [v3.5.0-beta.19] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.18...v3.5.0-beta.19)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Improved Test Reliability**: We've refactored the internal key generation process used in balance retrieval tests. This improvement makes our test suite more maintainable and efficient, resulting in faster development cycles and more accurate testing of balance-related functionalities.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The changelog has been refreshed to include the latest updates and improvements. This ensures transparency and keeps all stakeholders informed about the project's progress and changes.
+
+
+## [v3.5.0-beta.18] - 2025-12-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.17...v3.5.0-beta.18)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Balance Synchronization Worker**: Automatically syncs account balances to provide users with the most current financial information, enhancing trust and reliability. This feature is crucial for users who need accurate and timely financial data.
+
+### 📚 Documentation
+- **Balance Sync Worker Configuration**: Updated documentation now includes detailed instructions on configuring and using the new balance sync worker. This ensures users can easily set up and benefit from the new feature, reducing setup time and potential configuration errors.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes, ensuring transparency and effective communication with all stakeholders.
+
+
 ## [v3.5.0-beta.17] - 2025-12-09
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.16...v3.5.0-beta.17)

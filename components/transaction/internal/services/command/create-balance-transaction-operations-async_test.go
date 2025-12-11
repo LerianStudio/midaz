@@ -156,6 +156,16 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
+			Return(nil, nil).
+			AnyTimes()
+
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -283,6 +293,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
+
 		// Mock BalanceRepo.BalancesUpdate to return an error
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -380,6 +396,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID,
 			QueueData:      queueData,
 		}
+
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
 
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
@@ -566,6 +588,16 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
+			Return(nil, nil).
+			AnyTimes()
+
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -748,6 +780,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
+
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -902,6 +940,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID,
 			QueueData:      queueData,
 		}
+
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
 
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
@@ -1059,6 +1103,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID,
 			QueueData:      queueData,
 		}
+
+		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
 
 		// Mock BalanceRepo.BalancesUpdate
 		mockBalanceRepo.EXPECT().
@@ -1226,6 +1276,12 @@ func TestCreateBTOAsync(t *testing.T) {
 		LedgerID:       ledgerID,
 		QueueData:      queueData,
 	}
+
+	// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+		Return(nil, nil).
+		AnyTimes()
 
 	// Mock all the necessary calls to avoid nil pointer dereference
 	mockBalanceRepo.EXPECT().
