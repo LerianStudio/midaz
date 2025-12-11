@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,12 +49,12 @@ func TestConvertBalancesToLibBalances(t *testing.T) {
 	tests := []struct {
 		name     string
 		balances []*Balance
-		want     []*pkgTransaction.Balance
+		want     []*libTransaction.Balance
 	}{
 		{
 			name:     "empty balances",
 			balances: []*Balance{},
-			want:     []*pkgTransaction.Balance{},
+			want:     []*libTransaction.Balance{},
 		},
 		{
 			name: "single balance",
@@ -78,7 +78,7 @@ func TestConvertBalancesToLibBalances(t *testing.T) {
 					Metadata:       map[string]any{"key": "value"},
 				},
 			},
-			want: []*pkgTransaction.Balance{
+			want: []*libTransaction.Balance{
 				{
 					ID:             "balance-123",
 					OrganizationID: "org-123",
@@ -139,7 +139,7 @@ func TestConvertBalancesToLibBalances(t *testing.T) {
 					Metadata:       map[string]any{"key2": "value2"},
 				},
 			},
-			want: []*pkgTransaction.Balance{
+			want: []*libTransaction.Balance{
 				{
 					ID:             "balance-123",
 					OrganizationID: "org-123",
@@ -195,7 +195,7 @@ func TestBalance_ConvertToLibBalance(t *testing.T) {
 	tests := []struct {
 		name    string
 		balance *Balance
-		want    *pkgTransaction.Balance
+		want    *libTransaction.Balance
 	}{
 		{
 			name: "balance with all fields",
@@ -217,7 +217,7 @@ func TestBalance_ConvertToLibBalance(t *testing.T) {
 				DeletedAt:      nil,
 				Metadata:       map[string]any{"key": "value"},
 			},
-			want: &pkgTransaction.Balance{
+			want: &libTransaction.Balance{
 				ID:             "balance-123",
 				OrganizationID: "org-123",
 				LedgerID:       "ledger-456",
@@ -256,7 +256,7 @@ func TestBalance_ConvertToLibBalance(t *testing.T) {
 				DeletedAt:      &deletedAt,
 				Metadata:       map[string]any{"key2": "value2"},
 			},
-			want: &pkgTransaction.Balance{
+			want: &libTransaction.Balance{
 				ID:             "balance-456",
 				OrganizationID: "org-456",
 				LedgerID:       "ledger-789",
