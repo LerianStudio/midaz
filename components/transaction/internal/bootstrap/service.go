@@ -53,7 +53,12 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 		{Name: "Transaction Fiber Server", Runnable: app.Server},
 		{Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer},
 		{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
-		{Name: "Transaction Balance Sync Worker", Runnable: app.BalanceSyncWorker},
+	}
+
+	if app.BalanceSyncWorkerEnabled {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Balance Sync Worker", Runnable: app.BalanceSyncWorker,
+		})
 	}
 
 	if !excludeGRPC {
