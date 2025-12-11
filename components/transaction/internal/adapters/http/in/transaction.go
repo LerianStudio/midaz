@@ -734,7 +734,7 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 
 			return time.Time{}, err
 		} else {
-			transactionDate = *parserDSL.TransactionDate
+			transactionDate = parserDSL.TransactionDate.Time()
 		}
 	}
 

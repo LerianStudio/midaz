@@ -96,7 +96,7 @@ type CreateTransactionInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -187,7 +187,7 @@ type CreateTransactionSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate time.Time `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -491,7 +491,7 @@ func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
 		Code:                     cti.Code,
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
-		TransactionDate:          &cti.TransactionDate,
+		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
 	}
 
@@ -644,7 +644,7 @@ type CreateTransactionInflowInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including distribution only (no source)
 	// required: true
@@ -723,7 +723,7 @@ type CreateTransactionInflowSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate time.Time `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
 
 	// Send operation details including distribution only
 	// required: true
@@ -799,7 +799,7 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transacti
 		Description:              c.Description,
 		Code:                     c.Code,
 		Metadata:                 c.Metadata,
-		TransactionDate:          &c.TransactionDate,
+		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		Send: pkgTransaction.Send{
 			Asset:      c.Send.Asset,
@@ -850,7 +850,7 @@ type CreateTransactionOutflowInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source only (no distribution)
 	// required: true
@@ -934,7 +934,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate time.Time `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
 
 	// Send operation details including source only
 	// required: true
@@ -1011,7 +1011,7 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transac
 		Code:                     c.Code,
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
-		TransactionDate:          &c.TransactionDate,
+		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		Send: pkgTransaction.Send{
 			Asset: c.Send.Asset,
