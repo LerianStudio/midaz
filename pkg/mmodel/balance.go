@@ -7,7 +7,6 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
@@ -275,52 +274,6 @@ type BalanceRedis struct {
 
 	// Unique key for the balance
 	Key string `json:"key"`
-}
-
-// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
-func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(balances))
-
-	for _, b := range balances {
-		if b != nil {
-			out = append(out, b.ConvertToLibBalance())
-		}
-	}
-
-	return out
-}
-
-// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
-func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(operations))
-	for _, op := range operations {
-		out = append(out, op.Balance.ConvertToLibBalance())
-	}
-
-	return out
-}
-
-// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
-func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
-	return &libTransaction.Balance{
-		ID:             b.ID,
-		OrganizationID: b.OrganizationID,
-		LedgerID:       b.LedgerID,
-		AccountID:      b.AccountID,
-		Alias:          b.Alias,
-		Key:            b.Key,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Version:        b.Version,
-		AccountType:    b.AccountType,
-		AllowSending:   b.AllowSending,
-		AllowReceiving: b.AllowReceiving,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-		DeletedAt:      b.DeletedAt,
-		Metadata:       b.Metadata,
-	}
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
