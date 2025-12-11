@@ -1,3 +1,18 @@
+## [v3.5.0-beta.18] - 2025-12-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.17...v3.5.0-beta.18)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Balance Synchronization Worker**: Automatically syncs account balances to provide users with the most current financial information, enhancing trust and reliability. This feature is crucial for users who need accurate and timely financial data.
+
+### 📚 Documentation
+- **Balance Sync Worker Configuration**: Updated documentation now includes detailed instructions on configuring and using the new balance sync worker. This ensures users can easily set up and benefit from the new feature, reducing setup time and potential configuration errors.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes, ensuring transparency and effective communication with all stakeholders.
+
+
 ## [v3.5.0-beta.17] - 2025-12-09
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.16...v3.5.0-beta.17)
