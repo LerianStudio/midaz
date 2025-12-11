@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -667,6 +668,12 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 				}
 			}
 
+			if marshaledStr, ok := marshaledValue.(string); ok {
+				if areDatesEqual(originalValue, marshaledStr) {
+					continue
+				}
+			}
+
 			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
@@ -719,6 +726,43 @@ func isDecimalEqual(a, b any) bool {
 func isStringNumeric(s string) bool {
 	_, err := decimal.NewFromString(s)
 	return err == nil
+}
+
+var dateFormats = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05.000Z",
+	"2006-01-02T15:04:05.00Z",
+	"2006-01-02T15:04:05.0Z",
+	"2006-01-02T15:04:05Z",
+	"2006-01-02T15:04:05",
+	"2006-01-02",
+}
+
+func areDatesEqual(a, b string) bool {
+	var timeA, timeB time.Time
+
+	var errA, errB error
+
+	for _, format := range dateFormats {
+		if timeA.IsZero() {
+			timeA, errA = time.Parse(format, a)
+		}
+
+		if timeB.IsZero() {
+			timeB, errB = time.Parse(format, b)
+		}
+
+		if !timeA.IsZero() && !timeB.IsZero() {
+			break
+		}
+	}
+
+	if errA != nil || errB != nil || timeA.IsZero() || timeB.IsZero() {
+		return false
+	}
+
+	return timeA.Equal(timeB)
 }
 
 // compareSlices compares two slices and returns differences.

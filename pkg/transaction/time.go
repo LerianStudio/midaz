@@ -44,7 +44,13 @@ func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	if td.IsZero() {
 		return []byte("null"), nil
 	}
-	return json.Marshal(time.Time(td).Format(time.RFC3339))
+
+	t := time.Time(td)
+	if t.Nanosecond() != 0 {
+		return json.Marshal(t.Format("2006-01-02T15:04:05.000Z07:00"))
+	}
+
+	return json.Marshal(t.Format(time.RFC3339))
 }
 
 func (td TransactionDate) Time() time.Time {
