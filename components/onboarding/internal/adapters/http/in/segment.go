@@ -336,7 +336,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	nil	"Successfully retrieved segments count"
+//	@Success		204				"Successfully retrieved segments count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"

@@ -1503,16 +1503,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1664,16 +1664,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1794,16 +1794,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -1861,16 +1861,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2161,16 +2161,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters

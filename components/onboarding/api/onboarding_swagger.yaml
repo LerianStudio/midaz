@@ -1155,7 +1155,7 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API
+  description: This is a swagger documentation for the Midaz Onboarding API
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
@@ -1823,7 +1823,7 @@ paths:
                 next_cursor:
                   type: string
                 page:
-                  type: object
+                  type: integer
                 prev_cursor:
                   type: string
               type: object
@@ -2560,7 +2560,7 @@ paths:
         required: true
         type: string
       responses:
-        "200":
+        "204":
           description: Successfully retrieved accounts count
         "401":
           description: Unauthorized access
@@ -3736,7 +3736,7 @@ paths:
         required: true
         type: string
       responses:
-        "200":
+        "204":
           description: Successfully retrieved segments count
         "401":
           description: Unauthorized access

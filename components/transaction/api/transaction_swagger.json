@@ -74,12 +74,6 @@
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -88,6 +82,12 @@
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -178,12 +178,6 @@
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -192,6 +186,12 @@
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -313,12 +313,6 @@
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -327,6 +321,12 @@
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -556,12 +556,6 @@
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -570,6 +564,12 @@
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1103,12 +1103,6 @@
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -1117,6 +1111,12 @@
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }

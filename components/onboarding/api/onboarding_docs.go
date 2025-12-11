@@ -1112,7 +1112,7 @@ const docTemplateonboarding = `{
                                             "type": "string"
                                         },
                                         "page": {
-                                            "type": "object"
+                                            "type": "integer"
                                         },
                                         "prev_cursor": {
                                             "type": "string"
@@ -1926,7 +1926,7 @@ const docTemplateonboarding = `{
                     }
                 ],
                 "responses": {
-                    "200": {
+                    "204": {
                         "description": "Successfully retrieved accounts count"
                     },
                     "401": {
@@ -3636,7 +3636,7 @@ const docTemplateonboarding = `{
                     }
                 ],
                 "responses": {
-                    "200": {
+                    "204": {
                         "description": "Successfully retrieved segments count"
                     },
                     "401": {
@@ -5065,7 +5065,7 @@ var SwaggerInfoonboarding = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Midaz Onboarding API",
-	Description:      "This is a swagger documentation for the Midaz Ledger API",
+	Description:      "This is a swagger documentation for the Midaz Onboarding API",
 	InfoInstanceName: "onboarding",
 	SwaggerTemplate:  docTemplateonboarding,
 	LeftDelim:        "{{",

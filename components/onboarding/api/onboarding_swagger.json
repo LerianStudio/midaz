@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "This is a swagger documentation for the Midaz Ledger API",
+        "description": "This is a swagger documentation for the Midaz Onboarding API",
         "title": "Midaz Onboarding API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
@@ -1106,7 +1106,7 @@
                                             "type": "string"
                                         },
                                         "page": {
-                                            "type": "object"
+                                            "type": "integer"
                                         },
                                         "prev_cursor": {
                                             "type": "string"
@@ -1920,7 +1920,7 @@
                     }
                 ],
                 "responses": {
-                    "200": {
+                    "204": {
                         "description": "Successfully retrieved accounts count"
                     },
                     "401": {
@@ -3630,7 +3630,7 @@
                     }
                 ],
                 "responses": {
-                    "200": {
+                    "204": {
                         "description": "Successfully retrieved segments count"
                     },
                     "401": {

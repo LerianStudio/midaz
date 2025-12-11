@@ -80,12 +80,6 @@ const docTemplatetransaction = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -94,6 +88,12 @@ const docTemplatetransaction = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -184,12 +184,6 @@ const docTemplatetransaction = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -198,6 +192,12 @@ const docTemplatetransaction = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -319,12 +319,6 @@ const docTemplatetransaction = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -333,6 +327,12 @@ const docTemplatetransaction = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -562,12 +562,6 @@ const docTemplatetransaction = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -576,6 +570,12 @@ const docTemplatetransaction = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1109,12 +1109,6 @@ const docTemplatetransaction = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -1123,6 +1117,12 @@ const docTemplatetransaction = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }

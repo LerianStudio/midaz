@@ -7,7 +7,7 @@ import (
 
 // @title			Midaz Onboarding API
 // @version		v1.48.0
-// @description	This is a swagger documentation for the Midaz Ledger API
+// @description	This is a swagger documentation for the Midaz Onboarding API
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community
 // @contact.url	https://discord.gg/DnhqKwkGv3
