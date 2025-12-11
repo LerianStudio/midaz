@@ -110,14 +110,14 @@ type Config struct {
 	PrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 
 	// MongoDB - fallback vars for standalone deployment
-	MongoURI          string `env:"MONGO_URI"`
-	MongoDBHost       string `env:"MONGO_HOST"`
-	MongoDBName       string `env:"MONGO_NAME"`
-	MongoDBUser       string `env:"MONGO_USER"`
-	MongoDBPassword   string `env:"MONGO_PASSWORD"`
-	MongoDBPort       string `env:"MONGO_PORT"`
-	MongoDBParameters string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize       int    `env:"MONGO_MAX_POOL_SIZE"`
+	MongoURI                     string `env:"MONGO_URI"`
+	MongoDBHost                  string `env:"MONGO_HOST"`
+	MongoDBName                  string `env:"MONGO_NAME"`
+	MongoDBUser                  string `env:"MONGO_USER"`
+	MongoDBPassword              string `env:"MONGO_PASSWORD"`
+	MongoDBPort                  string `env:"MONGO_PORT"`
+	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
 	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
 	CasdoorClientSecret          string `env:"CASDOOR_CLIENT_SECRET"`
@@ -167,6 +167,8 @@ type Config struct {
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
+	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
+	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -403,15 +405,40 @@ func InitServers() *Service {
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
-	balanceSyncWorker := NewBalanceSyncWorker(redisConnection, logger, useCase)
+
+	const (
+		defaultBalanceSyncWorkerEnabled = false
+		defaultBalanceSyncMaxWorkers    = 5
+	)
+
+	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
+	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
+
+	if !balanceSyncWorkerEnabled {
+		logger.Info("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=false")
+	}
+
+	if balanceSyncMaxWorkers <= 0 {
+		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
+		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
+	}
+
+	var balanceSyncWorker *BalanceSyncWorker
+	if balanceSyncWorkerEnabled {
+		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, useCase, balanceSyncMaxWorkers)
+		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
+	} else {
+		logger.Info("BalanceSyncWorker disabled.")
+	}
 
 	return &Service{
-		Server:             server,
-		ServerGRPC:         serverGRPC,
-		MultiQueueConsumer: multiQueueConsumer,
-		RedisQueueConsumer: redisConsumer,
-		BalanceSyncWorker:  balanceSyncWorker,
-		Logger:             logger,
-		balancePort:        useCase,
+		Server:                   server,
+		ServerGRPC:               serverGRPC,
+		MultiQueueConsumer:       multiQueueConsumer,
+		RedisQueueConsumer:       redisConsumer,
+		BalanceSyncWorker:        balanceSyncWorker,
+		BalanceSyncWorkerEnabled: cfg.BalanceSyncWorkerEnabled,
+		Logger:                   logger,
+		balancePort:              useCase,
 	}
 }

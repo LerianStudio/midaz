@@ -13,6 +13,7 @@ type Service struct {
 	*MultiQueueConsumer
 	*RedisQueueConsumer
 	*BalanceSyncWorker
+	BalanceSyncWorkerEnabled bool
 	libLog.Logger
 
 	// balancePort holds the reference for use in unified ledger mode.
@@ -23,14 +24,19 @@ type Service struct {
 // Run starts the application.
 // This is the only necessary code to run an app in main.go
 func (app *Service) Run() {
-	libCommons.NewLauncher(
+	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
 		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
-		libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker),
 		libCommons.RunApp("gRPC Server", app.ServerGRPC),
-	).Run()
+	}
+
+	if app.BalanceSyncWorkerEnabled {
+		opts = append(opts, libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker))
+	}
+
+	libCommons.NewLauncher(opts...).Run()
 }
 
 // GetRunnables returns all runnable components for composition in unified deployment.
