@@ -24,6 +24,20 @@ import (
 	"github.com/lib/pq"
 )
 
+var assetColumnList = []string{
+	"id",
+	"name",
+	"type",
+	"code",
+	"status",
+	"status_description",
+	"ledger_id",
+	"organization_id",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to asset entities.
 // It defines methods for creating, finding, updating, and deleting assets in the database.
 type Repository interface {
@@ -147,8 +161,26 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_name_or_code.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND (name LIKE $3 OR code = $4) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, name, code)
+	query, args, err := squirrel.Select(assetColumnList...).
+		From("asset").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Or{squirrel.Expr("name LIKE ?", name), squirrel.Eq{"code": code}}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return false, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -190,7 +222,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 	var assets []*mmodel.Asset
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(assetColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
@@ -270,8 +302,26 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_assets_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, pq.Array(ids))
+	query, args, err := squirrel.Select(assetColumnList...).
+		From("asset").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -328,8 +378,23 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
-		organizationID, ledgerID, id)
+	query, args, err := squirrel.Select(assetColumnList...).
+		From("asset").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 

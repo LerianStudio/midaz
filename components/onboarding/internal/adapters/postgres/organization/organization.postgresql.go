@@ -25,6 +25,20 @@ import (
 	"github.com/lib/pq"
 )
 
+var organizationColumnList = []string{
+	"id",
+	"parent_organization_id",
+	"legal_name",
+	"doing_business_as",
+	"legal_document",
+	"address",
+	"status",
+	"status_description",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to organization entities.
 // It defines methods for creating, updating, finding, and deleting organizations.
 type Repository interface {
@@ -272,7 +286,24 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, `SELECT * FROM organization WHERE id = $1 AND deleted_at IS NULL`, id)
+	findQuery := squirrel.Select(organizationColumnList...).
+		From("organization").
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -322,7 +353,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 	var organizations []*mmodel.Organization
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(organizationColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
@@ -410,7 +441,25 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_organizations_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, `SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC`, pq.Array(ids))
+	listQuery := squirrel.Select(organizationColumnList...).
+		From("organization").
+		Where(squirrel.Eq{"id": pq.Array(ids)}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := listQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 

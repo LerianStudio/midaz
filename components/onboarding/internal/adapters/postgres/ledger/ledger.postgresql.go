@@ -24,6 +24,17 @@ import (
 	"github.com/lib/pq"
 )
 
+var ledgerColumnList = []string{
+	"id",
+	"name",
+	"organization_id",
+	"status",
+	"status_description",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to ledger entities.
 // It defines methods for creating, finding, updating, and deleting ledgers in the database.
 type Repository interface {
@@ -150,7 +161,24 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL", organizationID, id)
+	query, args, err := squirrel.Select(ledgerColumnList...).
+		From("ledger").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -192,7 +220,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	var ledgers []*mmodel.Ledger
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(ledgerColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
@@ -265,10 +293,22 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_name.query")
 
-	rows, err := db.QueryContext(ctx,
-		"SELECT * FROM ledger WHERE organization_id = $1 AND LOWER(name) LIKE LOWER($2) AND deleted_at IS NULL",
-		organizationID,
-		name)
+	query, args, err := squirrel.Select(ledgerColumnList...).
+		From("ledger").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Expr("LOWER(name) LIKE LOWER(?)", name)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		spanQuery.End()
+
+		return false, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 
@@ -309,7 +349,23 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_ledgers_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = ANY($2) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, pq.Array(ids))
+	query, args, err := squirrel.Select(ledgerColumnList...).
+		From("ledger").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 

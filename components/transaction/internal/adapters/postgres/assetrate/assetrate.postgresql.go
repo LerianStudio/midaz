@@ -21,6 +21,21 @@ import (
 	"github.com/google/uuid"
 )
 
+var assetRateColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"external_id",
+	`"from"`,
+	`"to"`,
+	"rate",
+	"rate_scale",
+	"source",
+	"ttl",
+	"created_at",
+	"updated_at",
+}
+
 // Repository provides an interface for asset_rate template entities.
 // It defines methods for creating, finding, and updating asset rates.
 type Repository interface {
@@ -139,7 +154,26 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND external_id = $3 ORDER BY created_at DESC`, organizationID, ledgerID, externalID)
+	findQuery := squirrel.Select(assetRateColumnList...).
+		From("asset_rate").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"external_id": externalID}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -197,7 +231,27 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND "from" = $3 AND "to" = $4 ORDER BY created_at DESC`, organizationID, ledgerID, from, to)
+	findQuery := squirrel.Select(assetRateColumnList...).
+		From("asset_rate").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr(`"from" = ?`, from)).
+		Where(squirrel.Expr(`"to" = ?`, to)).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -264,7 +318,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(assetRateColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
