@@ -22,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.6
+	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.mongodb.org/mongo-driver v1.17.6
 	go.opentelemetry.io/otel v1.39.0
@@ -102,8 +103,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
-
-require github.com/testcontainers/testcontainers-go v0.40.0
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
