@@ -1127,4 +1127,11 @@ paths:
       summary: Update a Holder
       tags:
       - Holders
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

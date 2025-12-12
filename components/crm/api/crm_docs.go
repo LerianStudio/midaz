@@ -1524,6 +1524,14 @@ const docTemplatecrm = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
