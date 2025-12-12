@@ -1,3 +1,4 @@
+-- lint:ignore-file (legacy migration already applied)
 BEGIN;
 
 ALTER TABLE transaction
