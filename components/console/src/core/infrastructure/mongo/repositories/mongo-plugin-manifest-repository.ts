@@ -8,9 +8,9 @@ import { MongoPluginManifestMapper } from '../mappers/mongo-plugin-manifest-mapp
 import PluginManifest from '../models/plugin-manifest'
 import { DBConfig } from '../mongo-config'
 
-export class MongoPluginManifestRepository
-  implements PluginManifestRepository<typeof PluginManifest>
-{
+export class MongoPluginManifestRepository implements PluginManifestRepository<
+  typeof PluginManifest
+> {
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,

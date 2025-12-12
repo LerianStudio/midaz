@@ -16,8 +16,7 @@ import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-av
  * Mongoose-specific fields like timestamps.
  */
 export interface OrganizationAvatarDocument
-  extends OrganizationAvatarEntity,
-    Document {
+  extends OrganizationAvatarEntity, Document {
   createdAt: Date
   updatedAt: Date
 }
