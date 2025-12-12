@@ -24,6 +24,7 @@ jobs:
     outputs:
       onboarding: ${{ steps.changes.outputs.onboarding }}
       transaction: ${{ steps.changes.outputs.transaction }}
+      migrations: ${{ steps.changes.outputs.migrations }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +39,9 @@ jobs:
               - 'components/transaction/**'
             crm:
               - 'components/crm/**'
+            migrations:
+              - 'components/onboarding/migrations/**'
+              - 'components/transaction/migrations/**'
 
   CodeQL:
     name: Run CodeQL to Midaz
@@ -124,3 +128,25 @@ jobs:
       - name: Unit Tests (unit only)
         shell: bash
         run: make test-unit
+
+  migration-lint:
+    name: Lint Database Migrations
+    needs: detect-changes
+    if: needs.detect-changes.outputs.migrations == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Build migration linter
+        run: go build -o ./bin/migration-lint ./scripts/migration_linter
+
+      - name: Lint onboarding migrations
+        run: ./bin/migration-lint ./components/onboarding/migrations
+
+      - name: Lint transaction migrations
+        run: ./bin/migration-lint ./components/transaction/migrations
