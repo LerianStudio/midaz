@@ -81,22 +81,22 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string	false	"JSON string to filter segments by metadata fields"
-//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
-//	@Param			start_date		query		string	false	"Filter segments created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter segments created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			Authorization	header		string																true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
+//	@Param			organization_id	path		string																true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string																false	"JSON string to filter segments by metadata fields"
+//	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			start_date		query		string																false	"Filter segments created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string																false	"Filter segments created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Segment,page=int,limit=int}	"Successfully retrieved segments list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error														"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments [get]
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -178,11 +178,11 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about a segment identified by its UUID within the specified ledger
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Segment ID in UUID format"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Segment ID in UUID format"
 //	@Success		200				{object}	mmodel.Segment	"Successfully retrieved segment"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -288,12 +288,12 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 //	@Summary		Delete a segment
 //	@Description	Permanently removes a segment from the specified ledger. This operation cannot be undone.
 //	@Tags			Segments
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Param			id				path	string	true	"Segment ID in UUID format"
-//	@Success		204				{object}	nil	"Segment successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Segment ID in UUID format"
+//	@Success		204				{object}	nil				"Segment successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"

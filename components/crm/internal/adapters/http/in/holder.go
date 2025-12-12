@@ -25,8 +25,8 @@ type HolderHandler struct {
 //	@Tags			Holders
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
 //	@Success		201					{object}	mmodel.Holder
 //	@Failure		400					{object}	pkg.HTTPError
@@ -121,9 +121,9 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
-//	@Param			id					path		string					true	"The unique identifier of the Holder."
+//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			id					path		string						true	"The unique identifier of the Holder."
 //	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
 //	@Success		200					{object}	mmodel.Holder
 //	@Failure		400					{object}	pkg.HTTPError

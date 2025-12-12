@@ -135,9 +135,9 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Description	Returns detailed information about an organization identified by its UUID
 //	@Tags			Organizations
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			id				path		string	true	"Organization ID in UUID format"
+//	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
+//	@Param			id				path		string				true	"Organization ID in UUID format"
 //	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
@@ -175,19 +175,19 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Organizations
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			metadata		query		string	false	"JSON string to filter organizations by metadata fields"
-//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
-//	@Param			start_date		query		string	false	"Filter organizations created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			Authorization	header		string																	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string																	false	"Request ID for tracing"
+//	@Param			metadata		query		string																	false	"JSON string to filter organizations by metadata fields"
+//	@Param			limit			query		int																		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int																		false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			start_date		query		string																	false	"Filter organizations created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string																	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Failure		400				{object}	mmodel.Error															"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error															"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error															"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error															"Internal server error"
 //	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -263,10 +263,10 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Summary		Delete an organization
 //	@Description	Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Organizations
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			id				path	string	true	"Organization ID in UUID format"
-//	@Success		204				{string}	string	"Organization successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			id				path		string			true	"Organization ID in UUID format"
+//	@Success		204				{string}	string			"Organization successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"
@@ -313,9 +313,9 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 //	@Summary		Count total organizations
 //	@Description	Returns the total count of organizations as a header without a response body
 //	@Tags			Organizations
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Success		204				{string}	string	"No content with X-Total-Count header containing the count"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Success		204				{string}	string			"No content with X-Total-Count header containing the count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"

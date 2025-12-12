@@ -86,22 +86,22 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string	false	"JSON string to filter assets by metadata fields"
-//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
-//	@Param			start_date		query		string	false	"Filter assets created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			Authorization	header		string															true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string															false	"Request ID for tracing"
+//	@Param			organization_id	path		string															true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string															true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string															false	"JSON string to filter assets by metadata fields"
+//	@Param			limit			query		int																false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int																false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			start_date		query		string															false	"Filter assets created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string															false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string															false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}	"Successfully retrieved assets list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Failure		400				{object}	mmodel.Error													"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error													"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error													"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error													"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error													"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -184,11 +184,11 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an asset identified by its UUID within the specified ledger
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Asset ID in UUID format"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Asset ID in UUID format"
 //	@Success		200				{object}	mmodel.Asset	"Successfully retrieved asset"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -294,12 +294,12 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Summary		Delete an asset
 //	@Description	Permanently removes an asset from the specified ledger. This operation cannot be undone.
 //	@Tags			Assets
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Param			id				path	string	true	"Asset ID in UUID format"
-//	@Success		204				{object}	nil	"Asset successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Asset ID in UUID format"
+//	@Success		204				{object}	nil				"Asset successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
@@ -338,11 +338,11 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 //	@Summary		Count total assets
 //	@Description	Returns the total count of assets for a specific ledger in an organization as a header without a response body
 //	@Tags			Assets
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Success		204				{string}	string	"No content with X-Total-Count header containing the count"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Success		204				{string}	string			"No content with X-Total-Count header containing the count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"

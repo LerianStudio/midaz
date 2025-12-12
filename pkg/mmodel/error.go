@@ -27,7 +27,7 @@ type Error struct {
 
 	// Optional detailed field validations for client-side handling
 	// example: {"name": "Field 'name' is required"}
-	Fields map[string]string `json:"fields,omitempty" example:"{\"name\": \"Field 'name' is required\"}"`
+	Fields map[string]string `json:"fields,omitempty"`
 } // @name Error
 
 // ErrorResponse represents a standardized API error response
