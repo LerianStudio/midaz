@@ -23,14 +23,49 @@ func lintMigration(path string) []Issue {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+
 	lineNum := 0
 
+	fileIgnored := false
+
+	var lines []string
+
 	for scanner.Scan() {
-		lineNum++
 		line := scanner.Text()
 
+		lines = append(lines, line)
+
 		trimmedLine := strings.TrimSpace(line)
+
+		if strings.Contains(trimmedLine, "-- lint:ignore-file") {
+			fileIgnored = true
+		}
+	}
+
+	if fileIgnored {
+		return issues
+	}
+
+	for i, line := range lines {
+		lineNum = i + 1
+
+		trimmedLine := strings.TrimSpace(line)
+
 		if strings.HasPrefix(trimmedLine, "--") || strings.HasPrefix(trimmedLine, "/*") {
+			continue
+		}
+
+		nextLineIgnore := false
+
+		if i > 0 {
+			prevLine := strings.TrimSpace(lines[i-1])
+
+			if strings.Contains(prevLine, "-- lint:ignore") && !strings.Contains(prevLine, "-- lint:ignore-file") {
+				nextLineIgnore = true
+			}
+		}
+
+		if nextLineIgnore {
 			continue
 		}
 
@@ -39,6 +74,7 @@ func lintMigration(path string) []Issue {
 				if pattern.ExcludeIf != nil && pattern.ExcludeIf.MatchString(line) {
 					continue
 				}
+
 				issues = append(issues, Issue{
 					File:       filepath.Base(path),
 					Line:       lineNum,
@@ -64,46 +100,60 @@ func lintMigration(path string) []Issue {
 
 func printIssuesByFile(issues []Issue) {
 	issuesByFile := make(map[string][]Issue)
+
 	var fileOrder []string
 
 	for _, issue := range issues {
 		if _, exists := issuesByFile[issue.File]; !exists {
 			fileOrder = append(fileOrder, issue.File)
 		}
+
 		issuesByFile[issue.File] = append(issuesByFile[issue.File], issue)
 	}
 
 	for _, file := range fileOrder {
 		fileIssues := issuesByFile[file]
+
 		fmt.Printf("---> %s\n", file)
 
 		suggestionIndexes := make(map[string][]int)
+
 		var suggestionOrder []string
 
 		for i, issue := range fileIssues {
 			idx := i + 1
+
 			fmt.Printf("  %d. [%s] Line %d: %s\n", idx, issue.Severity, issue.Line, issue.Message)
+
 			if issue.Suggestion != "" {
 				if _, exists := suggestionIndexes[issue.Suggestion]; !exists {
 					suggestionOrder = append(suggestionOrder, issue.Suggestion)
 				}
+
 				suggestionIndexes[issue.Suggestion] = append(suggestionIndexes[issue.Suggestion], idx)
 			}
 		}
 
 		if len(suggestionOrder) > 0 {
 			fmt.Println()
+
 			fmt.Println("  Suggestions:")
+
 			for _, suggestion := range suggestionOrder {
 				indexes := suggestionIndexes[suggestion]
+
 				indexStrs := make([]string, len(indexes))
+
 				for i, idx := range indexes {
 					indexStrs[i] = fmt.Sprintf("#%d", idx)
 				}
+
 				fmt.Printf("    [%s]\n", strings.Join(indexStrs, ", "))
+
 				for _, line := range strings.Split(suggestion, "\n") {
 					fmt.Printf("      %s\n", line)
 				}
+
 				fmt.Println()
 			}
 		} else {
@@ -130,6 +180,7 @@ func main() {
 	}
 
 	migrationPath := os.Args[1]
+
 	strictMode := false
 
 	for _, arg := range os.Args[2:] {
@@ -140,34 +191,41 @@ func main() {
 
 	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
 		fmt.Printf("Directory not found: %s\n", migrationPath)
+
 		os.Exit(1)
 	}
 
 	files, err := filepath.Glob(filepath.Join(migrationPath, "*.up.sql"))
 	if err != nil {
 		fmt.Printf("Error searching files: %v\n", err)
+
 		os.Exit(1)
 	}
 
 	if len(files) == 0 {
 		fmt.Printf("No migration files found in: %s\n", migrationPath)
+
 		os.Exit(0)
 	}
 
 	fmt.Printf("Analyzing %d migrations in %s\n\n", len(files), migrationPath)
 
 	var allIssues []Issue
+
 	hasErrors := false
+
 	hasWarnings := false
 
 	for _, file := range files {
 		issues := lintMigration(file)
+
 		allIssues = append(allIssues, issues...)
 
 		for _, issue := range issues {
 			if issue.Severity == "ERROR" {
 				hasErrors = true
 			}
+
 			if issue.Severity == "WARNING" {
 				hasWarnings = true
 			}
@@ -179,7 +237,9 @@ func main() {
 	}
 
 	errorCount := 0
+
 	warningCount := 0
+
 	for _, issue := range allIssues {
 		switch issue.Severity {
 		case "ERROR":
@@ -191,6 +251,7 @@ func main() {
 
 	if len(allIssues) == 0 {
 		fmt.Println("All migrations passed validation!")
+
 		os.Exit(0)
 	}
 
@@ -202,9 +263,11 @@ func main() {
 
 	if hasErrors || (strictMode && hasWarnings) {
 		fmt.Println("\nValidation failed!")
+
 		os.Exit(1)
 	}
 
 	fmt.Println("\nValidation passed with warnings.")
+	
 	os.Exit(0)
 }

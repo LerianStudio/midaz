@@ -69,7 +69,7 @@ var dangerousPatterns = []Pattern{
     REINDEX INDEX CONCURRENTLY index_name;`,
 	},
 	{
-		Regex:     regexp.MustCompile(`(?i)CREATE\s+INDEX\s+`),
+		Regex:     regexp.MustCompile(`(?i)CREATE\s+(UNIQUE\s+)?INDEX\s+`),
 		ExcludeIf: regexp.MustCompile(`(?i)CREATE\s+(UNIQUE\s+)?INDEX\s+(CONCURRENTLY|IF)`),
 		Message:   "CREATE INDEX without CONCURRENTLY blocks table. Use CREATE INDEX CONCURRENTLY.",
 		Severity:  "WARNING",
@@ -89,7 +89,7 @@ var dangerousPatterns = []Pattern{
 	},
 	{
 		Regex:     regexp.MustCompile(`(?i)ADD\s+COLUMN\s+\w+\s+\w+.*\s+NOT\s+NULL`),
-		ExcludeIf: regexp.MustCompile(`(?i)NOT\s+NULL\s+DEFAULT`),
+		ExcludeIf: regexp.MustCompile(`(?i)(NOT\s+NULL\s+DEFAULT|DEFAULT\s+\S+.*NOT\s+NULL)`),
 		Message:   "Adding NOT NULL column without DEFAULT requires table rewrite. Add DEFAULT value.",
 		Severity:  "ERROR",
 		Suggestion: `Add DEFAULT value to avoid table rewrite:

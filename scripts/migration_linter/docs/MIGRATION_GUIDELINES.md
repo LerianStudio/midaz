@@ -241,7 +241,7 @@ migration-lint <path-to-migrations> --strict
 
 The linter outputs issues grouped by file with numbered issues and grouped suggestions:
 
-```
+```text
 Analyzing 3 migrations in ./components/onboarding/migrations
 
 ---> 000006_create_account_type_table.up.sql
