@@ -647,6 +647,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: List Aliases
       tags:
       - Aliases
@@ -731,6 +733,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: List Holders
       tags:
       - Holders
@@ -775,6 +779,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Create a Holder
       tags:
       - Holders
@@ -827,6 +833,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Create an Alias Account
       tags:
       - Aliases
@@ -878,6 +886,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Delete an Alias
       tags:
       - Aliases
@@ -929,6 +939,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Retrieve Alias details
       tags:
       - Aliases
@@ -983,6 +995,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Update an Alias
       tags:
       - Aliases
@@ -1029,6 +1043,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Delete a Holder
       tags:
       - Holders
@@ -1075,6 +1091,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Retrieve Holder details
       tags:
       - Holders
@@ -1124,6 +1142,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Update a Holder
       tags:
       - Holders
