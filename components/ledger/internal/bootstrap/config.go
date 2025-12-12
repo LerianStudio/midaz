@@ -50,18 +50,21 @@ func InitServers() *Service {
 
 	logger.Infof("Starting unified ledger component (onboarding + transaction)")
 
-	// Initialize transaction module first to get the BalancePort
 	logger.Info("Initializing transaction module...")
+
+	// Initialize transaction module first to get the BalancePort
 	transactionService := transaction.InitService()
 
 	// Get the BalancePort from transaction for in-process communication
 	// This is the transaction.UseCase itself which implements BalancePort directly
 	balancePort := transactionService.GetBalancePort()
+
 	logger.Info("Transaction module initialized, BalancePort available for in-process calls")
+
+	logger.Info("Initializing onboarding module in UNIFIED MODE...")
 
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
-	logger.Info("Initializing onboarding module in UNIFIED MODE...")
 	onboardingService := onboarding.InitServiceWithOptions(&onboarding.Options{
 		UnifiedMode: true,
 		BalancePort: balancePort,
