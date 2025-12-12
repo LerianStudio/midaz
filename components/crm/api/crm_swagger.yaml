@@ -553,11 +553,6 @@ paths:
         orders results by the entity ID using the UUID v7 standard, which is time-sortable,
         ensuring chronological ordering of the results.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -659,11 +654,6 @@ paths:
         the entity ID using the UUID v7 standard, which is time-sortable, ensuring
         chronological ordering of the results.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -743,11 +733,6 @@ paths:
       - application/json
       description: Creates a new holder with the provided details.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -792,11 +777,6 @@ paths:
         in the ledger. The alias account is linked to specific business information,
         making it easier to manage and abstract account data within the system.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -845,11 +825,6 @@ paths:
         deletion (hard delete) is required, you can use the query parameter outlined
         in the documentation.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -895,11 +870,6 @@ paths:
       description: Retrieves detailed information about a specific alias using its
         unique identifier.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -949,11 +919,6 @@ paths:
       - application/json
       description: Update details of an alias.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -1007,11 +972,6 @@ paths:
         deletion (hard delete) is required, you can use the query parameter outlined
         in the documentation.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -1052,11 +1012,6 @@ paths:
       description: Retrieves detailed information about a specific holder using its
         unique identifier.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header
@@ -1101,11 +1056,6 @@ paths:
       - application/json
       description: Update details of a holder.
       parameters:
-      - description: "The authorization token in the 'Bearer\taccess_token' format.
-          Only required when auth plugin is enabled."
-        in: header
-        name: Authorization
-        type: string
       - description: The unique identifier of the Organization associated with the
           Ledger.
         in: header

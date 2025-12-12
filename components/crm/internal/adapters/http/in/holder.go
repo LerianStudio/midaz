@@ -25,7 +25,6 @@ type HolderHandler struct {
 //	@Tags			Holders
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
 //	@Success		201					{object}	mmodel.Holder
@@ -73,7 +72,6 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Description	Retrieves detailed information about a specific holder using its unique identifier.
 //	@Tags			Holders
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"
@@ -123,7 +121,6 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string						true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			id					path		string						true	"The unique identifier of the Holder."
 //	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
@@ -189,7 +186,6 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 //	@Summary		Delete a Holder
 //	@Description	Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Holders
-//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			id					path	string	true	"The unique identifier of the Holder."
 //	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
@@ -238,7 +234,6 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Description	List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.
 //	@Tags			Holders
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			metadata			query		string	false	"Metadata"
 //	@Param			limit				query		int		false	"Limit"			default(10)

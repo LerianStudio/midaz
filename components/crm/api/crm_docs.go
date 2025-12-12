@@ -33,12 +33,6 @@ const docTemplatecrm = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
                         "name": "X-Organization-Id",
                         "in": "header",
@@ -190,12 +184,6 @@ const docTemplatecrm = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
                         "name": "X-Organization-Id",
                         "in": "header",
@@ -318,12 +306,6 @@ const docTemplatecrm = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
                         "name": "X-Organization-Id",
                         "in": "header",
@@ -386,12 +368,6 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Create an Alias Account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -462,12 +438,6 @@ const docTemplatecrm = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
                         "name": "X-Organization-Id",
                         "in": "header",
@@ -533,12 +503,6 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Delete an Alias",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -609,12 +573,6 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Update an Alias",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -692,12 +650,6 @@ const docTemplatecrm = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
                         "name": "X-Organization-Id",
                         "in": "header",
@@ -756,12 +708,6 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Delete a Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -825,12 +771,6 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Update a Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
