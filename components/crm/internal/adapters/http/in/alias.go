@@ -33,6 +33,7 @@ type AliasHandler struct {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases [post]
 func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -84,6 +85,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [get]
 func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -136,6 +138,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [patch]
 func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -204,6 +207,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 //	@Failure		400	{object}	pkg.HTTPError
 //	@Failure		404	{object}	pkg.HTTPError
 //	@Failure		500	{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [delete]
 func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -264,6 +268,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/aliases [get]
 func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	ctx := c.UserContext()

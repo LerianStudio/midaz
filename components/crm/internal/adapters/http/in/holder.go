@@ -32,6 +32,7 @@ type HolderHandler struct {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders [post]
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -80,6 +81,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{id} [get]
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -129,6 +131,7 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{id} [patch]
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -194,6 +197,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 //	@Failure		400	{object}	pkg.HTTPError
 //	@Failure		404	{object}	pkg.HTTPError
 //	@Failure		500	{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders/{id} [delete]
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -247,6 +251,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/holders [get]
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()
