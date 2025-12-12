@@ -1811,14 +1811,14 @@ const docTemplateonboarding = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
             "get": {
-                "description": "Returns detailed information about an account identified by its alias within the specified ledger",
+                "description": "Returns detailed information about an account identified by its external code within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Retrieve an account by alias",
+                "summary": "Retrieve an account by external code",
                 "parameters": [
                     {
                         "type": "string",
@@ -1875,7 +1875,7 @@ const docTemplateonboarding = `{
                         }
                     },
                     "404": {
-                        "description": "Account with the specified alias, ledger, or organization not found",
+                        "description": "Account with the specified external code, ledger, or organization not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -4518,9 +4518,6 @@ const docTemplateonboarding = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
-                    },
-                    "example": {
-                        "{\"name\"": " \"Field 'name' is required\"}"
                     }
                 },
                 "message": {
@@ -5054,6 +5051,14 @@ const docTemplateonboarding = `{
                     ]
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

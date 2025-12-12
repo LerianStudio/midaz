@@ -538,8 +538,6 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
-        example:
-          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
@@ -3215,6 +3213,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      consumes:
+      - application/json
       description: Cancel a previously created pre transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3277,6 +3277,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      consumes:
+      - application/json
       description: Commit a previously created transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3780,4 +3782,11 @@ paths:
       summary: Create a Transaction without passing to distribution
       tags:
       - Transactions
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

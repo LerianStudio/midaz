@@ -3132,6 +3132,9 @@ const docTemplatetransaction = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
             "post": {
                 "description": "Cancel a previously created pre transaction",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3224,6 +3227,9 @@ const docTemplatetransaction = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
                 "description": "Commit a previously created transaction",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3960,9 +3966,6 @@ const docTemplatetransaction = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
-                    },
-                    "example": {
-                        "{\"name\"": " \"Field 'name' is required\"}"
                     }
                 },
                 "message": {
@@ -4784,6 +4787,14 @@ const docTemplatetransaction = `{
                     "type": "string"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

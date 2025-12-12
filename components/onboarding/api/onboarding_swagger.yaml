@@ -621,8 +621,6 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
-        example:
-          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
@@ -2482,7 +2480,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       description: Returns detailed information about an account identified by its
-        alias within the specified ledger
+        external code within the specified ledger
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -2524,15 +2522,15 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "404":
-          description: Account with the specified alias, ledger, or organization not
-            found
+          description: Account with the specified external code, ledger, or organization
+            not found
           schema:
             $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-      summary: Retrieve an account by alias
+      summary: Retrieve an account by external code
       tags:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
@@ -3838,4 +3836,11 @@ paths:
       summary: Count total organizations
       tags:
       - Organizations
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
