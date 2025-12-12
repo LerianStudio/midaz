@@ -24,8 +24,6 @@ func lintMigration(path string) []Issue {
 
 	scanner := bufio.NewScanner(file)
 
-	lineNum := 0
-
 	fileIgnored := false
 
 	var lines []string
@@ -47,7 +45,7 @@ func lintMigration(path string) []Issue {
 	}
 
 	for i, line := range lines {
-		lineNum = i + 1
+		lineNum := i + 1
 
 		trimmedLine := strings.TrimSpace(line)
 
@@ -55,17 +53,7 @@ func lintMigration(path string) []Issue {
 			continue
 		}
 
-		nextLineIgnore := false
-
-		if i > 0 {
-			prevLine := strings.TrimSpace(lines[i-1])
-
-			if strings.Contains(prevLine, "-- lint:ignore") && !strings.Contains(prevLine, "-- lint:ignore-file") {
-				nextLineIgnore = true
-			}
-		}
-
-		if nextLineIgnore {
+		if isLineIgnored(lines, i) {
 			continue
 		}
 
@@ -96,6 +84,16 @@ func lintMigration(path string) []Issue {
 	}
 
 	return issues
+}
+
+func isLineIgnored(lines []string, currentIndex int) bool {
+	if currentIndex == 0 {
+		return false
+	}
+
+	prevLine := strings.TrimSpace(lines[currentIndex-1])
+
+	return strings.Contains(prevLine, "-- lint:ignore") && !strings.Contains(prevLine, "-- lint:ignore-file")
 }
 
 func printIssuesByFile(issues []Issue) {
@@ -162,25 +160,23 @@ func printIssuesByFile(issues []Issue) {
 	}
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: migration-lint <path-to-migrations> [--strict]")
-		fmt.Println("")
-		fmt.Println("Options:")
-		fmt.Println("  --strict    Treat WARNINGs as ERRORs")
-		fmt.Println("")
-		fmt.Println("Example:")
-		fmt.Println("  migration-lint ./components/onboarding/migrations")
-		fmt.Println("  migration-lint ./components/transaction/migrations --strict")
-		fmt.Println("")
-		fmt.Println("Documentation:")
-		fmt.Println("  Guidelines: scripts/migration_linter/docs/MIGRATION_GUIDELINES.md")
-		fmt.Println("  Template:   scripts/migration_linter/docs/MIGRATION_TEMPLATE.md")
-		os.Exit(1)
-	}
+func printUsage() {
+	fmt.Println("Usage: migration-lint <path-to-migrations> [--strict]")
+	fmt.Println("")
+	fmt.Println("Options:")
+	fmt.Println("  --strict    Treat WARNINGs as ERRORs")
+	fmt.Println("")
+	fmt.Println("Example:")
+	fmt.Println("  migration-lint ./components/onboarding/migrations")
+	fmt.Println("  migration-lint ./components/transaction/migrations --strict")
+	fmt.Println("")
+	fmt.Println("Documentation:")
+	fmt.Println("  Guidelines: scripts/migration_linter/docs/MIGRATION_GUIDELINES.md")
+	fmt.Println("  Template:   scripts/migration_linter/docs/MIGRATION_TEMPLATE.md")
+}
 
+func parseArgs() (string, bool) {
 	migrationPath := os.Args[1]
-
 	strictMode := false
 
 	for _, arg := range os.Args[2:] {
@@ -189,27 +185,18 @@ func main() {
 		}
 	}
 
+	return migrationPath, strictMode
+}
+
+func getMigrationFiles(migrationPath string) ([]string, error) {
 	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
-		fmt.Printf("Directory not found: %s\n", migrationPath)
-
-		os.Exit(1)
+		return nil, fmt.Errorf("directory not found: %s", migrationPath)
 	}
 
-	files, err := filepath.Glob(filepath.Join(migrationPath, "*.up.sql"))
-	if err != nil {
-		fmt.Printf("Error searching files: %v\n", err)
+	return filepath.Glob(filepath.Join(migrationPath, "*.up.sql"))
+}
 
-		os.Exit(1)
-	}
-
-	if len(files) == 0 {
-		fmt.Printf("No migration files found in: %s\n", migrationPath)
-
-		os.Exit(0)
-	}
-
-	fmt.Printf("Analyzing %d migrations in %s\n\n", len(files), migrationPath)
-
+func analyzeFiles(files []string) ([]Issue, bool, bool) {
 	var allIssues []Issue
 
 	hasErrors := false
@@ -232,15 +219,14 @@ func main() {
 		}
 	}
 
-	if len(allIssues) > 0 {
-		printIssuesByFile(allIssues)
-	}
+	return allIssues, hasErrors, hasWarnings
+}
 
+func countIssues(issues []Issue) (int, int) {
 	errorCount := 0
-
 	warningCount := 0
 
-	for _, issue := range allIssues {
+	for _, issue := range issues {
 		switch issue.Severity {
 		case "ERROR":
 			errorCount++
@@ -249,17 +235,55 @@ func main() {
 		}
 	}
 
-	if len(allIssues) == 0 {
-		fmt.Println("All migrations passed validation!")
+	return errorCount, warningCount
+}
 
-		os.Exit(0)
-	}
-
+func printSummary(errorCount, warningCount int) {
 	fmt.Printf("Summary: %d error(s), %d warning(s)\n", errorCount, warningCount)
 	fmt.Println("")
 	fmt.Println("For more information, see:")
 	fmt.Println("  Guidelines: scripts/migration_linter/docs/MIGRATION_GUIDELINES.md")
 	fmt.Println("  Template:   scripts/migration_linter/docs/MIGRATION_TEMPLATE.md")
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		printUsage()
+
+		os.Exit(1)
+	}
+
+	migrationPath, strictMode := parseArgs()
+
+	files, err := getMigrationFiles(migrationPath)
+	if err != nil {
+		fmt.Println(err)
+
+		os.Exit(1)
+	}
+
+	if len(files) == 0 {
+		fmt.Printf("No migration files found in: %s\n", migrationPath)
+
+		os.Exit(0)
+	}
+
+	fmt.Printf("Analyzing %d migrations in %s\n\n", len(files), migrationPath)
+
+	allIssues, hasErrors, hasWarnings := analyzeFiles(files)
+
+	if len(allIssues) > 0 {
+		printIssuesByFile(allIssues)
+	}
+
+	if len(allIssues) == 0 {
+		fmt.Println("All migrations passed validation!")
+		os.Exit(0)
+	}
+
+	errorCount, warningCount := countIssues(allIssues)
+
+	printSummary(errorCount, warningCount)
 
 	if hasErrors || (strictMode && hasWarnings) {
 		fmt.Println("\nValidation failed!")
@@ -268,6 +292,6 @@ func main() {
 	}
 
 	fmt.Println("\nValidation passed with warnings.")
-	
+
 	os.Exit(0)
 }
