@@ -21,8 +21,10 @@ var transactionDateFormats = []string{
 
 func (td *TransactionDate) UnmarshalJSON(data []byte) error {
 	str := strings.Trim(string(data), `"`)
+
 	if str == "null" || str == "" {
 		*td = TransactionDate{}
+
 		return nil
 	}
 
@@ -30,9 +32,12 @@ func (td *TransactionDate) UnmarshalJSON(data []byte) error {
 		if t, err := time.Parse(format, str); err == nil {
 			if t.IsZero() {
 				*td = TransactionDate{}
+
 				return nil
 			}
+
 			*td = TransactionDate(t)
+
 			return nil
 		}
 	}
@@ -46,6 +51,7 @@ func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	}
 
 	t := time.Time(td)
+	
 	if t.Nanosecond() != 0 {
 		return json.Marshal(t.Format("2006-01-02T15:04:05.000Z07:00"))
 	}
