@@ -287,10 +287,6 @@ The linter is integrated into CI via the Makefile:
 ```bash
 # Lint all migration directories
 make migrate-lint
-
-# Lint specific component
-make migrate-lint-onboarding
-make migrate-lint-transaction
 ```
 
 ---

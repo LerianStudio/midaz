@@ -57,18 +57,17 @@ Use this template when creating new migrations. Copy and fill out for each signi
 
 ### Deployment Sequence
 
-1. [ ] Apply migration: `make migrate-up COMPONENT=xxx`
-2. [ ] Verify migration: `make migrate-version COMPONENT=xxx`
-3. [ ] Deploy application
-4. [ ] Monitor errors for 24h
-5. [ ] (If expand) Schedule CONTRACT migration for [date]
+1. [ ] Apply migration via `make up` or `make up-backend`
+2. [ ] Deploy application
+3. [ ] Monitor errors for 24h
+4. [ ] (If expand) Schedule CONTRACT migration for [date]
 
 ### Rollback Plan
 
 In case of problems:
 
 1. Revert application deploy (if already started)
-2. Execute: `make migrate-down COMPONENT=xxx STEPS=1`
+2. Roll back the migration manually or via infrastructure
 3. Verify previous version functionality
 4. Document incident
 
@@ -152,10 +151,9 @@ ALTER TABLE account DROP COLUMN IF EXISTS preferences;
 
 ### Deployment Sequence
 
-1. [x] Apply migration: `make migrate-up COMPONENT=onboarding`
-2. [x] Verify migration: `make migrate-version COMPONENT=onboarding`
-3. [ ] Deploy application v2.5.0
-4. [ ] Monitor errors for 24h
+1. [x] Apply migration via `make up` or `make up-backend`
+2. [ ] Deploy application v2.5.0
+3. [ ] Monitor errors for 24h
 
 ### Linter Validation
 
