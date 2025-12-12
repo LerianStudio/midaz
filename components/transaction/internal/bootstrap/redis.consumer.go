@@ -107,6 +107,10 @@ Outer:
 
 		go func(key string, m mmodel.TransactionRedisQueue) {
 			defer func() {
+				if rec := recover(); rec != nil {
+					r.Logger.Warnf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec)
+				}
+
 				<-sem
 				wg.Done()
 			}()
@@ -131,6 +135,11 @@ Outer:
 				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
 				return
 			default:
+			}
+
+			if m.Validate == nil {
+				logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
+				return
 			}
 
 			balances := make([]*mmodel.Balance, 0, len(m.Balances))
