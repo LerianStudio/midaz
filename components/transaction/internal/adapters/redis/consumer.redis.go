@@ -57,13 +57,17 @@ type RedisRepository interface {
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn *libRedis.RedisConnection
+	conn               *libRedis.RedisConnection
+	balanceSyncEnabled bool
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
+// The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
+// When false, the ZADD to the balance sync schedule is skipped in the Lua script.
+func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) *RedisConsumerRepository {
 	r := &RedisConsumerRepository{
-		conn: rc,
+		conn:               rc,
+		balanceSyncEnabled: balanceSyncEnabled,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
 		panic("Failed to connect on redis")
@@ -320,7 +324,15 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
+	// Prepend balanceSyncEnabled flag (1 = enabled, 0 = disabled) to args
+	scheduleSync := 0
+	if rr.balanceSyncEnabled {
+		scheduleSync = 1
+	}
+
+	finalArgs := append([]any{scheduleSync}, args...)
+
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, finalArgs...).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 

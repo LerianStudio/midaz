@@ -169,7 +169,7 @@ type Config struct {
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
+	BalanceSyncWorkerEnabled     *bool  `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 }
 
@@ -182,6 +182,16 @@ func InitServers() *Service {
 	}
 
 	logger := libZap.InitializeLogger()
+
+	// Handle balance sync worker enabled with default true (must be computed early for Redis repo)
+	const defaultBalanceSyncWorkerEnabled = true
+
+	balanceSyncWorkerEnabled := defaultBalanceSyncWorkerEnabled
+	if cfg.BalanceSyncWorkerEnabled != nil {
+		balanceSyncWorkerEnabled = *cfg.BalanceSyncWorkerEnabled
+	} else {
+		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=%v", defaultBalanceSyncWorkerEnabled)
+	}
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -281,7 +291,7 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
 
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
@@ -408,17 +418,9 @@ func InitServers() *Service {
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 
-	const (
-		defaultBalanceSyncWorkerEnabled = false
-		defaultBalanceSyncMaxWorkers    = 5
-	)
+	const defaultBalanceSyncMaxWorkers = 5
 
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
 	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if !balanceSyncWorkerEnabled {
-		logger.Info("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=false")
-	}
 
 	if balanceSyncMaxWorkers <= 0 {
 		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
@@ -439,7 +441,7 @@ func InitServers() *Service {
 		MultiQueueConsumer:       multiQueueConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: cfg.BalanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
 	}
