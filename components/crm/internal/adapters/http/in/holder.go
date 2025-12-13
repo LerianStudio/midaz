@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -60,10 +62,14 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create holder: %v", err)
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.Created(c, out)
+	if err := http.Created(c, out); err != nil {
+		return fmt.Errorf("failed to send created response: %w", err)
+	}
+
+	return nil
 }
 
 // GetHolderByID retrieves Holder details by a given id
@@ -108,10 +114,14 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.OK(c, holder)
+	if err := http.OK(c, holder); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateHolder is a method that updates Holder information.
@@ -148,7 +158,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get fields to remove")
 
-		return http.WithError(c, cn.ErrInternalServer)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, cn.ErrInternalServer))
 	}
 
 	span.SetAttributes(
@@ -175,10 +185,14 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.OK(c, holder)
+	if err := http.OK(c, holder); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteHolderByID is a method that removes Holder information by a given id.
@@ -222,10 +236,14 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("failed to send no content response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllHolders retrieves Holder details by a given id
@@ -262,7 +280,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
 	pagination := libPostgres.Pagination{
@@ -291,10 +309,14 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get all holders, Error: %v", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
 	pagination.SetItems(holders)
 
-	return http.OK(c, pagination)
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }

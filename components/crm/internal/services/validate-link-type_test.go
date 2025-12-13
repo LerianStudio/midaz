@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -71,12 +72,16 @@ func TestValidateLinkType(t *testing.T) {
 			if testCase.expectError {
 				assert.Error(t, err)
 				if testCase.errorCode != nil {
-					if validationErr, ok := err.(pkg.ValidationError); ok {
+					var validationErr pkg.ValidationError
+					var conflictErr pkg.EntityConflictError
+
+					switch {
+					case errors.As(err, &validationErr):
 						assert.Equal(t, testCase.errorCode.Error(), validationErr.Code)
-					} else if conflictErr, ok := err.(pkg.EntityConflictError); ok {
+					case errors.As(err, &conflictErr):
 						assert.Equal(t, testCase.errorCode.Error(), conflictErr.Code)
-					} else {
-						assert.Equal(t, testCase.errorCode, err)
+					default:
+						assert.ErrorIs(t, err, testCase.errorCode)
 					}
 				}
 			} else {

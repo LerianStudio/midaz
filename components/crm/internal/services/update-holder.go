@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -42,7 +43,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to update holder: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	return updatedHolder, nil

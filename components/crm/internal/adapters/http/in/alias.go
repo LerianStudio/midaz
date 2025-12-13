@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -63,10 +65,14 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.Created(c, out)
+	if err := http.Created(c, out); err != nil {
+		return fmt.Errorf("failed to send created response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAliasByID retrieves Alias details by a given id
@@ -114,10 +120,14 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.OK(c, alias)
+	if err := http.OK(c, alias); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateAlias is a method that updates Holder information.
@@ -156,7 +166,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get fields to remove")
 
-		return http.WithError(c, cn.ErrInternalServer)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, cn.ErrInternalServer))
 	}
 
 	span.SetAttributes(
@@ -184,10 +194,14 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.OK(c, alias)
+	if err := http.OK(c, alias); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteAliasByID removes an alias by a given id
@@ -234,10 +248,14 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("failed to send no content response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllAliases retrieves aliases
@@ -279,7 +297,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
 	var holderID uuid.UUID
@@ -290,7 +308,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
 
-			return http.WithError(c, err)
+			return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 		}
 	}
 
@@ -326,10 +344,14 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get all aliases, Error: %v", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
 	}
 
 	pagination.SetItems(aliases)
 
-	return http.OK(c, pagination)
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }

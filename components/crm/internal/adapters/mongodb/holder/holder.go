@@ -1,6 +1,7 @@
 package holder
 
 import (
+	"fmt"
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
@@ -82,12 +83,12 @@ type RepresentativeMongoDBModel struct {
 func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) error {
 	name, err := ds.Encrypt(h.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encrypt holder name: %w", err)
 	}
 
 	document, err := ds.Encrypt(h.Document)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encrypt document: %w", err)
 	}
 
 	*hmm = MongoDBModel{
@@ -101,31 +102,51 @@ func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) erro
 		DeletedAt:  h.DeletedAt,
 	}
 
+	if err := hmm.setRelatedEntities(h, ds); err != nil {
+		return err
+	}
+
+	hmm.setSearchAndMetadata(h, ds)
+
+	return nil
+}
+
+func (hmm *MongoDBModel) setRelatedEntities(h *mmodel.Holder, ds *libCrypto.Crypto) error {
 	if h.Addresses != nil {
 		hmm.Addresses = mapAddressesFromEntity(h.Addresses)
 	}
 
 	if h.Contact != nil {
-		hmm.Contact, err = mapContactFromEntity(ds, h.Contact)
+		contact, err := mapContactFromEntity(ds, h.Contact)
 		if err != nil {
 			return err
 		}
+
+		hmm.Contact = contact
 	}
 
 	if h.NaturalPerson != nil {
-		hmm.NaturalPerson, err = mapNaturalPersonFromEntity(ds, h.NaturalPerson)
+		naturalPerson, err := mapNaturalPersonFromEntity(ds, h.NaturalPerson)
 		if err != nil {
 			return err
 		}
+
+		hmm.NaturalPerson = naturalPerson
 	}
 
 	if h.LegalPerson != nil {
-		hmm.LegalPerson, err = mapLegalPersonFromEntity(ds, h.LegalPerson)
+		legalPerson, err := mapLegalPersonFromEntity(ds, h.LegalPerson)
 		if err != nil {
 			return err
 		}
+
+		hmm.LegalPerson = legalPerson
 	}
 
+	return nil
+}
+
+func (hmm *MongoDBModel) setSearchAndMetadata(h *mmodel.Holder, ds *libCrypto.Crypto) {
 	hmm.Search = make(map[string]string)
 	if h.Document != nil && *h.Document != "" {
 		hmm.Search["document"] = ds.GenerateHash(h.Document)
@@ -136,8 +157,6 @@ func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) erro
 	} else {
 		hmm.Metadata = h.Metadata
 	}
-
-	return nil
 }
 
 // mapAddressesFromEntity maps addresses entity to MongoDB model
@@ -153,22 +172,22 @@ func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMongoDBModel, error) {
 	primaryEmail, err := ds.Encrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt primary email: %w", err)
 	}
 
 	secondaryEmail, err := ds.Encrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt secondary email: %w", err)
 	}
 
 	mobilePhone, err := ds.Encrypt(c.MobilePhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt mobile phone: %w", err)
 	}
 
 	otherPhone, err := ds.Encrypt(c.OtherPhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt other phone: %w", err)
 	}
 
 	return &ContactMongoDBModel{
@@ -183,12 +202,12 @@ func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMong
 func mapNaturalPersonFromEntity(ds *libCrypto.Crypto, np *mmodel.NaturalPerson) (*NaturalPersonMongoDBModel, error) {
 	motherName, err := ds.Encrypt(np.MotherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt mother name: %w", err)
 	}
 
 	fatherName, err := ds.Encrypt(np.FatherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encrypt father name: %w", err)
 	}
 
 	return &NaturalPersonMongoDBModel{
@@ -211,7 +230,7 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	if lp.FoundingDate != nil {
 		parsed, err := time.Parse("2006-01-02", *lp.FoundingDate)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse time: %w", err)
 		}
 
 		parsedFoundingDate = &parsed
@@ -229,17 +248,17 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	if lp.Representative != nil {
 		repName, err := ds.Encrypt(lp.Representative.Name)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to encrypt representative name: %w", err)
 		}
 
 		repDocument, err := ds.Encrypt(lp.Representative.Document)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to encrypt representative document: %w", err)
 		}
 
 		repEmail, err := ds.Encrypt(lp.Representative.Email)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to encrypt representative email: %w", err)
 		}
 
 		mongoLP.Representative = &RepresentativeMongoDBModel{
@@ -274,12 +293,12 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) {
 	name, err := ds.Decrypt(hmm.Name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt holder name: %w", err)
 	}
 
 	document, err := ds.Decrypt(hmm.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt document: %w", err)
 	}
 
 	holder := &mmodel.Holder{
@@ -341,22 +360,22 @@ func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.Contact, error) {
 	primaryEmail, err := ds.Decrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt primary email: %w", err)
 	}
 
 	secondaryEmail, err := ds.Decrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt secondary email: %w", err)
 	}
 
 	mobilePhone, err := ds.Decrypt(c.MobilePhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt mobile phone: %w", err)
 	}
 
 	otherPhone, err := ds.Decrypt(c.OtherPhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt other phone: %w", err)
 	}
 
 	return &mmodel.Contact{
@@ -371,12 +390,12 @@ func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.C
 func mapNaturalPersonToEntity(ds *libCrypto.Crypto, np *NaturalPersonMongoDBModel) (*mmodel.NaturalPerson, error) {
 	motherName, err := ds.Decrypt(np.MotherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt mother name: %w", err)
 	}
 
 	fatherName, err := ds.Decrypt(np.FatherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt father name: %w", err)
 	}
 
 	return &mmodel.NaturalPerson{
@@ -426,17 +445,17 @@ func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (
 func mapRepresentativeToEntity(ds *libCrypto.Crypto, rep *RepresentativeMongoDBModel) (*mmodel.Representative, error) {
 	representativeName, err := ds.Decrypt(rep.Name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt representative name: %w", err)
 	}
 
 	representativeDocument, err := ds.Decrypt(rep.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt representative document: %w", err)
 	}
 
 	email, err := ds.Decrypt(rep.Email)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt representative email: %w", err)
 	}
 
 	return &mmodel.Representative{

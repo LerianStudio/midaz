@@ -12,8 +12,8 @@ package holder
 import (
 	context "context"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	reflect "reflect"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	reflect "reflect"
 
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"

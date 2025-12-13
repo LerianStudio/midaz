@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -61,7 +62,7 @@ func (uc *UseCase) AddHolderLinkToAlias(ctx context.Context, organizationID stri
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder link", err)
 		logger.Errorf("Failed to create holder link: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	return createdHolderLink, nil

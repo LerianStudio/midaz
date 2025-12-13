@@ -3,6 +3,7 @@ package holderlink
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -21,6 +22,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	errCodeDuplicateHolderLink = "duplicate_holder_link"
+	errCodePrimaryHolderExists = "primary_holder_exists"
+	indexCreationTimeout       = 5 * time.Second
 )
 
 // Repository provides an interface for operations related to holder link entities.
@@ -78,7 +86,7 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -86,7 +94,7 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 	err = createIndexes(ctx, coll)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create indexes", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to create indexes: %w", err)
 	}
 
 	record := &MongoDBModel{}
@@ -110,15 +118,15 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 			errorType, isKnownError := getDuplicateKeyErrorType(err)
 			if isKnownError {
 				switch errorType {
-				case "duplicate_holder_link":
-					return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
-				case "primary_holder_exists":
-					return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
+				case errCodeDuplicateHolderLink:
+					return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name()))
+				case errCodePrimaryHolderExists:
+					return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name()))
 				}
 			}
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("failed to insert holder link: %w", err)
 	}
 
 	result := record.ToEntity()
@@ -144,7 +152,7 @@ func (hlm *MongoDBRepository) Find(ctx context.Context, organizationID string, i
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -164,10 +172,10 @@ func (hlm *MongoDBRepository) Find(ctx context.Context, organizationID string, i
 		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder link", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			return nil, fmt.Errorf("holder link not found: %w", pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name()))
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find holder link: %w", err)
 	}
 
 	result := record.ToEntity()
@@ -194,7 +202,7 @@ func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, orga
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -218,7 +226,7 @@ func (hlm *MongoDBRepository) FindByAliasIDAndLinkType(ctx context.Context, orga
 			return nil, nil
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find holder link by alias and type: %w", err)
 	}
 
 	result := record.ToEntity()
@@ -244,7 +252,7 @@ func (hlm *MongoDBRepository) FindByAliasID(ctx context.Context, organizationID 
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -265,7 +273,7 @@ func (hlm *MongoDBRepository) FindByAliasID(ctx context.Context, organizationID 
 	cursor, err := coll.Find(ctx, filter)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder links by alias id", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -275,7 +283,7 @@ func (hlm *MongoDBRepository) FindByAliasID(ctx context.Context, organizationID 
 		var record MongoDBModel
 		if err := cursor.Decode(&record); err != nil {
 			libOpenTelemetry.HandleSpanError(&spanFind, "Failed to decode holder link", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to decode: %w", err)
 		}
 
 		holderLinks = append(holderLinks, record.ToEntity())
@@ -283,7 +291,7 @@ func (hlm *MongoDBRepository) FindByAliasID(ctx context.Context, organizationID 
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to iterate holder links", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to iterate cursor: %w", err)
 	}
 
 	return holderLinks, nil
@@ -306,7 +314,7 @@ func (hlm *MongoDBRepository) FindAll(ctx context.Context, organizationID string
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -329,7 +337,7 @@ func (hlm *MongoDBRepository) FindAll(ctx context.Context, organizationID string
 	cursor, err := coll.Find(ctx, filterDoc, &opts)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder links", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -339,7 +347,7 @@ func (hlm *MongoDBRepository) FindAll(ctx context.Context, organizationID string
 		var record MongoDBModel
 		if err := cursor.Decode(&record); err != nil {
 			libOpenTelemetry.HandleSpanError(&spanFind, "Failed to decode holder link", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to decode: %w", err)
 		}
 
 		holderLinks = append(holderLinks, record.ToEntity())
@@ -347,7 +355,7 @@ func (hlm *MongoDBRepository) FindAll(ctx context.Context, organizationID string
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to iterate holder links", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to iterate cursor: %w", err)
 	}
 
 	return holderLinks, nil
@@ -360,94 +368,130 @@ func (hlm *MongoDBRepository) Update(ctx context.Context, organizationID string,
 	ctx, span := tracer.Start(ctx, "mongodb.update_holder_link")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
+	attributes := hlm.buildHolderLinkUpdateAttributes(reqId, organizationID, id, fieldsToRemove)
+	span.SetAttributes(attributes...)
+
+	if err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", holderLink); err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+	}
+
+	coll, err := hlm.getHolderLinkCollection(ctx, &span, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	filter := hlm.buildHolderLinkUpdateFilter(id)
+
+	if err := hlm.performHolderLinkUpdate(ctx, tracer, coll, filter, holderLink, fieldsToRemove, attributes); err != nil {
+		return nil, err
+	}
+
+	return hlm.findUpdatedHolderLink(ctx, tracer, coll, filter, attributes)
+}
+
+func (hlm *MongoDBRepository) buildHolderLinkUpdateAttributes(reqId, organizationID string, id uuid.UUID, fieldsToRemove []string) []attribute.KeyValue {
+	return []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_link_id", id.String()),
 		attribute.StringSlice("app.request.fields_to_remove", fieldsToRemove),
 	}
+}
 
-	span.SetAttributes(attributes...)
-
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", holderLink)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
+func (hlm *MongoDBRepository) getHolderLinkCollection(ctx context.Context, span *trace.Span, organizationID string) (*mongo.Collection, error) {
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
+	return db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID)), nil
+}
 
+func (hlm *MongoDBRepository) buildHolderLinkUpdateFilter(id uuid.UUID) bson.D {
+	return bson.D{
+		{Key: "_id", Value: id},
+		{Key: "deleted_at", Value: nil},
+	}
+}
+
+func (hlm *MongoDBRepository) performHolderLinkUpdate(ctx context.Context, tracer trace.Tracer, coll *mongo.Collection, filter bson.D, holderLink *mmodel.HolderLink, fieldsToRemove []string, attributes []attribute.KeyValue) error {
 	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_holder_link.update_by_id")
 	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
 
+	update, err := hlm.buildHolderLinkUpdateDocument(holderLink, fieldsToRemove, &spanUpdate)
+	if err != nil {
+		return err
+	}
+
+	updateResult, err := coll.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return hlm.handleHolderLinkUpdateError(&spanUpdate, err)
+	}
+
+	if updateResult.MatchedCount == 0 {
+		return fmt.Errorf("holder link not found: %w", pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name()))
+	}
+
+	return nil
+}
+
+func (hlm *MongoDBRepository) buildHolderLinkUpdateDocument(holderLink *mmodel.HolderLink, fieldsToRemove []string, span *trace.Span) (bson.M, error) {
 	holderLinkToUpdate := &MongoDBModel{}
 	holderLinkToUpdate.FromEntity(holderLink)
 
 	bsonData, err := bson.Marshal(holderLinkToUpdate)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to marshal holder link", err)
-		return nil, err
+		libOpenTelemetry.HandleSpanError(span, "Failed to marshal holder link", err)
+		return nil, fmt.Errorf("failed to marshal holder link: %w", err)
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to unmarshal holder link", err)
-		return nil, err
+		libOpenTelemetry.HandleSpanError(span, "Failed to unmarshal holder link", err)
+		return nil, fmt.Errorf("failed to unmarshal holder link: %w", err)
 	}
 
-	update := mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove)
+	return mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove), nil
+}
 
-	filter := bson.D{
-		{Key: "_id", Value: id},
-		{Key: "deleted_at", Value: nil},
+func (hlm *MongoDBRepository) handleHolderLinkUpdateError(span *trace.Span, err error) error {
+	libOpenTelemetry.HandleSpanError(span, "Failed to update holder link", err)
+
+	if !mongo.IsDuplicateKeyError(err) {
+		return fmt.Errorf("failed to update holder link: %w", err)
 	}
 
-	updateResult, err := coll.UpdateOne(ctx, filter, update)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update holder link", err)
-
-		if mongo.IsDuplicateKeyError(err) {
-			errorType, isKnownError := getDuplicateKeyErrorType(err)
-			if isKnownError {
-				switch errorType {
-				case "duplicate_holder_link":
-					return nil, pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
-				case "primary_holder_exists":
-					return nil, pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
-				}
-			}
-		}
-
-		return nil, err
+	errorType, isKnownError := getDuplicateKeyErrorType(err)
+	if !isKnownError {
+		return fmt.Errorf("failed to update holder link: %w", err)
 	}
 
-	if updateResult.MatchedCount == 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name())
+	switch errorType {
+	case errCodeDuplicateHolderLink:
+		return fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name()))
+	case errCodePrimaryHolderExists:
+		return fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name()))
+	default:
+		return fmt.Errorf("failed to update holder link: %w", err)
 	}
+}
 
-	var record MongoDBModel
-
+func (hlm *MongoDBRepository) findUpdatedHolderLink(ctx context.Context, tracer trace.Tracer, coll *mongo.Collection, filter bson.D, attributes []attribute.KeyValue) (*mmodel.HolderLink, error) {
 	ctx, spanFind := tracer.Start(ctx, "mongodb.update_holder_link.find_by_id")
 	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
 
-	err = coll.FindOne(ctx, filter).Decode(&record)
-	if err != nil {
+	var record MongoDBModel
+	if err := coll.FindOne(ctx, filter).Decode(&record); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder link after update", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to decode holder link after update: %w", err)
 	}
 
-	result := record.ToEntity()
-
-	return result, nil
+	return record.ToEntity(), nil
 }
 
 // Delete soft deletes or hard deletes a holder link by id
@@ -469,7 +513,7 @@ func (hlm *MongoDBRepository) Delete(ctx context.Context, organizationID string,
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -488,11 +532,11 @@ func (hlm *MongoDBRepository) Delete(ctx context.Context, organizationID string,
 		result, err := coll.DeleteOne(ctxDelete, filter)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to hard delete holder link", err)
-			return err
+			return fmt.Errorf("failed to delete: %w", err)
 		}
 
 		if result.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name())
+			return fmt.Errorf("holder link not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name()))
 		}
 
 		return nil
@@ -514,11 +558,11 @@ func (hlm *MongoDBRepository) Delete(ctx context.Context, organizationID string,
 	result, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to soft delete holder link", err)
-		return err
+		return fmt.Errorf("failed to soft delete holder link: %w", err)
 	}
 
 	if result.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name())
+		return fmt.Errorf("holder link not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrHolderLinkNotFound, reflect.TypeOf(mmodel.HolderLink{}).Name()))
 	}
 
 	return nil
@@ -535,7 +579,7 @@ func buildHolderLinkFilter(query http.QueryHeader, includeDeleted bool) (bson.D,
 	if query.HolderID != nil && *query.HolderID != "" {
 		holderID, err := uuid.Parse(*query.HolderID)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.HolderLink{}).Name(), "holder_id")
+			return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.HolderLink{}).Name(), "holder_id"))
 		}
 
 		filter = append(filter, bson.E{Key: "holder_id", Value: holderID})
@@ -545,7 +589,7 @@ func buildHolderLinkFilter(query http.QueryHeader, includeDeleted bool) (bson.D,
 		for k, v := range *query.Metadata {
 			safeValue, err := http.ValidateMetadataValue(v)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to validate metadata value for key %s: %w", k, err)
 			}
 
 			filter = append(filter, bson.E{Key: k, Value: safeValue})
@@ -579,11 +623,11 @@ func getDuplicateKeyErrorType(err error) (string, bool) {
 // checkErrorByIndexName determines error type by checking which index name appears in the error message
 func checkErrorByIndexName(errMsg string) (string, bool) {
 	if strings.Contains(errMsg, "alias_id_link_type_unique") {
-		return "duplicate_holder_link", true
+		return errCodeDuplicateHolderLink, true
 	}
 
 	if strings.Contains(errMsg, "alias_id_primary_holder_unique") {
-		return "primary_holder_exists", true
+		return errCodePrimaryHolderExists, true
 	}
 
 	return "", false
@@ -602,16 +646,16 @@ func checkErrorByKeyPatternFromMessage(errMsg string) (string, bool) {
 	hasLinkType := strings.Contains(dupKeySection, "link_type")
 
 	if hasAliasID && hasLinkType {
-		return "duplicate_holder_link", true
+		return errCodeDuplicateHolderLink, true
 	}
 
 	if hasAliasID {
 		if strings.Contains(errMsg, string(mmodel.LinkTypePrimaryHolder)) {
-			return "primary_holder_exists", true
+			return errCodePrimaryHolderExists, true
 		}
 
 		if strings.Contains(errMsg, "alias_id_primary_holder_unique") {
-			return "primary_holder_exists", true
+			return errCodePrimaryHolderExists, true
 		}
 	}
 
@@ -666,12 +710,15 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, indexCreationTimeout)
 	defer cancel()
 
-	_, err := collection.Indexes().CreateMany(ctx, indexModels)
+	_, err := collection.Indexes().CreateMany(ctxWithTimeout, indexModels)
+	if err != nil {
+		return fmt.Errorf("failed to create collection indexes: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // FindByHolderID finds all holder links by holder ID
@@ -692,7 +739,7 @@ func (hlm *MongoDBRepository) FindByHolderID(ctx context.Context, organizationID
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(hlm.Database)).Collection(strings.ToLower("holder_links_" + organizationID))
@@ -713,7 +760,7 @@ func (hlm *MongoDBRepository) FindByHolderID(ctx context.Context, organizationID
 	cursor, err := coll.Find(ctx, filter)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder links by holder id", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -723,7 +770,7 @@ func (hlm *MongoDBRepository) FindByHolderID(ctx context.Context, organizationID
 		var record MongoDBModel
 		if err := cursor.Decode(&record); err != nil {
 			libOpenTelemetry.HandleSpanError(&spanFind, "Failed to decode holder link", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to decode: %w", err)
 		}
 
 		holderLinks = append(holderLinks, record.ToEntity())
@@ -731,7 +778,7 @@ func (hlm *MongoDBRepository) FindByHolderID(ctx context.Context, organizationID
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to iterate holder links", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to iterate cursor: %w", err)
 	}
 
 	return holderLinks, nil

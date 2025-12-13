@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -30,7 +31,7 @@ func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, fil
 
 		logger.Errorf("Failed to get holders: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find all holders: %w", err)
 	}
 
 	return holders, nil

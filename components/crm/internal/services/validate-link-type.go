@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -39,7 +40,7 @@ func (uc *UseCase) ValidateLinkType(ctx context.Context, linkType *string) error
 		validTypes := mmodel.GetValidLinkTypes()
 		logger.Errorf("Invalid linkType value: %s. Valid values are: %v", *linkType, validTypes)
 
-		return err
+		return fmt.Errorf("business validation error: %w", err)
 	}
 
 	return nil

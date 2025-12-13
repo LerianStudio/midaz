@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -33,7 +34,7 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 
 		logger.Errorf("Failed to get aliases: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find all aliases: %w", err)
 	}
 
 	for _, alias := range aliases {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -31,7 +32,7 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 
 		logger.Errorf("Failed to find holder links by alias id: %v", err)
 
-		return err
+		return fmt.Errorf("failed to find holder links by alias ID: %w", err)
 	}
 
 	if len(holderLinks) > 0 {
@@ -42,7 +43,7 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 
 				logger.Errorf("Failed to delete holder link by id: %v", err)
 
-				return err
+				return fmt.Errorf("failed to delete holder link: %w", err)
 			}
 		}
 	}
@@ -53,7 +54,7 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 
 		logger.Errorf("Failed to delete alias by id: %v", err)
 
-		return err
+		return fmt.Errorf("failed to delete alias: %w", err)
 	}
 
 	return nil

@@ -18,9 +18,7 @@ const applicationName = "crm"
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 

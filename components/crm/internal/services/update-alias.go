@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -54,7 +55,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID for new link", err)
 			logger.Errorf("Failed to parse holder ID for new link: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to parse UUID: %w", err)
 		}
 
 		newHolderLink, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
@@ -76,7 +77,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 		logger.Errorf("Failed to update alias: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	uc.enrichAliasWithLinkType(ctx, organizationID, updatedAlias)

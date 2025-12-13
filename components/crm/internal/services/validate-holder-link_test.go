@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -104,16 +105,20 @@ func TestValidateHolderLinkConstraints(t *testing.T) {
 
 			if testCase.expectError {
 				assert.Error(t, err)
-				if testCase.expectedError != nil {
-					if validationErr, ok := err.(pkg.ValidationError); ok {
-						assert.Equal(t, testCase.expectedError.Error(), validationErr.Code)
-					} else if conflictErr, ok := err.(pkg.EntityConflictError); ok {
-						assert.Equal(t, testCase.expectedError.Error(), conflictErr.Code)
-					} else if notFoundErr, ok := err.(pkg.EntityNotFoundError); ok {
-						assert.Equal(t, testCase.expectedError.Error(), notFoundErr.Code)
-					} else {
-						assert.Equal(t, testCase.expectedError, err)
-					}
+
+				var validationErr pkg.ValidationError
+				var conflictErr pkg.EntityConflictError
+				var notFoundErr pkg.EntityNotFoundError
+
+				switch {
+				case errors.As(err, &validationErr):
+					assert.Equal(t, testCase.expectedError.Error(), validationErr.Code)
+				case errors.As(err, &conflictErr):
+					assert.Equal(t, testCase.expectedError.Error(), conflictErr.Code)
+				case errors.As(err, &notFoundErr):
+					assert.Equal(t, testCase.expectedError.Error(), notFoundErr.Code)
+				default:
+					assert.ErrorIs(t, err, testCase.expectedError)
 				}
 			} else {
 				assert.NoError(t, err)

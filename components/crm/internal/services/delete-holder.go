@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,11 +35,11 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to check linked aliases for holder: %v", err)
 
-		return err
+		return fmt.Errorf("failed to count aliases: %w", err)
 	}
 
 	if count > 0 {
-		return pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name())
+		return fmt.Errorf("holder has aliases: %w", pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name()))
 	}
 
 	holderLinks, err := uc.HolderLinkRepo.FindByHolderID(ctx, organizationID, id, false)
@@ -47,7 +48,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to find holder links by holder id: %v", err)
 
-		return err
+		return fmt.Errorf("business validation error: %w", err)
 	}
 
 	for _, holderLink := range holderLinks {
@@ -57,7 +58,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 			logger.Errorf("Failed to delete holder link by id: %v", err)
 
-			return err
+			return fmt.Errorf("failed to delete holder link: %w", err)
 		}
 	}
 
@@ -67,7 +68,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to delete holder by id: %v", err)
 
-		return err
+		return fmt.Errorf("failed to delete holder: %w", err)
 	}
 
 	return nil

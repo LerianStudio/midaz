@@ -1,6 +1,7 @@
 package alias
 
 import (
+	"fmt"
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
@@ -39,12 +40,12 @@ type BankingMongoDBModel struct {
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encrypt document: %w", err)
 	}
 
 	participantDocument, err := ds.Encrypt(a.ParticipantDocument)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encrypt participant document: %w", err)
 	}
 
 	*amm = MongoDBModel{
@@ -62,39 +63,10 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	}
 
 	amm.Search = make(map[string]string)
+	amm.addDocumentToSearch(a.Document, ds)
 
-	if a.Document != nil && *a.Document != "" {
-		amm.Search["document"] = ds.GenerateHash(a.Document)
-	}
-
-	if a.BankingDetails != nil {
-		account, err := ds.Encrypt(a.BankingDetails.Account)
-		if err != nil {
-			return err
-		}
-
-		iban, err := ds.Encrypt(a.BankingDetails.IBAN)
-		if err != nil {
-			return err
-		}
-
-		amm.BankingDetails = &BankingMongoDBModel{
-			Branch:      a.BankingDetails.Branch,
-			Account:     account,
-			Type:        a.BankingDetails.Type,
-			OpeningDate: a.BankingDetails.OpeningDate,
-			CountryCode: a.BankingDetails.CountryCode,
-			BankID:      a.BankingDetails.BankID,
-			IBAN:        iban,
-		}
-
-		if a.BankingDetails.Account != nil && *a.BankingDetails.Account != "" {
-			amm.Search["banking_details_account"] = ds.GenerateHash(a.BankingDetails.Account)
-		}
-
-		if a.BankingDetails.IBAN != nil && *a.BankingDetails.IBAN != "" {
-			amm.Search["banking_details_iban"] = ds.GenerateHash(a.BankingDetails.IBAN)
-		}
+	if err := amm.setBankingDetails(a.BankingDetails, ds); err != nil {
+		return err
 	}
 
 	if a.Metadata == nil {
@@ -106,16 +78,62 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	return nil
 }
 
+func (amm *MongoDBModel) addDocumentToSearch(document *string, ds *libCrypto.Crypto) {
+	if document != nil && *document != "" {
+		amm.Search["document"] = ds.GenerateHash(document)
+	}
+}
+
+func (amm *MongoDBModel) setBankingDetails(details *mmodel.BankingDetails, ds *libCrypto.Crypto) error {
+	if details == nil {
+		return nil
+	}
+
+	account, err := ds.Encrypt(details.Account)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt banking account: %w", err)
+	}
+
+	iban, err := ds.Encrypt(details.IBAN)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt banking IBAN: %w", err)
+	}
+
+	amm.BankingDetails = &BankingMongoDBModel{
+		Branch:      details.Branch,
+		Account:     account,
+		Type:        details.Type,
+		OpeningDate: details.OpeningDate,
+		CountryCode: details.CountryCode,
+		BankID:      details.BankID,
+		IBAN:        iban,
+	}
+
+	amm.addBankingDetailsToSearch(details, ds)
+
+	return nil
+}
+
+func (amm *MongoDBModel) addBankingDetailsToSearch(details *mmodel.BankingDetails, ds *libCrypto.Crypto) {
+	if details.Account != nil && *details.Account != "" {
+		amm.Search["banking_details_account"] = ds.GenerateHash(details.Account)
+	}
+
+	if details.IBAN != nil && *details.IBAN != "" {
+		amm.Search["banking_details_iban"] = ds.GenerateHash(details.IBAN)
+	}
+}
+
 // ToEntity maps a MongoDB model to an Alias entity
 func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	document, err := ds.Decrypt(amm.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt document: %w", err)
 	}
 
 	participantDocument, err := ds.Decrypt(amm.ParticipantDocument)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt participant document: %w", err)
 	}
 
 	account := &mmodel.Alias{
@@ -136,12 +154,12 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	if amm.BankingDetails != nil {
 		accountNumber, err := ds.Decrypt(amm.BankingDetails.Account)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decrypt banking account: %w", err)
 		}
 
 		iban, err := ds.Decrypt(amm.BankingDetails.IBAN)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decrypt banking IBAN: %w", err)
 		}
 
 		account.BankingDetails = &mmodel.BankingDetails{

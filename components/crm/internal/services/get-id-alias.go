@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 
 		logger.Errorf("Failed to get alias by id %v", id)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find alias: %w", err)
 	}
 
 	uc.enrichAliasWithLinkType(ctx, organizationID, alias)
