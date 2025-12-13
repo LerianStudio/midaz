@@ -9,7 +9,7 @@ import (
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
-	libLog.Logger
+	Logger libLog.Logger
 }
 
 // Run starts the application.
