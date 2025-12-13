@@ -3,9 +3,11 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -19,6 +21,8 @@ import (
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,6 +32,9 @@ const (
 	MaxWorkers               = 100
 	messageProcessingTimeout = 30
 )
+
+// ErrPanicRecovered is returned when a panic is recovered during message processing
+var ErrPanicRecovered = errors.New("panic recovered")
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
@@ -85,7 +92,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	totalMessagesLessThanOneHour := r.processMessages(ctx, tracer, messages)
 
-	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
+	r.Logger.Infof("Total of messages under %d minute(s): %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
 	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
 }
 
@@ -119,7 +126,9 @@ Outer:
 
 		wg.Add(1)
 
-		go r.processMessage(ctx, tracer, sem, &wg, key, transaction)
+		mruntime.SafeGoWithContext(ctx, r.Logger, "redis_consumer_process_message", mruntime.KeepRunning, func(ctx context.Context) {
+			r.processMessage(ctx, tracer, sem, &wg, key, transaction)
+		})
 	}
 
 	wg.Wait()
@@ -160,6 +169,23 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 
 	msgCtxWithSpan, msgSpan := tracer.Start(ctxWithLogger, "redis.consumer.process_message")
 	defer msgSpan.End()
+
+	// Panic recovery with span event recording
+	// TODO(review): Consider implementing dead-letter queue for messages that cause repeated panics
+	// to avoid infinite processing loops. (reported by business-logic-reviewer on 2025-12-13, severity: Medium)
+	defer func() {
+		if rec := recover(); rec != nil {
+			stack := debug.Stack()
+			msgSpan.AddEvent("panic.recovered", trace.WithAttributes(
+				attribute.String("panic.value", fmt.Sprintf("%v", rec)),
+				attribute.String("panic.stack", string(stack)),
+				attribute.String("message.key", key),
+				attribute.String("header_id", m.HeaderID),
+			))
+			libOpentelemetry.HandleSpanError(&msgSpan, "Panic during Redis message processing", r.panicAsError(rec))
+			logger.WithFields("panic_value", fmt.Sprintf("%v", rec), "panic_stack", string(stack), "message_key", key).Errorf("Panic recovered while processing Redis message %s: %v", key, rec)
+		}
+	}()
 
 	if r.shouldCancelProcessing(msgCtxWithSpan, logger) {
 		return
@@ -273,4 +299,13 @@ func (r *RedisQueueConsumer) sendTransactionToQueue(ctx context.Context, span *t
 	}
 
 	return nil
+}
+
+// panicAsError converts a recovered panic value to an error
+func (r *RedisQueueConsumer) panicAsError(rec any) error {
+	if err, ok := rec.(error); ok {
+		return fmt.Errorf("%w: %w", ErrPanicRecovered, err)
+	}
+
+	return fmt.Errorf("%w: %s", ErrPanicRecovered, fmt.Sprint(rec))
 }

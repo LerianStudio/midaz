@@ -2,6 +2,8 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -9,9 +11,11 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
-	attribute "go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
@@ -67,132 +71,191 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 }
 
 // RunConsumers init consume for all registry queues.
+//
+//nolint:gocognit // Complexity from panic recovery, backoff, and reconnection logic is necessary for resilience
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
 		cr.Infof("Initializing consumer for queue: %s", queueName)
 
-		go func(queueName string, handler QueueHandlerFunc) {
+		// Capture loop variables before SafeGo
+		queue := queueName
+		queueHandler := handler
+
+		mruntime.SafeGo(cr.Logger, "rabbitmq_consumer_"+queue, mruntime.KeepRunning, func() {
 			backoff := utils.InitialBackoff
 
 			for {
-				if err := cr.conn.EnsureChannel(); err != nil {
-					cr.Errorf("[Consumer %s] failed to ensure channel: %v", queueName, err)
+				// Wrap each iteration in an anonymous function with panic recovery
+				shouldContinue := func() bool {
+					defer mruntime.RecoverAndLog(cr.Logger, "rabbitmq_consumer_loop_"+queue)
 
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying EnsureChannel in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
+					if err := cr.conn.EnsureChannel(); err != nil {
+						cr.Errorf("[Consumer %s] failed to ensure channel: %v", queue, err)
 
-					backoff = utils.NextBackoff(backoff)
+						sleepDuration := utils.FullJitter(backoff)
+						cr.Infof("[Consumer %s] retrying EnsureChannel in %v...", queue, sleepDuration)
+						time.Sleep(sleepDuration)
 
-					continue
+						backoff = utils.NextBackoff(backoff)
+
+						return true
+					}
+
+					if err := cr.conn.Channel.Qos(
+						cr.NumbersOfPrefetch,
+						0,
+						false,
+					); err != nil {
+						cr.Errorf("[Consumer %s] failed to set QoS: %v", queue, err)
+
+						sleepDuration := utils.FullJitter(backoff)
+						cr.Infof("[Consumer %s] retrying QoS in %v...", queue, sleepDuration)
+						time.Sleep(sleepDuration)
+
+						backoff = utils.NextBackoff(backoff)
+
+						return true
+					}
+
+					messages, err := cr.conn.Channel.Consume(
+						queue,
+						"",
+						false,
+						false,
+						false,
+						false,
+						nil,
+					)
+					if err != nil {
+						cr.Errorf("[Consumer %s] failed to start consuming: %v", queue, err)
+
+						sleepDuration := utils.FullJitter(backoff)
+						cr.Infof("[Consumer %s] retrying Consume in %v...", queue, sleepDuration)
+						time.Sleep(sleepDuration)
+
+						backoff = utils.NextBackoff(backoff)
+
+						return true
+					}
+
+					cr.Infof("[Consumer %s] consuming started", queue)
+
+					backoff = utils.InitialBackoff
+
+					notifyClose := make(chan *amqp.Error, 1)
+					cr.conn.Channel.NotifyClose(notifyClose)
+
+					for i := 0; i < cr.NumbersOfWorkers; i++ {
+						workerID := i
+
+						mruntime.SafeGo(cr.Logger, "rabbitmq_worker_"+queue, mruntime.KeepRunning, func() {
+							cr.startWorker(workerID, queue, queueHandler, messages)
+						})
+					}
+
+					if errClose := <-notifyClose; errClose != nil {
+						cr.Warnf("[Consumer %s] channel closed: %v", queue, errClose)
+					} else {
+						cr.Warnf("[Consumer %s] channel closed: no error info", queue)
+					}
+
+					cr.Warnf("[Consumer %s] restarting...", queue)
+
+					return true
+				}()
+
+				if !shouldContinue {
+					break
 				}
-
-				if err := cr.conn.Channel.Qos(
-					cr.NumbersOfPrefetch,
-					0,
-					false,
-				); err != nil {
-					cr.Errorf("[Consumer %s] failed to set QoS: %v", queueName, err)
-
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying QoS in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
-
-					backoff = utils.NextBackoff(backoff)
-
-					continue
-				}
-
-				messages, err := cr.conn.Channel.Consume(
-					queueName,
-					"",
-					false,
-					false,
-					false,
-					false,
-					nil,
-				)
-				if err != nil {
-					cr.Errorf("[Consumer %s] failed to start consuming: %v", queueName, err)
-
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying Consume in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
-
-					backoff = utils.NextBackoff(backoff)
-
-					continue
-				}
-
-				cr.Infof("[Consumer %s] consuming started", queueName)
-
-				backoff = utils.InitialBackoff
-
-				notifyClose := make(chan *amqp.Error, 1)
-				cr.conn.Channel.NotifyClose(notifyClose)
-
-				for i := 0; i < cr.NumbersOfWorkers; i++ {
-					go cr.startWorker(i, queueName, handler, messages)
-				}
-
-				if errClose := <-notifyClose; errClose != nil {
-					cr.Warnf("[Consumer %s] channel closed: %v", queueName, errClose)
-				} else {
-					cr.Warnf("[Consumer %s] channel closed: no error info", queueName)
-				}
-
-				cr.Warnf("[Consumer %s] restarting...", queueName)
 			}
-		}(queueName, handler)
+		})
 	}
 
 	return nil
 }
 
 // startWorker starts a worker that processes messages from the queue.
+//
+//nolint:cyclop // Complexity from panic recovery with span events and message ack/nack handling is necessary for safety
 func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
-		midazID, found := msg.Headers[libConstants.HeaderID]
-		if !found {
-			midazID = libCommons.GenerateUUIDv7().String()
-		}
+		func() {
+			// Safely extract HeaderID - handle both string and []byte types
+			midazID := libCommons.GenerateUUIDv7().String()
 
-		log := cr.Logger.WithFields(
-			libConstants.HeaderID, midazID.(string),
-		).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+			if raw, ok := msg.Headers[libConstants.HeaderID]; ok {
+				switch v := raw.(type) {
+				case string:
+					midazID = v
+				case []byte:
+					midazID = string(v)
+				}
+			}
 
-		ctx := libCommons.ContextWithLogger(
-			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
-			log,
-		)
+			log := cr.Logger.WithFields(
+				libConstants.HeaderID, midazID,
+			).WithDefaultMessageTemplate(midazID + libConstants.LoggerDefaultSeparator)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
-		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
+			ctx := libCommons.ContextWithLogger(
+				libCommons.ContextWithHeaderID(context.Background(), midazID),
+				log,
+			)
 
-		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-		ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
+			ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
-		ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
+			logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+			ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
-		}
+			ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
-		err = handlerFunc(ctx, msg.Body)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
-			spanConsumer.End()
-			logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+			defer spanConsumer.End()
 
-			_ = msg.Nack(false, true)
+			// Panic recovery with span event recording
+			// TODO(review): Implement poison message handling - track redelivery count via x-death header
+			// and reject (don't requeue) after N attempts to avoid infinite panic/redelivery loops.
+			// Consider configuring a dead-letter exchange (DLX) in RabbitMQ for failed messages.
+			// (reported by business-logic-reviewer on 2025-12-13, severity: Critical)
+			defer func() {
+				if r := recover(); r != nil {
+					stack := debug.Stack()
+					spanConsumer.AddEvent("panic.recovered", trace.WithAttributes(
+						attribute.String("panic.value", fmt.Sprintf("%v", r)),
+						attribute.String("panic.stack", string(stack)),
+						attribute.String("rabbitmq.queue", queue),
+						attribute.Int("rabbitmq.worker_id", workerID),
+					))
 
-			continue
-		}
+					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
+						workerID, queue, r, string(stack))
 
-		spanConsumer.End()
+					// Nack the message for redelivery
+					if err := msg.Nack(false, true); err != nil {
+						logger.Warnf("Worker %d: failed to nack message after panic: %v", workerID, err)
+					}
+				}
+			}()
 
-		_ = msg.Ack(false)
+			err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
+			}
+
+			err = handlerFunc(ctx, msg.Body)
+			if err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
+				logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+
+				if nackErr := msg.Nack(false, true); nackErr != nil {
+					logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
+				}
+
+				return
+			}
+
+			if ackErr := msg.Ack(false); ackErr != nil {
+				logger.Warnf("Worker %d: failed to ack message (may cause redelivery): %v", workerID, ackErr)
+			}
+		}()
 	}
 
 	cr.Warnf("[Consumer %s] worker %d stopped (channel closed)", queue, workerID)

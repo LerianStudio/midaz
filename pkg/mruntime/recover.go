@@ -1,16 +1,13 @@
 package mruntime
 
 import (
-	"fmt"
 	"runtime/debug"
 )
 
 // Logger defines the minimal logging interface required by mruntime.
-// This interface uses structural typing - any logger with these methods
-// will satisfy it, including github.com/LerianStudio/lib-commons/v2/commons/log.Logger.
+// This interface is satisfied by github.com/LerianStudio/lib-commons/v2/commons/log.Logger.
 type Logger interface {
 	Errorf(format string, args ...any)
-	WithFields(fields ...any) Logger
 }
 
 // RecoverAndLog recovers from a panic, logs it with the stack trace, and
@@ -75,9 +72,6 @@ func logPanic(logger Logger, name string, panicValue any) {
 		return
 	}
 
-	logger.WithFields(
-		"panic_source", name,
-		"panic_value", fmt.Sprintf("%v", panicValue),
-		"stack_trace", string(stack),
-	).Errorf("panic recovered in %s: %v", name, panicValue)
+	logger.Errorf("panic recovered in %s: %v\npanic_source=%s panic_value=%v\nstack_trace:\n%s",
+		name, panicValue, name, panicValue, string(stack))
 }

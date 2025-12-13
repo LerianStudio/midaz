@@ -7,18 +7,23 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -28,6 +33,9 @@ const (
 
 // ErrBalanceSyncKeyMissingUUIDs is returned when balance sync key is missing required UUIDs
 var ErrBalanceSyncKeyMissingUUIDs = errors.New("balance sync key missing required UUIDs")
+
+// ErrBalanceSyncPanicRecovered is returned when a panic is recovered during balance sync processing
+var ErrBalanceSyncPanicRecovered = errors.New("panic recovered during balance sync")
 
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
@@ -136,7 +144,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 
 		wg.Add(1)
 
-		go func(member string) {
+		mruntime.SafeGo(w.logger, "balance_sync_worker", mruntime.KeepRunning, func() {
 			defer func() { <-sem }()
 
 			defer wg.Done()
@@ -146,7 +154,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 			}
 
 			w.processBalanceToExpire(ctx, rds, member)
-		}(member)
+		})
 	}
 
 	wg.Wait()
@@ -182,6 +190,23 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	ctx, span := tracer.Start(ctx, "balance.worker.process_balance_to_expire")
 	defer span.End()
+
+	// Panic recovery with span event recording
+	// NOTE: This inner recovery captures panics to add OpenTelemetry span events.
+	// The outer SafeGo wrapper (line 147) provides a safety net for any panics
+	// in the defer chain itself. Both layers are intentional.
+	defer func() {
+		if rec := recover(); rec != nil {
+			stack := debug.Stack()
+			span.AddEvent("panic.recovered", trace.WithAttributes(
+				attribute.String("panic.value", fmt.Sprintf("%v", rec)),
+				attribute.String("panic.stack", string(stack)),
+				attribute.String("member", member),
+			))
+			libOpentelemetry.HandleSpanError(&span, "Panic during balance sync processing", w.panicAsError(rec))
+			w.logger.WithFields("panic_value", fmt.Sprintf("%v", rec), "member", member).Errorf("Panic recovered while processing balance sync for member %s: %v", member, rec)
+		}
+	}()
 
 	if member == "" {
 		return
@@ -413,4 +438,13 @@ func (w *BalanceSyncWorker) tryParseUUID(seg string) (uuid.UUID, bool) {
 	}
 
 	return u, true
+}
+
+// panicAsError converts a recovered panic value to an error
+func (w *BalanceSyncWorker) panicAsError(rec any) error {
+	if err, ok := rec.(error); ok {
+		return fmt.Errorf("%w: %w", ErrBalanceSyncPanicRecovered, err)
+	}
+
+	return fmt.Errorf("%w: %s", ErrBalanceSyncPanicRecovered, fmt.Sprint(rec))
 }
