@@ -24,6 +24,7 @@ jobs:
     outputs:
       onboarding: ${{ steps.changes.outputs.onboarding }}
       transaction: ${{ steps.changes.outputs.transaction }}
+      crm: ${{ steps.changes.outputs.crm }}
       migrations: ${{ steps.changes.outputs.migrations }}
     steps:
       - uses: actions/checkout@v4
@@ -129,6 +130,7 @@ jobs:
         shell: bash
         run: make test-unit
 
+<<<<<<< HEAD
   migration-lint:
     name: Lint Database Migrations
     needs: detect-changes
@@ -150,3 +152,48 @@ jobs:
 
       - name: Lint transaction migrations
         run: ./bin/migration-lint ./components/transaction/migrations
+=======
+  Semgrep:
+    name: Run Semgrep Runtime Safety Rules
+    needs: detect-changes
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep (ERROR rules - blocking)
+        run: |
+          semgrep scan \
+            --config .semgrep/go-runtime-safety.yml \
+            --severity ERROR \
+            --error \
+            --sarif \
+            --sarif-output=semgrep-errors.sarif \
+            ./components/ ./pkg/
+
+      - name: Semgrep (WARNING rules - report only)
+        if: always()
+        run: |
+          semgrep scan \
+            --config .semgrep/go-runtime-safety.yml \
+            --severity WARNING \
+            --sarif \
+            --sarif-output=semgrep-warnings.sarif \
+            ./components/ ./pkg/ || true
+
+      - name: Upload SARIF (errors)
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-errors.sarif
+        continue-on-error: true
+
+      - name: Upload SARIF (warnings)
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-warnings.sarif
+        continue-on-error: true
+>>>>>>> 7f6702ac (feat(lint): add Semgrep rules for panic hardening enforcement)

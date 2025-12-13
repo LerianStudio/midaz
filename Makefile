@@ -106,6 +106,8 @@ help:
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks using gosec"
+	@echo "  make semgrep                     - Run Semgrep runtime safety linting"
+	@echo "  make semgrep-dry-run             - Run Semgrep without failing on errors"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -382,6 +384,29 @@ sec:
 	else \
 		echo "No Go files found, skipping security checks"; \
 	fi
+
+#-------------------------------------------------------
+# Semgrep Runtime Safety Linting
+#-------------------------------------------------------
+
+.PHONY: semgrep
+semgrep:
+	$(call print_title,Running Semgrep runtime safety checks)
+	@if ! command -v semgrep >/dev/null 2>&1; then \
+		echo "semgrep not found, installing..."; \
+		pip install semgrep || brew install semgrep || (echo "Failed to install semgrep" && exit 1); \
+	fi
+	@semgrep scan --config .semgrep/go-runtime-safety.yml --severity ERROR --error ./components/ ./pkg/
+	@semgrep scan --config .semgrep/go-runtime-safety.yml --severity WARNING ./components/ ./pkg/ || true
+
+.PHONY: semgrep-dry-run
+semgrep-dry-run:
+	$(call print_title,Running Semgrep runtime safety checks - dry run)
+	@if ! command -v semgrep >/dev/null 2>&1; then \
+		echo "semgrep not found, installing..."; \
+		pip install semgrep || brew install semgrep || (echo "Failed to install semgrep" && exit 1); \
+	fi
+	@semgrep scan --config .semgrep/go-runtime-safety.yml ./components/ ./pkg/
 
 #-------------------------------------------------------
 # Git Hook Commands

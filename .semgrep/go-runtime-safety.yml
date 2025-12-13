@@ -1,0 +1,222 @@
+rules:
+  # =============================================================================
+  # Rule: go-no-raw-goroutine
+  # =============================================================================
+  # Prevents raw `go` statements to ensure all goroutines have panic recovery.
+  # Use mruntime.SafeGo() or mruntime.SafeGoWithContext() instead.
+  #
+  # Good:
+  #   mruntime.SafeGo(logger, "task-name", mruntime.KeepRunning, func() { ... })
+  #
+  # Bad:
+  #   go func() { ... }()
+  #   go doSomething()
+  #
+  - id: go-no-raw-goroutine
+    message: >-
+      Raw goroutine detected. Use mruntime.SafeGo() or mruntime.SafeGoWithContext()
+      instead of raw 'go' statements to ensure panic recovery.
+
+      Example:
+        mruntime.SafeGo(logger, "task-name", mruntime.KeepRunning, func() {
+            // your code here
+        })
+
+      See pkg/mruntime/ for documentation.
+    languages:
+      - go
+    severity: ERROR
+    pattern-either:
+      - pattern: go $FUNC(...)
+      - pattern: |
+          go func(...) { ... }(...)
+    paths:
+      exclude:
+        # The mruntime package is allowed to use raw go statements
+        - /pkg/mruntime/
+        # Test files are allowed to use raw go for testing purposes
+        - "**/*_test.go"
+        # Generated files
+        - "**/*.pb.go"
+        - "**/*_mock.go"
+        - "**/mock_*.go"
+        - "**/mocks/"
+    metadata:
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+      subcategory:
+        - audit
+      references:
+        - https://github.com/LerianStudio/midaz/blob/main/pkg/mruntime/doc.go
+
+  # =============================================================================
+  # Rule: go-no-recover-outside-boundary
+  # =============================================================================
+  # Restricts recover() to boundary packages (HTTP handlers, gRPC interceptors,
+  # message queue consumers) and the mruntime package. Other code should not
+  # call recover() directly.
+  #
+  # Allowed locations:
+  #   - pkg/mruntime/ (panic recovery infrastructure)
+  #   - components/*/internal/adapters/http/ (HTTP boundary)
+  #   - components/*/internal/adapters/grpc/ (gRPC boundary)
+  #   - components/*/internal/adapters/rabbitmq/ (Message queue boundary)
+  #   - components/*/internal/bootstrap/ (Worker bootstrap with message consumers)
+  #   - Test files
+  #
+  - id: go-no-recover-outside-boundary
+    message: >-
+      recover() is only allowed in boundary packages (HTTP/gRPC/RabbitMQ adapters,
+      bootstrap workers) and pkg/mruntime/. For goroutine protection, use
+      mruntime.SafeGo() which handles recovery automatically.
+
+      If you need panic recovery in a new boundary, discuss with the team first.
+    languages:
+      - go
+    severity: ERROR
+    pattern: recover()
+    paths:
+      exclude:
+        # The mruntime package provides recovery infrastructure
+        - /pkg/mruntime/
+        # HTTP boundary layers are allowed to recover
+        - /components/*/internal/adapters/http/
+        # gRPC boundary layers are allowed to recover
+        - /components/*/internal/adapters/grpc/
+        # RabbitMQ message queue boundary layers are allowed to recover
+        - /components/*/internal/adapters/rabbitmq/
+        # Bootstrap workers with message consumers are allowed to recover
+        - /components/*/internal/bootstrap/
+        # Test files can use recover for testing panic behavior
+        - "**/*_test.go"
+        # Generated files
+        - "**/*.pb.go"
+        - "**/*_mock.go"
+        - "**/mock_*.go"
+        - "**/mocks/"
+    metadata:
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+      subcategory:
+        - audit
+
+  # =============================================================================
+  # Rule: go-no-panic-in-production
+  # =============================================================================
+  # Prevents panic() calls in production code. Panics should be replaced with
+  # proper error handling. The only exception is in assertion packages where
+  # panic is intentional for invariant violations.
+  #
+  # Good:
+  #   return fmt.Errorf("invalid state: %v", state)
+  #   return errors.New("configuration error")
+  #
+  # Bad:
+  #   panic("invalid state")
+  #   panic(fmt.Sprintf("unexpected: %v", x))
+  #
+  - id: go-no-panic-in-production
+    message: >-
+      panic() should not be used in production code. Return an error instead,
+      or use assert.That() for invariant checks (after Phase 5 is complete).
+
+      If this is a truly unrecoverable situation, document why and request
+      an exception in code review.
+    languages:
+      - go
+    severity: WARNING
+    pattern: panic($MSG)
+    paths:
+      exclude:
+        # Test files can use panic for testing
+        - "**/*_test.go"
+        # The mruntime package uses panic for CrashProcess policy
+        - /pkg/mruntime/
+        # Future: assertion package will use panic intentionally
+        - /pkg/assert/
+        # Generated files
+        - "**/*.pb.go"
+        - "**/*_mock.go"
+        - "**/mock_*.go"
+        - "**/mocks/"
+    metadata:
+      category: security
+      technology:
+        - go
+      confidence: MEDIUM
+      impact: MEDIUM
+      likelihood: MEDIUM
+      subcategory:
+        - audit
+
+  # =============================================================================
+  # Rule: go-no-bare-recover
+  # =============================================================================
+  # Ensures recover() calls properly log the recovered panic value.
+  # Silently swallowing panics makes debugging impossible.
+  #
+  # Good:
+  #   if r := recover(); r != nil {
+  #       logger.Errorf("panic recovered: %v", r)
+  #   }
+  #
+  # Bad:
+  #   recover()  // Silently swallows panic
+  #   _ = recover()  // Discards panic value
+  #
+  - id: go-no-bare-recover
+    message: >-
+      recover() call should capture and log the panic value. Silently swallowing
+      panics makes debugging impossible.
+
+      Use the pattern:
+        if r := recover(); r != nil {
+            logger.Errorf("panic recovered: %v", r)
+            // handle or re-panic as needed
+        }
+
+      Or use mruntime.RecoverAndLog(logger, "name") which handles this properly.
+    languages:
+      - go
+    severity: WARNING
+    patterns:
+      # Detect bare recover() calls
+      - pattern-either:
+          - pattern: recover()
+          - pattern: |
+              _ = recover()
+      # But not when assigned to a variable for later use
+      - pattern-not: |
+          $R := recover()
+      - pattern-not: |
+          $R = recover()
+      - pattern-not-inside: |
+          if $R := recover(); $R != nil { ... }
+      - pattern-not-inside: |
+          if $R = recover(); $R != nil { ... }
+    paths:
+      exclude:
+        # Test files can use bare recover for testing
+        - "**/*_test.go"
+        # Generated files
+        - "**/*.pb.go"
+        - "**/*_mock.go"
+        - "**/mock_*.go"
+        - "**/mocks/"
+    metadata:
+      category: security
+      technology:
+        - go
+      confidence: HIGH
+      impact: MEDIUM
+      likelihood: MEDIUM
+      subcategory:
+        - audit
