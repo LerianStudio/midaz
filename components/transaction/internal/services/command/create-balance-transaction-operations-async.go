@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -86,9 +87,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("failed to create operations: %w", err)
 	}
 
-	go uc.SendTransactionEvents(ctx, tran)
+	mruntime.SafeGoWithContext(ctx, logger, "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
+		uc.SendTransactionEvents(ctx, tran)
+	})
 
-	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	mruntime.SafeGoWithContext(ctx, logger, "remove_transaction_from_redis", mruntime.KeepRunning, func(ctx context.Context) {
+		uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	})
 
 	return nil
 }

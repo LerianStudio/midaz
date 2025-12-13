@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -1221,8 +1222,12 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 		return nil
 	}
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	mruntime.SafeGoWithContext(ctx, logger, "idempotency_key_update", mruntime.KeepRunning, func(ctx context.Context) {
+		handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
+	})
+	mruntime.SafeGoWithContext(ctx, logger, "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
+		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	})
 
 	if err := http.Created(c, tran); err != nil {
 		return fmt.Errorf("failed to send created transaction response: %w", err)
@@ -1351,7 +1356,9 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 		return nil
 	}
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	mruntime.SafeGoWithContext(ctx, logger, "commit_cancel_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
+		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	})
 
 	if err := http.Created(c, tran); err != nil {
 		return fmt.Errorf("failed to send created transaction response: %w", err)
