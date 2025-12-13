@@ -304,6 +304,13 @@ lint:
 			echo "No Go files found in $$dir, skipping linting"; \
 		fi; \
 	done
+	@echo "Checking for Go files in $(LEDGER_DIR)..."
+	@if find "$(LEDGER_DIR)" -name "*.go" -type f | grep -q .; then \
+		echo "Linting in $(LEDGER_DIR)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) lint) || exit 1; \
+	else \
+		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
+	fi
 	@echo "Checking for Go files in $(TESTS_DIR)..."
 	@if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
