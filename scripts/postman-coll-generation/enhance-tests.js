@@ -128,7 +128,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping ledger validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -171,7 +170,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping portfolio validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -214,7 +212,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping account validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -261,7 +258,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping asset validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -305,7 +301,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping segment validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -348,7 +343,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping transaction validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
