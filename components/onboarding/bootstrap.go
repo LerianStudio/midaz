@@ -25,7 +25,7 @@ import (
 //		UnifiedMode: true,
 //		BalancePort: transactionUseCase, // implements mbootstrap.BalancePort
 //	}
-//	service := onboarding.InitServiceWithOptionsOrError(opts)
+//	service, err := onboarding.InitServiceWithOptionsOrError(opts)
 //
 // Example usage in standalone mode:
 //
@@ -72,6 +72,10 @@ func InitServiceOrError() (mbootstrap.Service, error) {
 func InitServiceWithOptionsOrError(opts *Options) (mbootstrap.Service, error) {
 	if opts == nil {
 		return InitServiceOrError()
+	}
+
+	if opts.UnifiedMode && opts.BalancePort == nil {
+		return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
