@@ -263,8 +263,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
 
-	if mongoPoolSize <= 0 {
-		mongoPoolSize = 100
+	// Safe conversion: use uint64 with default, only assign if positive
+	var mongoMaxPoolSize uint64 = 100
+	if mongoPoolSize > 0 {
+		mongoMaxPoolSize = uint64(mongoPoolSize)
 	}
 
 	if mongoParameters != "" {
@@ -275,7 +277,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ConnectionStringSource: mongoSource,
 		Database:               mongoName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(mongoPoolSize),
+		MaxPoolSize:            mongoMaxPoolSize,
 	}
 
 	redisConnection := &libRedis.RedisConnection{
