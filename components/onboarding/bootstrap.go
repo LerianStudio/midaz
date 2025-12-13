@@ -4,12 +4,38 @@
 package onboarding
 
 import (
+	"fmt"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
-// Options contains configuration options for initializing the onboarding service.
+// Options configures the onboarding service initialization behavior.
+// It controls whether the service runs in unified mode (part of the ledger monolith)
+// or standalone mode (separate microservice).
+//
+// In unified mode, the onboarding service communicates with other modules
+// (such as the transaction module) via direct in-process calls instead of gRPC.
+// This improves performance by avoiding network overhead.
+//
+// Example usage in unified mode:
+//
+//	opts := &onboarding.Options{
+//		UnifiedMode: true,
+//		BalancePort: transactionUseCase, // implements mbootstrap.BalancePort
+//	}
+//	service := onboarding.InitServiceWithOptionsAndError(opts)
+//
+// Example usage in standalone mode:
+//
+//	// Pass nil or use InitService() directly for gRPC-based communication
+//	service := onboarding.InitService()
 type Options struct {
+	// Logger allows callers to provide a pre-configured logger, avoiding multiple
+	// initializations when composing components (e.g. unified ledger).
+	Logger libLog.Logger
+
 	// UnifiedMode indicates the service is running as part of the unified ledger.
 	// When true, all ports must be provided for in-process communication.
 	// When false (or Options is nil), uses gRPC adapters for remote communication.
@@ -21,20 +47,35 @@ type Options struct {
 	BalancePort mbootstrap.BalancePort
 }
 
-// InitService initializes the onboarding service and returns it as the mbootstrap.Service interface.
-// This allows other modules to compose the onboarding service without accessing internal packages.
+// InitService initializes the onboarding service.
+//
+// Deprecated: Use InitServiceWithError for proper error handling.
+// This function panics on initialization errors.
 func InitService() mbootstrap.Service {
+	service, err := InitServiceWithError()
+	if err != nil {
+		panic(fmt.Sprintf("onboarding.InitService failed: %v", err))
+	}
+
+	return service
+}
+
+// InitServiceWithError initializes the onboarding service with explicit error handling.
+// This is the recommended way to initialize the service as it allows callers to handle
+// initialization errors gracefully instead of panicking.
+func InitServiceWithError() (mbootstrap.Service, error) {
 	return bootstrap.InitServers()
 }
 
-// InitServiceWithOptions initializes the onboarding service with custom options.
-// Use this when running in unified ledger mode to enable direct in-process calls.
-func InitServiceWithOptions(opts *Options) mbootstrap.Service {
+// InitServiceWithOptionsAndError initializes the onboarding service with custom options
+// and explicit error handling. Use this when running in unified ledger mode.
+func InitServiceWithOptionsAndError(opts *Options) (mbootstrap.Service, error) {
 	if opts == nil {
-		return bootstrap.InitServers()
+		return InitServiceWithError()
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+		Logger:      opts.Logger,
 		UnifiedMode: opts.UnifiedMode,
 		BalancePort: opts.BalancePort,
 	})

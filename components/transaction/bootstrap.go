@@ -4,6 +4,9 @@
 package transaction
 
 import (
+	"fmt"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
@@ -18,9 +21,40 @@ type TransactionService interface {
 	GetBalancePort() mbootstrap.BalancePort
 }
 
-// InitService initializes the transaction service and returns it as the TransactionService interface.
-// This allows other modules to compose the transaction service and access its BalanceRepository
-// without accessing internal packages.
+// Options configures the transaction service initialization behavior.
+type Options struct {
+	// Logger allows callers to provide a pre-configured logger, avoiding multiple
+	// initializations when composing components (e.g. unified ledger).
+	Logger libLog.Logger
+}
+
+// InitService initializes the transaction service.
+//
+// Deprecated: Use InitServiceWithError for proper error handling.
+// This function panics on initialization errors.
 func InitService() TransactionService {
+	service, err := InitServiceWithError()
+	if err != nil {
+		panic(fmt.Sprintf("transaction.InitService failed: %v", err))
+	}
+	return service
+}
+
+// InitServiceWithError initializes the transaction service with explicit error handling.
+// This is the recommended way to initialize the service as it allows callers to handle
+// initialization errors gracefully instead of panicking.
+func InitServiceWithError() (TransactionService, error) {
 	return bootstrap.InitServers()
+}
+
+// InitServiceWithOptionsAndError initializes the transaction service with custom options
+// and explicit error handling. Use this when composing in unified ledger mode.
+func InitServiceWithOptionsAndError(opts *Options) (TransactionService, error) {
+	if opts == nil {
+		return InitServiceWithError()
+	}
+
+	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+		Logger: opts.Logger,
+	})
 }

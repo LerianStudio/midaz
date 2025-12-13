@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 )
 
@@ -21,5 +24,18 @@ import (
 // @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
 func main() {
 	libCommons.InitLocalEnvConfig()
-	bootstrap.InitServers().Run()
+
+	logger := libZap.InitializeLogger()
+
+	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
+		Logger: logger,
+	})
+	if err != nil {
+		logger.Errorf("Failed to initialize onboarding service: %v", err)
+		_ = logger.Sync()
+
+		os.Exit(1)
+	}
+
+	service.Run()
 }

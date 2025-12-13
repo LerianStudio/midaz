@@ -8,6 +8,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -157,6 +158,10 @@ type Config struct {
 // Options contains optional dependencies that can be injected when running
 // in unified ledger mode. When nil, defaults to gRPC-based communication.
 type Options struct {
+	// Logger allows callers (e.g. cmd/app) to provide a pre-configured logger,
+	// avoiding double initialization and ensuring consistent output.
+	Logger libLog.Logger
+
 	// UnifiedMode indicates the service is running as part of the unified ledger.
 	// When true, all ports must be provided for in-process communication.
 	// When false (or Options is nil), uses gRPC adapters for remote communication.
@@ -169,21 +174,26 @@ type Options struct {
 }
 
 // InitServers initiate http and grpc servers using default gRPC communication.
-func InitServers() *Service {
+func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
 // InitServersWithOptions initiates http servers with optional dependency injection.
 // When opts is nil or opts.BalancePort is nil, uses gRPC for balance operations.
 // When opts.BalancePort is provided, uses direct in-process calls (unified ledger mode).
-func InitServersWithOptions(opts *Options) *Service {
+func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger := libZap.InitializeLogger()
+	var logger libLog.Logger
+	if opts != nil && opts.Logger != nil {
+		logger = opts.Logger
+	} else {
+		logger = libZap.InitializeLogger()
+	}
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -283,7 +293,10 @@ func InitServersWithOptions(opts *Options) *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize redis: %w", err)
+	}
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
@@ -409,5 +422,5 @@ func InitServersWithOptions(opts *Options) *Service {
 	return &Service{
 		Server: serverAPI,
 		Logger: logger,
-	}
+	}, nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -169,29 +170,40 @@ type Config struct {
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     *bool  `env:"BALANCE_SYNC_WORKER_ENABLED"`
+	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 }
 
+// Options contains optional dependencies that can be injected by callers.
+type Options struct {
+	// Logger allows callers to provide a pre-configured logger, avoiding double
+	// initialization when the cmd/app wants to handle bootstrap errors.
+	Logger libLog.Logger
+}
+
 // InitServers initiate http and grpc servers.
-func InitServers() *Service {
+func InitServers() (*Service, error) {
+	return InitServersWithOptions(nil)
+}
+
+// InitServersWithOptions initiates http and grpc servers with optional dependency injection.
+func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger := libZap.InitializeLogger()
-
-	// Handle balance sync worker enabled with default true (must be computed early for Redis repo)
-	const defaultBalanceSyncWorkerEnabled = true
-
-	balanceSyncWorkerEnabled := defaultBalanceSyncWorkerEnabled
-	if cfg.BalanceSyncWorkerEnabled != nil {
-		balanceSyncWorkerEnabled = *cfg.BalanceSyncWorkerEnabled
+	var logger libLog.Logger
+	if opts != nil && opts.Logger != nil {
+		logger = opts.Logger
 	} else {
-		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=%v", defaultBalanceSyncWorkerEnabled)
+		logger = libZap.InitializeLogger()
 	}
+
+	// BalanceSyncWorkerEnabled defaults to true via struct tag
+	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
+	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -291,7 +303,10 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	redisConsumerRepository := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize redis: %w", err)
+	}
 
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
@@ -444,5 +459,5 @@ func InitServers() *Service {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
-	}
+	}, nil
 }

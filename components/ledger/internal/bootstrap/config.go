@@ -1,11 +1,15 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/google/uuid"
 )
 
 const ApplicationName = "ledger"
@@ -25,18 +29,35 @@ type Config struct {
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
 }
 
+// Options contains optional dependencies that can be injected by callers.
+type Options struct {
+	// Logger allows callers to provide a pre-configured logger, avoiding multiple
+	// initializations when composing components (e.g. unified ledger).
+	Logger libLog.Logger
+}
+
 // InitServers initializes the unified ledger service that composes
 // both onboarding and transaction modules in a single process.
 // The transaction module is initialized first so its BalancePort (the UseCase)
 // can be passed directly to onboarding for in-process calls.
-func InitServers() *Service {
+func InitServers() (*Service, error) {
+	return InitServersWithOptions(nil)
+}
+
+// InitServersWithOptions initializes the unified ledger service with optional dependency injection.
+func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger := libZap.InitializeLogger()
+	var baseLogger libLog.Logger
+	if opts != nil && opts.Logger != nil {
+		baseLogger = opts.Logger
+	} else {
+		baseLogger = libZap.InitializeLogger()
+	}
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -45,35 +66,70 @@ func InitServers() *Service {
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
 		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    logger,
+		Logger:                    baseLogger,
 	})
 
-	logger.Infof("Starting unified ledger component (onboarding + transaction)")
+	// Generate startup ID for tracing initialization issues
+	startupID := uuid.New().String()
 
-	logger.Info("Initializing transaction module...")
+	ledgerLogger := baseLogger.WithFields(
+		"component", "ledger",
+		"startup_id", startupID,
+	)
+	transactionLogger := baseLogger.WithFields(
+		"component", "transaction",
+		"startup_id", startupID,
+	)
+	onboardingLogger := baseLogger.WithFields(
+		"component", "onboarding",
+		"startup_id", startupID,
+	)
+
+	ledgerLogger.WithFields(
+		"version", cfg.Version,
+		"env", cfg.EnvName,
+	).Info("Starting unified ledger component")
+
+	ledgerLogger.Info("Initializing transaction module...")
 
 	// Initialize transaction module first to get the BalancePort
-	transactionService := transaction.InitService()
+	transactionService, err := transaction.InitServiceWithOptionsAndError(&transaction.Options{
+		Logger: transactionLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
+	}
 
 	// Get the BalancePort from transaction for in-process communication
 	// This is the transaction.UseCase itself which implements BalancePort directly
 	balancePort := transactionService.GetBalancePort()
 
-	logger.Info("Transaction module initialized, BalancePort available for in-process calls")
+	ledgerLogger.Info("Transaction module initialized, BalancePort available for in-process calls")
 
-	logger.Info("Initializing onboarding module in UNIFIED MODE...")
+	ledgerLogger.Info("Initializing onboarding module in UNIFIED MODE...")
 
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
-	onboardingService := onboarding.InitServiceWithOptions(&onboarding.Options{
+	onboardingService, err := onboarding.InitServiceWithOptionsAndError(&onboarding.Options{
+		Logger:      onboardingLogger,
 		UnifiedMode: true,
 		BalancePort: balancePort,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
+	}
+
+	ledgerLogger.Info("Onboarding module initialized")
+
+	ledgerLogger.WithFields(
+		"version", cfg.Version,
+		"env", cfg.EnvName,
+	).Info("Unified ledger component started successfully")
 
 	return &Service{
 		OnboardingService:  onboardingService,
 		TransactionService: transactionService,
-		Logger:             logger,
+		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
-	}
+	}, nil
 }
