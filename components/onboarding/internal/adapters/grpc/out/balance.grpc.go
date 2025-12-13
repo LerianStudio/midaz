@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -13,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"google.golang.org/grpc/metadata"
 )
 
 // Repository provides an interface for gRPC operations related to balance in the Transaction component.
@@ -141,6 +143,18 @@ func NewBalanceAdapter(c *mgrpc.GRPCConnection) *BalanceAdapter {
 	}
 }
 
+// extractAuthToken extracts the authorization token from context metadata.
+// Returns empty string if no token is found.
+func extractAuthToken(ctx context.Context) string {
+	if md, ok := metadata.FromOutgoingContext(ctx); ok {
+		if vals := md.Get(libConstant.MetadataAuthorization); len(vals) > 0 {
+			return vals[0]
+		}
+	}
+
+	return ""
+}
+
 // CreateBalanceSync implements mbootstrap.BalancePort by converting native types to proto
 // and delegating to the gRPC repository.
 func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
@@ -157,8 +171,10 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 		AllowReceiving: input.AllowReceiving,
 	}
 
-	// Call gRPC repository (token is empty, auth is handled via context)
-	resp, err := a.grpcRepo.CreateBalance(ctx, "", req)
+	// Extract authorization token from context metadata
+	token := extractAuthToken(ctx)
+
+	resp, err := a.grpcRepo.CreateBalance(ctx, token, req)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +211,10 @@ func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organ
 		AccountId:      accountID.String(),
 	}
 
-	return a.grpcRepo.DeleteAllBalancesByAccountID(ctx, "", req)
+	// Extract authorization token from context metadata
+	token := extractAuthToken(ctx)
+
+	return a.grpcRepo.DeleteAllBalancesByAccountID(ctx, token, req)
 }
 
 // Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time
