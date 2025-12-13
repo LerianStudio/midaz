@@ -85,7 +85,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
     if (path.includes('/organizations') && method === 'POST' && !path.includes('/ledgers')) {
       scripts.push('\npm.test("🏢 Business Logic: Organization has required fields", function() {\n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -128,7 +133,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -166,7 +176,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -204,7 +219,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -246,7 +266,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -285,7 +310,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -423,8 +453,8 @@ console.log("⚙️ Setting up Step ${stepNumber}: ${stepTitle}");
 // Set step start timestamp for performance tracking
 pm.globals.set("step_${stepNumber}_start", Date.now());
 
-// Generate unique idempotency key for each POST/PUT request
-if (pm.request.method === 'POST' || pm.request.method === 'PUT') {
+// Generate unique idempotency key for each POST/PUT/PATCH request
+if (['POST', 'PUT', 'PATCH'].includes(pm.request.method)) {
     // Always generate a new unique idempotency key for each transaction
     const newIdempotencyKey = pm.variables.replaceIn('{{$guid}}');
     pm.environment.set('idempotencyKey', newIdempotencyKey);
@@ -435,8 +465,13 @@ if (pm.request.method === 'POST' || pm.request.method === 'PUT') {
 const requestUrl = pm.request.url.toString();
 const method = pm.request.method;
 
-// Base required variables
-const requiredVars = ['organizationId', 'ledgerId'];
+// Base required variables - only organizationId is always required
+const requiredVars = ['organizationId'];
+
+// Require ledgerId only when the URL actually uses it
+if (requestUrl.includes('{{ledgerId}}') || requestUrl.includes('{ledger_id}') || requestUrl.includes('/ledgers/')) {
+    requiredVars.push('ledgerId');
+}
 
 // Add specific variables based on the operation
 if (requestUrl.includes('/transactions/') && (method === 'PATCH' || method === 'GET')) {
