@@ -1,12 +1,31 @@
 package helpers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
+)
+
+const (
+	envDefaultHTTPTimeout    = 20 * time.Second
+	envTCPDialTimeout        = 1 * time.Second
+	envTCPPollInterval       = 300 * time.Millisecond
+	envHTTPCheckTimeout      = 2 * time.Second
+	envHTTPCheckPollInterval = 300 * time.Millisecond
+	envDefaultHTTPSPort      = "443"
+	envDefaultHTTPPort       = "80"
+)
+
+var (
+	// ErrURLMissingHost indicates the URL is missing a host component
+	ErrURLMissingHost = errors.New("missing host in url")
+	// ErrWaitForHTTPTimeout indicates timeout waiting for HTTP 200
+	ErrWaitForHTTPTimeout = errors.New("timeout waiting for HTTP 200")
 )
 
 // Environment holds base URLs for Midaz services and behavior flags.
@@ -27,7 +46,7 @@ func LoadEnvironment() Environment {
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		timeout = 20 * time.Second
+		timeout = envDefaultHTTPTimeout
 	}
 
 	return Environment{
@@ -50,8 +69,16 @@ func getenv(key, def string) string {
 func WaitForTCP(hostPort string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
+	var dialer net.Dialer
+
+	dialer.Timeout = envTCPDialTimeout
+
 	for {
-		conn, err := net.DialTimeout("tcp", hostPort, 1*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), envTCPDialTimeout)
+		conn, err := dialer.DialContext(ctx, "tcp", hostPort)
+
+		cancel()
+
 		if err == nil {
 			_ = conn.Close()
 			return nil
@@ -61,7 +88,7 @@ func WaitForTCP(hostPort string, timeout time.Duration) error {
 			return fmt.Errorf("timeout waiting for %s: %w", hostPort, err)
 		}
 
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(envTCPPollInterval)
 	}
 }
 
@@ -70,11 +97,11 @@ func WaitForTCP(hostPort string, timeout time.Duration) error {
 func URLHostPort(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse URL: %w", err)
 	}
 
 	if u.Host == "" {
-		return "", fmt.Errorf("missing host in url: %s", raw)
+		return "", fmt.Errorf("%w: %s", ErrURLMissingHost, raw)
 	}
 
 	host := u.Hostname()
@@ -83,11 +110,11 @@ func URLHostPort(raw string) (string, error) {
 	if port == "" {
 		switch u.Scheme {
 		case "https":
-			port = "443"
+			port = envDefaultHTTPSPort
 		case "http":
-			port = "80"
+			port = envDefaultHTTPPort
 		default:
-			port = "80"
+			port = envDefaultHTTPPort
 		}
 	}
 
@@ -96,13 +123,22 @@ func URLHostPort(raw string) (string, error) {
 
 // WaitForHTTP200 polls a URL until it returns HTTP 200 or timeout elapses.
 func WaitForHTTP200(fullURL string, timeout time.Duration) error {
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: envHTTPCheckTimeout}
 	deadline := time.Now().Add(timeout)
 
 	for {
-		req, _ := http.NewRequest(http.MethodGet, fullURL, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), envHTTPCheckTimeout)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+		if err != nil {
+			cancel()
+			return fmt.Errorf("failed to create HTTP request: %w", err)
+		}
 
 		resp, err := client.Do(req)
+
+		cancel()
+
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -112,12 +148,12 @@ func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 
 		if time.Now().After(deadline) {
 			if err != nil {
-				return fmt.Errorf("timeout waiting for %s: %v", fullURL, err)
+				return fmt.Errorf("timeout waiting for %s: %w", fullURL, err)
 			}
 
-			return fmt.Errorf("timeout waiting for %s: status != 200", fullURL)
+			return fmt.Errorf("%w: %s (status != 200)", ErrWaitForHTTPTimeout, fullURL)
 		}
 
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(envHTTPCheckPollInterval)
 	}
 }

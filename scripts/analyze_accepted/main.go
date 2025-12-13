@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +13,16 @@ import (
 	"strings"
 	"time"
 )
+
+const (
+	httpClientTimeout   = 5 * time.Second
+	maxLogLineParts     = 4
+	maxMissingIDsReport = 50
+	filePermissions     = 0o644
+	exitCodeUsageError  = 2
+)
+
+var ErrHTTPStatus = errors.New("HTTP request failed")
 
 type op struct {
 	AccountAlias string `json:"accountAlias"`
@@ -38,12 +50,30 @@ func getenv(k, d string) string {
 	return d
 }
 
-func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (float64, error) {
+func parseAvailableValue(available any) float64 {
+	var cur float64
+
+	switch v := available.(type) {
+	case string:
+		_, _ = fmt.Sscan(v, &cur)
+	case float64:
+		cur = v
+	default:
+		b, err := json.Marshal(v)
+		if err == nil {
+			_, _ = fmt.Sscan(string(b), &cur)
+		}
+	}
+
+	return cur
+}
+
+func createHTTPRequest(ctx context.Context, transURL, auth, org, ledger, alias string) (*http.Request, error) {
 	url := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", strings.TrimRight(transURL, "/"), org, ledger, alias)
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("X-Request-Id", fmt.Sprintf("corr-%d", time.Now().UnixNano()))
@@ -52,18 +82,23 @@ func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (floa
 		req.Header.Set("Authorization", auth)
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	return req, nil
+}
 
+func fetchBalanceResponse(client *http.Client, req *http.Request) ([]struct {
+	AssetCode string `json:"assetCode"`
+	Available any    `json:"available"`
+}, error,
+) {
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, err
+		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.ReadAll(resp.Body)
-
-		return 0, fmt.Errorf("status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %w", ErrHTTPStatus)
 	}
 
 	var body struct {
@@ -74,30 +109,34 @@ func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (floa
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return body.Items, nil
+}
+
+func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (float64, error) {
+	ctx := context.Background()
+
+	req, err := createHTTPRequest(ctx, transURL, auth, org, ledger, alias)
+	if err != nil {
 		return 0, err
 	}
 
-	var cur float64
+	client := &http.Client{Timeout: httpClientTimeout}
 
-	for _, it := range body.Items {
-		if it.AssetCode != asset {
-			continue
-		}
+	items, err := fetchBalanceResponse(client, req)
+	if err != nil {
+		return 0, err
+	}
 
-		switch v := it.Available.(type) {
-		case string:
-			_, _ = fmt.Sscan(v, &cur)
-		case float64:
-			cur = v
-		default:
-			b, err := json.Marshal(v)
-			if err == nil {
-				_, _ = fmt.Sscan(string(b), &cur)
-			}
+	for _, it := range items {
+		if it.AssetCode == asset {
+			return parseAvailableValue(it.Available), nil
 		}
 	}
 
-	return cur, nil
+	return 0, nil
 }
 
 type entry struct {
@@ -108,7 +147,7 @@ type entry struct {
 func readEntries(path string) ([]entry, error) {
 	accFile, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer accFile.Close()
 
@@ -118,8 +157,8 @@ func readEntries(path string) ([]entry, error) {
 	for sc.Scan() {
 		line := sc.Text()
 
-		parts := strings.SplitN(line, " ", 4)
-		if len(parts) < 4 {
+		parts := strings.SplitN(line, " ", maxLogLineParts)
+		if len(parts) < maxLogLineParts {
 			continue
 		}
 
@@ -133,7 +172,7 @@ func readEntries(path string) ([]entry, error) {
 	}
 
 	if err := sc.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scanner error: %w", err)
 	}
 
 	return entries, nil
@@ -142,7 +181,7 @@ func readEntries(path string) ([]entry, error) {
 func countFoundMissing(entries []entry, logStr string) (int, int, []string) {
 	var found, missing int
 
-	missIDs := make([]string, 0, 50)
+	missIDs := make([]string, 0, maxMissingIDsReport)
 
 	for _, e := range entries {
 		if strings.Contains(logStr, e.id) {
@@ -152,7 +191,7 @@ func countFoundMissing(entries []entry, logStr string) (int, int, []string) {
 
 		missing++
 
-		if len(missIDs) < 50 {
+		if len(missIDs) < maxMissingIDsReport {
 			missIDs = append(missIDs, fmt.Sprintf("%s:%s", e.kind, e.id))
 		}
 	}
@@ -215,11 +254,12 @@ func main() {
 	outPath := flag.String("out", "", "path to write correlation summary")
 	transURL := flag.String("trans", getenv("TRANSACTION_URL", "http://localhost:3001"), "transaction base URL")
 	auth := flag.String("auth", getenv("TEST_AUTH_HEADER", ""), "Authorization header value")
+
 	flag.Parse()
 
 	if *acceptedPath == "" || *logPath == "" || *outPath == "" {
 		fmt.Fprintf(os.Stderr, "usage: analyze_accepted -accepted <file> -log <file> -out <file> [-trans URL] [-auth TOKEN]\n")
-		os.Exit(2)
+		os.Exit(exitCodeUsageError)
 	}
 
 	logBytes, err := os.ReadFile(*logPath)
@@ -247,7 +287,7 @@ func main() {
 		len(entries), found, missing, len(missIDs), strings.Join(missIDs, "\n"), strings.Join(aliasReports, "\n"), strings.Join(discrepancies, "\n"),
 	)
 
-	if err := os.WriteFile(*outPath, []byte(report), 0644); err != nil {
+	if err := os.WriteFile(*outPath, []byte(report), filePermissions); err != nil {
 		panic(err)
 	}
 }

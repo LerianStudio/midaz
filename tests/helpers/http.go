@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+const (
+	httpRetryStatusTooManyRequests = 429
+	httpRetryStatusBadGateway      = 502
+	httpRetryStatusServiceUnavail  = 503
+	httpRetryStatusGatewayTimeout  = 504
+	httpDefaultRetryAttempts       = 1
+	httpDefaultBackoff             = 200 * time.Millisecond
+)
+
 // HTTPClient wraps a standard http.Client with base URL handling.
 type HTTPClient struct {
 	base   string
@@ -49,7 +58,7 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	for k, v := range headers {
@@ -58,13 +67,13 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return resp.StatusCode, nil, resp.Header, err
+		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return resp.StatusCode, data, resp.Header, nil
@@ -88,7 +97,7 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(raw))
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to create raw request: %w", err)
 	}
 
 	for k, v := range headers {
@@ -97,13 +106,13 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to execute raw request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return resp.StatusCode, nil, resp.Header, err
+		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read raw response body: %w", err)
 	}
 
 	return resp.StatusCode, b, resp.Header, nil
@@ -125,7 +134,7 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to create request with header values: %w", err)
 	}
 
 	for k, vals := range headers {
@@ -136,13 +145,13 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to execute request with header values: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return resp.StatusCode, nil, resp.Header, err
+		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body with header values: %w", err)
 	}
 
 	return resp.StatusCode, data, resp.Header, nil
@@ -152,11 +161,11 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 // Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
 	if attempts <= 0 {
-		attempts = 1
+		attempts = httpDefaultRetryAttempts
 	}
 
 	if baseBackoff <= 0 {
-		baseBackoff = 200 * time.Millisecond
+		baseBackoff = httpDefaultBackoff
 	}
 
 	var (
@@ -170,7 +179,7 @@ func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path stri
 		code, b, hdr, err := c.RequestFull(ctx, method, path, headers, body)
 
 		lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
-		if err == nil && code != 429 && code != 502 && code != 503 && code != 504 {
+		if err == nil && code != httpRetryStatusTooManyRequests && code != httpRetryStatusBadGateway && code != httpRetryStatusServiceUnavail && code != httpRetryStatusGatewayTimeout {
 			return code, b, hdr, nil
 		}
 		// back off only if another retry will be attempted

@@ -1,18 +1,25 @@
 package helpers
 
 import (
-	crand "crypto/rand"
+	"crypto/rand"
 	"encoding/hex"
-	"math/rand"
+	"math/big"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 func RandString(n int) string {
 	b := make([]rune, n)
+
+	lettersLen := big.NewInt(int64(len(letters)))
 	for i := range b {
-		// Using global rand functions which are thread-safe as of Go 1.20
-		b[i] = letters[rand.Intn(len(letters))]
+		// Using crypto/rand for secure random number generation
+		idx, err := rand.Int(rand.Reader, lettersLen)
+		if err != nil {
+			panic("failed to generate random index: " + err.Error())
+		}
+
+		b[i] = letters[idx.Int64()]
 	}
 
 	return string(b)
@@ -20,7 +27,7 @@ func RandString(n int) string {
 
 func RandHex(n int) string {
 	b := make([]byte, n)
-	if _, err := crand.Read(b); err != nil {
+	if _, err := rand.Read(b); err != nil {
 		panic("failed to read random bytes: " + err.Error())
 	}
 

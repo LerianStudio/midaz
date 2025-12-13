@@ -2,13 +2,30 @@ package helpers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+)
+
+const (
+	authHTTPTimeout      = 15 * time.Second
+	authMinStatusSuccess = 200
+	authMaxStatusSuccess = 300
+)
+
+var (
+	// ErrAuthCredentialsMissing indicates required auth credentials are not provided
+	ErrAuthCredentialsMissing = errors.New("TEST_AUTH_USERNAME/TEST_AUTH_PASSWORD must be set when TEST_AUTH_URL is provided")
+	// ErrAuthRequestFailed indicates the authentication request failed
+	ErrAuthRequestFailed = errors.New("auth request failed")
+	// ErrAuthTokenMissing indicates the auth response is missing an access token
+	ErrAuthTokenMissing = errors.New("auth response missing access token")
 )
 
 // AuthenticateFromEnv obtains a Bearer token using env vars and exports TEST_AUTH_HEADER.
@@ -29,9 +46,24 @@ func AuthenticateFromEnv() error {
 	password := os.Getenv("TEST_AUTH_PASSWORD")
 
 	if username == "" || password == "" {
-		return fmt.Errorf("TEST_AUTH_USERNAME/TEST_AUTH_PASSWORD must be set when TEST_AUTH_URL is provided")
+		return ErrAuthCredentialsMissing
 	}
 
+	token, err := fetchAuthToken(authURL, username, password)
+	if err != nil {
+		return err
+	}
+
+	// Export for the duration of the process so helpers.AuthHeaders picks it up
+	if err := os.Setenv("TEST_AUTH_HEADER", "Bearer "+token); err != nil {
+		return fmt.Errorf("failed to set TEST_AUTH_HEADER: %w", err)
+	}
+
+	return nil
+}
+
+// fetchAuthToken performs the actual authentication request
+func fetchAuthToken(authURL, username, password string) (string, error) {
 	payload := map[string]string{
 		"grantType": "password",
 		"username":  username,
@@ -40,40 +72,46 @@ func AuthenticateFromEnv() error {
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal auth payload: %w", err)
+		return "", fmt.Errorf("failed to marshal auth payload: %w", err)
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: authHTTPTimeout}
+	ctx := context.Background()
 
-	req, err := http.NewRequest(http.MethodPost, authURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return "", fmt.Errorf("failed to create auth request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("failed to execute auth request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < authMinStatusSuccess || resp.StatusCode >= authMaxStatusSuccess {
 		var errBody bytes.Buffer
 		if _, readErr := errBody.ReadFrom(resp.Body); readErr != nil {
-			return fmt.Errorf("auth request failed with status %d, and could not read body: %w", resp.StatusCode, readErr)
+			return "", fmt.Errorf("auth request failed with status %d, and could not read body: %w", resp.StatusCode, readErr)
 		}
 
-		return fmt.Errorf("auth request failed: status=%d, body: %s", resp.StatusCode, errBody.String())
+		return "", fmt.Errorf("%w: status=%d, body: %s", ErrAuthRequestFailed, resp.StatusCode, errBody.String())
 	}
 
+	return parseAuthToken(resp)
+}
+
+// parseAuthToken extracts the token from the auth response
+func parseAuthToken(resp *http.Response) (string, error) {
 	var out struct {
 		AccessToken string `json:"accessToken"`
 		Token       string `json:"token"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return fmt.Errorf("decode auth response: %w", err)
+		return "", fmt.Errorf("decode auth response: %w", err)
 	}
 
 	token := out.AccessToken
@@ -82,11 +120,10 @@ func AuthenticateFromEnv() error {
 	}
 
 	if token == "" {
-		return fmt.Errorf("auth response missing access token")
+		return "", ErrAuthTokenMissing
 	}
 
-	// Export for the duration of the process so helpers.AuthHeaders picks it up
-	return os.Setenv("TEST_AUTH_HEADER", "Bearer "+token)
+	return token, nil
 }
 
 // RunTestsWithAuth authenticates using env (if configured) and runs tests, failing fast on auth errors.

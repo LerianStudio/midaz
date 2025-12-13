@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,7 +13,28 @@ import (
 func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, headers map[string]string, fields map[string]string, files map[string]struct {
 	Field, Filename string
 	Content         []byte
-}) (int, []byte, http.Header, error) {
+},
+) (int, []byte, http.Header, error) {
+	buf, contentType, err := buildMultipartBody(fields, files)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	if headers == nil {
+		headers = map[string]string{}
+	}
+
+	headers["Content-Type"] = contentType
+
+	return c.sendMultipartRequest(ctx, method, path, headers, buf)
+}
+
+// buildMultipartBody constructs the multipart body and returns the buffer and content type
+func buildMultipartBody(fields map[string]string, files map[string]struct {
+	Field, Filename string
+	Content         []byte
+},
+) (*bytes.Buffer, string, error) {
 	var buf bytes.Buffer
 
 	mw := multipart.NewWriter(&buf)
@@ -24,27 +46,26 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 	for _, f := range files {
 		fw, err := mw.CreateFormFile(f.Field, f.Filename)
 		if err != nil {
-			return 0, nil, nil, err
+			return nil, "", fmt.Errorf("failed to create form file: %w", err)
 		}
 
 		if _, err = io.Copy(fw, bytes.NewReader(f.Content)); err != nil {
-			return 0, nil, nil, err
+			return nil, "", fmt.Errorf("failed to copy file content: %w", err)
 		}
 	}
 
 	if err := mw.Close(); err != nil {
-		return 0, nil, nil, err
+		return nil, "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
-	if headers == nil {
-		headers = map[string]string{}
-	}
+	return &buf, mw.FormDataContentType(), nil
+}
 
-	headers["Content-Type"] = mw.FormDataContentType()
-
-	req, err := http.NewRequestWithContext(ctx, method, c.base+path, &buf)
+// sendMultipartRequest sends the multipart request with the provided buffer
+func (c *HTTPClient) sendMultipartRequest(ctx context.Context, method, path string, headers map[string]string, buf *bytes.Buffer) (int, []byte, http.Header, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.base+path, buf)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to create multipart request: %w", err)
 	}
 
 	for k, v := range headers {
@@ -53,13 +74,13 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("failed to execute multipart request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return resp.StatusCode, nil, resp.Header, err
+		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read multipart response body: %w", err)
 	}
 
 	return resp.StatusCode, b, resp.Header, nil

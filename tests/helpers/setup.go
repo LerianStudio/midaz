@@ -3,12 +3,37 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
 
+const (
+	setupAssetRetryAttempts   = 4
+	setupAssetRetryBackoff    = 250 * time.Millisecond
+	setupAssetPollTimeout     = 12 * time.Second
+	setupAssetPollInterval    = 150 * time.Millisecond
+	setupHTTPStatusOK         = 200
+	setupHTTPStatusCreated    = 201
+	setupHTTPStatusBadRequest = 400
+	setupHTTPStatusConflict   = 409
+	setupRandStringLength     = 12
+)
+
+// ErrAssetCreationFailed indicates asset creation failed
+var ErrAssetCreationFailed = errors.New("create asset USD failed")
+
 // CreateUSDAsset posts a minimal USD asset to the onboarding API; ignores if already exists.
 func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID string, headers map[string]string) error {
+	if err := createAssetRequest(ctx, client, orgID, ledgerID, headers); err != nil {
+		return err
+	}
+
+	return waitForAssetAvailable(ctx, client, orgID, ledgerID, headers)
+}
+
+// createAssetRequest sends the asset creation request
+func createAssetRequest(ctx context.Context, client *HTTPClient, orgID, ledgerID string, headers map[string]string) error {
 	payload := map[string]any{
 		"name": "US Dollar",
 		"type": "currency",
@@ -16,21 +41,25 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
 	}
 
 	// Use retry to handle transient restart windows (e.g., rolling restarts/redis blips)
-	code, body, _, err := client.RequestFullWithRetry(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/assets", headers, payload, 4, 250*time.Millisecond)
+	code, body, _, err := client.RequestFullWithRetry(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/assets", headers, payload, setupAssetRetryAttempts, setupAssetRetryBackoff)
 	if err != nil {
 		return err
 	}
 	// Accept 201 (created) or 409 (duplicate) depending on server semantics; other 2xx also ok
-	if code >= 400 && code != 409 {
-		return fmt.Errorf("create asset USD failed: status %d body=%s", code, string(body))
+	if code >= setupHTTPStatusBadRequest && code != setupHTTPStatusConflict {
+		return fmt.Errorf("%w: status %d body=%s", ErrAssetCreationFailed, code, string(body))
 	}
 
-	// Poll until asset appears in listing to avoid race with subsequent account creation
-	deadline := time.Now().Add(12 * time.Second)
+	return nil
+}
+
+// waitForAssetAvailable polls until the asset appears in the listing
+func waitForAssetAvailable(ctx context.Context, client *HTTPClient, orgID, ledgerID string, headers map[string]string) error {
+	deadline := time.Now().Add(setupAssetPollTimeout)
 
 	for {
 		c, b, e := client.Request(ctx, "GET", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/assets", headers, nil)
-		if e == nil && c == 200 {
+		if e == nil && c == setupHTTPStatusOK {
 			var list struct {
 				Items []struct {
 					Code string `json:"code"`
@@ -56,13 +85,13 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
 			break
 		}
 
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(setupAssetPollInterval)
 	}
 
 	return nil
 }
 
-// SetupInflow posts a simple inflow transaction to credit an alias with amount for a given asset code.
+// SetupInflowTransaction posts a simple inflow transaction to credit an alias with amount for a given asset code.
 // Returns status code and body for assertion when needed.
 func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias, assetCode, amount string, headers map[string]string) (int, []byte, error) {
 	payload := map[string]any{
@@ -86,18 +115,18 @@ func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledge
 
 // CreateOrganization creates an organization and returns its ID.
 func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[string]string, name string) (string, error) {
-	payload := OrgPayload(name, RandString(12))
+	payload := OrgPayload(name, RandString(setupRandStringLength))
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, payload)
-	if err != nil || code != 201 {
-		return "", fmt.Errorf("create organization failed: code=%d err=%v body=%s", code, err, string(body))
+	if err != nil || code != setupHTTPStatusCreated {
+		return "", fmt.Errorf("create organization failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var org struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &org); err != nil || org.ID == "" {
-		return "", fmt.Errorf("parse organization: %v body=%s", err, string(body))
+		return "", fmt.Errorf("parse organization: %w body=%s", err, string(body))
 	}
 
 	return org.ID, nil
@@ -106,15 +135,15 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 // CreateLedger creates a ledger under the given organization and returns its ID.
 func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, name string) (string, error) {
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers", headers, map[string]any{"name": name})
-	if err != nil || code != 201 {
-		return "", fmt.Errorf("create ledger failed: code=%d err=%v body=%s", code, err, string(body))
+	if err != nil || code != setupHTTPStatusCreated {
+		return "", fmt.Errorf("create ledger failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var ledger struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &ledger); err != nil || ledger.ID == "" {
-		return "", fmt.Errorf("parse ledger: %v body=%s", err, string(body))
+		return "", fmt.Errorf("parse ledger: %w body=%s", err, string(body))
 	}
 
 	return ledger.ID, nil
@@ -130,15 +159,15 @@ func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]s
 	}
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/accounts", headers, payload)
-	if err != nil || code != 201 {
-		return "", fmt.Errorf("create account failed: code=%d err=%v body=%s", code, err, string(body))
+	if err != nil || code != setupHTTPStatusCreated {
+		return "", fmt.Errorf("create account failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var account struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &account); err != nil || account.ID == "" {
-		return "", fmt.Errorf("parse account: %v body=%s", err, string(body))
+		return "", fmt.Errorf("parse account: %w body=%s", err, string(body))
 	}
 
 	return account.ID, nil

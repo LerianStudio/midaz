@@ -2,11 +2,19 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
+
+const (
+	balanceChangePollInterval = 100 * time.Millisecond
+)
+
+// ErrBalanceChangeTimeout indicates timeout waiting for balance change
+var ErrBalanceChangeTimeout = errors.New("timeout waiting for balance change")
 
 // BalanceSnapshot captures the state of an account balance at a point in time
 type BalanceSnapshot struct {
@@ -66,13 +74,13 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 			return current, nil
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(balanceChangePollInterval)
 	}
 
 	actualDelta := lastSeen.Sub(snapshot.Available)
 
-	return lastSeen, fmt.Errorf("timeout waiting for balance change; initial=%s expected_delta=%s actual_delta=%s last=%s expected_final=%s",
-		snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
+	return lastSeen, fmt.Errorf("%w; initial=%s expected_delta=%s actual_delta=%s last=%s expected_final=%s",
+		ErrBalanceChangeTimeout, snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
 }
 
 // TrackOperationBalance tracks balance changes during an operation
