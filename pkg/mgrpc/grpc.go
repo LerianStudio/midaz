@@ -2,6 +2,7 @@ package mgrpc
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 
@@ -27,7 +28,7 @@ func (c *GRPCConnection) Connect() error {
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		c.Logger.Error("Failed to connect on gRPC", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
 	c.Logger.Info("Connected to gRPC ✅ ")

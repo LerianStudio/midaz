@@ -2,9 +2,10 @@ package pkg
 
 import (
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestEntityNotFoundError_Error(t *testing.T) {

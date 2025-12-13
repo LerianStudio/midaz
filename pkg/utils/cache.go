@@ -6,12 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
-const BalanceSyncLockPrefix = "lock:{transactions}:balance-sync:"
+const (
+	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
+	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"
+)
 
-const beginningKey = "{"
-const keySeparator = ":"
-const endKey = "}"
+const (
+	beginningKey = "{"
+	keySeparator = ":"
+	endKey       = "}"
+)
 
 // GenericInternalKeyWithContext returns a key with the following format to be used on redis cluster:
 // "name:{contextName}:organizationID:ledgerID:key"

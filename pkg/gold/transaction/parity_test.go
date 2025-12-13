@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/shopspring/decimal"
 )
 
@@ -12,29 +12,29 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 	cases := []struct {
 		name string
 		dsl  string
-		want pkgTransaction.Transaction
+		want libTransaction.Transaction
 	}{
 		{
 			name: "Simple transfer with chart-of-accounts",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 3|0 (source (from @A :amount USD 3|0)) (distribute (to @B :amount USD 3|0))))",
-			want: pkgTransaction.Transaction{
+			want: libTransaction.Transaction{
 				ChartOfAccountsGroupName: "FUNDING",
-				Send: pkgTransaction.Send{
+				Send: libTransaction.Send{
 					Asset: "USD",
 					Value: decimal.RequireFromString("3"),
-					Source: pkgTransaction.Source{
+					Source: libTransaction.Source{
 						Remaining: "",
-						From: []pkgTransaction.FromTo{{
+						From: []libTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
 							IsFrom:       true,
 						}},
 					},
-					Distribute: pkgTransaction.Distribute{
+					Distribute: libTransaction.Distribute{
 						Remaining: "",
-						To: []pkgTransaction.FromTo{{
+						To: []libTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
 							IsFrom:       false,
 						}},
 					},
@@ -44,23 +44,23 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 		{
 			name: "Pending with description and code",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (description \"desc\") (code 00000000-0000-0000-0000-000000000000) (pending true) (send USD 1|0 (source (from @A :amount USD 1|0)) (distribute (to @B :amount USD 1|0))))",
-			want: func() pkgTransaction.Transaction {
-				return pkgTransaction.Transaction{
+			want: func() libTransaction.Transaction {
+				return libTransaction.Transaction{
 					ChartOfAccountsGroupName: "FUNDING",
 					Description:              "desc",
 					Code:                     "00000000-0000-0000-0000-000000000000",
 					Pending:                  true,
-					Send: pkgTransaction.Send{
+					Send: libTransaction.Send{
 						Asset: "USD",
 						Value: decimal.RequireFromString("1"),
-						Source: pkgTransaction.Source{From: []pkgTransaction.FromTo{{
+						Source: libTransaction.Source{From: []libTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
 							IsFrom:       true,
 						}}},
-						Distribute: pkgTransaction.Distribute{To: []pkgTransaction.FromTo{{
+						Distribute: libTransaction.Distribute{To: []libTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
 							IsFrom:       false,
 						}}},
 					},
@@ -75,7 +75,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 				t.Fatalf("validate failed: %+v", err)
 			}
 			got := Parse(tc.dsl)
-			tx, ok := got.(pkgTransaction.Transaction)
+			tx, ok := got.(libTransaction.Transaction)
 			if !ok {
 				t.Fatalf("unexpected parse type: %T", got)
 			}
@@ -87,7 +87,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 }
 
 // simplify clears zero-value metadata fields that may be omitted by the parser implementation.
-func simplify(t pkgTransaction.Transaction) pkgTransaction.Transaction {
+func simplify(t libTransaction.Transaction) libTransaction.Transaction {
 	// Normalize metadata empties
 	if t.Metadata != nil && len(t.Metadata) == 0 {
 		t.Metadata = nil

@@ -2,8 +2,9 @@ package mmodel
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Queue is a struct designed for internal message queueing.

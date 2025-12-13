@@ -2,7 +2,6 @@ package mgrpc
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -30,7 +29,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 		mapped := pkg.UnauthorizedError{
 			Code:    code,
 			Title:   title,
-			Message: fmt.Sprintf("%s: unauthorized", operation),
+			Message: operation + ": unauthorized",
 			Err:     err,
 		}
 
@@ -43,7 +42,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 		mapped := pkg.ForbiddenError{
 			Code:    code,
 			Title:   title,
-			Message: fmt.Sprintf("%s: forbidden", operation),
+			Message: operation + ": forbidden",
 			Err:     err,
 		}
 

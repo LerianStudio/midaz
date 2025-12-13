@@ -9,6 +9,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
+// ErrEmptyValidationFields is returned when all validation field maps are empty
+var ErrEmptyValidationFields = errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
+
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
 // You can use it to represent a Database not found, cache not found or any other repository.
 type EntityNotFoundError struct {
@@ -248,7 +251,7 @@ func ValidateInternalError(err error, entityType string) error {
 
 // ValidateUnmarshallingError validates the error and returns an appropriate ResponseError.
 func ValidateUnmarshallingError(err error) error {
-	var message = err.Error()
+	message := err.Error()
 
 	var ute *json.UnmarshalTypeError
 	if errors.As(err, &ute) {
@@ -277,7 +280,7 @@ func ValidateUnmarshallingError(err error) error {
 // - An error indicating the validation result, which could be a ValidationUnknownFieldsError or a ValidationKnownFieldsError.
 func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
 	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 && len(requiredFields) == 0 {
-		return errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
+		return fmt.Errorf("validation error: %w", ErrEmptyValidationFields)
 	}
 
 	if len(unknownFields) > 0 {
@@ -852,7 +855,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrMessageBrokerUnavailable.Error(),
 			Title:      "Message Broker Unavailable",
-			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support."},
+			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
+		},
 		constant.ErrAccountAliasInvalid: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
@@ -1013,7 +1017,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFutureTransactionDate.Error(),
 			Title:      "Invalid Future Date Error",
-			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date."},
+			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date.",
+		},
 		constant.ErrInvalidPendingFutureTransactionDate: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidPendingFutureTransactionDate.Error(),

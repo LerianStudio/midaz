@@ -3,17 +3,17 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -22,6 +22,47 @@ import (
 	"github.com/shopspring/decimal"
 	"gopkg.in/go-playground/validator.v9"
 )
+
+const (
+	// defaultMetadataKeyLimit is the default maximum length for metadata keys
+	defaultMetadataKeyLimit = 100
+	// defaultMetadataValueLimit is the default maximum length for metadata values
+	defaultMetadataValueLimit = 2000
+	// cpfLength is the expected length for a CPF document
+	cpfLength = 11
+	// cnpjLength is the expected length for a CNPJ document
+	cnpjLength = 14
+	// cpfFirstCheckDigitWeight is the starting weight for CPF first check digit calculation
+	cpfFirstCheckDigitWeight = 10
+	// cpfSecondCheckDigitWeight is the starting weight for CPF second check digit calculation
+	cpfSecondCheckDigitWeight = 11
+	// cpfFirstCheckDigitCount is the number of digits used in first check digit calculation
+	cpfFirstCheckDigitCount = 9
+	// cpfSecondCheckDigitCount is the number of digits used in second check digit calculation
+	cpfSecondCheckDigitCount = 10
+	// cnpjFirstCheckDigitCount is the number of digits used in first check digit calculation
+	cnpjFirstCheckDigitCount = 12
+	// cnpjSecondCheckDigitCount is the number of digits used in second check digit calculation
+	cnpjSecondCheckDigitCount = 13
+	// checkDigitModulo is the modulo used for check digit calculation
+	checkDigitModulo = 11
+	// checkDigitMultiplier is the multiplier used for check digit calculation
+	checkDigitMultiplier = 10
+	// maxCheckDigitRemainder is the maximum remainder that gets reset to 0
+	maxCheckDigitRemainder = 10
+	// minValidCheckDigitRemainder is the minimum remainder for non-zero check digits
+	minValidCheckDigitRemainder = 2
+	// firstDigitIndex is the index of the first digit
+	firstDigitIndex = 1
+	// zeroDigit is the ASCII value for '0'
+	zeroDigit = '0'
+	// nineDigit is the max digit value
+	nineDigit = 9
+	// jsonTagSplitLimit is the limit for splitting JSON tags
+	jsonTagSplitLimit = 2
+)
+
+var fieldNameRegex = regexp.MustCompile(`\.(.+)$`)
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
 // It receives a struct which was decoded by withBody decorator before.
@@ -136,44 +177,69 @@ func GetPayloadFromContext(c *fiber.Ctx) any {
 func ValidateStruct(s any) error {
 	v, trans := newValidator()
 
-	k := reflect.ValueOf(s).Kind()
-	if k == reflect.Ptr {
-		k = reflect.ValueOf(s).Elem().Kind()
-	}
-
-	if k != reflect.Struct {
+	if !isStructType(s) {
 		return nil
 	}
 
 	err := v.Struct(s)
 	if err != nil {
-		for _, fieldError := range err.(validator.ValidationErrors) {
-			switch fieldError.Tag() {
-			case "keymax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "valuemax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "nonested":
-				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
-			case "singletransactiontype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
-			case "invalidstrings":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
-			case "invalidaliascharacters":
-				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
-			case "invalidaccounttype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+		var validationErrs validator.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			if businessErr := checkBusinessValidationErrors(validationErrs, trans); businessErr != nil {
+				return businessErr
 			}
+
+			errPtr := malformedRequestErr(validationErrs, trans)
+
+			return &errPtr
 		}
-
-		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
-
-		return &errPtr
 	}
 
 	// Generic null-byte validation across all string fields in the payload
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+		return fmt.Errorf("null byte validation failed: %w",
+			pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{}))
+	}
+
+	return nil
+}
+
+// isStructType checks if the given value is a struct type
+func isStructType(s any) bool {
+	k := reflect.ValueOf(s).Kind()
+	if k == reflect.Ptr {
+		k = reflect.ValueOf(s).Elem().Kind()
+	}
+
+	return k == reflect.Struct
+}
+
+// checkBusinessValidationErrors checks for business validation errors and returns appropriate error
+func checkBusinessValidationErrors(errs validator.ValidationErrors, trans ut.Translator) error {
+	for _, fieldError := range errs {
+		switch fieldError.Tag() {
+		case "keymax":
+			return fmt.Errorf("metadata key length validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()))
+		case "valuemax":
+			return fmt.Errorf("metadata value length validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()))
+		case "nonested":
+			return fmt.Errorf("metadata nesting validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans)))
+		case "singletransactiontype":
+			return fmt.Errorf("transaction type validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans)))
+		case "invalidstrings":
+			return fmt.Errorf("account type validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param()))
+		case "invalidaliascharacters":
+			return fmt.Errorf("account alias validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param()))
+		case "invalidaccounttype":
+			return fmt.Errorf("account type key value validation failed: %w",
+				pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans)))
+		}
 	}
 
 	return nil
@@ -185,7 +251,7 @@ func ValidateStruct(s any) error {
 func ParseUUIDPathParameters(entityName string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		for param, value := range c.AllParams() {
-			if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
+			if !libCommons.Contains(cn.UUIDPathParameters, param) {
 				c.Locals(param, value)
 				continue
 			}
@@ -219,7 +285,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	}
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		name := strings.SplitN(fld.Tag.Get("json"), ",", jsonTagSplitLimit)[0]
 		if name == "-" {
 			return ""
 		}
@@ -370,7 +436,7 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
-	limit := 100 // default limit if no param configured
+	limit := defaultMetadataKeyLimit
 
 	if limitParam != "" {
 		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
@@ -385,7 +451,7 @@ func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
-	limit := 2000 // default limit if no param configured
+	limit := defaultMetadataValueLimit
 
 	if limitParam != "" {
 		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
@@ -393,27 +459,33 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 		}
 	}
 
-	var value string
-
-	switch fl.Field().Kind() {
-	case reflect.Int:
-		value = strconv.Itoa(int(fl.Field().Int()))
-	case reflect.Float64:
-		value = strconv.FormatFloat(fl.Field().Float(), 'f', -1, 64)
-	case reflect.String:
-		value = fl.Field().String()
-	case reflect.Bool:
-		value = strconv.FormatBool(fl.Field().Bool())
-	default:
+	value := convertFieldToString(fl.Field())
+	if value == "" && fl.Field().Kind() != reflect.String {
 		return false
 	}
 
 	return len(value) <= limit
 }
 
+// convertFieldToString converts a reflect.Value to string based on its kind
+func convertFieldToString(field reflect.Value) string {
+	switch field.Kind() {
+	case reflect.Int:
+		return strconv.Itoa(int(field.Int()))
+	case reflect.Float64:
+		return strconv.FormatFloat(field.Float(), 'f', -1, 64)
+	case reflect.String:
+		return field.String()
+	case reflect.Bool:
+		return strconv.FormatBool(field.Bool())
+	default:
+		return ""
+	}
+}
+
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]pkgTransaction.FromTo)
+	arrField := fl.Field().Interface().([]libTransction.FromTo)
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {
@@ -447,7 +519,7 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
 }
@@ -478,14 +550,12 @@ func validateNoWhitespaces(fl validator.FieldLevel) bool {
 
 // formatErrorFieldName formats metadata field error names for error messages
 func formatErrorFieldName(text string) string {
-	re, _ := regexp.Compile(`\.(.+)$`)
-
-	matches := re.FindStringSubmatch(text)
+	matches := fieldNameRegex.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return matches[1]
-	} else {
-		return text
 	}
+
+	return text
 }
 
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pkg.ValidationKnownFieldsError {
@@ -550,43 +620,63 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 
 	switch rv.Kind() {
 	case reflect.Ptr:
-		if rv.IsNil() {
-			return
-		}
-
-		collectNullByteViolations(rv.Elem(), jsonPath, out)
+		handlePtrNullByteViolations(rv, jsonPath, out)
 	case reflect.Struct:
-		rt := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := rt.Field(i)
-
-			// Skip unexported fields
-			if f.PkgPath != "" {
-				continue
-			}
-
-			name := jsonFieldName(f)
-			if name == "-" {
-				continue
-			}
-
-			collectNullByteViolations(rv.Field(i), name, out)
-		}
+		handleStructNullByteViolations(rv, out)
 	case reflect.Slice, reflect.Array:
-		for i := 0; i < rv.Len(); i++ {
-			collectNullByteViolations(rv.Index(i), jsonPath, out)
-		}
+		handleSliceNullByteViolations(rv, jsonPath, out)
 	case reflect.String:
-		if strings.ContainsRune(rv.String(), '\x00') {
-			key := jsonPath
-			if key == "" {
-				key = "value"
-			}
-
-			out[key] = key + " cannot contain null byte (\\x00)"
-		}
+		handleStringNullByteViolation(rv, jsonPath, out)
 	default:
 		// primitives: no-op
+	}
+}
+
+// handlePtrNullByteViolations handles null byte violations in pointer types
+func handlePtrNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if rv.IsNil() {
+		return
+	}
+
+	collectNullByteViolations(rv.Elem(), jsonPath, out)
+}
+
+// handleStructNullByteViolations handles null byte violations in struct types
+func handleStructNullByteViolations(rv reflect.Value, out pkg.FieldValidations) {
+	rt := rv.Type()
+	for i := 0; i < rv.NumField(); i++ {
+		f := rt.Field(i)
+
+		// Skip unexported fields
+		if f.PkgPath != "" {
+			continue
+		}
+
+		name := jsonFieldName(f)
+		if name == "-" {
+			continue
+		}
+
+		collectNullByteViolations(rv.Field(i), name, out)
+	}
+}
+
+// handleSliceNullByteViolations handles null byte violations in slice/array types
+func handleSliceNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	for i := 0; i < rv.Len(); i++ {
+		collectNullByteViolations(rv.Index(i), jsonPath, out)
+	}
+}
+
+// handleStringNullByteViolation handles null byte violations in string types
+func handleStringNullByteViolation(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if strings.ContainsRune(rv.String(), '\x00') {
+		key := jsonPath
+		if key == "" {
+			key = "value"
+		}
+
+		out[key] = key + " cannot contain null byte (\\x00)"
 	}
 }
 
@@ -623,15 +713,12 @@ func parseMetadata(s any, originalMap map[string]any) {
 }
 
 // FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
-//
-//nolint:gocognit
 func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
-
 	numKinds := libCommons.GetMapNumKinds()
 
 	for key, value := range original {
-		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {
+		if shouldSkipZeroNumeric(value, numKinds) {
 			continue
 		}
 
@@ -641,50 +728,71 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 			continue
 		}
 
-		switch originalValue := value.(type) {
-		case map[string]any:
-			if marshaledMap, ok := marshaledValue.(map[string]any); ok {
-				nestedDiff := FindUnknownFields(originalValue, marshaledMap)
-				if len(nestedDiff) > 0 {
-					diffFields[key] = nestedDiff
-				}
-			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				diffFields[key] = value
-			}
-
-		case []any:
-			if marshaledArray, ok := marshaledValue.([]any); ok {
-				arrayDiff := compareSlices(originalValue, marshaledArray)
-				if len(arrayDiff) > 0 {
-					diffFields[key] = arrayDiff
-				}
-			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				diffFields[key] = value
-			}
-		case string:
-			if isStringNumeric(originalValue) {
-				if isDecimalEqual(originalValue, marshaledValue) {
-					continue
-				}
-			}
-
-			if marshaledStr, ok := marshaledValue.(string); ok {
-				if areDatesEqual(originalValue, marshaledStr) {
-					continue
-				}
-			}
-
-			if !reflect.DeepEqual(value, marshaledValue) {
-				diffFields[key] = value
-			}
-		default:
-			if !reflect.DeepEqual(value, marshaledValue) {
-				diffFields[key] = value
-			}
-		}
+		checkFieldDifference(key, value, marshaledValue, diffFields)
 	}
 
 	return diffFields
+}
+
+// shouldSkipZeroNumeric checks if a value is a zero numeric value that should be skipped
+func shouldSkipZeroNumeric(value any, numKinds map[reflect.Kind]bool) bool {
+	return numKinds[reflect.ValueOf(value).Kind()] && value == 0.0
+}
+
+// checkFieldDifference checks if there's a difference between original and marshaled values
+func checkFieldDifference(key string, originalValue, marshaledValue any, diffFields map[string]any) {
+	switch original := originalValue.(type) {
+	case map[string]any:
+		handleMapDifference(key, original, marshaledValue, originalValue, diffFields)
+	case []any:
+		handleSliceDifference(key, original, marshaledValue, originalValue, diffFields)
+	case string:
+		handleStringDifference(key, original, marshaledValue, originalValue, diffFields)
+	default:
+		handleDefaultDifference(key, originalValue, marshaledValue, diffFields)
+	}
+}
+
+// handleMapDifference handles differences in map values
+func handleMapDifference(key string, originalMap map[string]any, marshaledValue, originalValue any, diffFields map[string]any) {
+	if marshaledMap, ok := marshaledValue.(map[string]any); ok {
+		nestedDiff := FindUnknownFields(originalMap, marshaledMap)
+		if len(nestedDiff) > 0 {
+			diffFields[key] = nestedDiff
+		}
+	} else if !reflect.DeepEqual(originalMap, marshaledValue) {
+		diffFields[key] = originalValue
+	}
+}
+
+// handleSliceDifference handles differences in slice values
+func handleSliceDifference(key string, originalSlice []any, marshaledValue, originalValue any, diffFields map[string]any) {
+	if marshaledArray, ok := marshaledValue.([]any); ok {
+		arrayDiff := compareSlices(originalSlice, marshaledArray)
+		if len(arrayDiff) > 0 {
+			diffFields[key] = arrayDiff
+		}
+	} else if !reflect.DeepEqual(originalSlice, marshaledValue) {
+		diffFields[key] = originalValue
+	}
+}
+
+// handleStringDifference handles differences in string values
+func handleStringDifference(key, originalString string, marshaledValue, originalValue any, diffFields map[string]any) {
+	if isStringNumeric(originalString) && isDecimalEqual(originalString, marshaledValue) {
+		return
+	}
+
+	if !reflect.DeepEqual(originalValue, marshaledValue) {
+		diffFields[key] = originalValue
+	}
+}
+
+// handleDefaultDifference handles differences in default value types
+func handleDefaultDifference(key string, originalValue, marshaledValue any, diffFields map[string]any) {
+	if !reflect.DeepEqual(originalValue, marshaledValue) {
+		diffFields[key] = originalValue
+	}
 }
 
 func isDecimalEqual(a, b any) bool {
@@ -692,77 +800,40 @@ func isDecimalEqual(a, b any) bool {
 		return a == b
 	}
 
-	var decimalA, decimalB decimal.Decimal
-
-	var err error
-
-	switch valA := a.(type) {
-	case string:
-		decimalA, err = decimal.NewFromString(valA)
-		if err != nil {
-			return false
-		}
-	case decimal.Decimal:
-		decimalA = valA
-	default:
+	decimalA, okA := parseDecimalValue(a)
+	if !okA {
 		return false
 	}
 
-	switch valB := b.(type) {
-	case string:
-		decimalB, err = decimal.NewFromString(valB)
-		if err != nil {
-			return false
-		}
-	case decimal.Decimal:
-		decimalB = valB
-	default:
+	decimalB, okB := parseDecimalValue(b)
+	if !okB {
 		return false
 	}
 
 	return decimalA.Equal(decimalB)
 }
 
+// parseDecimalValue converts any value to decimal.Decimal
+func parseDecimalValue(val any) (decimal.Decimal, bool) {
+	switch v := val.(type) {
+	case string:
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			return decimal.Decimal{}, false
+		}
+
+		return d, true
+	case decimal.Decimal:
+		return v, true
+
+	default:
+		return decimal.Decimal{}, false
+	}
+}
+
 func isStringNumeric(s string) bool {
 	_, err := decimal.NewFromString(s)
 	return err == nil
-}
-
-var dateFormats = []string{
-	time.RFC3339Nano,
-	time.RFC3339,
-	"2006-01-02T15:04:05.000Z",
-	"2006-01-02T15:04:05.00Z",
-	"2006-01-02T15:04:05.0Z",
-	"2006-01-02T15:04:05Z",
-	"2006-01-02T15:04:05",
-	"2006-01-02",
-}
-
-func areDatesEqual(a, b string) bool {
-	var timeA, timeB time.Time
-
-	var errA, errB error
-
-	for _, format := range dateFormats {
-		if timeA.IsZero() {
-			timeA, errA = time.Parse(format, a)
-		}
-
-		if timeB.IsZero() {
-			timeB, errB = time.Parse(format, b)
-		}
-
-		if !timeA.IsZero() && !timeB.IsZero() {
-			break
-		}
-	}
-
-	if errA != nil || errB != nil || timeA.IsZero() || timeB.IsZero() {
-		return false
-	}
-
-	return timeA.Equal(timeB)
 }
 
 // compareSlices compares two slices and returns differences.
@@ -774,19 +845,12 @@ func compareSlices(original, marshaled []any) []any {
 		if i >= len(marshaled) {
 			// If marshaled slice is shorter, the original item is missing
 			diff = append(diff, item)
-		} else {
-			tmpMarshaled := marshaled[i]
-			// Compare individual items at the same index
-			if originalMap, ok := item.(map[string]any); ok {
-				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
-					nestedDiff := FindUnknownFields(originalMap, marshaledMap)
-					if len(nestedDiff) > 0 {
-						diff = append(diff, nestedDiff)
-					}
-				}
-			} else if !reflect.DeepEqual(item, tmpMarshaled) {
-				diff = append(diff, item)
-			}
+			continue
+		}
+
+		itemDiff := compareSliceItem(item, marshaled[i])
+		if itemDiff != nil {
+			diff = append(diff, itemDiff)
 		}
 	}
 
@@ -796,6 +860,30 @@ func compareSlices(original, marshaled []any) []any {
 	}
 
 	return diff
+}
+
+// compareSliceItem compares a single item from two slices
+func compareSliceItem(original, marshaled any) any {
+	originalMap, okOrig := original.(map[string]any)
+	if !okOrig {
+		if !reflect.DeepEqual(original, marshaled) {
+			return original
+		}
+
+		return nil
+	}
+
+	marshaledMap, okMarsh := marshaled.(map[string]any)
+	if !okMarsh {
+		return original
+	}
+
+	nestedDiff := FindUnknownFields(originalMap, marshaledMap)
+	if len(nestedDiff) > 0 {
+		return nestedDiff
+	}
+
+	return nil
 }
 
 // validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive)
@@ -845,11 +933,11 @@ func validateCPFCNPJ(fl validator.FieldLevel) bool {
 		return true
 	}
 
-	if len(value) != 11 && len(value) != 14 {
+	if len(value) != cpfLength && len(value) != cnpjLength {
 		return false
 	}
 
-	if len(value) == 11 {
+	if len(value) == cpfLength {
 		return validateCPF(fl)
 	}
 
@@ -862,60 +950,53 @@ func validateCPF(fl validator.FieldLevel) bool {
 		return true
 	}
 
-	if len(cpf) != 11 {
+	if len(cpf) != cpfLength {
 		return false
 	}
 
-	// Check if all digits are the same (invalid CPF)
-	allEqual := true
-
-	for i := 1; i < len(cpf); i++ {
-		if cpf[i] != cpf[0] {
-			allEqual = false
-			break
-		}
-	}
-
-	if allEqual {
+	if hasAllEqualDigits(cpf) {
 		return false
 	}
 
 	// Validate first check digit
-	sum := 0
-
-	for i := 0; i < 9; i++ {
-		digit := int(cpf[i] - '0')
-		if digit < 0 || digit > 9 {
-			return false
-		}
-
-		sum += digit * (10 - i)
-	}
-
-	remainder := (sum * 10) % 11
-	if remainder == 10 {
-		remainder = 0
-	}
-
-	if remainder != int(cpf[9]-'0') {
+	if !validateCPFCheckDigit(cpf, cpfFirstCheckDigitCount, cpfFirstCheckDigitWeight, cpfFirstCheckDigitCount) {
 		return false
 	}
 
 	// Validate second check digit
-	sum = 0
+	return validateCPFCheckDigit(cpf, cpfSecondCheckDigitCount, cpfSecondCheckDigitWeight, cpfSecondCheckDigitCount)
+}
 
-	for i := 0; i < 10; i++ {
-		digit := int(cpf[i] - '0')
-		sum += digit * (11 - i)
+// hasAllEqualDigits checks if all digits in a string are the same
+func hasAllEqualDigits(s string) bool {
+	for i := firstDigitIndex; i < len(s); i++ {
+		if s[i] != s[0] {
+			return false
+		}
 	}
 
-	remainder = (sum * 10) % 11
+	return true
+}
 
-	if remainder == 10 {
+// validateCPFCheckDigit validates a single CPF check digit
+func validateCPFCheckDigit(cpf string, digitCount, weight, checkPosition int) bool {
+	sum := 0
+
+	for i := 0; i < digitCount; i++ {
+		digit := int(cpf[i] - zeroDigit)
+		if digit < 0 || digit > nineDigit {
+			return false
+		}
+
+		sum += digit * (weight - i)
+	}
+
+	remainder := (sum * checkDigitMultiplier) % checkDigitModulo
+	if remainder == maxCheckDigitRemainder {
 		remainder = 0
 	}
 
-	return remainder == int(cpf[10]-'0')
+	return remainder == int(cpf[checkPosition]-zeroDigit)
 }
 
 func validateCNPJ(fl validator.FieldLevel) bool {
@@ -924,21 +1005,11 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 		return true
 	}
 
-	if len(cnpj) != 14 {
+	if len(cnpj) != cnpjLength {
 		return false
 	}
 
-	// Check if all digits are the same (invalid CNPJ)
-	allEqual := true
-
-	for i := 1; i < len(cnpj); i++ {
-		if cnpj[i] != cnpj[0] {
-			allEqual = false
-			break
-		}
-	}
-
-	if allEqual {
+	if hasAllEqualDigits(cnpj) {
 		return false
 	}
 
@@ -948,44 +1019,33 @@ func validateCNPJ(fl validator.FieldLevel) bool {
 	weights2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
 
 	// Validate first check digit
-	sum := 0
-
-	for i := 0; i < 12; i++ {
-		digit := int(cnpj[i] - '0')
-		if digit < 0 || digit > 9 {
-			return false
-		}
-
-		sum += digit * weights1[i]
-	}
-
-	remainder := sum % 11
-
-	firstDigit := 0
-
-	if remainder >= 2 {
-		firstDigit = 11 - remainder
-	}
-
-	if firstDigit != int(cnpj[12]-'0') {
+	if !validateCNPJCheckDigit(cnpj, cnpjFirstCheckDigitCount, weights1, cnpjFirstCheckDigitCount) {
 		return false
 	}
 
 	// Validate second check digit
-	sum = 0
+	return validateCNPJCheckDigit(cnpj, cnpjSecondCheckDigitCount, weights2, cnpjSecondCheckDigitCount)
+}
 
-	for i := 0; i < 13; i++ {
-		digit := int(cnpj[i] - '0')
-		sum += digit * weights2[i]
+// validateCNPJCheckDigit validates a single CNPJ check digit
+func validateCNPJCheckDigit(cnpj string, digitCount int, weights []int, checkPosition int) bool {
+	sum := 0
+
+	for i := 0; i < digitCount; i++ {
+		digit := int(cnpj[i] - zeroDigit)
+		if digit < 0 || digit > nineDigit {
+			return false
+		}
+
+		sum += digit * weights[i]
 	}
 
-	remainder = sum % 11
+	remainder := sum % checkDigitModulo
+	expectedDigit := 0
 
-	secondDigit := 0
-
-	if remainder >= 2 {
-		secondDigit = 11 - remainder
+	if remainder >= minValidCheckDigitRemainder {
+		expectedDigit = checkDigitModulo - remainder
 	}
 
-	return secondDigit == int(cnpj[13]-'0')
+	return expectedDigit == int(cnpj[checkPosition]-zeroDigit)
 }

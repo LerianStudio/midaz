@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -115,10 +116,19 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 
 // FromMsgpack parses msgpack binary data into TransactionRouteCache
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
-	return msgpack.Unmarshal(data, trcd)
+	if err := msgpack.Unmarshal(data, trcd); err != nil {
+		return fmt.Errorf("failed to unmarshal msgpack data: %w", err)
+	}
+
+	return nil
 }
 
 // ToMsgpack converts TransactionRouteCache to msgpack binary data
 func (trcd TransactionRouteCache) ToMsgpack() ([]byte, error) {
-	return msgpack.Marshal(trcd)
+	data, err := msgpack.Marshal(trcd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal to msgpack: %w", err)
+	}
+
+	return data, nil
 }

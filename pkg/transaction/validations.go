@@ -11,6 +11,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	// percentageMultiplier is used to convert percentages to decimal values (divide by 100)
+	percentageMultiplier = 100
+)
+
 // ValidateBalancesRules function with some validates in accounts and DSL operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
 	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
@@ -23,6 +28,7 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 
 		opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_balances_rules", err)
 
+		//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 		return err
 	}
 
@@ -52,14 +58,17 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 		balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
 			if !balance.AllowSending {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
 			if pending && balance.AccountType == constant.ExternalAccountType {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
 			}
 		}
@@ -73,14 +82,17 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 	for key := range to {
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
 			if !balance.AllowReceiving {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 
 			if balance.Available.IsPositive() && balance.AccountType == constant.ExternalAccountType {
+				//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 				return commons.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", balance.Alias)
 			}
 		}
@@ -98,6 +110,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 		}
 
 		if ba.Available.IsNegative() && balance.AccountType != constant.ExternalAccountType {
+			//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 			return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
 		}
 
@@ -135,75 +148,120 @@ func ConcatAlias(i int, alias string) string {
 	return strconv.Itoa(i) + "#" + alias
 }
 
+// applyPendingOperation applies pending transaction operations
+func applyPendingOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
+	if amount.Operation == constant.ONHOLD {
+		return available.Sub(amount.Value), onHold.Add(amount.Value), true
+	}
+
+	return available, onHold, false
+}
+
+// applyCanceledOperation applies canceled transaction operations
+func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
+	if amount.Operation == constant.RELEASE {
+		return available.Add(amount.Value), onHold.Sub(amount.Value), true
+	}
+
+	return available, onHold, false
+}
+
+// applyApprovedOperation applies approved transaction operations
+func applyApprovedOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
+	if amount.Operation == constant.DEBIT {
+		return available, onHold.Sub(amount.Value), true
+	}
+
+	if amount.Operation == constant.CREDIT {
+		return available.Add(amount.Value), onHold, true
+	}
+
+	return available, onHold, false
+}
+
+// applyCreatedOperation applies created transaction operations
+func applyCreatedOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
+	if amount.Operation == constant.DEBIT {
+		return available.Sub(amount.Value), onHold, true
+	}
+
+	if amount.Operation == constant.CREDIT {
+		return available.Add(amount.Value), onHold, true
+	}
+
+	return available, onHold, false
+}
+
+// applyBalanceOperation applies a specific operation to balance amounts
+func applyBalanceOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
+	switch amount.TransactionType {
+	case constant.PENDING:
+		return applyPendingOperation(amount, available, onHold)
+	case constant.CANCELED:
+		return applyCanceledOperation(amount, available, onHold)
+	case constant.APPROVED:
+		return applyApprovedOperation(amount, available, onHold)
+	case constant.CREATED:
+		return applyCreatedOperation(amount, available, onHold)
+	default:
+		// For unknown operations, return original values unchanged
+		return available, onHold, false
+	}
+}
+
 // OperateBalances Function to sum or sub two balances and Normalize the scale
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
-	var (
-		total        decimal.Decimal
-		totalOnHold  decimal.Decimal
-		totalVersion int64
-	)
+	total, totalOnHold, changed := applyBalanceOperation(amount, balance.Available, balance.OnHold)
 
-	total = balance.Available
-	totalOnHold = balance.OnHold
-
-	switch {
-	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
-		total = balance.Available.Sub(amount.Value)
-		totalOnHold = balance.OnHold.Add(amount.Value)
-	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.APPROVED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.APPROVED:
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Add(amount.Value)
-	default:
+	if !changed {
 		// For unknown operations, return the original balance without changing the version.
 		return balance, nil
 	}
 
-	totalVersion = balance.Version + 1
-
 	return Balance{
 		Available: total,
 		OnHold:    totalOnHold,
-		Version:   totalVersion,
+		Version:   balance.Version + 1,
 	}, nil
+}
+
+// determineOperationForPendingTransaction determines the operation for pending transactions
+func determineOperationForPendingTransaction(isFrom bool, transactionType string) string {
+	switch transactionType {
+	case constant.PENDING:
+		if isFrom {
+			return constant.ONHOLD
+		}
+
+		return constant.CREDIT
+	case constant.CANCELED:
+		if isFrom {
+			return constant.RELEASE
+		}
+
+		return constant.CREDIT
+	case constant.APPROVED:
+		if isFrom {
+			return constant.DEBIT
+		}
+
+		return constant.CREDIT
+	default:
+		return constant.CREDIT
+	}
 }
 
 // DetermineOperation Function to determine the operation
 func DetermineOperation(isPending bool, isFrom bool, transactionType string) string {
-	switch {
-	case isPending && transactionType == constant.PENDING:
-		switch {
-		case isFrom:
-			return constant.ONHOLD
-		default:
-			return constant.CREDIT
-		}
-	case isPending && isFrom && transactionType == constant.CANCELED:
-		return constant.RELEASE
-	case isPending && transactionType == constant.APPROVED:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
-		}
-	case !isPending:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
-		}
-	default:
-		return constant.CREDIT
+	if isPending {
+		return determineOperationForPendingTransaction(isFrom, transactionType)
 	}
+
+	if isFrom {
+		return constant.DEBIT
+	}
+
+	return constant.CREDIT
 }
 
 // CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
@@ -227,7 +285,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
 
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
-			oneHundred := decimal.NewFromInt(100)
+			oneHundred := decimal.NewFromInt(percentageMultiplier)
 
 			percentage := decimal.NewFromInt(fromTos[i].Share.Percentage)
 
@@ -356,6 +414,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		if _, ok := response.To[ConcatAlias(i, source)]; ok {
 			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
+			//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
@@ -364,6 +423,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
 			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
+			//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
@@ -371,6 +431,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	if !sourcesTotal.Equal(destinationsTotal) || !destinationsTotal.Equal(response.Total) {
 		logger.Errorf("ValidateSendSourceAndDistribute: Transaction value mismatch")
 
+		//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
 		return nil, commons.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 

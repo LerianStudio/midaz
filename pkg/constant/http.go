@@ -20,5 +20,7 @@ var UUIDPathParameters = []string{
 	"alias_id",
 }
 
-const XTotalCount = "X-Total-Count"
-const ContentLength = "Content-Length"
+const (
+	XTotalCount   = "X-Total-Count"
+	ContentLength = "Content-Length"
+)

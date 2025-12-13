@@ -10,6 +10,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	rateToUUIDIndex = 2
+)
+
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 }
@@ -161,7 +165,7 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	externalID := ctx.UUID(0).GetText()
 	from := ctx.UUID(1).GetText()
-	to := ctx.UUID(2).GetText()
+	to := ctx.UUID(rateToUUIDIndex).GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 
 	value, _ := decimal.NewFromString(val)

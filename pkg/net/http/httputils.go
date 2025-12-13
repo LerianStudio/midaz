@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"strconv"
@@ -19,6 +20,17 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+const (
+	// defaultMaxPaginationLimit is the default maximum number of items per page
+	defaultMaxPaginationLimit = 100
+	// defaultMetadataMaxLength is the default maximum length for metadata string values
+	defaultMetadataMaxLength = 2000
+	// defaultPaginationLimit is the default number of items per page
+	defaultPaginationLimit = 10
+	// defaultPaginationPage is the default page number
+	defaultPaginationPage = 1
+)
+
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
 	Metadata              *bson.M
@@ -31,7 +43,7 @@ type QueryHeader struct {
 	UseMetadata           bool
 	PortfolioID           string
 	OperationType         string
-	ToAssetCodes          []string	
+	ToAssetCodes          []string
 	HolderID              *string
 	ExternalID            *string
 	Document              *string
@@ -54,120 +66,177 @@ type Pagination struct {
 
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
-	var (
-		metadata              *bson.M
-		portfolioID           string
-		operationType         string
-		toAssetCodes          []string
-		startDate             time.Time
-		endDate               time.Time
-		cursor                string
-		limit                 = 10
-		page                  = 1
-		sortOrder             = "asc"
-		useMetadata           = false
-		holderID              *string
-		externalID            *string
-		document              *string
-		accountID             *string
-		ledgerID              *string
-		bankingDetailsBranch  *string
-		bankingDetailsAccount *string
-		bankingDetailsIban    *string
-	)
+	query := initializeQueryHeader()
 
-	for key, value := range params {
-		switch {
-		case strings.Contains(key, "metadata."):
-			metadata = &bson.M{key: value}
-			useMetadata = true
-		case strings.Contains(key, "limit"):
-			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "page"):
-			page, _ = strconv.Atoi(value)
-		case strings.Contains(key, "cursor"):
-			cursor = value
-		case strings.Contains(key, "sort_order"):
-			sortOrder = strings.ToLower(value)
-		case strings.Contains(key, "start_date"):
-			parsedDate, _, err := libCommons.ParseDateTime(value, false)
-			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
-			}
-
-			startDate = parsedDate
-		case strings.Contains(key, "end_date"):
-			parsedDate, _, err := libCommons.ParseDateTime(value, true)
-			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
-			}
-
-			endDate = parsedDate
-		case strings.Contains(key, "portfolio_id"):
-			portfolioID = value
-		case strings.Contains(strings.ToLower(key), "type"):
-			operationType = strings.ToUpper(value)
-		case strings.Contains(key, "to"):
-			toAssetCodes = strings.Split(value, ",")
-		case strings.Contains(key, "holder_id"):
-			holderID = &value
-		case strings.Contains(key, "external_id"):
-			externalID = &value
-		case strings.Contains(key, "document"):
-			document = &value
-		case strings.Contains(key, "account_id"):
-			accountID = &value
-		case strings.Contains(key, "ledger_id"):
-			ledgerID = &value
-		case strings.Contains(key, "banking_details_branch"):
-			bankingDetailsBranch = &value
-		case strings.Contains(key, "banking_details_account"):
-			bankingDetailsAccount = &value
-		case strings.Contains(key, "banking_details_iban"):
-			bankingDetailsIban = &value
-		}
-	}
-
-	err := validateDates(&startDate, &endDate)
+	err := parseQueryParameters(params, query)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validatePagination(cursor, sortOrder, limit)
+	err = validateDates(&query.StartDate, &query.EndDate)
 	if err != nil {
 		return nil, err
 	}
 
-	if !libCommons.IsNilOrEmpty(&portfolioID) {
-		_, err := uuid.Parse(portfolioID)
+	err = validatePagination(query.Cursor, query.SortOrder, query.Limit)
+	if err != nil {
+		return nil, err
+	}
+
+	if !libCommons.IsNilOrEmpty(&query.PortfolioID) {
+		_, err := uuid.Parse(query.PortfolioID)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
+			return nil, fmt.Errorf("invalid portfolio_id: %w", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id"))
 		}
-	}
-
-	query := &QueryHeader{
-		Metadata:              metadata,
-		Limit:                 limit,
-		Page:                  page,
-		Cursor:                cursor,
-		SortOrder:             sortOrder,
-		StartDate:             startDate,
-		EndDate:               endDate,
-		UseMetadata:           useMetadata,
-		PortfolioID:           portfolioID,
-		OperationType:         operationType,
-		ToAssetCodes:          toAssetCodes,
-		HolderID:              holderID,
-		ExternalID:            externalID,
-		Document:              document,
-		AccountID:             accountID,
-		LedgerID:              ledgerID,
-		BankingDetailsBranch:  bankingDetailsBranch,
-		BankingDetailsAccount: bankingDetailsAccount,
-		BankingDetailsIban:    bankingDetailsIban,
 	}
 
 	return query, nil
+}
+
+// initializeQueryHeader creates a new QueryHeader with default values
+func initializeQueryHeader() *QueryHeader {
+	return &QueryHeader{
+		Limit:     defaultPaginationLimit,
+		Page:      defaultPaginationPage,
+		SortOrder: "asc",
+	}
+}
+
+// parseQueryParameters parses all query parameters and populates the QueryHeader
+func parseQueryParameters(params map[string]string, query *QueryHeader) error {
+	for key, value := range params {
+		if err := parseQueryParameter(key, value, query); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// parseQueryParameter parses a single query parameter
+func parseQueryParameter(key, value string, query *QueryHeader) error {
+	// Handle date parameters separately as they can return errors
+	if strings.Contains(key, "start_date") {
+		return parseStartDate(value, query)
+	}
+
+	if strings.Contains(key, "end_date") {
+		return parseEndDate(value, query)
+	}
+
+	// Handle all other parameters that don't return errors
+	parseSimpleQueryParameter(key, value, query)
+
+	return nil
+}
+
+// parseSimpleQueryParameter handles query parameters that don't require error handling
+func parseSimpleQueryParameter(key, value string, query *QueryHeader) {
+	// Handle basic pagination and sorting parameters
+	if parsePaginationParameter(key, value, query) {
+		return
+	}
+
+	// Handle entity-specific parameters
+	if parseEntityParameter(key, value, query) {
+		return
+	}
+
+	// Handle banking details parameters
+	parseBankingDetailsParameter(key, value, query)
+}
+
+// parsePaginationParameter parses pagination and sorting related parameters
+func parsePaginationParameter(key, value string, query *QueryHeader) bool {
+	switch {
+	case strings.Contains(key, "metadata."):
+		query.Metadata = &bson.M{key: value}
+		query.UseMetadata = true
+
+		return true
+	case strings.Contains(key, "limit"):
+		query.Limit, _ = strconv.Atoi(value)
+		return true
+	case strings.Contains(key, "page"):
+		query.Page, _ = strconv.Atoi(value)
+		return true
+	case strings.Contains(key, "cursor"):
+		query.Cursor = value
+		return true
+	case strings.Contains(key, "sort_order"):
+		query.SortOrder = strings.ToLower(value)
+		return true
+	case strings.Contains(key, "portfolio_id"):
+		query.PortfolioID = value
+		return true
+	case strings.Contains(strings.ToLower(key), "type"):
+		query.OperationType = strings.ToUpper(value)
+		return true
+	case strings.Contains(key, "to"):
+		query.ToAssetCodes = strings.Split(value, ",")
+		return true
+	}
+
+	return false
+}
+
+// parseEntityParameter parses entity-specific parameters
+func parseEntityParameter(key, value string, query *QueryHeader) bool {
+	switch {
+	case strings.Contains(key, "holder_id"):
+		query.HolderID = &value
+		return true
+	case strings.Contains(key, "external_id"):
+		query.ExternalID = &value
+		return true
+	case strings.Contains(key, "document"):
+		query.Document = &value
+		return true
+	case strings.Contains(key, "account_id"):
+		query.AccountID = &value
+		return true
+	case strings.Contains(key, "ledger_id"):
+		query.LedgerID = &value
+		return true
+	}
+
+	return false
+}
+
+// parseBankingDetailsParameter parses banking details related parameters
+func parseBankingDetailsParameter(key, value string, query *QueryHeader) {
+	switch {
+	case strings.Contains(key, "banking_details_branch"):
+		query.BankingDetailsBranch = &value
+	case strings.Contains(key, "banking_details_account"):
+		query.BankingDetailsAccount = &value
+	case strings.Contains(key, "banking_details_iban"):
+		query.BankingDetailsIban = &value
+	}
+}
+
+// parseStartDate parses the start_date parameter
+func parseStartDate(value string, query *QueryHeader) error {
+	parsedDate, _, err := libCommons.ParseDateTime(value, false)
+	if err != nil {
+		return fmt.Errorf("parse start_date: %w", pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value))
+	}
+
+	query.StartDate = parsedDate
+
+	return nil
+}
+
+// parseEndDate parses the end_date parameter
+func parseEndDate(value string, query *QueryHeader) error {
+	parsedDate, _, err := libCommons.ParseDateTime(value, true)
+	if err != nil {
+		return fmt.Errorf("parse end_date: %w", pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value))
+	}
+
+	query.EndDate = parsedDate
+
+	return nil
 }
 
 // validateDates validates and normalizes start/end date range for pagination queries.
@@ -177,35 +246,64 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 // Enforces all-or-nothing: both dates required if any provided.
 // Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
-	// Limits query range to prevent expensive DB operations on large datasets
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
-
 	if startDate.IsZero() && endDate.IsZero() {
-		now := time.Now()
-
-		defaultStartDate := time.Unix(0, 0).UTC()
-		
-		if maxDateRangeMonths != 0 {
-			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
-		}
-
-		*startDate = defaultStartDate
-		*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
-
+		setDefaultDateRange(startDate, endDate)
 		return nil
 	}
 
-	if (!startDate.IsZero() && endDate.IsZero()) ||
-		(startDate.IsZero() && !endDate.IsZero()) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
+	if err := validateBothDatesProvided(startDate, endDate); err != nil {
+		return err
 	}
 
-	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) || !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+	if err := validateDateFormats(startDate, endDate); err != nil {
+		return err
 	}
 
+	if err := validateDateOrder(startDate, endDate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setDefaultDateRange sets default start and end dates when both are zero
+func setDefaultDateRange(startDate, endDate *time.Time) {
+	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	now := time.Now()
+
+	defaultStartDate := time.Unix(0, 0).UTC()
+
+	if maxDateRangeMonths != 0 {
+		defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
+	}
+
+	*startDate = defaultStartDate
+	*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+}
+
+// validateBothDatesProvided ensures both dates are provided or both are empty
+func validateBothDatesProvided(startDate, endDate *time.Time) error {
+	if (!startDate.IsZero() && endDate.IsZero()) || (startDate.IsZero() && !endDate.IsZero()) {
+		return fmt.Errorf("date validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidDateRange, ""))
+	}
+
+	return nil
+}
+
+// validateDateFormats validates that both dates have valid formats
+func validateDateFormats(startDate, endDate *time.Time) error {
+	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) ||
+		!libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
+		return fmt.Errorf("date format validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, ""))
+	}
+
+	return nil
+}
+
+// validateDateOrder validates that start date is before end date
+func validateDateOrder(startDate, endDate *time.Time) error {
 	if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
+		return fmt.Errorf("date order validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, ""))
 	}
 
 	return nil
@@ -213,20 +311,20 @@ func validateDates(startDate, endDate *time.Time) error {
 
 // ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) error {
-	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", defaultMaxPaginationLimit))
 
 	if limit > maxPaginationLimit {
-		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+		return fmt.Errorf("pagination limit validation: %w", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit))
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+		return fmt.Errorf("sort order validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, ""))
 	}
 
 	if !libCommons.IsNilOrEmpty(&cursor) {
 		_, err := libHTTP.DecodeCursor(cursor)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+			return fmt.Errorf("cursor validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor"))
 		}
 	}
 
@@ -253,20 +351,20 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
 	if err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
+		return "", fmt.Errorf("form file error: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, ""))
 	}
 
 	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", fmt.Errorf("invalid file extension: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename))
 	}
 
 	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
+		return "", fmt.Errorf("empty file: %w", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename))
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 
 	defer func(file multipart.File) {
@@ -278,7 +376,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", fmt.Errorf("failed to read file: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename))
 	}
 
 	fileString := buf.String()
@@ -319,32 +417,46 @@ func ValidateMetadataValue(value any) (any, error) {
 func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 	const maxDepth = 10
 	if depth > maxDepth {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+		return nil, fmt.Errorf("metadata depth validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, ""))
 	}
 
 	switch v := value.(type) {
 	case string:
-		if len(v) > 2000 {
-			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
-		}
-		return v, nil
+		return validateMetadataString(v)
 	case float64, int, int64, float32, bool:
 		return v, nil
 	case nil:
 		return nil, nil
 	case map[string]any:
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+		return nil, fmt.Errorf("metadata nesting validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, ""))
 	case []any:
-		validatedArray := make([]any, 0, len(v))
-		for _, item := range v {
-			validItem, err := validateMetadataValueWithDepth(item, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			validatedArray = append(validatedArray, validItem)
-		}
-		return validatedArray, nil
+		return validateMetadataArray(v, depth)
 	default:
-		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
+		return nil, fmt.Errorf("invalid metadata value type: %w", pkg.ValidateBusinessError(constant.ErrBadRequest, ""))
 	}
+}
+
+// validateMetadataString validates a metadata string value
+func validateMetadataString(v string) (any, error) {
+	if len(v) > defaultMetadataMaxLength {
+		return nil, fmt.Errorf("metadata value length validation: %w", pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, ""))
+	}
+
+	return v, nil
+}
+
+// validateMetadataArray validates a metadata array value
+func validateMetadataArray(v []any, depth int) (any, error) {
+	validatedArray := make([]any, 0, len(v))
+
+	for _, item := range v {
+		validItem, err := validateMetadataValueWithDepth(item, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		validatedArray = append(validatedArray, validItem)
+	}
+
+	return validatedArray, nil
 }

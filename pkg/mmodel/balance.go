@@ -2,6 +2,7 @@ package mmodel
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,17 @@ import (
 
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
+)
+
+var (
+	// ErrConvertAvailableToDecimal is returned when converting available field to decimal fails
+	ErrConvertAvailableToDecimal = errors.New("failed to convert available field to decimal")
+	// ErrUnsupportedAvailableType is returned when available field type is unsupported
+	ErrUnsupportedAvailableType = errors.New("unsupported type for available field")
+	// ErrConvertOnHoldToDecimal is returned when converting onHold field to decimal fails
+	ErrConvertOnHoldToDecimal = errors.New("failed to convert onHold field to decimal")
+	// ErrUnsupportedOnHoldType is returned when onHold field type is unsupported
+	ErrUnsupportedOnHoldType = errors.New("unsupported type for onHold field")
 )
 
 // Balance is a struct designed to encapsulate response payload data.
@@ -294,72 +306,61 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("failed to unmarshal balance redis: %w", err)
+	}
+
+	var err error
+
+	b.Available, err = convertToDecimal(aux.Available, ErrConvertAvailableToDecimal, ErrUnsupportedAvailableType)
+	if err != nil {
 		return err
 	}
 
-	switch v := aux.Available.(type) {
-	case float64:
-		b.Available = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
-		}
-
-		b.Available = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
-			}
-
-			b.Available = decimal.NewFromFloat(f)
-		} else {
-			b.Available = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
-		}
-
-		b.Available = decimal.NewFromFloat(f)
-	}
-
-	switch v := aux.OnHold.(type) {
-	case float64:
-		b.OnHold = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
-		}
-
-		b.OnHold = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
-			}
-
-			b.OnHold = decimal.NewFromFloat(f)
-		} else {
-			b.OnHold = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
-		}
-
-		b.OnHold = decimal.NewFromFloat(f)
+	b.OnHold, err = convertToDecimal(aux.OnHold, ErrConvertOnHoldToDecimal, ErrUnsupportedOnHoldType)
+	if err != nil {
+		return err
 	}
 
 	return nil
+}
+
+// convertToDecimal converts various types to decimal.Decimal
+func convertToDecimal(value any, conversionErr, unsupportedErr error) (decimal.Decimal, error) {
+	switch v := value.(type) {
+	case float64:
+		return decimal.NewFromFloat(v), nil
+	case string:
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			return decimal.Decimal{}, fmt.Errorf("%w from string: %w", conversionErr, err)
+		}
+
+		return d, nil
+	case json.Number:
+		return convertJSONNumberToDecimal(v, conversionErr)
+	default:
+		f, ok := v.(float64)
+		if !ok {
+			return decimal.Decimal{}, fmt.Errorf("%w: %T", unsupportedErr, v)
+		}
+
+		return decimal.NewFromFloat(f), nil
+	}
+}
+
+// convertJSONNumberToDecimal converts json.Number to decimal.Decimal
+func convertJSONNumberToDecimal(num json.Number, conversionErr error) (decimal.Decimal, error) {
+	i, err := num.Int64()
+	if err != nil {
+		f, err := num.Float64()
+		if err != nil {
+			return decimal.Decimal{}, fmt.Errorf("%w from json.Number: %w", conversionErr, err)
+		}
+
+		return decimal.NewFromFloat(f), nil
+	}
+
+	return decimal.NewFromInt(i), nil
 }
 
 // BalanceErrorResponse represents an error response for balance operations.

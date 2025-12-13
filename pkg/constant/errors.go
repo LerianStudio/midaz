@@ -137,7 +137,7 @@ var (
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrInvalidDatetimeFormat                    = errors.New("0128")
 
-	//CRM errors
+	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
 	ErrAliasNotFound                      = errors.New("CRM-0008")
 	ErrDocumentAssociationError           = errors.New("CRM-0010")
