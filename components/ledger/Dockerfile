@@ -9,9 +9,10 @@ COPY . .
 
 # Build the Go binary for the target platform
 # CGO is disabled for static builds
-# GOARCH is extracted from TARGETPLATFORM to support multi-arch builds
-ARG TARGETPLATFORM
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+# TARGETOS/TARGETARCH are Docker BuildKit built-in ARGs for multi-arch builds
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -tags netgo \
     -ldflags '-s -w -extldflags "-static"' \
     -o /app components/ledger/cmd/app/main.go
