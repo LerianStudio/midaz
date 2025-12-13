@@ -106,6 +106,12 @@ merge_all_collections() {
 
     # Collect all successful collections and environments
     for component in onboarding transaction crm; do
+        local status=$(cat "${TEMP_DIR}/${component}.status" 2>/dev/null || echo "FAILED")
+        if [ "$status" != "SUCCESS" ]; then
+            echo "Skipping ${component}: conversion status is ${status}"
+            continue
+        fi
+
         local coll="${TEMP_DIR}/${component}.postman_collection.json"
         local env="${TEMP_DIR}/${component}.environment.json"
         if [ -f "$coll" ]; then
