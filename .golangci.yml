@@ -3,30 +3,99 @@ run:
   tests: false
 linters:
   enable:
-    - bodyclose
-    - depguard
-    - dogsled
-    - dupword
-    - errchkjson
-    - gocognit
-    - gocyclo
-    - loggercheck
-    - misspell
-    - nakedret
-    - nilerr
-    - nolintlint
-    - prealloc
-    - predeclared
-    - reassign
-    - revive
-    - staticcheck
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-    - wsl_v5
+    # ===========================================
+    # Security & Bug Detection
+    # ===========================================
+    - bidichk        # Dangerous unicode characters
+    - copyloopvar    # Loop variable capture issues (replaces exportloopref)
+    - errcheck       # Unchecked errors
+    - gosec          # Security vulnerabilities
+    - govet          # Standard Go vet checks
+    - staticcheck    # Advanced static analysis (includes gosimple, stylecheck)
+
+    # ===========================================
+    # Unused Code Detection
+    # ===========================================
+    - ineffassign    # Ineffectual assignments
+    - unparam        # Unused function parameters
+    - unused         # Unused constants, variables, functions, types
+    - wastedassign   # Wasted assignment statements (more aggressive than ineffassign)
+
+    # ===========================================
+    # Error Handling
+    # ===========================================
+    - err113         # Error handling expressions (replaces goerr113)
+    - errchkjson     # JSON error checking
+    - errname        # Error naming conventions
+    - errorlint      # Error wrapping issues
+    - nilerr         # Return nil with non-nil error
+    - wrapcheck      # Ensure errors are wrapped properly
+
+    # ===========================================
+    # Performance
+    # ===========================================
+    - bodyclose      # HTTP body close
+    - perfsprint     # fmt.Sprintf performance
+    - prealloc       # Slice preallocation
+
+    # ===========================================
+    # Complexity & Maintainability
+    # ===========================================
+    - cyclop         # Package cyclomatic complexity
+    - gocognit       # Cognitive complexity
+    - gocyclo        # Cyclomatic complexity
+    - nestif         # Nested if depth
+
+    # ===========================================
+    # Code Quality & Style
+    # ===========================================
+    - dogsled        # Blank identifier assignments (x, _, _, _ = ...)
+    - dupword        # Duplicate words in comments
+    - goconst        # Repeated strings as constants
+    - gocritic       # Opinionated checks
+    - misspell       # Spelling mistakes
+    - nakedret       # Naked returns in long functions
+    - nolintlint     # Proper nolint directive usage
+    - predeclared    # Shadowing of predeclared identifiers
+    - revive         # Comprehensive linting rules
+    - unconvert      # Unnecessary type conversions
+    - usestdlibvars  # Use stdlib variables (http.MethodGet, etc.)
+    - whitespace     # Whitespace issues
+    - wsl_v5         # Whitespace linter v5
+
+    # ===========================================
+    # Best Practices
+    # ===========================================
+    - durationcheck     # Time.Duration multiplication issues
+    - loggercheck       # Logger argument consistency
+    - mnd               # Magic number detection (replaces gomnd)
+    - nosprintfhostport # Host:port in sprintf (use net.JoinHostPort)
+    - reassign          # Reassignment of package variables
+
+    # ===========================================
+    # Context & Concurrency
+    # ===========================================
+    - contextcheck   # Context usage validation
+    - noctx          # HTTP requests without context
+
+    # ===========================================
+    # Database
+    # ===========================================
+    - rowserrcheck   # SQL rows.Err() checks
+    - sqlclosecheck  # SQL Close() calls
+
+    # ===========================================
+    # Dependencies & Custom Rules
+    # ===========================================
+    - depguard       # Dependency guard (block specific imports)
+    - forbidigo      # Forbid specific function calls
+
+    # ===========================================
+    # Test Quality
+    # ===========================================
+    - paralleltest   # Detect tests missing t.Parallel()
+    - thelper        # Test helper functions should call t.Helper()
+    - tparallel      # Enforce t.Parallel() usage in tests
   settings:
     wsl_v5:
       allow-first-in-block: true

@@ -326,7 +326,7 @@ lint:
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+			(cd $(TESTS_DIR) && golangci-lint run --fix ./...) || exit 1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \

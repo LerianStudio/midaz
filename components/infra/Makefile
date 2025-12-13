@@ -76,7 +76,7 @@ lint:
 			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
 			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
 		fi; \
-		golangci-lint run --fix ./... --verbose; \
+		golangci-lint run --fix ./...; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
