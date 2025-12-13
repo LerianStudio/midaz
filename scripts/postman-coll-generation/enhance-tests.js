@@ -465,43 +465,60 @@ if (['POST', 'PUT', 'PATCH'].includes(pm.request.method)) {
 const requestUrl = pm.request.url.toString();
 const method = pm.request.method;
 
+// Parse URL path segments for more robust variable detection
+// pm.request.url.path is an array like ["v1", "organizations", "{{organizationId}}", "ledgers"]
+const pathSegments = pm.request.url.path || [];
+
+// Helper: Check if a path segment is a template variable for a specific ID
+function hasTemplateVar(segments, varPatterns) {
+    return segments.some(seg => varPatterns.some(pattern => seg.includes(pattern)));
+}
+
+// Helper: Check if resource ID is in a path position (after the resource name, not just listed)
+// e.g., /organizations/{{id}}/ledgers requires organizationId, but /organizations does not
+function requiresResourceId(segments, resourceName, varPatterns) {
+    const resourceIndex = segments.findIndex(seg => seg === resourceName);
+    if (resourceIndex === -1) return false;
+    // Check if next segment is a variable pattern
+    const nextSegment = segments[resourceIndex + 1];
+    if (!nextSegment) return false;
+    return varPatterns.some(pattern => nextSegment.includes(pattern));
+}
+
 // Base required variables - start empty and add based on URL patterns
 const requiredVars = [];
 
-// Require organizationId only when the URL actually uses it (not for POST /organizations which creates it)
-if (requestUrl.includes('{{organizationId}}') || requestUrl.includes('{organization_id}') ||
-    (requestUrl.includes('/organizations/') && !requestUrl.endsWith('/organizations'))) {
+// Require organizationId when URL has it as a path parameter (not for list/create endpoints)
+const orgIdPatterns = ['{{organizationId}}', '{organization_id}', ':organization_id'];
+if (hasTemplateVar(pathSegments, orgIdPatterns) || requiresResourceId(pathSegments, 'organizations', orgIdPatterns)) {
     requiredVars.push('organizationId');
 }
 
-// Require ledgerId only when the URL actually uses it
-if (requestUrl.includes('{{ledgerId}}') || requestUrl.includes('{ledger_id}') || requestUrl.includes('/ledgers/')) {
+// Require ledgerId when URL has it as a path parameter (not for list/create ledger endpoints)
+const ledgerIdPatterns = ['{{ledgerId}}', '{ledger_id}', ':ledger_id'];
+if (hasTemplateVar(pathSegments, ledgerIdPatterns) || requiresResourceId(pathSegments, 'ledgers', ledgerIdPatterns)) {
     requiredVars.push('ledgerId');
 }
 
-// Add specific variables based on the operation
-if (requestUrl.includes('/transactions/') && (method === 'PATCH' || method === 'GET')) {
-    if (requestUrl.includes('{{transactionId}}') || requestUrl.includes('{transaction_id}')) {
-        requiredVars.push('transactionId');
-    }
+// Add specific variables based on the operation and URL path
+const transactionIdPatterns = ['{{transactionId}}', '{transaction_id}', ':transaction_id'];
+if (hasTemplateVar(pathSegments, transactionIdPatterns) || requiresResourceId(pathSegments, 'transactions', transactionIdPatterns)) {
+    requiredVars.push('transactionId');
 }
 
-if (requestUrl.includes('/operations/') && (method === 'PATCH' || method === 'GET')) {
-    if (requestUrl.includes('{{operationId}}') || requestUrl.includes('{operation_id}')) {
-        requiredVars.push('operationId');
-    }
+const operationIdPatterns = ['{{operationId}}', '{operation_id}', ':operation_id'];
+if (hasTemplateVar(pathSegments, operationIdPatterns) || requiresResourceId(pathSegments, 'operations', operationIdPatterns)) {
+    requiredVars.push('operationId');
 }
 
-if (requestUrl.includes('/balances/') && (method === 'PATCH' || method === 'DELETE' || method === 'GET')) {
-    if (requestUrl.includes('{{balanceId}}') || requestUrl.includes('{balance_id}')) {
-        requiredVars.push('balanceId');
-    }
+const balanceIdPatterns = ['{{balanceId}}', '{balance_id}', ':balance_id'];
+if (hasTemplateVar(pathSegments, balanceIdPatterns) || requiresResourceId(pathSegments, 'balances', balanceIdPatterns)) {
+    requiredVars.push('balanceId');
 }
 
-if (requestUrl.includes('/accounts/') && (method === 'PATCH' || method === 'DELETE' || method === 'GET')) {
-    if (requestUrl.includes('{{accountId}}') || requestUrl.includes('{account_id}')) {
-        requiredVars.push('accountId');
-    }
+const accountIdPatterns = ['{{accountId}}', '{account_id}', ':account_id'];
+if (hasTemplateVar(pathSegments, accountIdPatterns) || requiresResourceId(pathSegments, 'accounts', accountIdPatterns)) {
+    requiredVars.push('accountId');
 }
 
 // Check all required variables
