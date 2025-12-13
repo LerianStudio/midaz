@@ -2,6 +2,7 @@ package out
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -163,8 +164,15 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 	}
 
 	// Convert proto response to native model
-	available, _ := decimal.NewFromString(resp.Available)
-	onHold, _ := decimal.NewFromString(resp.OnHold)
+	available, err := decimal.NewFromString(resp.Available)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Available for balance %s: %w", resp.Id, err)
+	}
+
+	onHold, err := decimal.NewFromString(resp.OnHold)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse OnHold for balance %s: %w", resp.Id, err)
+	}
 
 	return &mmodel.Balance{
 		ID:             resp.Id,
