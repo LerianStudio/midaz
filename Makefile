@@ -431,6 +431,14 @@ set-env:
 			echo ".env already exists in $$dir"; \
 		fi; \
 	done
+	@if [ -f "$(LEDGER_DIR)/.env.example" ] && [ ! -f "$(LEDGER_DIR)/.env" ]; then \
+		echo "Creating .env in $(LEDGER_DIR) from .env.example"; \
+		cp "$(LEDGER_DIR)/.env.example" "$(LEDGER_DIR)/.env"; \
+	elif [ ! -f "$(LEDGER_DIR)/.env.example" ]; then \
+		echo "Warning: No .env.example found in $(LEDGER_DIR)"; \
+	else \
+		echo ".env already exists in $(LEDGER_DIR)"; \
+	fi
 	@echo "[ok] Environment files set up successfully"
 
 .PHONY: clear-envs
@@ -444,6 +452,12 @@ clear-envs:
 			echo "No .env found in $$dir"; \
 		fi; \
 	done
+	@if [ -f "$(LEDGER_DIR)/.env" ]; then \
+		echo "Removing .env in $(LEDGER_DIR)"; \
+		rm "$(LEDGER_DIR)/.env"; \
+	else \
+		echo "No .env found in $(LEDGER_DIR)"; \
+	fi
 	@echo "[ok] Environment files removed successfully"
 
 #-------------------------------------------------------
