@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organi
 
 	address, err := json.Marshal(organization.Address)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal address: %w", err)
 	}
 
 	// Execute the query to insert the organization
@@ -82,7 +83,7 @@ func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organi
 		organization.DeletedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to insert organization: %w", err)
 	}
 
 	return organization, nil
@@ -103,13 +104,13 @@ func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization 
 		id.String(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update organization: %w", err)
 	}
 
 	// Check if any row was affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -122,12 +123,42 @@ func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization 
 	return organization, nil
 }
 
+// setOrganizationNullableFields sets nullable fields on an organization from SQL null types
+func setOrganizationNullableFields(org *mmodel.Organization, parentOrganizationIDStr, doingBusinessAs, legalDocument, statusDescription sql.NullString, addressJSON []byte, deletedAt sql.NullTime) error {
+	if parentOrganizationIDStr.Valid {
+		org.ParentOrganizationID = &parentOrganizationIDStr.String
+	}
+
+	if doingBusinessAs.Valid {
+		org.DoingBusinessAs = &doingBusinessAs.String
+	}
+
+	if legalDocument.Valid {
+		org.LegalDocument = legalDocument.String
+	}
+
+	if statusDescription.Valid {
+		org.Status.Description = &statusDescription.String
+	}
+
+	if len(addressJSON) > 0 {
+		if err := json.Unmarshal(addressJSON, &org.Address); err != nil {
+			return fmt.Errorf("failed to unmarshal address: %w", err)
+		}
+	}
+
+	if deletedAt.Valid {
+		org.DeletedAt = &deletedAt.Time
+	}
+
+	return nil
+}
+
 func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 
-	// Query to get the organization
 	row := r.db.QueryRowContext(
 		ctx,
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE id = $1 AND deleted_at IS NULL`,
@@ -156,36 +187,11 @@ func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organi
 		if err == sql.ErrNoRows {
 			return nil, errors.New("organization not found")
 		}
+		return nil, fmt.Errorf("failed to scan organization: %w", err)
+	}
+
+	if err := setOrganizationNullableFields(&organization, parentOrganizationIDStr, doingBusinessAs, legalDocument, statusDescription, addressJSON, deletedAt); err != nil {
 		return nil, err
-	}
-
-	// Set nullable fields
-	if parentOrganizationIDStr.Valid {
-		organization.ParentOrganizationID = &parentOrganizationIDStr.String
-	}
-
-	if doingBusinessAs.Valid {
-		organization.DoingBusinessAs = &doingBusinessAs.String
-	}
-
-	if legalDocument.Valid {
-		organization.LegalDocument = legalDocument.String
-	}
-
-	if statusDescription.Valid {
-		organization.Status.Description = &statusDescription.String
-	}
-
-	// Parse address JSON
-	if len(addressJSON) > 0 {
-		err = json.Unmarshal(addressJSON, &organization.Address)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if deletedAt.Valid {
-		organization.DeletedAt = &deletedAt.Time
 	}
 
 	return &organization, nil
@@ -196,14 +202,13 @@ func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([
 		return nil, r.err
 	}
 
-	// Execute the query to get all organizations
 	rows, err := r.db.QueryContext(
 		ctx,
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1`,
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}
 	defer rows.Close()
 
@@ -228,43 +233,18 @@ func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([
 			&deletedAt,
 		)
 		if err != nil {
+			return nil, fmt.Errorf("failed to scan organization row: %w", err)
+		}
+
+		if err := setOrganizationNullableFields(&organization, parentOrganizationIDStr, doingBusinessAs, legalDocument, statusDescription, addressJSON, deletedAt); err != nil {
 			return nil, err
-		}
-
-		// Set nullable fields
-		if parentOrganizationIDStr.Valid {
-			organization.ParentOrganizationID = &parentOrganizationIDStr.String
-		}
-
-		if doingBusinessAs.Valid {
-			organization.DoingBusinessAs = &doingBusinessAs.String
-		}
-
-		if legalDocument.Valid {
-			organization.LegalDocument = legalDocument.String
-		}
-
-		if statusDescription.Valid {
-			organization.Status.Description = &statusDescription.String
-		}
-
-		// Parse address JSON
-		if len(addressJSON) > 0 {
-			err = json.Unmarshal(addressJSON, &organization.Address)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if deletedAt.Valid {
-			organization.DeletedAt = &deletedAt.Time
 		}
 
 		organizations = append(organizations, &organization)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
 	return organizations, nil
@@ -275,20 +255,18 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 		return nil, r.err
 	}
 
-	// Convert UUIDs to strings for the query
 	idStrings := make([]string, len(ids))
 	for i, id := range ids {
 		idStrings[i] = id.String()
 	}
 
-	// Execute the query to get organizations by IDs
 	rows, err := r.db.QueryContext(
 		ctx,
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE id = ANY($1) AND deleted_at IS NULL`,
 		pq.Array(idStrings),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}
 	defer rows.Close()
 
@@ -313,43 +291,18 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 			&deletedAt,
 		)
 		if err != nil {
+			return nil, fmt.Errorf("failed to scan organization row: %w", err)
+		}
+
+		if err := setOrganizationNullableFields(&organization, parentOrganizationIDStr, doingBusinessAs, legalDocument, statusDescription, addressJSON, deletedAt); err != nil {
 			return nil, err
-		}
-
-		// Set nullable fields
-		if parentOrganizationIDStr.Valid {
-			organization.ParentOrganizationID = &parentOrganizationIDStr.String
-		}
-
-		if doingBusinessAs.Valid {
-			organization.DoingBusinessAs = &doingBusinessAs.String
-		}
-
-		if legalDocument.Valid {
-			organization.LegalDocument = legalDocument.String
-		}
-
-		if statusDescription.Valid {
-			organization.Status.Description = &statusDescription.String
-		}
-
-		// Parse address JSON
-		if len(addressJSON) > 0 {
-			err = json.Unmarshal(addressJSON, &organization.Address)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if deletedAt.Valid {
-			organization.DeletedAt = &deletedAt.Time
 		}
 
 		organizations = append(organizations, &organization)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
 	return organizations, nil
@@ -368,13 +321,13 @@ func (r *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		id.String(),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to execute delete organization: %w", err)
 	}
 
 	// Check if any row was affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {

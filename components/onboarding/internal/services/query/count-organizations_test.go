@@ -71,7 +71,7 @@ func TestCountOrganizations(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError.Error(), err.Error())
+					assert.Contains(t, err.Error(), tt.expectedError.Error())
 				}
 			} else {
 				assert.NoError(t, err)

@@ -1,7 +1,11 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -11,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type AccountTypeHandler struct {
@@ -61,12 +66,20 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created account type")
 
-	return http.Created(c, accountType)
+	if err := http.Created(c, accountType); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAccountTypeByID is a method that retrieves Account Type information by a given account type id.
@@ -106,12 +119,20 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Account Type with ID: %s", id.String())
 
-	return http.OK(c, accountType)
+	if err := http.OK(c, accountType); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // Update an Account Type.
@@ -161,7 +182,11 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
@@ -170,12 +195,20 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated account type with ID: %s", id)
 
-	return http.OK(c, accountType)
+	if err := http.OK(c, accountType); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteAccountTypeByID is a method that deletes Account Type information.
@@ -213,12 +246,20 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllAccountTypes is a method that retrieves all Account Types.
@@ -245,6 +286,29 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error																								"Organization, ledger, or account types not found"
 //	@Failure		500				{object}	mmodel.Error																								"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types [get]
+func (handler *AccountTypeHandler) handleAccountTypeError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *AccountTypeHandler) respondWithAccountTypes(c *fiber.Ctx, pagination *libPostgres.Pagination, accountTypes []*mmodel.AccountType, cur libHTTP.CursorPagination, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(accountTypes)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -258,11 +322,7 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAccountTypeError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -283,19 +343,10 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 
 		accountTypes, cur, err := handler.Query.GetAllMetadataAccountType(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Account Types on query", err)
-
-			logger.Errorf("Failed to retrieve all Account Types, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handleAccountTypeError(c, &span, logger, err, "Failed to retrieve all Account Types on query")
 		}
 
-		logger.Infof("Successfully retrieved all Account Types by metadata")
-
-		pagination.SetItems(accountTypes)
-		pagination.SetCursor(cur.Next, cur.Prev)
-
-		return http.OK(c, pagination)
+		return handler.respondWithAccountTypes(c, &pagination, accountTypes, cur, logger, "Successfully retrieved all Account Types by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of Account Types")
@@ -304,17 +355,8 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 
 	accountTypes, cur, err := handler.Query.GetAllAccountType(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Types on query", err)
-
-		logger.Errorf("Failed to retrieve Account Types, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAccountTypeError(c, &span, logger, err, "Failed to retrieve Account Types on query")
 	}
 
-	logger.Infof("Successfully retrieved %d Account Types", len(accountTypes))
-
-	pagination.SetItems(accountTypes)
-	pagination.SetCursor(cur.Next, cur.Prev)
-
-	return http.OK(c, pagination)
+	return handler.respondWithAccountTypes(c, &pagination, accountTypes, cur, logger, fmt.Sprintf("Successfully retrieved %d Account Types", len(accountTypes)))
 }

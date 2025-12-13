@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -36,6 +37,11 @@ var portfolioColumnList = []string{
 	"updated_at",
 	"deleted_at",
 }
+
+const (
+	// argsOffsetForWhereClause represents the offset for WHERE clause arguments in SQL queries
+	argsOffsetForWhereClause = 2
+)
 
 // Repository provides an interface for operations related to portfolio entities.
 // It defines methods for creating, finding, updating, and deleting portfolios in the database.
@@ -84,7 +90,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	record := &PortfolioPostgreSQLModel{}
@@ -113,14 +119,14 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	spanExec.End()
@@ -131,7 +137,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -141,7 +147,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 		logger.Warnf("Failed to create Portfolio. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -160,7 +166,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	portfolio := &PortfolioPostgreSQLModel{}
@@ -206,10 +212,10 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 		logger.Errorf("Failed to execute query: %v", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, fmt.Errorf("portfolio not found: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name()))
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return portfolio.ToEntity(), nil
@@ -228,7 +234,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	var portfolios []*mmodel.Portfolio
@@ -251,7 +257,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -262,7 +268,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		return nil, fmt.Errorf("failed to query portfolios: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name()))
 	}
 	defer rows.Close()
 
@@ -285,7 +291,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 			logger.Errorf("Failed to scan rows: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		portfolios = append(portfolios, portfolio.ToEntity())
@@ -294,7 +300,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return portfolios, nil
@@ -313,7 +319,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	portfolio := &PortfolioPostgreSQLModel{}
@@ -359,10 +365,10 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 		logger.Errorf("Failed to execute query: %v", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, fmt.Errorf("portfolio not found: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name()))
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return portfolio.ToEntity(), nil
@@ -381,7 +387,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	var portfolios []*mmodel.Portfolio
@@ -413,7 +419,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 	defer rows.Close()
 
@@ -436,7 +442,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 			logger.Errorf("Failed to scan rows: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		portfolios = append(portfolios, portfolio.ToEntity())
@@ -445,7 +451,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return portfolios, nil
@@ -464,7 +470,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	record := &PortfolioPostgreSQLModel{}
@@ -499,7 +505,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE portfolio SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-argsOffsetForWhereClause) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -516,14 +522,14 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	spanExec.End()
@@ -534,7 +540,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -542,7 +548,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("database constraint violation: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -561,7 +567,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -573,7 +579,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return err
+		return fmt.Errorf("failed to execute delete portfolio query: %w", err)
 	}
 
 	spanExec.End()
@@ -584,7 +590,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -592,7 +598,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Portfolio. Rows affected is 0", err)
 
-		return err
+		return fmt.Errorf("portfolio not found for deletion: %w", err)
 	}
 
 	return nil
@@ -605,7 +611,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.count_portfolios")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -613,7 +619,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -625,7 +631,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("failed to count portfolios: %w", err)
 	}
 
 	return count, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -37,6 +38,11 @@ var assetColumnList = []string{
 	"updated_at",
 	"deleted_at",
 }
+
+const (
+	// argsOffsetForWhereClause represents the offset for WHERE clause arguments in SQL queries
+	argsOffsetForWhereClause = 2
+)
 
 // Repository provides an interface for operations related to asset entities.
 // It defines methods for creating, finding, updating, and deleting assets in the database.
@@ -85,7 +91,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetPostgreSQLModel{}
@@ -113,12 +119,12 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert query", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	spanExec.End()
@@ -129,7 +135,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -137,7 +143,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -156,7 +162,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_name_or_code.query")
@@ -186,7 +192,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer rows.Close()
 
@@ -198,7 +204,15 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Asset name or code already exists", err)
 
-		return true, err
+		return true, fmt.Errorf("business validation error: %w", err)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Row iteration error", err)
+
+		logger.Errorf("Row iteration error: %v", err)
+
+		return false, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return false, nil
@@ -217,7 +231,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	var assets []*mmodel.Asset
@@ -240,7 +254,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -251,7 +265,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer rows.Close()
 
@@ -265,7 +279,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		assets = append(assets, asset.ToEntity())
@@ -276,7 +290,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to scan rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return assets, nil
@@ -295,7 +309,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	var assets []*mmodel.Asset
@@ -327,7 +341,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer rows.Close()
 
@@ -341,7 +355,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		assets = append(assets, asset.ToEntity())
@@ -352,7 +366,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to scan rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return assets, nil
@@ -371,7 +385,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	asset := &AssetPostgreSQLModel{}
@@ -405,10 +419,10 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 		logger.Errorf("Failed to execute query: %v", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, fmt.Errorf("entity not found: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name()))
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
 	return asset.ToEntity(), nil
@@ -427,7 +441,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetPostgreSQLModel{}
@@ -457,7 +471,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE asset SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-argsOffsetForWhereClause) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -474,14 +488,14 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("database constraint violation: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	spanExec.End()
@@ -492,7 +506,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -500,7 +514,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -519,7 +533,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -531,7 +545,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	spanExec.End()
@@ -542,7 +556,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -550,7 +564,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset. Rows affected is 0", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return nil
@@ -563,7 +577,7 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 	ctx, span := tracer.Start(ctx, "postgres.count_assets")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -571,7 +585,7 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -584,7 +598,7 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return count, nil

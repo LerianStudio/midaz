@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -39,12 +40,12 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String(), upi.Metadata)
@@ -53,7 +54,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	segmentUpdated.Metadata = metadataUpdated

@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -40,12 +41,12 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String(), input.Metadata)
@@ -54,7 +55,7 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	accountTypeUpdated.Metadata = metadataUpdated

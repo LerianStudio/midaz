@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -44,7 +45,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	spanAddressValidation.End()
@@ -66,7 +67,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		logger.Errorf("Error creating organization: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
@@ -75,7 +76,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	org.Metadata = metadata

@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,12 +35,12 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
 
-			return err
+			return fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
 
-		return err
+		return fmt.Errorf("validation failed: %w", err)
 	}
 
 	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())

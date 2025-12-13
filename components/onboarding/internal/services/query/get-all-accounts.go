@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +36,12 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	if len(accounts) == 0 {
@@ -58,7 +59,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

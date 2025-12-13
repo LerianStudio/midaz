@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUpdateLedgerByID(t *testing.T) {

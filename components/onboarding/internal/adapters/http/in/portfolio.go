@@ -2,8 +2,10 @@ package in
 
 import (
 	"fmt"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -14,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // PortfolioHandler struct contains a portfolio use case for managing portfolio related operations.
@@ -68,12 +71,20 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio on command", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created Portfolio")
 
-	return http.Created(c, portfolio)
+	if err := http.Created(c, portfolio); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
@@ -99,6 +110,28 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
+func (handler *PortfolioHandler) handlePortfolioError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *PortfolioHandler) respondWithPortfolios(c *fiber.Ctx, pagination *libPostgres.Pagination, portfolios []*mmodel.Portfolio, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(portfolios)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -114,11 +147,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handlePortfolioError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -139,18 +168,10 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
-
-			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handlePortfolioError(c, &span, logger, err, "Failed to retrieve all Portfolios on query")
 		}
 
-		logger.Infof("Successfully retrieved all Portfolios by metadata")
-
-		pagination.SetItems(portfolios)
-
-		return http.OK(c, pagination)
+		return handler.respondWithPortfolios(c, &pagination, portfolios, logger, "Successfully retrieved all Portfolios by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Portfolios")
@@ -159,18 +180,10 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
-
-		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handlePortfolioError(c, &span, logger, err, "Failed to retrieve all Portfolios on query")
 	}
 
-	logger.Infof("Successfully retrieved all Portfolios")
-
-	pagination.SetItems(portfolios)
-
-	return http.OK(c, pagination)
+	return handler.respondWithPortfolios(c, &pagination, portfolios, logger, "Successfully retrieved all Portfolios")
 }
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
@@ -210,12 +223,20 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return http.OK(c, portfolio)
+	if err := http.OK(c, portfolio); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // UpdatePortfolio is a method that updates Portfolio information.
@@ -267,7 +288,11 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
@@ -276,12 +301,20 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return http.OK(c, portfolio)
+	if err := http.OK(c, portfolio); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
@@ -320,12 +353,20 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountPortfolios is a method that returns the total count of portfolios for a specific organization and ledger.
@@ -360,13 +401,21 @@ func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to count portfolios", err)
 		logger.Errorf("Failed to count portfolios, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted portfolios for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

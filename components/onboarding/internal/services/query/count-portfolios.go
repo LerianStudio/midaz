@@ -3,7 +3,7 @@ package query
 import (
 	"context"
 	"errors"
-
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +35,12 @@ func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count portfolios on repo", err)
 
-			return 0, err
+			return 0, fmt.Errorf("failed to count: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count portfolios on repo", err)
 
-		return 0, err
+		return 0, fmt.Errorf("operation failed: %w", err)
 	}
 
 	logger.Infof("Found %d portfolios for organization %s and ledger %s", count, organizationID, ledgerID)

@@ -127,7 +127,7 @@ func TestGetAllAccount(t *testing.T) {
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

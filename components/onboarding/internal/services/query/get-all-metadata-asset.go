@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -54,12 +55,12 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 			logger.Warn("No assets found")
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	for idx := range assets {

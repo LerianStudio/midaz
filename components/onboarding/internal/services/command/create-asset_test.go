@@ -173,7 +173,7 @@ func TestCreateAsset(t *testing.T) {
 					Return(nil, nil).
 					Times(1)
 
-				var createdAccountID = uuid.New().String()
+				createdAccountID := uuid.New().String()
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {

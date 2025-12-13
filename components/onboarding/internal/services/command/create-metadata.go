@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -27,7 +28,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {
 			logger.Errorf("Error into creating %s metadata: %v", entityName, err)
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 
 		return metadata, nil

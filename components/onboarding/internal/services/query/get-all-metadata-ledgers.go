@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -54,12 +55,12 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 			logger.Warn("No ledgers found")
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledgers on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	for i := range ledgers {

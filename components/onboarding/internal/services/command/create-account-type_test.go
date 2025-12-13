@@ -96,7 +96,7 @@ func TestCreateAccountTypeError(t *testing.T) {
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
 	assert.Error(t, err)
-	assert.Equal(t, errMsg, err.Error())
+	assert.Contains(t, err.Error(), errMsg)
 	assert.Nil(t, result)
 }
 
@@ -191,7 +191,7 @@ func TestCreateAccountTypeDuplicateKeyValue(t *testing.T) {
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, result)
 }
 
@@ -311,6 +311,6 @@ func TestCreateAccountTypeMetadataError(t *testing.T) {
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
 	assert.Error(t, err)
-	assert.Equal(t, metadataErr, err)
+	assert.ErrorIs(t, err, metadataErr)
 	assert.Nil(t, result)
 }

@@ -182,7 +182,7 @@ func TestUpdateAccountTypeError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestUpdateAccountTypeNotFound tests handling of account type not found
@@ -218,7 +218,7 @@ func TestUpdateAccountTypeNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedErr, err)
+	assert.Contains(t, err.Error(), expectedErr.Error())
 }
 
 // TestUpdateAccountTypeMetadataError tests handling metadata update error
@@ -275,7 +275,7 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, metadataError, err)
+	assert.ErrorIs(t, err, metadataError)
 }
 
 // TestUpdateAccountTypePartialUpdate tests updating account type with partial input

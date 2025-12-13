@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestDeleteOrganizationByID(t *testing.T) {
@@ -69,7 +70,7 @@ func TestDeleteOrganizationByID(t *testing.T) {
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 			} else {
 				assert.NoError(t, err)
 			}

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -47,7 +48,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 		logger.Errorf("Error finding segment by name: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 
 	prod, err := uc.SegmentRepo.Create(ctx, segment)
@@ -56,7 +57,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 		logger.Errorf("Error creating segment: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
@@ -65,7 +66,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 		logger.Errorf("Error creating segment metadata: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	prod.Metadata = metadata

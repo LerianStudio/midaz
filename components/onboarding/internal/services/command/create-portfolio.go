@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -48,7 +49,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error creating portfolio: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
@@ -57,7 +58,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	port.Metadata = metadata

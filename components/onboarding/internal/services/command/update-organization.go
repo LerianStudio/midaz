@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,7 +36,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+		return nil, fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name()))
 	}
 
 	if !uoi.Address.IsEmpty() {
@@ -44,7 +45,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate address country", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 	}
 
@@ -67,12 +68,12 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
@@ -81,7 +82,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	organizationUpdated.Metadata = metadataUpdated

@@ -2,8 +2,10 @@ package in
 
 import (
 	"fmt"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -14,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.
@@ -72,12 +75,20 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created Asset")
 
-	return http.Created(c, asset)
+	if err := http.Created(c, asset); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllAssets is a method that retrieves all Assets.
@@ -103,6 +114,28 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error													"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error													"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
+func (handler *AssetHandler) handleAssetError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *AssetHandler) respondWithAssets(c *fiber.Ctx, pagination *libPostgres.Pagination, assets []*mmodel.Asset, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(assets)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -119,11 +152,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAssetError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -144,18 +173,10 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
-
-			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handleAssetError(c, &span, logger, err, "Failed to retrieve all Assets on query")
 		}
 
-		logger.Infof("Successfully retrieved all Assets by metadata")
-
-		pagination.SetItems(assets)
-
-		return http.OK(c, pagination)
+		return handler.respondWithAssets(c, &pagination, assets, logger, "Successfully retrieved all Assets by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Assets ")
@@ -164,18 +185,10 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
-
-		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAssetError(c, &span, logger, err, "Failed to retrieve all Assets on query")
 	}
 
-	logger.Infof("Successfully retrieved all Assets")
-
-	pagination.SetItems(assets)
-
-	return http.OK(c, pagination)
+	return handler.respondWithAssets(c, &pagination, assets, logger, "Successfully retrieved all Assets")
 }
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
@@ -215,12 +228,20 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return http.OK(c, asset)
+	if err := http.OK(c, asset); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateAsset is a method that updates Asset information.
@@ -272,7 +293,11 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
@@ -281,12 +306,20 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return http.OK(c, asset)
+	if err := http.OK(c, asset); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
@@ -325,12 +358,20 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountAssets is a method that returns the total count of assets for a specific ledger in an organization.
@@ -367,13 +408,21 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to count assets, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

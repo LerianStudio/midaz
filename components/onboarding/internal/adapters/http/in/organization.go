@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -17,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -61,12 +64,20 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on command", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created organization: %s", organization)
 
-	return http.Created(c, organization)
+	if err := http.Created(c, organization); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateOrganization is a method that updates Organization information.
@@ -112,7 +123,11 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
@@ -121,12 +136,20 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Organization with ID: %s", id.String())
 
-	return http.OK(c, organizations)
+	if err := http.OK(c, organizations); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
@@ -161,12 +184,20 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Organization with ID: %s", id.String())
 
-	return http.OK(c, organizations)
+	if err := http.OK(c, organizations); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllOrganizations is a method that retrieves all Organizations.
@@ -189,6 +220,28 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error															"Forbidden access"
 //	@Failure		500				{object}	mmodel.Error															"Internal server error"
 //	@Router			/v1/organizations [get]
+func (handler *OrganizationHandler) handleOrganizationError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Warnf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *OrganizationHandler) respondWithOrganizations(c *fiber.Ctx, pagination *libPostgres.Pagination, organizations []*mmodel.Organization, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(organizations)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -199,11 +252,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Warnf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleOrganizationError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -225,17 +274,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations by metadata", err)
-
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
-			return http.WithError(c, err)
+			if httpErr := http.WithError(c, err); httpErr != nil {
+				return fmt.Errorf("http response error: %w", httpErr)
+			}
+
+			return nil
 		}
 
-		logger.Infof("Successfully retrieved all Organizations by metadata")
-
-		pagination.SetItems(organizations)
-
-		return http.OK(c, pagination)
+		return handler.respondWithOrganizations(c, &pagination, organizations, logger, "Successfully retrieved all Organizations by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Organizations ")
@@ -245,17 +293,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations", err)
-
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
-	logger.Infof("Successfully retrieved all Organizations")
-
-	pagination.SetItems(organizations)
-
-	return http.OK(c, pagination)
+	return handler.respondWithOrganizations(c, &pagination, organizations, logger, "Successfully retrieved all Organizations")
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
@@ -292,7 +339,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Warnf("Failed to remove Organization with ID: %s in ", id.String())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
@@ -300,12 +351,20 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Organization with ID: %s", id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountOrganizations is a method that returns the total count of organizations.
@@ -337,13 +396,21 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted organizations: %d", count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

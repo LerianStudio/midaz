@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -38,7 +39,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Failed to create account type: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
@@ -47,7 +48,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Failed to create metadata: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	createdAccountType.Metadata = metadata

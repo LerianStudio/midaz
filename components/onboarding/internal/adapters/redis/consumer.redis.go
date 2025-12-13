@@ -45,7 +45,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return fmt.Errorf("failed to get redis client: %w", err)
 	}
 
 	if ttl <= 0 {
@@ -58,7 +58,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if statusCMD.Err() != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
 
-		return statusCMD.Err()
+		return fmt.Errorf("failed to set value on redis: %w", statusCMD.Err())
 	}
 
 	return nil

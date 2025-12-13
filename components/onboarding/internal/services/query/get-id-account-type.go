@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,12 +35,12 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 
 			logger.Warn("No account type found")
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account type on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	if accountType != nil {
@@ -51,7 +52,7 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		if metadata != nil {

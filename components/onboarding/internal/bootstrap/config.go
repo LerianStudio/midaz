@@ -34,7 +34,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const ApplicationName = "onboarding"
+const (
+	ApplicationName = "onboarding"
+	// indexCreationTimeout is the timeout duration for MongoDB index creation operations
+	indexCreationTimeout = 60 * time.Second
+)
 
 // envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
 func envFallback(prefixed, fallback string) string {
@@ -311,7 +315,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), indexCreationTimeout)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{

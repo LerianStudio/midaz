@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -54,12 +55,12 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 			logger.Warn("No organizations found")
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	for i := range organizations {

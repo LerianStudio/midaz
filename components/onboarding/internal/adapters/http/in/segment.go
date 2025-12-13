@@ -2,8 +2,10 @@ package in
 
 import (
 	"fmt"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -14,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // SegmentHandler struct contains a segment use case for managing segment related operations.
@@ -67,12 +70,20 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Segment on command", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created Segment")
 
-	return http.Created(c, segment)
+	if err := http.Created(c, segment); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllSegments is a method that retrieves all Segments.
@@ -98,6 +109,28 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments [get]
+func (handler *SegmentHandler) handleSegmentError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *SegmentHandler) respondWithSegments(c *fiber.Ctx, pagination *libPostgres.Pagination, segments []*mmodel.Segment, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(segments)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -113,11 +146,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleSegmentError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -138,18 +167,10 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 		segments, err := handler.Query.GetAllMetadataSegments(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
-
-			logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handleSegmentError(c, &span, logger, err, "Failed to retrieve all Segments on query")
 		}
 
-		logger.Infof("Successfully retrieved all Segments by metadata")
-
-		pagination.SetItems(segments)
-
-		return http.OK(c, pagination)
+		return handler.respondWithSegments(c, &pagination, segments, logger, "Successfully retrieved all Segments by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Segments ")
@@ -158,18 +179,10 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 	segments, err := handler.Query.GetAllSegments(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
-
-		logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleSegmentError(c, &span, logger, err, "Failed to retrieve all Segments on query")
 	}
 
-	logger.Infof("Successfully retrieved all Segments")
-
-	pagination.SetItems(segments)
-
-	return http.OK(c, pagination)
+	return handler.respondWithSegments(c, &pagination, segments, logger, "Successfully retrieved all Segments")
 }
 
 // GetSegmentByID is a method that retrieves Segment information by a given id.
@@ -209,12 +222,20 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return http.OK(c, segment)
+	if err := http.OK(c, segment); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateSegment is a method that updates Segment information.
@@ -266,7 +287,11 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
@@ -275,12 +300,20 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return http.OK(c, segment)
+	if err := http.OK(c, segment); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteSegmentByID is a method that removes Segment information by a given ids.
@@ -319,12 +352,20 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountSegments is a method that counts all segments for a given organization and ledger.
@@ -361,13 +402,21 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 
 		logger.Errorf("Error counting segments: %v", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

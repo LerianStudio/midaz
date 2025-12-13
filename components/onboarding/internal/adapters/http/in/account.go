@@ -2,8 +2,10 @@ package in
 
 import (
 	"fmt"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -14,6 +16,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -65,7 +68,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	token := c.Get("Authorization")
@@ -74,14 +81,22 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Account on command", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	metricFactory.RecordAccountCreated(ctx, organizationID.String(), ledgerID.String())
 
 	logger.Infof("Successfully created Account")
 
-	return http.Created(c, account)
+	if err := http.Created(c, account); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllAccounts is a method that retrieves all Accounts.
@@ -107,6 +122,28 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
+func (handler *AccountHandler) handleAccountsError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *AccountHandler) respondWithAccounts(c *fiber.Ctx, pagination *libPostgres.Pagination, accounts []*mmodel.Account, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(accounts)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -122,10 +159,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAccountsError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -153,18 +187,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
-
-			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handleAccountsError(c, &span, logger, err, "Failed to retrieve all Accounts on query")
 		}
 
-		logger.Infof("Successfully retrieved all Accounts by metadata")
-
-		pagination.SetItems(accounts)
-
-		return http.OK(c, pagination)
+		return handler.respondWithAccounts(c, &pagination, accounts, logger, "Successfully retrieved all Accounts by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Accounts ")
@@ -173,18 +199,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
-
-		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleAccountsError(c, &span, logger, err, "Failed to retrieve all Accounts on query")
 	}
 
-	logger.Infof("Successfully retrieved all Accounts")
-
-	pagination.SetItems(accounts)
-
-	return http.OK(c, pagination)
+	return handler.respondWithAccounts(c, &pagination, accounts, logger, "Successfully retrieved all Accounts")
 }
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
@@ -224,12 +242,20 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
-	return http.OK(c, account)
+	if err := http.OK(c, account); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
@@ -271,12 +297,20 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
-	return http.OK(c, account)
+	if err := http.OK(c, account); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
@@ -316,12 +350,20 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
-	return http.OK(c, account)
+	if err := http.OK(c, account); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateAccount is a method that updates Account information.
@@ -373,7 +415,11 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
@@ -382,12 +428,20 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Account with ID: %s", id.String())
 
-	return http.OK(c, account)
+	if err := http.OK(c, account); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
@@ -427,12 +481,20 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Account with ID: %s", id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
@@ -469,13 +531,21 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 
 		logger.Errorf("Error counting accounts: %v", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

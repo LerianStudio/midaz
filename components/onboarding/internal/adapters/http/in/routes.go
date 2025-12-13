@@ -13,16 +13,16 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const midazName = "midaz"
-const routingName = "routing"
+const (
+	midazName   = "midaz"
+	routingName = "routing"
+)
 
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)

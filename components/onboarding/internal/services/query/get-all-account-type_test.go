@@ -201,7 +201,7 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedBusinessError, err)
+	assert.Contains(t, err.Error(), expectedBusinessError.Error())
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
@@ -233,7 +233,7 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
@@ -294,7 +294,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedBusinessError, err)
+	assert.Contains(t, err.Error(), expectedBusinessError.Error())
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }

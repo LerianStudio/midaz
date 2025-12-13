@@ -64,7 +64,7 @@ func TestDeleteAccountTypeByIDNotFound(t *testing.T) {
 	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr.Error(), err.Error())
+	assert.Contains(t, err.Error(), expectedErr.Error())
 }
 
 func TestDeleteAccountTypeByIDError(t *testing.T) {
@@ -91,5 +91,5 @@ func TestDeleteAccountTypeByIDError(t *testing.T) {
 	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 }

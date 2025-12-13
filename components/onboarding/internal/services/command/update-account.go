@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -12,6 +13,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+)
+
+const (
+	accountTypeExternal = "external"
 )
 
 // UpdateAccount update an account from the repository by given id.
@@ -29,11 +34,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 
-	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
-		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+	if accFound != nil && accFound.ID == id.String() && accFound.Type == accountTypeExternal {
+		return nil, fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	account := &mmodel.Account{
@@ -57,12 +62,12 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
@@ -71,7 +76,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	accountUpdated.Metadata = metadataUpdated

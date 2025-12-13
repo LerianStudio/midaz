@@ -34,7 +34,6 @@ func TestCreateLedger(t *testing.T) {
 		expectedErr error
 		expectedRes *mmodel.Ledger
 	}{
-
 		{
 			name: "success - ledger created",
 			input: &mmodel.CreateLedgerInput{
@@ -124,7 +123,7 @@ func TestCreateLedger(t *testing.T) {
 			result, err := uc.CreateLedger(ctx, organizationID, tt.input)
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

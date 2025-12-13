@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -31,7 +32,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("operation failed: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -53,12 +54,12 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 			logger.Warn("No account types found")
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("operation failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("operation failed: %w", err)
 	}
 
 	for i := range accountTypes {

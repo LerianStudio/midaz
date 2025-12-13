@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -37,7 +38,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 
 	ledger := &mmodel.Ledger{
@@ -54,7 +55,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
@@ -65,7 +66,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	led.Metadata = metadata

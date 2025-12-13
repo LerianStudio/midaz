@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -17,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -65,12 +68,20 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger on command", err)
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully created ledger")
 
-	return http.Created(c, ledger)
+	if err := http.Created(c, ledger); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
@@ -108,12 +119,20 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Ledger with ID: %s", id.String())
 
-	return http.OK(c, ledger)
+	if err := http.OK(c, ledger); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllLedgers is a method that retrieves all ledgers.
@@ -138,6 +157,28 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error														"Organization not found"
 //	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers [get]
+func (handler *LedgerHandler) handleLedgerError(c *fiber.Ctx, span *trace.Span, logger log.Logger, err error, message string) error {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+	logger.Errorf("%s, Error: %s", message, err.Error())
+
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return fmt.Errorf("http response error: %w", httpErr)
+	}
+
+	return nil
+}
+
+func (handler *LedgerHandler) respondWithLedgers(c *fiber.Ctx, pagination *libPostgres.Pagination, ledgers []*mmodel.Ledger, logger log.Logger, successMessage string) error {
+	logger.Infof(successMessage)
+	pagination.SetItems(ledgers)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
+}
+
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -150,11 +191,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleLedgerError(c, &span, logger, err, "Failed to validate query parameters")
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -175,18 +212,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers by metadata", err)
-
-			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
-
-			return http.WithError(c, err)
+			return handler.handleLedgerError(c, &span, logger, err, "Failed to retrieve all ledgers by metadata")
 		}
 
-		logger.Infof("Successfully retrieved all Ledgers by metadata")
-
-		pagination.SetItems(ledgers)
-
-		return http.OK(c, pagination)
+		return handler.respondWithLedgers(c, &pagination, ledgers, logger, "Successfully retrieved all Ledgers by metadata")
 	}
 
 	logger.Infof("Initiating retrieval of all Ledgers ")
@@ -195,18 +224,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers on query", err)
-
-		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
-
-		return http.WithError(c, err)
+		return handler.handleLedgerError(c, &span, logger, err, "Failed to retrieve all ledgers on query")
 	}
 
-	logger.Infof("Successfully retrieved all Ledgers")
-
-	pagination.SetItems(ledgers)
-
-	return http.OK(c, pagination)
+	return handler.respondWithLedgers(c, &pagination, ledgers, logger, "Successfully retrieved all Ledgers")
 }
 
 // UpdateLedger is a method that updates Ledger information.
@@ -255,7 +276,11 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
@@ -264,12 +289,20 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 
-	return http.OK(c, ledger)
+	if err := http.OK(c, ledger); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
@@ -308,7 +341,11 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 		logger.Warnf("Failed to remove Ledger with ID: %s in ", id.String())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
@@ -316,12 +353,20 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully removed Ledeger with ID: %s", id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }
 
 // CountLedgers is a method that returns the total count of ledgers for a specific organization.
@@ -356,13 +401,21 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to count ledgers, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return fmt.Errorf("http response error: %w", httpErr)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully counted ledgers for organization %s: %d", organizationID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("http response error: %w", err)
+	}
+
+	return nil
 }

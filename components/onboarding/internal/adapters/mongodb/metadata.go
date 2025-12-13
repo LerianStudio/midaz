@@ -4,9 +4,14 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"fmt"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+// ErrTypeAssertionFailed is returned when type assertion to []byte fails
+var ErrTypeAssertionFailed = errors.New("type assertion to []byte failed")
 
 // MetadataMongoDBModel represents the metadata into mongodb context
 type MetadataMongoDBModel struct {
@@ -33,17 +38,26 @@ type JSON map[string]any
 
 // Value return marshall value data
 func (mj JSON) Value() (driver.Value, error) {
-	return json.Marshal(mj)
+	val, err := json.Marshal(mj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal JSON value: %w", err)
+	}
+
+	return val, nil
 }
 
 // Scan unmarshall value data
 func (mj *JSON) Scan(value any) error {
 	b, ok := value.([]byte)
 	if !ok {
-		return errors.New("type assertion to []byte failed")
+		return fmt.Errorf("metadata scan: %w", ErrTypeAssertionFailed)
 	}
 
-	return json.Unmarshal(b, &mj)
+	if err := json.Unmarshal(b, &mj); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON value: %w", err)
+	}
+
+	return nil
 }
 
 // ToEntity converts an MetadataMongoDBModel to entity.Metadata
