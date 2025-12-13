@@ -2,7 +2,7 @@ module github.com/LerianStudio/midaz/v3
 
 go 1.24.2
 
-toolchain go1.25.1
+toolchain go1.25.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
