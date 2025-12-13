@@ -25,7 +25,7 @@ import (
 //		UnifiedMode: true,
 //		BalancePort: transactionUseCase, // implements mbootstrap.BalancePort
 //	}
-//	service := onboarding.InitServiceWithOptionsAndError(opts)
+//	service := onboarding.InitServiceWithOptionsOrError(opts)
 //
 // Example usage in standalone mode:
 //
@@ -49,10 +49,10 @@ type Options struct {
 
 // InitService initializes the onboarding service.
 //
-// Deprecated: Use InitServiceWithError for proper error handling.
+// Deprecated: Use InitServiceOrError for proper error handling.
 // This function panics on initialization errors.
 func InitService() mbootstrap.Service {
-	service, err := InitServiceWithError()
+	service, err := InitServiceOrError()
 	if err != nil {
 		panic(fmt.Sprintf("onboarding.InitService failed: %v", err))
 	}
@@ -60,18 +60,18 @@ func InitService() mbootstrap.Service {
 	return service
 }
 
-// InitServiceWithError initializes the onboarding service with explicit error handling.
+// InitServiceOrError initializes the onboarding service with explicit error handling.
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
-func InitServiceWithError() (mbootstrap.Service, error) {
+func InitServiceOrError() (mbootstrap.Service, error) {
 	return bootstrap.InitServers()
 }
 
-// InitServiceWithOptionsAndError initializes the onboarding service with custom options
+// InitServiceWithOptionsOrError initializes the onboarding service with custom options
 // and explicit error handling. Use this when running in unified ledger mode.
-func InitServiceWithOptionsAndError(opts *Options) (mbootstrap.Service, error) {
+func InitServiceWithOptionsOrError(opts *Options) (mbootstrap.Service, error) {
 	if opts == nil {
-		return InitServiceWithError()
+		return InitServiceOrError()
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{

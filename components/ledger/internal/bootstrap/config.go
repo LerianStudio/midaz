@@ -93,7 +93,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	ledgerLogger.Info("Initializing transaction module...")
 
 	// Initialize transaction module first to get the BalancePort
-	transactionService, err := transaction.InitServiceWithOptionsAndError(&transaction.Options{
+	transactionService, err := transaction.InitServiceWithOptionsOrError(&transaction.Options{
 		Logger: transactionLogger,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
-	onboardingService, err := onboarding.InitServiceWithOptionsAndError(&onboarding.Options{
+	onboardingService, err := onboarding.InitServiceWithOptionsOrError(&onboarding.Options{
 		Logger:      onboardingLogger,
 		UnifiedMode: true,
 		BalancePort: balancePort,

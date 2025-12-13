@@ -30,28 +30,29 @@ type Options struct {
 
 // InitService initializes the transaction service.
 //
-// Deprecated: Use InitServiceWithError for proper error handling.
+// Deprecated: Use InitServiceOrError for proper error handling.
 // This function panics on initialization errors.
 func InitService() TransactionService {
-	service, err := InitServiceWithError()
+	service, err := InitServiceOrError()
 	if err != nil {
 		panic(fmt.Sprintf("transaction.InitService failed: %v", err))
 	}
+
 	return service
 }
 
-// InitServiceWithError initializes the transaction service with explicit error handling.
+// InitServiceOrError initializes the transaction service with explicit error handling.
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
-func InitServiceWithError() (TransactionService, error) {
+func InitServiceOrError() (TransactionService, error) {
 	return bootstrap.InitServers()
 }
 
-// InitServiceWithOptionsAndError initializes the transaction service with custom options
+// InitServiceWithOptionsOrError initializes the transaction service with custom options
 // and explicit error handling. Use this when composing in unified ledger mode.
-func InitServiceWithOptionsAndError(opts *Options) (TransactionService, error) {
+func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 	if opts == nil {
-		return InitServiceWithError()
+		return InitServiceOrError()
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
