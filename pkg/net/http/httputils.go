@@ -368,10 +368,9 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			panic(0)
-		}
+		// File close errors are non-fatal - the file was already read successfully.
+		// We intentionally ignore this error as it doesn't affect the operation result.
+		_ = file.Close()
 	}(file)
 
 	buf := new(bytes.Buffer)

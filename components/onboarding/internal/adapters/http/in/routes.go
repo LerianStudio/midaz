@@ -1,6 +1,9 @@
 package in
 
 import (
+	"fmt"
+	"runtime/debug"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -10,7 +13,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -24,6 +30,32 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		DisableStartupMessage: true,
 		ErrorHandler:          libHTTP.HandleFiberError,
 	})
+
+	// Panic recovery middleware - MUST be first to catch panics from all other middleware.
+	// Note: HTTP recovery is always "keep running" in this phase.
+	f.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c *fiber.Ctx, e any) {
+			stack := debug.Stack()
+			panicValue := fmt.Sprintf("%v", e)
+
+			// Record panic as a span event for observability
+			span := trace.SpanFromContext(c.UserContext())
+			span.AddEvent("panic.recovered", trace.WithAttributes(
+				attribute.String("panic.value", panicValue),
+				attribute.String("panic.stack", string(stack)),
+				attribute.String("http.path", c.Path()),
+				attribute.String("http.method", c.Method()),
+			))
+
+			lg.WithFields(
+				"panic_value", panicValue,
+				"stack_trace", string(stack),
+				"path", c.Path(),
+				"method", c.Method(),
+			).Errorf("HTTP handler panic recovered: %v", e)
+		},
+	}))
 
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
