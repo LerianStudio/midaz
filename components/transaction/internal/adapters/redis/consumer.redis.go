@@ -64,16 +64,16 @@ type RedisConsumerRepository struct {
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
 // The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
 // When false, the ZADD to the balance sync schedule is skipped in the Lua script.
-func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) *RedisConsumerRepository {
+func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
 		conn:               rc,
 		balanceSyncEnabled: balanceSyncEnabled,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
-		panic("Failed to connect on redis")
+		return nil, fmt.Errorf("failed to connect on redis: %w", err)
 	}
 
-	return r
+	return r, nil
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
