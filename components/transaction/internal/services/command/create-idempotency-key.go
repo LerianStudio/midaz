@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -36,7 +37,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	if !success {
@@ -46,7 +47,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 			logger.Error("Error to get idempotency key on redis failed:", err.Error())
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
@@ -58,7 +59,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 			logger.Warnf("Failed, exists value on redis with this key: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 	}
 

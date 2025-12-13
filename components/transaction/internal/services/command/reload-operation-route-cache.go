@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -24,7 +25,7 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to find transaction route IDs for operation route %s: %v", id, err)
 
-		return err
+		return fmt.Errorf("failed to reload: %w", err)
 	}
 
 	if len(transactionRouteIDs) == 0 {

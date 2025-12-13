@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -27,7 +28,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 		logger.Errorf("Error getting balance: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if balance == nil {
@@ -37,7 +38,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 		logger.Warnf("Balance not found")
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get: %w", err)
 	}
 
 	// Overlay amounts from Redis cache when available to ensure freshest values

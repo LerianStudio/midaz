@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -38,19 +39,19 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 			logger.Warnf("Error updating transaction on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String(), uti.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	transUpdated.Metadata = metadataUpdated
@@ -82,12 +83,12 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 
 			logger.Warnf("Error updating status transaction on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update status transaction on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	return updateTran, nil

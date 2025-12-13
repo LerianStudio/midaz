@@ -150,7 +150,7 @@ func TestGetOperationRouteByIDError(t *testing.T) {
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Nil(t, result)
 }
 
@@ -224,7 +224,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, metadataError, err)
+	assert.ErrorIs(t, err, metadataError)
 	assert.Nil(t, result)
 }
 

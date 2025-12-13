@@ -58,7 +58,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 
-		assert.EqualError(t, err, errMSG)
+		assert.Contains(t, err.Error(), errMSG)
 		assert.Nil(t, res)
 	})
 }
@@ -137,10 +137,11 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 		assert.NotNil(t, op.Metadata, "Operation metadata should be populated")
 		assert.Equal(t, "value", op.Metadata["key"])
 
-		if op.ID == opID1Str {
+		switch op.ID {
+		case opID1Str:
 			assert.Equal(t, constant.DEBIT, op.Type)
 			assert.Equal(t, "source1", op.AccountAlias)
-		} else if op.ID == opID2Str {
+		case opID2Str:
 			assert.Equal(t, constant.CREDIT, op.Type)
 			assert.Equal(t, "destination2", op.AccountAlias)
 		}
@@ -272,5 +273,5 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, repoError, err)
+	assert.ErrorIs(t, err, repoError)
 }

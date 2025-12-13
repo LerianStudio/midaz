@@ -186,7 +186,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestCreateTransactionRouteErrorMissingDebitRoute tests error when debit operation route is missing
@@ -226,7 +226,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestCreateTransactionRouteErrorMissingCreditRoute tests error when credit operation route is missing
@@ -266,7 +266,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestCreateTransactionRouteErrorTransactionRouteCreationFails tests error when transaction route creation fails
@@ -318,7 +318,7 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestCreateTransactionRouteErrorMetadataCreationFails tests error when metadata creation fails
@@ -384,9 +384,8 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
-
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {
@@ -409,7 +408,7 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing
@@ -422,7 +421,7 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestValidateOperationRouteTypesEmpty tests validation with empty array
@@ -432,5 +431,5 @@ func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }

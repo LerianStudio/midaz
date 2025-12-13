@@ -736,7 +736,8 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.EqualError(t, err, errMsg)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), errMsg)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
@@ -845,7 +846,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
 		assert.Error(t, err)
-		assert.Equal(t, errMsg, err.Error())
+		assert.Contains(t, err.Error(), errMsg)
 		assert.Nil(t, res)
 	})
 

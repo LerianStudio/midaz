@@ -1,7 +1,11 @@
 package in
 
 import (
+	"context"
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -11,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // OperationHandler struct contains a cqrs use case for managing operations.
@@ -61,7 +66,11 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	pagination := libPostgres.Pagination{
@@ -72,41 +81,61 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Operations by account and metadata")
-
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
-		}
-
-		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account and metadata", err)
-
-			logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
-
-			return http.WithError(c, err)
-		}
-
-		logger.Infof("Successfully retrieved all Operations by account and metadata")
-
-		pagination.SetItems(trans)
-		pagination.SetCursor(cur.Next, cur.Prev)
-
-		return http.OK(c, pagination)
+		return handler.getOperationsWithMetadata(ctx, c, &span, logger, organizationID, ledgerID, accountID, headerParams, &pagination)
 	}
 
+	return handler.getOperationsWithoutMetadata(ctx, c, &span, logger, organizationID, ledgerID, accountID, headerParams, &pagination)
+}
+
+// getOperationsWithMetadata retrieves operations with metadata filtering.
+func (handler *OperationHandler) getOperationsWithMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination) error {
+	logger.Infof("Initiating retrieval of all Operations by account and metadata")
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to convert metadata headerParams to JSON string", err)
+	}
+
+	trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account and metadata", err)
+		logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
+
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
+	}
+
+	logger.Infof("Successfully retrieved all Operations by account and metadata")
+
+	pagination.SetItems(trans)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
+}
+
+// getOperationsWithoutMetadata retrieves operations without metadata filtering.
+func (handler *OperationHandler) getOperationsWithoutMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination) error {
 	logger.Infof("Initiating retrieval of all Operations by account")
 
 	headerParams.Metadata = &bson.M{}
 
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account", err)
-
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account", err)
 		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved all Operations by account")
@@ -114,7 +143,11 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	pagination.SetItems(operations)
 	pagination.SetCursor(cur.Next, cur.Prev)
 
-	return http.OK(c, pagination)
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // GetOperationByAccount retrieves an operation by account.
@@ -156,12 +189,20 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Operation by account")
 
-	return http.OK(c, op)
+	if err := http.OK(c, op); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateOperation method that patch operation created before
@@ -214,7 +255,11 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
@@ -223,10 +268,18 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
 
-	return http.OK(c, op)
+	if err := http.OK(c, op); err != nil {
+		return fmt.Errorf("failed to send OK response: %w", err)
+	}
+
+	return nil
 }

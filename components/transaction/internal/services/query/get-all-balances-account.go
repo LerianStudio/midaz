@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -28,7 +29,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to list balances by account id: %w", err)
 	}
 
 	if len(balance) == 0 {

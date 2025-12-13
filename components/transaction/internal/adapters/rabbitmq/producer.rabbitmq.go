@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +13,10 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+const (
+	attemptDisplayOffset = 2
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
@@ -106,15 +111,15 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to publish message to exchange %s with key %s after %d retries: %w", exchange, key, utils.MaxRetries+1, err)
 		}
 
 		sleepDuration := utils.FullJitter(backoff)
-		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
+		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+attemptDisplayOffset)
 		time.Sleep(sleepDuration)
 
 		backoff = utils.NextBackoff(backoff)
 	}
 
-	return nil, err
+	return nil, fmt.Errorf("failed to publish message to exchange %s with key %s: %w", exchange, key, err)
 }

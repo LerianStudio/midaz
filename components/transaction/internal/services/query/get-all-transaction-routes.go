@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -37,14 +38,14 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 			logger.Warnf("Error getting transaction routes on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transaction routes: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find all transaction routes: %w", err)
 	}
 
 	if transactionRoutes != nil {
@@ -61,7 +62,7 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 			logger.Warnf("Error getting metadata on mongodb transaction route: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transaction route metadata list: %w", err)
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

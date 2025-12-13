@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -45,7 +46,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
-		return err
+		return fmt.Errorf("failed to send: %w", err)
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -65,7 +66,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Errorf("Failed to marshal exchange message struct")
 
-		return err
+		return fmt.Errorf("failed to send: %w", err)
 	}
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
@@ -84,7 +85,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 			logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
-			return err
+			return fmt.Errorf("operation failed: %w", err)
 		}
 
 		logger.Infof("transaction updated successfully directly to database: %s", tran.ID)
@@ -119,7 +120,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -139,7 +140,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	logger.Infof("Transaction updated successfully directly in database: %s", tran.ID)

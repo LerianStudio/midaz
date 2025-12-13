@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -57,7 +58,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Error creating t: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	if t.Metadata != nil {
@@ -74,7 +75,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("operation failed: %w", err)
 		}
 
 		tran.Metadata = t.Metadata

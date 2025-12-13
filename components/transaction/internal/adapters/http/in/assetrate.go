@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -66,12 +68,16 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to create asset rate: %w", http.WithError(c, err))
 	}
 
 	logger.Infof("Successfully created AssetRate")
 
-	return http.Created(c, assetRate)
+	if err := http.Created(c, assetRate); err != nil {
+		return fmt.Errorf("failed to send created asset rate response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAssetRateByExternalID retrieves an asset rate.
@@ -112,12 +118,16 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to get asset rate by external ID: %w", http.WithError(c, err))
 	}
 
 	logger.Infof("Successfully get AssetRate")
 
-	return http.OK(c, assetRate)
+	if err := http.OK(c, assetRate); err != nil {
+		return fmt.Errorf("failed to send asset rate response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllAssetRatesByAssetCode retrieves an asset rate.
@@ -163,7 +173,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to validate query parameters: %w", http.WithError(c, err))
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -189,7 +199,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 
-		return http.WithError(c, err)
+		return fmt.Errorf("failed to get asset rates by asset code: %w", http.WithError(c, err))
 	}
 
 	logger.Infof("Successfully get AssetRate")
@@ -197,5 +207,9 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	pagination.SetItems(assetRates)
 	pagination.SetCursor(cur.Next, cur.Prev)
 
-	return http.OK(c, pagination)
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send asset rates pagination response: %w", err)
+	}
+
+	return nil
 }

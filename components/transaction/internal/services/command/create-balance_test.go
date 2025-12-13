@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestCreateBalance(t *testing.T) {
@@ -159,7 +160,7 @@ func TestCreateBalance(t *testing.T) {
 
 		// Assertions
 		assert.Error(t, err)
-		assert.Equal(t, "database error", err.Error())
+		assert.Contains(t, err.Error(), "database error")
 	})
 
 	t.Run("unmarshal error", func(t *testing.T) {

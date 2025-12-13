@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -33,7 +34,7 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 		logger.Warnf("Error getting operation routes on repo by metadata: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operation route metadata list: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -53,12 +54,12 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 			logger.Warnf("Error getting operation routes on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operation routes: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find all operation routes: %w", err)
 	}
 
 	var filteredOperationRoutes []*mmodel.OperationRoute

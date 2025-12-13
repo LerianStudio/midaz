@@ -12,12 +12,16 @@ import (
 // ErrDatabaseItemNotFound is thrown a new item informed was not found
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
+// ErrInvalidOperationRouteType is thrown when operation route type is invalid
+var ErrInvalidOperationRouteType = errors.New("invalid operation route type")
+
 // ValidatePGError validate pgError and return business error
 func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
 	switch {
 	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
 		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
-		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
+		return errors.Join(ErrInvalidOperationRouteType, businessErr)
 	default:
 		return pgErr
 	}

@@ -115,7 +115,7 @@ func TestUpdateTransactionRouteNotFound(t *testing.T) {
 	assert.Error(t, err)
 
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, expectedBusinessError)
 	assert.Nil(t, result)
 }
 
@@ -151,7 +151,7 @@ func TestUpdateTransactionRouteRepositoryError(t *testing.T) {
 	result, err := uc.UpdateTransactionRoute(context.Background(), organizationID, ledgerID, transactionRouteID, input)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Nil(t, result)
 }
 
@@ -201,7 +201,7 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 	result, err := uc.UpdateTransactionRoute(context.Background(), organizationID, ledgerID, transactionRouteID, input)
 
 	assert.Error(t, err)
-	assert.Equal(t, metadataError, err)
+	assert.ErrorIs(t, err, metadataError)
 	assert.Nil(t, result)
 }
 
@@ -326,7 +326,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteCount(t *testing.T) {
 
 	// Should return business error for insufficient operation routes
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, expectedBusinessError)
 }
 
 // TestUpdateTransactionRouteWithoutOperationRoutes tests updating without changing operation routes (OperationRoutes = nil)
@@ -435,7 +435,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 	assert.Nil(t, result)
 
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, expectedBusinessError)
 }
 
 // TestUpdateTransactionRouteWithMultipleOperationRoutes tests updating with more than 2 operation routes
@@ -555,5 +555,5 @@ func TestUpdateTransactionRouteEmptyOperationRoutes(t *testing.T) {
 
 	// Should return business error for insufficient operation routes
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, expectedBusinessError)
 }

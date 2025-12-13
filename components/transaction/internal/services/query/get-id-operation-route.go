@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +36,12 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 
 			logger.Warnf("Error getting operation route on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find operation route by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find operation route by id: %w", err)
 	}
 
 	if operationRoute != nil {
@@ -50,7 +51,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 
 			logger.Errorf("Error get metadata on mongodb operation route: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find operation route metadata: %w", err)
 		}
 
 		if metadata != nil {

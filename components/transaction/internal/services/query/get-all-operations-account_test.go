@@ -66,7 +66,7 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 			Times(1)
 		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, operationType, filter.ToCursorPagination())
 
-		assert.EqualError(t, err, errMsg)
+		assert.Contains(t, err.Error(), errMsg)
 		assert.Nil(t, res)
 		assert.Equal(t, cur, libHTTP.CursorPagination{})
 	})

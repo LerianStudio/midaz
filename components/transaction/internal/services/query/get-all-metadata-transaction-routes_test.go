@@ -224,7 +224,7 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteRepoError(t *testing.T) 
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-	assert.Equal(t, expectedRepoError, err)
+	assert.ErrorIs(t, err, expectedRepoError)
 }
 
 // TestGetAllMetadataTransactionRoutesTransactionRouteNotFound tests when transaction routes are not found

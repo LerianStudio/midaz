@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -40,7 +41,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to create operation route: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	if payload.Metadata != nil {
@@ -57,7 +58,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 			logger.Errorf("Failed to create operation route metadata: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 
 		createdOperationRoute.Metadata = payload.Metadata

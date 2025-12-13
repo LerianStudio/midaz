@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +36,12 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 			logger.Warnf("Error getting operations on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if len(op) == 0 {
@@ -60,7 +61,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

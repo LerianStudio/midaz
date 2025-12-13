@@ -104,7 +104,7 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, databaseError, err)
+	assert.ErrorIs(t, err, databaseError)
 }
 
 // TestDeleteOperationRouteByIDLinkedToTransactionRoutes tests deletion when operation route is linked to transaction routes
@@ -169,5 +169,5 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, linkCheckError, err)
+	assert.ErrorIs(t, err, linkCheckError)
 }

@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -12,6 +13,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+)
+
+const (
+	minOperationRoutesRequired = 2
 )
 
 // UpdateTransactionRoute updates a transaction route by its ID.
@@ -37,7 +42,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 		toAdd, toRemove, err = uc.handleOperationRouteUpdates(ctx, organizationID, ledgerID, id, *input.OperationRoutes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 	}
 
@@ -52,12 +57,12 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 			logger.Warnf("Error updating transaction route on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), id.String(), input.Metadata)
@@ -66,7 +71,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 		logger.Errorf("Error updating metadata on repo by id: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	transactionRouteUpdated.Metadata = metadataUpdated
@@ -82,31 +87,41 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()
 
-	if len(newOperationRouteIDs) < 2 {
-		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	if len(newOperationRouteIDs) < minOperationRoutesRequired {
+		return nil, nil, fmt.Errorf("missing operation routes: %w", pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name()))
 	}
 
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		logger.Errorf("Error fetching current transaction route: %v", err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to find current transaction route: %w", err)
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
 	if err != nil {
 		logger.Errorf("Error fetching operation routes: %v", err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to find operation routes by ids: %w", err)
 	}
 
 	// Validate that we have at least 1 debit and 1 credit operation route
 	err = validateOperationRouteTypes(operationRoutes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to validate operation route types: %w", err)
 	}
 
 	// Compare existing vs new operation routes to determine what to add/remove
+	toAdd, toRemove = calculateOperationRouteDiffs(currentTransactionRoute.OperationRoutes, newOperationRouteIDs)
+
+	logger.Infof("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove)
+
+	return toAdd, toRemove, nil
+}
+
+// calculateOperationRouteDiffs determines which operation routes need to be added or removed
+func calculateOperationRouteDiffs(existingRoutes []mmodel.OperationRoute, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID) {
+	// Build maps of existing and new IDs
 	existingIDs := make(map[uuid.UUID]bool)
-	for _, existingRoute := range currentTransactionRoute.OperationRoutes {
+	for _, existingRoute := range existingRoutes {
 		existingIDs[existingRoute.ID] = true
 	}
 
@@ -129,7 +144,5 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		}
 	}
 
-	logger.Infof("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove)
-
-	return toAdd, toRemove, nil
+	return toAdd, toRemove
 }

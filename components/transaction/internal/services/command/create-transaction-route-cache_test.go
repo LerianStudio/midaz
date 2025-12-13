@@ -273,7 +273,7 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	err := uc.CreateAccountingRouteCache(context.Background(), route)
 
 	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	assert.ErrorIs(t, err, redisError)
 }
 
 // TestCreateAccountingRouteCache_ContextCancelled tests error handling when context is cancelled
@@ -322,5 +322,5 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	err := uc.CreateAccountingRouteCache(ctx, route)
 
 	assert.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +36,12 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 			logger.Warnf("Error getting transaction route on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find transaction route by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find transaction route by id: %w", err)
 	}
 
 	if transactionRoute != nil {
@@ -50,7 +51,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 			logger.Errorf("Error get metadata on mongodb transaction route: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find transaction route metadata: %w", err)
 		}
 
 		if metadata != nil {

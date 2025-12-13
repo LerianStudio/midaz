@@ -63,7 +63,7 @@ func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
 	err := uc.DeleteTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	assert.ErrorIs(t, err, redisError)
 }
 
 // TestDeleteTransactionRouteCache_ContextCancelled tests error handling when context is cancelled
@@ -93,5 +93,5 @@ func TestDeleteTransactionRouteCache_ContextCancelled(t *testing.T) {
 	err := uc.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }

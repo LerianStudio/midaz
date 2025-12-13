@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -14,14 +15,19 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"go.opentelemetry.io/otel/trace"
 )
 
-const CronTimeToRun = 30 * time.Minute
-const MessageTimeOfLife = 30
-const MaxWorkers = 100
+const (
+	CronTimeToRun            = 30 * time.Minute
+	MessageTimeOfLife        = 30
+	MaxWorkers               = 100
+	messageProcessingTimeout = 30
+)
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
@@ -77,6 +83,14 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		return
 	}
 
+	totalMessagesLessThanOneHour := r.processMessages(ctx, tracer, messages)
+
+	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
+	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
+}
+
+// processMessages processes all messages from Redis queue
+func (r *RedisQueueConsumer) processMessages(ctx context.Context, tracer trace.Tracer, messages map[string]string) int {
 	sem := make(chan struct{}, MaxWorkers)
 
 	var wg sync.WaitGroup
@@ -90,13 +104,13 @@ Outer:
 			break Outer
 		}
 
-		var transaction mmodel.TransactionRedisQueue
-		if err := json.Unmarshal([]byte(message), &transaction); err != nil {
+		transaction, skip, err := r.unmarshalAndValidateMessage(message)
+		if err != nil {
 			r.Logger.Warnf("Error unmarshalling message from Redis: %v", err)
 			continue
 		}
 
-		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
+		if skip {
 			totalMessagesLessThanOneHour++
 			continue
 		}
@@ -105,107 +119,158 @@ Outer:
 
 		wg.Add(1)
 
-		go func(key string, m mmodel.TransactionRedisQueue) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-
-			msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-
-			logger := r.Logger.WithFields(
-				libConstants.HeaderID, m.HeaderID,
-			).WithDefaultMessageTemplate(m.HeaderID + " | ")
-
-			ctxWithLogger := libCommons.ContextWithLogger(
-				libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
-				logger,
-			)
-
-			msgCtxWithSpan, msgSpan := tracer.Start(ctxWithLogger, "redis.consumer.process_message")
-			defer msgSpan.End()
-
-			select {
-			case <-msgCtxWithSpan.Done():
-				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
-				return
-			default:
-			}
-
-			balances := make([]*mmodel.Balance, 0, len(m.Balances))
-			for _, balance := range m.Balances {
-				balances = append(balances, &mmodel.Balance{
-					Alias:          balance.Alias,
-					ID:             balance.ID,
-					AccountID:      balance.AccountID,
-					Available:      balance.Available,
-					OnHold:         balance.OnHold,
-					Version:        balance.Version,
-					AccountType:    balance.AccountType,
-					AllowSending:   balance.AllowSending == 1,
-					AllowReceiving: balance.AllowReceiving == 1,
-					AssetCode:      balance.AssetCode,
-					Key:            balance.Key,
-					OrganizationID: m.OrganizationID.String(),
-					LedgerID:       m.LedgerID.String(),
-				})
-			}
-
-			var parentTransactionID *string
-
-			tran := &postgreTransaction.Transaction{
-				ID:                       m.TransactionID.String(),
-				ParentTransactionID:      parentTransactionID,
-				OrganizationID:           m.OrganizationID.String(),
-				LedgerID:                 m.LedgerID.String(),
-				Description:              m.ParserDSL.Description,
-				Amount:                   &m.ParserDSL.Send.Value,
-				AssetCode:                m.ParserDSL.Send.Asset,
-				ChartOfAccountsGroupName: m.ParserDSL.ChartOfAccountsGroupName,
-				CreatedAt:                m.TransactionDate,
-				UpdatedAt:                time.Now(),
-				Route:                    m.ParserDSL.Route,
-				Metadata:                 m.ParserDSL.Metadata,
-				Status: postgreTransaction.Status{
-					Code:        m.TransactionStatus,
-					Description: &m.TransactionStatus,
-				},
-			}
-
-			fromTo := append(m.ParserDSL.Send.Source.From, m.ParserDSL.Send.Distribute.To...)
-
-			operations, _, err := r.TransactionHandler.BuildOperations(
-				msgCtxWithSpan, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
-			)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", err)
-
-				logger.Errorf("Failed to validate balance: %v", err.Error())
-
-				return
-			}
-
-			tran.Source = m.Validate.Sources
-			tran.Destination = m.Validate.Destinations
-			tran.Operations = operations
-
-			if err := r.TransactionHandler.Command.SendBTOExecuteAsync(
-				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
-			); err != nil {
-				libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
-
-				logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
-
-				return
-			}
-
-			logger.Infof("Transaction message processed: %s", key)
-		}(key, transaction)
+		go r.processMessage(ctx, tracer, sem, &wg, key, transaction)
 	}
 
 	wg.Wait()
 
-	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
-	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
+	return totalMessagesLessThanOneHour
+}
+
+// unmarshalAndValidateMessage unmarshals and validates message TTL
+func (r *RedisQueueConsumer) unmarshalAndValidateMessage(message string) (mmodel.TransactionRedisQueue, bool, error) {
+	var transaction mmodel.TransactionRedisQueue
+	if err := json.Unmarshal([]byte(message), &transaction); err != nil {
+		return mmodel.TransactionRedisQueue{}, false, fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+
+	skip := transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix()
+
+	return transaction, skip, nil
+}
+
+// processMessage processes a single message in a goroutine
+func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tracer, sem chan struct{}, wg *sync.WaitGroup, key string, m mmodel.TransactionRedisQueue) {
+	defer func() {
+		<-sem
+		wg.Done()
+	}()
+
+	msgCtx, cancel := context.WithTimeout(ctx, messageProcessingTimeout*time.Second)
+	defer cancel()
+
+	logger := r.Logger.WithFields(
+		libConstants.HeaderID, m.HeaderID,
+	).WithDefaultMessageTemplate(m.HeaderID + " | ")
+
+	ctxWithLogger := libCommons.ContextWithLogger(
+		libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
+		logger,
+	)
+
+	msgCtxWithSpan, msgSpan := tracer.Start(ctxWithLogger, "redis.consumer.process_message")
+	defer msgSpan.End()
+
+	if r.shouldCancelProcessing(msgCtxWithSpan, logger) {
+		return
+	}
+
+	balances := r.convertToBalances(m)
+	tran := r.buildTransaction(m)
+
+	operations, err := r.buildOperationsForTransaction(msgCtxWithSpan, &msgSpan, logger, balances, m, tran)
+	if err != nil {
+		return
+	}
+
+	tran.Source = m.Validate.Sources
+	tran.Destination = m.Validate.Destinations
+	tran.Operations = operations
+
+	if err := r.sendTransactionToQueue(msgCtxWithSpan, &msgSpan, logger, key, m, balances, tran); err != nil {
+		return
+	}
+
+	logger.Infof("Transaction message processed: %s", key)
+}
+
+// shouldCancelProcessing checks if processing should be cancelled
+func (r *RedisQueueConsumer) shouldCancelProcessing(ctx context.Context, logger libLog.Logger) bool {
+	select {
+	case <-ctx.Done():
+		logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
+		return true
+	default:
+		return false
+	}
+}
+
+// convertToBalances converts Redis balances to model balances
+func (r *RedisQueueConsumer) convertToBalances(m mmodel.TransactionRedisQueue) []*mmodel.Balance {
+	balances := make([]*mmodel.Balance, 0, len(m.Balances))
+	for _, balance := range m.Balances {
+		balances = append(balances, &mmodel.Balance{
+			Alias:          balance.Alias,
+			ID:             balance.ID,
+			AccountID:      balance.AccountID,
+			Available:      balance.Available,
+			OnHold:         balance.OnHold,
+			Version:        balance.Version,
+			AccountType:    balance.AccountType,
+			AllowSending:   balance.AllowSending == 1,
+			AllowReceiving: balance.AllowReceiving == 1,
+			AssetCode:      balance.AssetCode,
+			Key:            balance.Key,
+			OrganizationID: m.OrganizationID.String(),
+			LedgerID:       m.LedgerID.String(),
+		})
+	}
+
+	return balances
+}
+
+// buildTransaction builds a transaction from queue message
+func (r *RedisQueueConsumer) buildTransaction(m mmodel.TransactionRedisQueue) *postgreTransaction.Transaction {
+	var parentTransactionID *string
+
+	return &postgreTransaction.Transaction{
+		ID:                       m.TransactionID.String(),
+		ParentTransactionID:      parentTransactionID,
+		OrganizationID:           m.OrganizationID.String(),
+		LedgerID:                 m.LedgerID.String(),
+		Description:              m.ParserDSL.Description,
+		Amount:                   &m.ParserDSL.Send.Value,
+		AssetCode:                m.ParserDSL.Send.Asset,
+		ChartOfAccountsGroupName: m.ParserDSL.ChartOfAccountsGroupName,
+		CreatedAt:                m.TransactionDate,
+		UpdatedAt:                time.Now(),
+		Route:                    m.ParserDSL.Route,
+		Metadata:                 m.ParserDSL.Metadata,
+		Status: postgreTransaction.Status{
+			Code:        m.TransactionStatus,
+			Description: &m.TransactionStatus,
+		},
+	}
+}
+
+// buildOperationsForTransaction builds operations for a transaction
+func (r *RedisQueueConsumer) buildOperationsForTransaction(ctx context.Context, span *trace.Span, logger libLog.Logger, balances []*mmodel.Balance, m mmodel.TransactionRedisQueue, tran *postgreTransaction.Transaction) ([]*operation.Operation, error) {
+	fromTo := m.ParserDSL.Send.Source.From
+	fromTo = append(fromTo, m.ParserDSL.Send.Distribute.To...)
+
+	operations, _, err := r.TransactionHandler.BuildOperations(
+		ctx, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
+		logger.Errorf("Failed to validate balance: %v", err.Error())
+
+		return nil, fmt.Errorf("failed to build operations: %w", err)
+	}
+
+	return operations, nil
+}
+
+// sendTransactionToQueue sends transaction to the execution queue
+func (r *RedisQueueConsumer) sendTransactionToQueue(ctx context.Context, span *trace.Span, logger libLog.Logger, key string, m mmodel.TransactionRedisQueue, balances []*mmodel.Balance, tran *postgreTransaction.Transaction) error {
+	if err := r.TransactionHandler.Command.SendBTOExecuteAsync(
+		ctx, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
+	); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed sending message to queue", err)
+		logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+
+		return fmt.Errorf("failed to send transaction to execution queue: %w", err)
+	}
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
-			return err
+			return fmt.Errorf("failed to create: %w", err)
 		}
 
 		balance := &mmodel.Balance{
@@ -58,7 +59,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			} else {
 				logger.Errorf("Error creating balance on repo: %v", err)
 
-				return err
+				return fmt.Errorf("failed to create: %w", err)
 			}
 		}
 	}
@@ -87,7 +88,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Failed to check default balance existence: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 
 		if !existsDefault {
@@ -96,7 +97,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Default balance not found: %v", berr)
 
-			return nil, berr
+			return nil, fmt.Errorf("default balance not found: %w", berr)
 		}
 
 		// Validate additional balance not allowed for external account type
@@ -107,7 +108,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Additional balance not allowed for external account type: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 	}
 
@@ -117,7 +118,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Failed to check if balance already exists: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
 	if existsKey {
@@ -127,7 +128,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Balance key already exists: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	newBalance := &mmodel.Balance{
@@ -150,7 +151,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Failed to create balance on repo: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("operation failed: %w", err)
 	}
 
 	return newBalance, nil

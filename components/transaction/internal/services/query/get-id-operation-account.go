@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -33,12 +34,12 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 
 			logger.Warnf("Error getting operation on repo: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to get: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by account", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if op != nil {
@@ -48,7 +49,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to get: %w", err)
 		}
 
 		if metadata != nil {

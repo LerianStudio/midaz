@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -25,7 +27,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	cachedValue, err := uc.RedisRepo.GetBytes(ctx, internalKey)
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		logger.Warnf("Error retrieving binary transaction route from cache: %v", err.Error())
 	}
 
@@ -37,7 +39,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 			logger.Errorf("Failed to decode msgpack cache data: %v", err)
 
-			return mmodel.TransactionRouteCache{}, err
+			return mmodel.TransactionRouteCache{}, fmt.Errorf("failed to decode msgpack cache data: %w", err)
 		}
 
 		return cacheData, nil
@@ -45,21 +47,21 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		if err == services.ErrDatabaseItemNotFound {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			msg := "Transaction route not found in database"
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, msg, err)
 
 			logger.Warn(msg)
 
-			return mmodel.TransactionRouteCache{}, err
+			return mmodel.TransactionRouteCache{}, fmt.Errorf("transaction route not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to fetch transaction route from database", err)
 
 		logger.Errorf("Error fetching transaction route from database: %v", err.Error())
 
-		return mmodel.TransactionRouteCache{}, err
+		return mmodel.TransactionRouteCache{}, fmt.Errorf("failed to fetch transaction route from database: %w", err)
 	}
 
 	cacheData := foundTransactionRoute.ToCache()
@@ -70,7 +72,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 		logger.Errorf("Failed to convert route to msgpack cache data: %v", err)
 
-		return mmodel.TransactionRouteCache{}, err
+		return mmodel.TransactionRouteCache{}, fmt.Errorf("failed to convert route to msgpack: %w", err)
 	}
 
 	err = uc.RedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
@@ -79,7 +81,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 
-		return mmodel.TransactionRouteCache{}, err
+		return mmodel.TransactionRouteCache{}, fmt.Errorf("failed to set transaction route cache in redis: %w", err)
 	}
 
 	return cacheData, nil

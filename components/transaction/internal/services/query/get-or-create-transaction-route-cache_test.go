@@ -232,7 +232,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-		expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -247,7 +247,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err)
+	assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 
@@ -284,7 +284,7 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, dbError, err)
+	assert.ErrorIs(t, err, dbError)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 
@@ -337,7 +337,7 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	assert.ErrorIs(t, err, redisError)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 

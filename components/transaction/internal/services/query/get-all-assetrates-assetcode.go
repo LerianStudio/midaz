@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,7 +31,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 		logger.Warnf("Error validating 'from' asset code: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 	}
 
 	for _, toAssetCode := range filter.ToAssetCodes {
@@ -41,7 +42,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 			logger.Warnf("Error validating 'to' asset codes: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 		}
 	}
 
@@ -51,7 +52,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if assetRates != nil {
@@ -61,7 +62,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

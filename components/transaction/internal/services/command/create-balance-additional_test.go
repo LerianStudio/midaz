@@ -119,7 +119,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, "default balance not found", err.Error())
+		assert.Contains(t, err.Error(), "default balance not found")
 	})
 
 	t.Run("additional balance already exists", func(t *testing.T) {
@@ -178,7 +178,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, "database error", err.Error())
+		assert.Contains(t, err.Error(), "database error")
 	})
 
 	t.Run("key is converted to lowercase", func(t *testing.T) {

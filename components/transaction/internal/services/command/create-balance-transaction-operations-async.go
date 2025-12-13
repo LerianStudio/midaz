@@ -37,7 +37,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
-			return err
+			return fmt.Errorf("failed to create: %w", err)
 		}
 	}
 
@@ -53,7 +53,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 			logger.Errorf("Failed to update balances: %v", err.Error())
 
-			return err
+			return fmt.Errorf("failed to create: %w", err)
 		}
 	}
 
@@ -66,7 +66,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
@@ -78,43 +78,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
-		return err
+		return fmt.Errorf("operation failed: %w", err)
 	}
 
-	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
-	defer spanCreateOperation.End()
-
-	logger.Infof("Trying to create new operations")
-
-	for _, oper := range tran.Operations {
-		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
-
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
-
-				logger.Warnf(msg)
-
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
-
-				logger.Errorf("Error creating operation: %v", err)
-
-				return err
-			}
-		}
-
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
-
-			logger.Errorf("Failed to create metadata on operation: %v", err)
-
-			return err
-		}
+	err = uc.createOperations(ctx, logger, tracer, tran.Operations)
+	if err != nil {
+		return fmt.Errorf("failed to create operations: %w", err)
 	}
 
 	go uc.SendTransactionEvents(ctx, tran)
@@ -149,37 +118,48 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
-				_, err = uc.UpdateTransactionStatus(ctx, tran)
-				if err != nil {
-					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
-
-					logger.Warnf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
-
-					return nil, err
-				}
-			}
-
-			logger.Infof("skipping to create transaction, transaction already exists: %v", tran.ID)
-		} else {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to create transaction on repo", err)
-
-			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
-
-			return nil, err
+		if handleErr := uc.handleCreateTransactionError(ctx, &spanCreateTransaction, logger, tran, t.Validate.Pending, err); handleErr != nil {
+			return nil, handleErr
 		}
+
+		// Transaction already exists (unique violation handled). Return the transaction so callers can
+		// continue safely (e.g., avoid nil dereference) and decide what to do next.
+		return tran, nil
 	}
 
 	return tran, nil
 }
 
+// handleCreateTransactionError handles errors during transaction creation, including unique violations.
+func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, pending bool, err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != constant.UniqueViolationCode {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction on repo", err)
+		logger.Errorf("Failed to create transaction on repo: %v", err.Error())
+
+		return fmt.Errorf("failed to create: %w", err)
+	}
+
+	if pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+		_, err = uc.UpdateTransactionStatus(ctx, tran)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction", err)
+			logger.Warnf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
+
+			return fmt.Errorf("failed to create: %w", err)
+		}
+	}
+
+	logger.Infof("skipping to create transaction, transaction already exists: %v", tran.ID)
+
+	return nil
+}
+
 // CreateMetadataAsync func that create metadata into operations
-func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
+func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, id string, collection string) error {
 	if metadata != nil {
 		meta := mongodb.Metadata{
-			EntityID:   ID,
+			EntityID:   id,
 			EntityName: collection,
 			Data:       metadata,
 			CreatedAt:  time.Now(),
@@ -189,7 +169,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
 			logger.Errorf("Error into creating %s metadata: %v", collection, err)
 
-			return err
+			return fmt.Errorf("failed to create: %w", err)
 		}
 	}
 
@@ -207,7 +187,7 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	return nil
@@ -250,4 +230,40 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	if err != nil {
 		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
 	}
+}
+
+// createOperations creates all operations for a transaction
+func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
+	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
+	defer spanCreateOperation.End()
+
+	logger.Infof("Trying to create new operations")
+
+	for _, oper := range operations {
+		_, err := uc.OperationRepo.Create(ctxProcessOperation, oper)
+		if err != nil {
+			if uc.isUniqueViolation(err) {
+				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
+				logger.Warnf(msg)
+
+				continue
+			}
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
+			logger.Errorf("Error creating operation: %v", err)
+
+			return fmt.Errorf("operation failed: %w", err)
+		}
+
+		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
+			logger.Errorf("Failed to create metadata on operation: %v", err)
+
+			return fmt.Errorf("operation failed: %w", err)
+		}
+	}
+
+	return nil
 }

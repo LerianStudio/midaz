@@ -81,5 +81,5 @@ func TestSyncBalance_Error(t *testing.T) {
 
 	assert.False(t, res)
 	assert.NotEmpty(t, err)
-	assert.Equal(t, errMSG, err.Error())
+	assert.Contains(t, err.Error(), errMSG)
 }

@@ -104,7 +104,7 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, databaseError, err)
+	assert.ErrorIs(t, err, databaseError)
 }
 
 // TestDeleteTransactionRouteByIDDeleteError tests deletion with database error during delete
@@ -143,5 +143,5 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, databaseError, err)
+	assert.ErrorIs(t, err, databaseError)
 }

@@ -15,16 +15,16 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const midazName = "midaz"
-const routingName = "routing"
+const (
+	midazName   = "midaz"
+	routingName = "routing"
+)
 
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
@@ -82,7 +82,7 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *Transact
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)
 
-	//Balance
+	// Balance
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "patch"), http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "delete"), http.ParseUUIDPathParameters("balance"), bh.DeleteBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetAllBalances)

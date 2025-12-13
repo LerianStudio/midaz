@@ -77,6 +77,36 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 	return e
 }
 
+// setAccountRuleValidIf sets the AccountRuleValidIf field based on the account rule type
+func (m *OperationRoutePostgreSQLModel) setAccountRuleValidIf(account *mmodel.AccountRule) {
+	if account.ValidIf == nil {
+		return
+	}
+
+	switch strings.ToLower(account.RuleType) {
+	case constant.AccountRuleTypeAccountType:
+		if values, ok := account.ValidIf.([]string); ok {
+			m.AccountRuleValidIf = strings.Join(values, ",")
+			return
+		}
+
+		if values, ok := account.ValidIf.([]any); ok {
+			stringValues := make([]string, 0, len(values))
+			for _, v := range values {
+				if str, ok := v.(string); ok {
+					stringValues = append(stringValues, str)
+				}
+			}
+
+			m.AccountRuleValidIf = strings.Join(stringValues, ",")
+		}
+	default:
+		if value, ok := account.ValidIf.(string); ok {
+			m.AccountRuleValidIf = value
+		}
+	}
+}
+
 // FromEntity converts a domain model to the database model
 func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	if e == nil {
@@ -99,29 +129,7 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 
 	if e.Account != nil {
 		m.AccountRuleType = e.Account.RuleType
-	}
-
-	if e.Account != nil && e.Account.ValidIf != nil {
-		switch strings.ToLower(e.Account.RuleType) {
-		case constant.AccountRuleTypeAccountType:
-			if values, ok := e.Account.ValidIf.([]string); ok {
-				m.AccountRuleValidIf = strings.Join(values, ",")
-			} else if values, ok := e.Account.ValidIf.([]any); ok {
-				stringValues := make([]string, 0, len(values))
-
-				for _, v := range values {
-					if str, ok := v.(string); ok {
-						stringValues = append(stringValues, str)
-					}
-				}
-
-				m.AccountRuleValidIf = strings.Join(stringValues, ",")
-			}
-		default:
-			if value, ok := e.Account.ValidIf.(string); ok {
-				m.AccountRuleValidIf = value
-			}
-		}
+		m.setAccountRuleValidIf(e.Account)
 	}
 
 	m.CreatedAt = e.CreatedAt

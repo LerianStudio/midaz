@@ -222,7 +222,7 @@ func TestGetAllTransactionRoutesRepositoryError(t *testing.T) {
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 // TestGetAllTransactionRoutesMetadataError tests metadata repository error handling

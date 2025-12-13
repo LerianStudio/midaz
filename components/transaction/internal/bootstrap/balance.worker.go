@@ -21,6 +21,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	balanceSyncIdleWaitSeconds = 600
+	uuidStringLength           = 36
+)
+
+// ErrBalanceSyncKeyMissingUUIDs is returned when balance sync key is missing required UUIDs
+var ErrBalanceSyncKeyMissingUUIDs = errors.New("balance sync key missing required UUIDs")
+
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
 type BalanceSyncWorker struct {
@@ -40,7 +48,7 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 	return &BalanceSyncWorker{
 		redisConn:  conn,
 		logger:     logger,
-		idleWait:   600 * time.Second,
+		idleWait:   balanceSyncIdleWaitSeconds * time.Second,
 		batchSize:  int64(maxWorkers),
 		maxWorkers: maxWorkers,
 		useCase:    useCase,
@@ -57,7 +65,7 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	if err != nil {
 		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get redis client for balance sync worker: %w", err)
 	}
 
 	for {
@@ -179,77 +187,125 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		return
 	}
 
+	if w.checkAndHandleExpiredKey(ctx, rds, member) {
+		return
+	}
+
+	val, shouldReturn := w.getBalanceValue(ctx, rds, member)
+	if shouldReturn {
+		return
+	}
+
+	organizationID, ledgerID, shouldReturn := w.extractAndValidateMember(ctx, member)
+	if shouldReturn {
+		return
+	}
+
+	balance, shouldReturn := w.unmarshalBalance(ctx, member, val)
+	if shouldReturn {
+		return
+	}
+
+	w.syncAndRecordBalance(ctx, member, organizationID, ledgerID, balance, metricFactory)
+}
+
+// checkAndHandleExpiredKey checks TTL and removes expired keys
+func (w *BalanceSyncWorker) checkAndHandleExpiredKey(ctx context.Context, rds redis.UniversalClient, member string) bool {
 	ttl, err := rds.TTL(ctx, member).Result()
 	if err != nil {
 		w.logger.Warnf("BalanceSyncWorker: TTL error for %s: %v", member, err)
-
-		return
+		return true
 	}
 
-	// Handle missing key regardless of TTL sentinel representation (-2 or -2s)
 	if ttl == -2 || ttl == -2*time.Second {
 		w.logger.Warnf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member)
+		w.removeBalanceSyncKey(ctx, member)
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove expired balance sync key %s: %v", member, remErr)
-		}
-
-		return
+		return true
 	}
 
+	return false
+}
+
+// getBalanceValue retrieves the balance value from Redis
+func (w *BalanceSyncWorker) getBalanceValue(ctx context.Context, rds redis.UniversalClient, member string) (string, bool) {
 	val, err := rds.Get(ctx, member).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
+		w.handleGetError(ctx, member, err)
+		return "", true
+	}
 
-			if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-				w.logger.Warnf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr)
-			}
-		} else {
-			w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
-		}
+	return val, false
+}
+
+// handleGetError handles errors when getting value from Redis
+func (w *BalanceSyncWorker) handleGetError(ctx context.Context, member string, err error) {
+	if errors.Is(err, redis.Nil) {
+		w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
+		w.removeBalanceSyncKey(ctx, member)
 
 		return
 	}
 
+	w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
+}
+
+// extractAndValidateMember extracts and validates IDs from member key
+func (w *BalanceSyncWorker) extractAndValidateMember(ctx context.Context, member string) (uuid.UUID, uuid.UUID, bool) {
 	organizationID, ledgerID, err := w.extractIDsFromMember(member)
 	if err != nil {
 		w.logger.Warnf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err)
+		w.removeBalanceSyncKey(ctx, member)
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr)
-		}
-
-		return
+		return uuid.UUID{}, uuid.UUID{}, true
 	}
 
+	return organizationID, ledgerID, false
+}
+
+// unmarshalBalance unmarshals balance from JSON string
+func (w *BalanceSyncWorker) unmarshalBalance(ctx context.Context, member, val string) (mmodel.BalanceRedis, bool) {
 	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(val), &balance); err != nil {
 		w.logger.Warnf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err)
+		w.removeBalanceSyncKey(ctx, member)
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr)
-		}
-
-		return
+		return mmodel.BalanceRedis{}, true
 	}
 
+	return balance, false
+}
+
+// syncAndRecordBalance syncs balance and records metrics
+func (w *BalanceSyncWorker) syncAndRecordBalance(ctx context.Context, member string, organizationID, ledgerID uuid.UUID, balance mmodel.BalanceRedis, metricFactory any) {
 	synced, err := w.useCase.SyncBalance(ctx, organizationID, ledgerID, balance)
 	if err != nil {
 		w.logger.Errorf("BalanceSyncWorker: SyncBalance error for member %s with content %+v: %v", member, balance, err)
-
 		return
 	}
 
 	if synced {
-		metricFactory.Counter(utils.BalanceSynced).WithLabels(map[string]string{
-			"organization_id": organizationID.String(),
-			"ledger_id":       ledgerID.String(),
-		}).AddOne(ctx)
+		if factory, ok := metricFactory.(interface {
+			Counter(metric any) interface {
+				WithLabels(labels map[string]string) interface {
+					AddOne(ctx context.Context)
+				}
+			}
+		}); ok {
+			factory.Counter(utils.BalanceSynced).WithLabels(map[string]string{
+				"organization_id": organizationID.String(),
+				"ledger_id":       ledgerID.String(),
+			}).AddOne(ctx)
+		}
 
 		w.logger.Infof("BalanceSyncWorker: Synced key %s", member)
 	}
 
+	w.removeBalanceSyncKey(ctx, member)
+}
+
+// removeBalanceSyncKey removes a balance sync key and logs any errors
+func (w *BalanceSyncWorker) removeBalanceSyncKey(ctx context.Context, member string) {
 	if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 		w.logger.Warnf("BalanceSyncWorker: failed to remove balance sync key %s: %v", member, remErr)
 	}
@@ -301,24 +357,60 @@ func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID 
 	start := 0
 
 	for i := 0; i <= len(member); i++ {
-		if i == len(member) || member[i] == ':' {
-			if i > start {
-				seg := member[start:i]
-				if len(seg) == 36 {
-					if u, e := uuid.Parse(seg); e == nil {
-						if !haveFirst {
-							first = u
-							haveFirst = true
-						} else {
-							return first, u, nil
-						}
-					}
-				}
-			}
-
-			start = i + 1
+		if !w.isDelimiter(i, len(member), member) {
+			continue
 		}
+
+		seg := w.extractSegment(start, i, member)
+		if seg == "" {
+			start = i + 1
+			continue
+		}
+
+		u, ok := w.tryParseUUID(seg)
+		if !ok {
+			start = i + 1
+			continue
+		}
+
+		if !haveFirst {
+			first = u
+			haveFirst = true
+			start = i + 1
+
+			continue
+		}
+
+		return first, u, nil
 	}
 
-	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("balance sync key missing two UUIDs (orgID, ledgerID): %q", member)
+	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("%w (orgID, ledgerID): %q", ErrBalanceSyncKeyMissingUUIDs, member)
+}
+
+// isDelimiter checks if position i is at a delimiter (end of string or colon)
+func (w *BalanceSyncWorker) isDelimiter(i, length int, member string) bool {
+	return i == length || member[i] == ':'
+}
+
+// extractSegment extracts a segment from member between start and i
+func (w *BalanceSyncWorker) extractSegment(start, i int, member string) string {
+	if i <= start {
+		return ""
+	}
+
+	return member[start:i]
+}
+
+// tryParseUUID attempts to parse a segment as UUID if it has the correct length
+func (w *BalanceSyncWorker) tryParseUUID(seg string) (uuid.UUID, bool) {
+	if len(seg) != uuidStringLength {
+		return uuid.UUID{}, false
+	}
+
+	u, err := uuid.Parse(seg)
+	if err != nil {
+		return uuid.UUID{}, false
+	}
+
+	return u, true
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -99,7 +100,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	record := &OperationPostgreSQLModel{}
@@ -146,7 +147,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 		logger.Errorf("Failed to build insert query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
@@ -155,7 +156,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	spanExec.End()
@@ -164,7 +165,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -174,78 +175,15 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 		logger.Warnf("Failed to create operation. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	return record.ToEntity(), nil
 }
 
-// FindAll retrieves Operations entities from the database.
-func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		logger.Errorf("Failed to get database connection: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
+// scanOperationRows scans operation rows from database result set.
+func scanOperationRows(rows *sql.Rows) ([]*Operation, error) {
 	operations := make([]*Operation, 0)
-
-	decodedCursor := libHTTP.Cursor{PointsNext: true}
-	orderDirection := strings.ToUpper(filter.SortOrder)
-
-	if !libCommons.IsNilOrEmpty(&filter.Cursor) {
-		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
-
-			logger.Errorf("Failed to decode cursor: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-	}
-
-	findAll := squirrel.Select(operationColumnList...).
-		From(r.tableName).
-		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Expr("transaction_id = ?", transactionID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		PlaceholderFormat(squirrel.Dollar)
-
-	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
-
-	query, args, err := findAll.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
-
-		logger.Errorf("Failed to build query: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
-
-		logger.Errorf("Failed to get operations on repo: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var operation OperationPostgreSQLModel
@@ -277,39 +215,115 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
-			logger.Errorf("Failed to scan row: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		operations = append(operations, operation.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+		return nil, fmt.Errorf("failed to get rows: %w", err)
+	}
 
-		logger.Errorf("Failed to get rows: %v", err)
+	return operations, nil
+}
+
+// calculateOperationPagination calculates pagination cursor for operation results.
+func calculateOperationPagination(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor) (libHTTP.CursorPagination, error) {
+	if len(operations) == 0 {
+		return libHTTP.CursorPagination{}, nil
+	}
+
+	hasPagination := len(operations) > filter.Limit
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
+
+	cursor, err := libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
+	if err != nil {
+		return libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
+	}
+
+	return cursor, nil
+}
+
+// FindAll retrieves Operations entities from the database.
+func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+	}
+
+	decodedCursor := libHTTP.Cursor{PointsNext: true}
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !libCommons.IsNilOrEmpty(&filter.Cursor) {
+		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+			logger.Errorf("Failed to decode cursor: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		}
+	}
+
+	findAll := squirrel.Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("transaction_id = ?", transactionID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
+		logger.Errorf("Failed to get operations on repo: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	operations, err := scanOperationRows(rows)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+		logger.Errorf("Failed to scan rows: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	hasPagination := len(operations) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
-
 	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
 
-	cur := libHTTP.CursorPagination{}
-	if len(operations) > 0 {
-		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur, err := calculateOperationPagination(operations, filter, decodedCursor)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+		logger.Errorf("Failed to calculate cursor: %v", err)
 
-			logger.Errorf("Failed to calculate cursor: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
 	}
 
 	return operations, cur, nil
@@ -328,7 +342,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	var operations []*Operation
@@ -350,7 +364,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build list by IDs query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -359,7 +373,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get operations on repo: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -399,7 +413,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed: %w", err)
 		}
 
 		operations = append(operations, operation.ToEntity())
@@ -410,7 +424,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	return operations, nil
@@ -429,7 +443,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	operation := &OperationPostgreSQLModel{}
@@ -449,7 +463,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to build find query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -491,14 +505,14 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 			logger.Warnf("Operation not found: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	return operation.ToEntity(), nil
@@ -517,7 +531,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	operation := &OperationPostgreSQLModel{}
@@ -537,7 +551,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 		logger.Errorf("Failed to build find by account query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -579,14 +593,14 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 			logger.Warnf("Operation not found: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	return operation.ToEntity(), nil
@@ -605,7 +619,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	record := &OperationPostgreSQLModel{}
@@ -630,7 +644,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to build update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
@@ -641,7 +655,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	spanExec.End()
@@ -652,7 +666,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -662,7 +676,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Warnf("Failed to update operation. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -681,7 +695,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("failed: %w", err)
 	}
 
 	qb := squirrel.Update(r.tableName).
@@ -696,7 +710,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to build delete query: %v", err)
 
-		return err
+		return fmt.Errorf("failed: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -707,7 +721,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to execute database query: %v", err)
 
-		return err
+		return fmt.Errorf("failed: %w", err)
 	}
 
 	spanExec.End()
@@ -718,7 +732,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("failed: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -728,44 +742,67 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 		logger.Warnf("Failed to delete operation. Rows affected is 0: %v", err)
 
-		return err
+		return fmt.Errorf("failed: %w", err)
 	}
 
 	return nil
 }
 
-// FindAllByAccount retrieves Operations entities from the database using the provided account ID.
-func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		logger.Errorf("Failed to get database connection: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
-	operations := make([]*Operation, 0)
-
+// decodeCursorWithDefault decodes the cursor from the filter or returns a default cursor
+func decodeCursorWithDefault(filter http.Pagination) (libHTTP.Cursor, string, error) {
 	decodedCursor := libHTTP.Cursor{PointsNext: true}
 	orderDirection := strings.ToUpper(filter.SortOrder)
 
 	if !libCommons.IsNilOrEmpty(&filter.Cursor) {
+		var err error
+
 		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
-
-			logger.Errorf("Failed to decode cursor: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
+			return libHTTP.Cursor{}, "", fmt.Errorf("failed to decode cursor: %w", err)
 		}
 	}
 
+	return decodedCursor, orderDirection, nil
+}
+
+// queryContextExecutor is an interface for types that can execute queries
+type queryContextExecutor interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// executeOperationQuery executes the query and returns the scanned operations
+func (r *OperationPostgreSQLRepository) executeOperationQuery(ctx context.Context, db queryContextExecutor, query string, args []any) ([]*Operation, error) {
+	logger, tracer, spanCtx, spanTracer := libCommons.NewTrackingFromContext(ctx)
+	_ = logger
+	_ = spanCtx
+	_ = spanTracer
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		spanQuery.End()
+
+		return nil, fmt.Errorf("failed: %w", err)
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	return scanOperationRows(rows)
+}
+
+// paginateOperations applies pagination logic to the operations list
+func paginateOperations(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) []*Operation {
+	hasPagination := len(operations) > filter.Limit
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
+
+	return libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+}
+
+// buildOperationByAccountQuery constructs the SQL query for finding operations by account
+func buildOperationByAccountQuery(r *OperationPostgreSQLRepository, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) (string, []any, string, error) {
 	findAll := squirrel.Select(operationColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
@@ -784,90 +821,57 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
-
-		return nil, libHTTP.CursorPagination{}, err
+		return "", nil, "", fmt.Errorf("failed to build SQL query: %w", err)
 	}
 
-	logger.Debugf("FindAllByAccount query: %s with args: %v", query, args)
+	return query, args, orderDirection, nil
+}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
+// FindAllByAccount retrieves Operations entities from the database using the provided account ID.
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
 
-		logger.Errorf("Failed to query database: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-	defer rows.Close()
-
-	spanQuery.End()
-
-	for rows.Next() {
-		var operation OperationPostgreSQLModel
-		if err := rows.Scan(
-			&operation.ID,
-			&operation.TransactionID,
-			&operation.Description,
-			&operation.Type,
-			&operation.AssetCode,
-			&operation.Amount,
-			&operation.AvailableBalance,
-			&operation.OnHoldBalance,
-			&operation.AvailableBalanceAfter,
-			&operation.OnHoldBalanceAfter,
-			&operation.Status,
-			&operation.StatusDescription,
-			&operation.AccountID,
-			&operation.AccountAlias,
-			&operation.BalanceID,
-			&operation.ChartOfAccounts,
-			&operation.OrganizationID,
-			&operation.LedgerID,
-			&operation.CreatedAt,
-			&operation.UpdatedAt,
-			&operation.DeletedAt,
-			&operation.Route,
-			&operation.BalanceAffected,
-			&operation.BalanceKey,
-			&operation.VersionBalance,
-			&operation.VersionBalanceAfter,
-		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
-			logger.Errorf("Failed to scan row: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		operations = append(operations, operation.ToEntity())
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+	decodedCursor, orderDirection, err := decodeCursorWithDefault(filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+		logger.Errorf("Failed to decode cursor: %v", err)
 
-		logger.Errorf("Failed to get rows: %v", err)
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+	}
+
+	query, args, orderDirection, err := buildOperationByAccountQuery(r, organizationID, ledgerID, accountID, operationType, filter, decodedCursor, orderDirection)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+	}
+
+	operations, err := r.executeOperationQuery(ctx, db, query, args)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute query", err)
+		logger.Errorf("Failed to execute query: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	hasPagination := len(operations) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
+	operations = paginateOperations(operations, filter, decodedCursor, orderDirection)
 
-	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+	cur, err := calculateOperationPagination(operations, filter, decodedCursor)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+		logger.Errorf("Failed to calculate cursor: %v", err)
 
-	cur := libHTTP.CursorPagination{}
-	if len(operations) > 0 {
-		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
-
-			logger.Errorf("Failed to calculate cursor: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
 	}
 
 	return operations, cur, nil

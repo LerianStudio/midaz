@@ -2,10 +2,12 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -17,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // OperationRouteHandler is a struct that contains the command and query use cases.
@@ -64,21 +67,33 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Infof("Request to create an operation route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route", err)
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	metricFactory.RecordOperationRouteCreated(ctx, organizationID.String(), ledgerID.String())
 
 	logger.Infof("Successfully created operation route")
 
-	return http.Created(c, operationRoute)
+	if err := http.Created(c, operationRoute); err != nil {
+		return fmt.Errorf("failed to send created operation route response: %w", err)
+	}
+
+	return nil
 }
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
@@ -115,12 +130,20 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to retrieve Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved Operation Route with Operation Route ID: %s", id.String())
 
-	return http.OK(c, operationRoute)
+	if err := http.OK(c, operationRoute); err != nil {
+		return fmt.Errorf("failed to send operation route response: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateOperationRoute is a method that updates Operation Route information.
@@ -162,7 +185,11 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Infof("Request to update an Operation Route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -170,18 +197,19 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	_, err = handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation Route on command", err)
-
-		return http.WithError(c, err)
+	if err := handler.performOperationRouteUpdate(ctx, c, &span, organizationID, ledgerID, id, payload); err != nil {
+		return err
 	}
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation Route on query", err)
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully updated Operation Route with Operation Route ID: %s", id.String())
@@ -194,7 +222,27 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		}
 	}
 
-	return http.OK(c, operationRoute)
+	if err := http.OK(c, operationRoute); err != nil {
+		return fmt.Errorf("failed to send operation route response: %w", err)
+	}
+
+	return nil
+}
+
+// performOperationRouteUpdate executes the update command for an operation route.
+func (handler *OperationRouteHandler) performOperationRouteUpdate(ctx context.Context, c *fiber.Ctx, span *trace.Span, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput) error {
+	_, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
+
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
+	}
+
+	return nil
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
@@ -232,12 +280,20 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 
 		logger.Errorf("Failed to delete Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully deleted Operation Route with Operation Route ID: %s", id.String())
 
-	return http.NoContent(c)
+	if err := http.NoContent(c); err != nil {
+		return fmt.Errorf("failed to send no content response: %w", err)
+	}
+
+	return nil
 }
 
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
@@ -279,7 +335,11 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
@@ -295,23 +355,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Operation Routes by metadata")
-
-		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operation Routes by metadata", err)
-
-			logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
-
-			return http.WithError(c, err)
-		}
-
-		logger.Infof("Successfully retrieved all Operation Routes by metadata")
-
-		pagination.SetItems(operationRoutes)
-		pagination.SetCursor(cur.Next, cur.Prev)
-
-		return http.OK(c, pagination)
+		return handler.retrieveOperationRoutesByMetadata(ctx, c, &span, logger, organizationID, ledgerID, headerParams, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Operation Routes")
@@ -324,7 +368,11 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
 
-		return http.WithError(c, err)
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
 	}
 
 	logger.Infof("Successfully retrieved all Operation Routes")
@@ -332,7 +380,40 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	pagination.SetItems(operationRoutes)
 	pagination.SetCursor(cur.Next, cur.Prev)
 
-	return http.OK(c, pagination)
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send operation routes pagination response: %w", err)
+	}
+
+	return nil
+}
+
+// retrieveOperationRoutesByMetadata retrieves operation routes filtered by metadata.
+func (handler *OperationRouteHandler) retrieveOperationRoutesByMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, headerParams *http.QueryHeader, pagination libPostgres.Pagination) error {
+	logger.Infof("Initiating retrieval of all Operation Routes by metadata")
+
+	operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operation Routes by metadata", err)
+
+		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
+
+		if err := http.WithError(c, err); err != nil {
+			return fmt.Errorf("failed to send error response: %w", err)
+		}
+
+		return nil
+	}
+
+	logger.Infof("Successfully retrieved all Operation Routes by metadata")
+
+	pagination.SetItems(operationRoutes)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	if err := http.OK(c, pagination); err != nil {
+		return fmt.Errorf("failed to send operation routes pagination response: %w", err)
+	}
+
+	return nil
 }
 
 // validateAccountRule validates account rule configuration for operation routes.
@@ -352,70 +433,92 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 		return nil
 	}
 
-	if account.RuleType != "" && account.ValidIf == nil {
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.validIf")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account rule type provided but validIf is missing", err)
-
-		logger.Warnf("Account rule type provided but validIf is missing, Error: %s", err.Error())
-
-		return err
-	}
-
-	if account.RuleType == "" && account.ValidIf != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.ruleType")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account validIf provided but rule type is missing", err)
-
-		logger.Warnf("Account validIf provided but rule type is missing, Error: %s", err.Error())
-
+	if err := handler.validateAccountRuleFields(logger, &span, account); err != nil {
 		return err
 	}
 
 	if account.RuleType != "" && account.ValidIf != nil {
-		switch strings.ToLower(account.RuleType) {
-		case constant.AccountRuleTypeAlias:
-			if _, ok := account.ValidIf.(string); !ok {
-				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		return handler.validateAccountRuleType(logger, &span, account)
+	}
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf type for alias rule", err)
+	return nil
+}
 
-				logger.Warnf("Invalid ValidIf type for alias rule, Error: %s", err.Error())
+// validateAccountRuleFields validates that ruleType and validIf are properly paired.
+func (handler *OperationRouteHandler) validateAccountRuleFields(logger libLog.Logger, span *trace.Span, account *mmodel.AccountRule) error {
+	if account.RuleType != "" && account.ValidIf == nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.validIf")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
+		logger.Warnf("Account rule type provided but validIf is missing, Error: %s", err.Error())
 
-				return err
-			}
-		case constant.AccountRuleTypeAccountType:
-			switch v := account.ValidIf.(type) {
-			case []string:
-			case []any:
-				for _, item := range v {
-					if _, ok := item.(string); !ok {
-						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		return fmt.Errorf("account rule type validation failed: %w", err)
+	}
 
-						libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf array element type", err)
+	if account.RuleType == "" && account.ValidIf != nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.ruleType")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
+		logger.Warnf("Account validIf provided but rule type is missing, Error: %s", err.Error())
 
-						logger.Warnf("Invalid ValidIf array element type, Error: %s", err.Error())
+		return fmt.Errorf("account validIf validation failed: %w", err)
+	}
 
-						return err
-					}
-				}
-			default:
-				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	return nil
+}
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf type for account_type rule", err)
+// validateAccountRuleType validates the account rule based on its type.
+func (handler *OperationRouteHandler) validateAccountRuleType(logger libLog.Logger, span *trace.Span, account *mmodel.AccountRule) error {
+	switch strings.ToLower(account.RuleType) {
+	case constant.AccountRuleTypeAlias:
+		return handler.validateAliasRule(logger, span, account.ValidIf)
+	case constant.AccountRuleTypeAccountType:
+		return handler.validateAccountTypeRule(logger, span, account.ValidIf)
+	default:
+		err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
+		logger.Warnf("Invalid account rule type, Error: %s", err.Error())
 
-				logger.Warnf("Invalid ValidIf type for account_type rule, Error: %s", err.Error())
+		return fmt.Errorf("invalid account rule type: %w", err)
+	}
+}
 
-				return err
-			}
-		default:
-			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+// validateAliasRule validates that validIf is a string for alias rules.
+func (handler *OperationRouteHandler) validateAliasRule(logger libLog.Logger, span *trace.Span, validIf any) error {
+	if _, ok := validIf.(string); !ok {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
+		logger.Warnf("Invalid ValidIf type for alias rule, Error: %s", err.Error())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account rule type", err)
+		return fmt.Errorf("invalid validIf type for alias rule: %w", err)
+	}
 
-			logger.Warnf("Invalid account rule type, Error: %s", err.Error())
+	return nil
+}
 
-			return err
+// validateAccountTypeRule validates that validIf is a string array for account_type rules.
+func (handler *OperationRouteHandler) validateAccountTypeRule(logger libLog.Logger, span *trace.Span, validIf any) error {
+	switch v := validIf.(type) {
+	case []string:
+		return nil
+	case []any:
+		return handler.validateAccountTypeArray(logger, span, v)
+	default:
+		err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
+		logger.Warnf("Invalid ValidIf type for account_type rule, Error: %s", err.Error())
+
+		return fmt.Errorf("invalid validIf type for account_type rule: %w", err)
+	}
+}
+
+// validateAccountTypeArray validates that all elements in the array are strings.
+func (handler *OperationRouteHandler) validateAccountTypeArray(logger libLog.Logger, span *trace.Span, items []any) error {
+	for _, item := range items {
+		if _, ok := item.(string); !ok {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
+			logger.Warnf("Invalid ValidIf array element type, Error: %s", err.Error())
+
+			return fmt.Errorf("account type array validation failed: %w", err)
 		}
 	}
 

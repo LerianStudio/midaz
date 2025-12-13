@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -33,7 +34,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 		logger.Errorf("Failed to convert route to cache data: %v", err)
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	err = uc.RedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
@@ -42,7 +43,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 
-		return err
+		return fmt.Errorf("failed to create: %w", err)
 	}
 
 	logger.Infof("Successfully created transaction route cache for transaction route with id: %s", route.ID)

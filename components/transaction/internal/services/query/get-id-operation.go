@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -25,7 +26,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 		logger.Errorf("Error getting operation: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to find operation by id: %w", err)
 	}
 
 	if o != nil {
@@ -35,7 +36,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find operation metadata: %w", err)
 		}
 
 		if metadata != nil {

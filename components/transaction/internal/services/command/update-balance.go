@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -37,7 +38,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err.Error())
 
-			return err
+			return fmt.Errorf("failed to update: %w", err)
 		}
 
 		newBalances = append(newBalances, &mmodel.Balance{
@@ -64,7 +65,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
-		return err
+		return fmt.Errorf("operation failed: %w", err)
 	}
 
 	return nil
@@ -117,7 +118,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
-		return err
+		return fmt.Errorf("failed to update: %w", err)
 	}
 
 	return nil

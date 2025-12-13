@@ -208,7 +208,8 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
-	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name()), err)
+	expectedErr := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	assert.ErrorIs(t, err, expectedErr)
 }
 
 // TestUpdateOperationRouteError tests updating an operation route with an error

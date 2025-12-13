@@ -138,7 +138,7 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, dbError, err)
+	assert.ErrorIs(t, err, dbError)
 }
 
 // TestReloadOperationRouteCache_TransactionRouteNotFound tests handling when transaction route is not found

@@ -212,7 +212,7 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 			// Assert results
 			if tc.expectedError != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tc.expectedError.Error(), err.Error())
+				assert.Contains(t, err.Error(), tc.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 			}

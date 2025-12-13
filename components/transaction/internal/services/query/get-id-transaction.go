@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -25,7 +26,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 		logger.Errorf("Error getting transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if tran != nil {
@@ -35,7 +36,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to get: %w", err)
 		}
 
 		if metadata != nil {
@@ -61,7 +62,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 
 		logger.Errorf("Error getting transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get: %w", err)
 	}
 
 	if tran != nil {
@@ -71,7 +72,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to get: %w", err)
 		}
 
 		if metadata != nil {

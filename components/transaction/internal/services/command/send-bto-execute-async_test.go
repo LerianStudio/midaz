@@ -113,7 +113,6 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 
 	// Call the method with the correct parameters
 	err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
-
 	// Assert that no error occurred
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)

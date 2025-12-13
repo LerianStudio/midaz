@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -35,6 +36,15 @@ var assetRateColumnList = []string{
 	"created_at",
 	"updated_at",
 }
+
+const (
+	updateFieldOffset     = 1
+	rateFieldOffset       = 2
+	rateScaleFieldOffset  = 3
+	ttlFieldOffset        = 4
+	externalIDFieldOffset = 5
+	whereClauseOffset     = 2
+)
 
 // Repository provides an interface for asset_rate template entities.
 // It defines methods for creating, finding, and updating asset rates.
@@ -80,7 +90,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetRatePostgreSQLModel{}
@@ -107,7 +117,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 		logger.Errorf("Failed to execute insert query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute insert query: %w", err)
 	}
 
 	spanExec.End()
@@ -118,7 +128,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -128,7 +138,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 		logger.Errorf("Failed to create asset rate. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create asset rate, rows affected is 0: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -147,7 +157,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetRatePostgreSQLModel{}
@@ -198,14 +208,14 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 			logger.Errorf("Failed to find asset rate. Row not found: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to find asset rate, row not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan asset rate record", err)
 
 		logger.Errorf("Failed to scan asset rate record: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to scan asset rate record: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -224,7 +234,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetRatePostgreSQLModel{}
@@ -279,7 +289,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 		logger.Errorf("Failed to scan asset rate record: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to scan asset rate record: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -298,10 +308,8 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get database connection: %w", err)
 	}
-
-	assetRates := make([]*AssetRate, 0)
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
@@ -314,32 +322,17 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 			logger.Errorf("Failed to decode cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to decode cursor: %w", err)
 		}
 	}
 
-	findAll := squirrel.Select(assetRateColumnList...).
-		From(r.tableName).
-		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		PlaceholderFormat(squirrel.Dollar)
-
-	if toAssetCodes != nil {
-		findAll.Where(squirrel.Eq{`"to"`: toAssetCodes})
-	}
-
-	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
-
-	query, args, err := findAll.ToSql()
+	query, args, err := r.buildAssetRateFindAllQuery(organizationID, ledgerID, fromAssetCode, toAssetCodes, filter, decodedCursor, orderDirection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -350,44 +343,19 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to execute query: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name()))
 	}
 	defer rows.Close()
 
 	spanQuery.End()
 
-	for rows.Next() {
-		var assetRate AssetRatePostgreSQLModel
-		if err := rows.Scan(
-			&assetRate.ID,
-			&assetRate.OrganizationID,
-			&assetRate.LedgerID,
-			&assetRate.ExternalID,
-			&assetRate.From,
-			&assetRate.To,
-			&assetRate.Rate,
-			&assetRate.RateScale,
-			&assetRate.Source,
-			&assetRate.TTL,
-			&assetRate.CreatedAt,
-			&assetRate.UpdatedAt,
-		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+	assetRates, err := r.scanAssetRateRows(rows)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+		logger.Errorf("Failed to scan rows: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		assetRates = append(assetRates, assetRate.ToEntity())
-	}
-
-	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
-
-		logger.Errorf("Failed to get rows: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to scan rows: %w", err)
 	}
 
 	hasPagination := len(assetRates) > filter.Limit
@@ -402,7 +370,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 			logger.Errorf("Failed to calculate cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
 		}
 	}
 
@@ -422,7 +390,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &AssetRatePostgreSQLModel{}
@@ -440,17 +408,17 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates,
-		"updated_at = $"+strconv.Itoa(len(args)+1),
-		"rate = $"+strconv.Itoa(len(args)+2),
-		"rate_scale = $"+strconv.Itoa(len(args)+3),
-		"ttl = $"+strconv.Itoa(len(args)+4),
-		"external_id = $"+strconv.Itoa(len(args)+5),
+		"updated_at = $"+strconv.Itoa(len(args)+updateFieldOffset),
+		"rate = $"+strconv.Itoa(len(args)+rateFieldOffset),
+		"rate_scale = $"+strconv.Itoa(len(args)+rateScaleFieldOffset),
+		"ttl = $"+strconv.Itoa(len(args)+ttlFieldOffset),
+		"external_id = $"+strconv.Itoa(len(args)+externalIDFieldOffset),
 	)
 
 	args = append(args, record.UpdatedAt, record.Rate, record.RateScale, record.TTL, record.ExternalID, organizationID, ledgerID, id)
 
 	query := `UPDATE asset_rate SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereClauseOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args))
 
@@ -462,7 +430,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	spanExec.End()
@@ -473,7 +441,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -483,8 +451,66 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 		logger.Warnf("Failed to update asset rate. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update asset rate, rows affected is 0: %w", err)
 	}
 
 	return record.ToEntity(), nil
+}
+
+// scanAssetRateRows scans rows and returns asset rates
+func (r *AssetRatePostgreSQLRepository) scanAssetRateRows(rows *sql.Rows) ([]*AssetRate, error) {
+	assetRates := make([]*AssetRate, 0)
+
+	for rows.Next() {
+		var assetRate AssetRatePostgreSQLModel
+		if err := rows.Scan(
+			&assetRate.ID,
+			&assetRate.OrganizationID,
+			&assetRate.LedgerID,
+			&assetRate.ExternalID,
+			&assetRate.From,
+			&assetRate.To,
+			&assetRate.Rate,
+			&assetRate.RateScale,
+			&assetRate.Source,
+			&assetRate.TTL,
+			&assetRate.CreatedAt,
+			&assetRate.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan asset rate row: %w", err)
+		}
+
+		assetRates = append(assetRates, assetRate.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return assetRates, fmt.Errorf("failed to iterate asset rate rows: %w", err)
+	}
+
+	return assetRates, nil
+}
+
+// buildAssetRateFindAllQuery builds the SQL query for finding asset rates
+func (r *AssetRatePostgreSQLRepository) buildAssetRateFindAllQuery(organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) (string, []any, error) {
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	if toAssetCodes != nil {
+		findAll = findAll.Where(squirrel.Eq{`"to"`: toAssetCodes})
+	}
+
+	findAll, _ = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build asset rate find all query: %w", err)
+	}
+
+	return query, args, nil
 }

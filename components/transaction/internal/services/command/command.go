@@ -1,6 +1,8 @@
 package command
 
 import (
+	"errors"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -10,14 +12,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/jackc/pgx/v5/pgconn"
 )
-
-// Compile-time interface verification.
-// UseCase implements mbootstrap.BalancePort for unified ledger mode,
-// allowing the onboarding module to call balance operations directly (in-process)
-// without network overhead.
-var _ mbootstrap.BalancePort = (*UseCase)(nil)
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
 type UseCase struct {
@@ -47,4 +44,10 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+}
+
+// isUniqueViolation checks if the error is a PostgreSQL unique violation error
+func (uc *UseCase) isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode
 }

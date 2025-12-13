@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -34,7 +33,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const ApplicationName = "transaction"
+const (
+	ApplicationName             = "transaction"
+	ensureIndexesTimeoutSeconds = 60
+)
 
 // envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
 func envFallback(prefixed, fallback string) string {
@@ -320,7 +322,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), ensureIndexesTimeoutSeconds*time.Second)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{

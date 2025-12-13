@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -26,7 +27,7 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 		logger.Errorf("Failed to delete transaction route cache: %v", err)
 
-		return err
+		return fmt.Errorf("failed to delete: %w", err)
 	}
 
 	logger.Infof("Successfully deleted transaction route cache for transaction route with id: %s", transactionRouteID)

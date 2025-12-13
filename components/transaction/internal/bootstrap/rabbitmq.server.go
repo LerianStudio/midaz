@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,7 +36,11 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 
 // Run starts consumers for all registered queues.
 func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
-	return mq.consumerRoutes.RunConsumers()
+	if err := mq.consumerRoutes.RunConsumers(); err != nil {
+		return fmt.Errorf("failed to run consumers: %w", err)
+	}
+
+	return nil
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
@@ -55,7 +60,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 		logger.Errorf("Error unmarshalling accounts message JSON: %v", err)
 
-		return err
+		return fmt.Errorf("failed to unmarshal balance create queue message: %w", err)
 	}
 
 	logger.Infof("Account message consumed: %s", message.AccountID)
@@ -66,7 +71,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 		logger.Errorf("Error creating balance: %v", err)
 
-		return err
+		return fmt.Errorf("failed to create balance for account %s: %w", message.AccountID, err)
 	}
 
 	return nil
@@ -89,7 +94,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
-		return err
+		return fmt.Errorf("failed to unmarshal balance transaction operation message: %w", err)
 	}
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
@@ -100,7 +105,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 		logger.Errorf("Error creating transaction: %v", err)
 
-		return err
+		return fmt.Errorf("failed to create balance transaction operations for transaction %s: %w", message.QueueData[0].ID, err)
 	}
 
 	return nil

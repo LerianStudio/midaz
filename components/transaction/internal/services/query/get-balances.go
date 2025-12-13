@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -35,7 +36,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-			return nil, err
+			return nil, fmt.Errorf("failed to list balances by aliases with keys: %w", err)
 		}
 
 		balances = append(balances, balancesByAliases...)
@@ -47,7 +48,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 		logger.Error("Failed to get balances and update on redis", err.Error())
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get account and lock: %w", err)
 	}
 
 	return newBalances, nil
@@ -151,7 +152,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Error("Failed to validate accounting rules", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to validate accounting rules: %w", err)
 	}
 
 	if parserDSL != nil {
@@ -170,7 +171,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 			logger.Errorf("Failed to validate balances: %v", err.Error())
 
-			return nil, err
+			return nil, fmt.Errorf("failed to validate balances rules: %w", err)
 		}
 	}
 
@@ -180,7 +181,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Error("Failed to lock balance", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to add sum balances in redis: %w", err)
 	}
 
 	return newBalances, nil

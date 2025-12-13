@@ -3,11 +3,14 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -15,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // GetAllTransactions fetch all Transactions from the repository
@@ -26,22 +30,8 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	logger.Infof("Retrieving transactions")
 
-	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
+	trans, cur, err := uc.fetchAllTransactions(ctx, &span, logger, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Errorf("Error getting transactions on repo: %v", err)
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
-
-			logger.Warnf("Error getting transactions on repo: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -49,43 +39,85 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		return trans, cur, nil
 	}
 
+	metadataMap, err := uc.fetchAndMapTransactionMetadata(ctx, &span, logger, trans)
+	if err != nil {
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if err := uc.enrichTransactionsWithAllMetadata(ctx, trans, metadataMap); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	return trans, cur, nil
+}
+
+// fetchAllTransactions fetches all transactions from repository
+func (uc *UseCase) fetchAllTransactions(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
+	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
+	if err != nil {
+		return uc.handleFetchTransactionsError(span, logger, err)
+	}
+
+	return trans, cur, nil
+}
+
+// handleFetchTransactionsError handles errors when fetching transactions
+func (uc *UseCase) handleFetchTransactionsError(span *trace.Span, logger libLog.Logger, err error) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
+	logger.Errorf("Error getting transactions on repo: %v", err)
+
+	if errors.Is(err, services.ErrDatabaseItemNotFound) {
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
+		logger.Warnf("Error getting transactions on repo: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transactions: %w", err)
+	}
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
+
+	return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find or list all transactions with operations: %w", err)
+}
+
+// fetchAndMapTransactionMetadata fetches and maps transaction metadata
+func (uc *UseCase) fetchAndMapTransactionMetadata(ctx context.Context, span *trace.Span, logger libLog.Logger, trans []*transaction.Transaction) (map[string]map[string]any, error) {
+	transactionIDs := uc.extractTransactionIDs(trans)
+
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
+		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+
+		return nil, fmt.Errorf("failed to find transaction metadata: %w", err)
+	}
+
+	return uc.buildMetadataMap(metadata), nil
+}
+
+// extractTransactionIDs extracts transaction IDs from transaction list
+func (uc *UseCase) extractTransactionIDs(trans []*transaction.Transaction) []string {
 	transactionIDs := make([]string, len(trans))
 	for i, t := range trans {
 		transactionIDs[i] = t.ID
 	}
 
-	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
-	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+	return transactionIDs
+}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
-
-		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
+// buildMetadataMap builds a map of entity ID to metadata
+func (uc *UseCase) buildMetadataMap(metadata []*mongodb.Metadata) map[string]map[string]any {
 	metadataMap := make(map[string]map[string]any, len(metadata))
-
 	for _, meta := range metadata {
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
+	return metadataMap
+}
+
+// enrichTransactionsWithAllMetadata enriches transactions with transaction and operation metadata
+func (uc *UseCase) enrichTransactionsWithAllMetadata(ctx context.Context, trans []*transaction.Transaction, metadataMap map[string]map[string]any) error {
 	for i := range trans {
-		source := make([]string, 0)
-		destination := make([]string, 0)
-
-		operationIDs := make([]string, 0, len(trans[i].Operations))
-		for _, op := range trans[i].Operations {
-			operationIDs = append(operationIDs, op.ID)
-
-			switch op.Type {
-			case constant.DEBIT:
-				source = append(source, op.AccountAlias)
-			case constant.CREDIT:
-				destination = append(destination, op.AccountAlias)
-			}
-		}
+		source, destination, operationIDs := uc.processTransactionOperations(trans[i].Operations)
 
 		trans[i].Source = source
 		trans[i].Destination = destination
@@ -96,12 +128,32 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 		if len(operationIDs) > 0 {
 			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
-				return nil, libHTTP.CursorPagination{}, err
+				return fmt.Errorf("failed to enrich operations with metadata: %w", err)
 			}
 		}
 	}
 
-	return trans, cur, nil
+	return nil
+}
+
+// processTransactionOperations processes operations and extracts sources, destinations and IDs
+func (uc *UseCase) processTransactionOperations(operations []*operation.Operation) ([]string, []string, []string) {
+	source := make([]string, 0)
+	destination := make([]string, 0)
+	operationIDs := make([]string, 0, len(operations))
+
+	for _, op := range operations {
+		operationIDs = append(operationIDs, op.ID)
+
+		switch op.Type {
+		case constant.DEBIT:
+			source = append(source, op.AccountAlias)
+		case constant.CREDIT:
+			destination = append(destination, op.AccountAlias)
+		}
+	}
+
+	return source, destination, operationIDs
 }
 
 // enrichOperationsWithMetadata retrieves and assigns metadata to operations
@@ -117,7 +169,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 
 		logger.Warnf("Error getting operation metadata: %v", err)
 
-		return err
+		return fmt.Errorf("failed to find operation metadata by entity ids: %w", err)
 	}
 
 	operationMetadataMap := make(map[string]map[string]any, len(operationMetadata))
@@ -148,7 +200,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error())
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get all operations by transaction: %w", err)
 	}
 
 	source := make([]string, 0)

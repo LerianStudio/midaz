@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -40,12 +41,12 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 			logger.Warnf("Error updating operation route on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation route on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), id.String(), input.Metadata)
@@ -54,7 +55,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 		logger.Errorf("Error updating metadata on repo by id: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to update: %w", err)
 	}
 
 	operationRouteUpdated.Metadata = metadataUpdated

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -23,7 +24,7 @@ func (uc *UseCase) SyncBalance(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Errorf("Failed to sync balance from redis: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("failed to sync balance from redis: %w", err)
 	}
 
 	if !synchedBalance {

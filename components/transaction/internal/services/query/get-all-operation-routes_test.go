@@ -136,7 +136,7 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }

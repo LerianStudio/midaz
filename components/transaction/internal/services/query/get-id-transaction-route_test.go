@@ -144,7 +144,7 @@ func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Nil(t, result)
 }
 
@@ -176,7 +176,7 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 
 	// Should return business error for transaction route not found
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, expectedBusinessError)
 	assert.Nil(t, result)
 }
 
@@ -219,7 +219,7 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
-	assert.Equal(t, metadataError, err)
+	assert.ErrorIs(t, err, metadataError)
 	assert.Nil(t, result)
 }
 
