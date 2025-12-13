@@ -289,7 +289,11 @@ if (pm.response.code === 200) {
         if (balance.available !== undefined) {
             const balanceAmount = Math.abs(balance.available);
             pm.environment.set("currentBalanceAmount", balanceAmount);
-            console.log("💰 Extracted balance amount:", balanceAmount);
+            if (debug) {
+                console.log("💰 [DEBUG] Extracted balance amount:", balanceAmount);
+            } else {
+                console.log("💰 Extracted balance amount (redacted)");
+            }
             console.log("✅ Balance amount variable set for zero-out transaction");
         } else {
             console.warn("⚠️ No balance amount found in response");

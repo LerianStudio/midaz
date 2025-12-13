@@ -412,13 +412,13 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '        \n' +
         '        // Extract and store accountId - prefer non-external accounts\n' +
         '        if (userOperation && userOperation.accountId) {\n' +
-        '            // Only store if we do not already have an accountId (preserve treasury account ID)\n' +
-        '            const existingAccountId = pm.environment.get("accountId");\n' +
+        '            // Only store if we do not already have an accountId for this variable (preserve treasury account ID)\n' +
+        '            const existingAccountId = pm.environment.get(accountIdVar);\n' +
         '            if (!existingAccountId) {\n' +
         '                pm.environment.set(accountIdVar, userOperation.accountId);\n' +
         '                console.log("💾 Stored " + accountIdVar + ":", userOperation.accountId);\n' +
         '            } else {\n' +
-        '                console.log("⚠️ Preserving existing accountId:", existingAccountId, "(not overwriting with:", userOperation.accountId + ")");\n' +
+        '                console.log("⚠️ Preserving existing " + accountIdVar + ":", existingAccountId, "(not overwriting with:", userOperation.accountId + ")");\n' +
         '            }\n' +
         '        }\n' +
         '        \n' +
@@ -465,8 +465,14 @@ if (['POST', 'PUT', 'PATCH'].includes(pm.request.method)) {
 const requestUrl = pm.request.url.toString();
 const method = pm.request.method;
 
-// Base required variables - only organizationId is always required
-const requiredVars = ['organizationId'];
+// Base required variables - start empty and add based on URL patterns
+const requiredVars = [];
+
+// Require organizationId only when the URL actually uses it (not for POST /organizations which creates it)
+if (requestUrl.includes('{{organizationId}}') || requestUrl.includes('{organization_id}') ||
+    (requestUrl.includes('/organizations/') && !requestUrl.endsWith('/organizations'))) {
+    requiredVars.push('organizationId');
+}
 
 // Require ledgerId only when the URL actually uses it
 if (requestUrl.includes('{{ledgerId}}') || requestUrl.includes('{ledger_id}') || requestUrl.includes('/ledgers/')) {
