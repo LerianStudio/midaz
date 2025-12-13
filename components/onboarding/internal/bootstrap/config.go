@@ -334,7 +334,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if opts != nil && opts.UnifiedMode {
 		if opts.BalancePort == nil {
-			logger.Fatal("UnifiedMode requires BalancePort to be provided")
+			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
 		}
 
 		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
@@ -342,7 +342,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		balancePort = opts.BalancePort
 	} else {
 		if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-			logger.Fatal("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
+			return nil, fmt.Errorf("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
 		}
 
 		grpcConnection := &mgrpc.GRPCConnection{
