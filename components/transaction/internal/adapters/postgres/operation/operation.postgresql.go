@@ -802,6 +802,7 @@ func paginateOperations(operations []*Operation, filter http.Pagination, decoded
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
 	trimmed := libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+
 	return trimmed, hasPagination
 }
 

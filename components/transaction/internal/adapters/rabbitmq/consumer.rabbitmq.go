@@ -184,13 +184,13 @@ func extractMidazID(headers amqp.Table) string {
 
 // messageProcessingContext holds all context needed for processing a single message.
 type messageProcessingContext struct {
-	ctx          context.Context
-	logger       libLog.Logger
-	span         trace.Span
-	msg          *amqp.Delivery
-	queue        string
-	workerID     int
-	conn         *libRabbitmq.RabbitMQConnection
+	ctx      context.Context
+	logger   libLog.Logger
+	span     trace.Span
+	msg      *amqp.Delivery
+	queue    string
+	workerID int
+	conn     *libRabbitmq.RabbitMQConnection
 }
 
 // createMessageProcessingContext creates all the context and tracing for message processing.
