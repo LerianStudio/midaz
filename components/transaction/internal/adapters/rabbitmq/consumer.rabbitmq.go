@@ -99,21 +99,84 @@ type panicRecoveryContext struct {
 	conn       *libRabbitmq.RabbitMQConnection
 }
 
-// handlePoisonMessage rejects a message that has exceeded max retry attempts.
+// handlePoisonMessage routes a message that has exceeded max retry attempts to the DLQ.
 // Returns true if the message was handled as a poison message.
 func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 	if prc.retryCount < maxRetries-1 {
 		return false
 	}
 
-	prc.logger.Errorf("Worker %d: poison message rejected after %d delivery attempts: %v",
+	prc.logger.Errorf("Worker %d: poison message after %d delivery attempts: %v - routing to DLQ",
 		prc.workerID, prc.retryCount+1, panicValue)
 
-	if err := prc.msg.Reject(false); err != nil {
-		prc.logger.Warnf("Worker %d: failed to reject poison message: %v", prc.workerID, err)
+	// Attempt to publish to DLQ
+	dlqName := buildDLQName(prc.queue)
+	if err := prc.publishToDLQ(dlqName, panicValue); err != nil {
+		prc.logger.Errorf("Worker %d: failed to publish to DLQ %s: %v - rejecting message", prc.workerID, dlqName, err)
+		// Fall back to reject if DLQ publish fails
+		if rejectErr := prc.msg.Reject(false); rejectErr != nil {
+			prc.logger.Warnf("Worker %d: failed to reject poison message: %v", prc.workerID, rejectErr)
+		}
+
+		return true
+	}
+
+	// Ack original message since we successfully published to DLQ
+	if err := prc.msg.Ack(false); err != nil {
+		prc.logger.Warnf("Worker %d: failed to ack original message after DLQ publish: %v", prc.workerID, err)
 	}
 
 	return true
+}
+
+// publishToDLQ publishes a message to the Dead Letter Queue with error context.
+func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) error {
+	ch, err := prc.conn.Connection.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to get channel for DLQ: %w", err)
+	}
+
+	defer ch.Close()
+
+	// Declare DLQ if it doesn't exist (idempotent)
+	_, err = ch.QueueDeclare(
+		dlqName,
+		true,  // durable
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+
+	// Copy headers and add error context
+	headers := copyHeaders(prc.msg.Headers)
+	headers["x-dlq-reason"] = fmt.Sprintf("%v", panicValue)
+	headers["x-dlq-original-queue"] = prc.queue
+	headers["x-dlq-retry-count"] = safeIncrementRetryCount(prc.retryCount)
+	headers["x-dlq-timestamp"] = time.Now().Unix()
+
+	err = ch.Publish(
+		"",      // exchange (default)
+		dlqName, // routing key (queue name)
+		false,   // mandatory
+		false,   // immediate
+		amqp.Publishing{
+			Headers:      headers,
+			Body:         prc.msg.Body,
+			ContentType:  prc.msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to publish to DLQ: %w", err)
+	}
+
+	prc.logger.Infof("Worker %d: message published to DLQ %s", prc.workerID, dlqName)
+
+	return nil
 }
 
 // republishWithRetry republishes a message with an incremented retry counter.
