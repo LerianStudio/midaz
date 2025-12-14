@@ -65,17 +65,17 @@ type PortfolioPostgreSQLRepository struct {
 
 // NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
 func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
-	c := &PortfolioPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "PortfolioPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for PortfolioPostgreSQLRepository",
+		"repository", "PortfolioPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "PortfolioPostgreSQLRepository")
+
+	return &PortfolioPostgreSQLRepository{
 		connection: pc,
 		tableName:  "portfolio",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new portfolio entity into Postgresql and returns it.
@@ -467,6 +467,9 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 		"organization_id", organizationID,
 		"ledger_id", ledgerID,
 		"portfolio_id", id)
+
+	// Ensure FromEntity preserves the correct ID for Update operations
+	portfolio.ID = id.String()
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

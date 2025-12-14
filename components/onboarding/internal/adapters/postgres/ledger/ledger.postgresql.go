@@ -58,17 +58,17 @@ type LedgerPostgreSQLRepository struct {
 
 // NewLedgerPostgreSQLRepository returns a new instance of LedgerPostgresRepository using the given Postgres connection.
 func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPostgreSQLRepository {
-	c := &LedgerPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "LedgerPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for LedgerPostgreSQLRepository",
+		"repository", "LedgerPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "LedgerPostgreSQLRepository")
+
+	return &LedgerPostgreSQLRepository{
 		connection: pc,
 		tableName:  "ledger",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new Ledger entity into Postgresql and returns it.
@@ -414,6 +414,9 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	assert.NotNil(ledger, "ledger entity must not be nil for Update",
 		"organization_id", organizationID,
 		"ledger_id", id)
+
+	// Ensure FromEntity preserves the correct ID for Update operations
+	ledger.ID = id.String()
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

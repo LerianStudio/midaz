@@ -66,17 +66,17 @@ type AssetPostgreSQLRepository struct {
 
 // NewAssetPostgreSQLRepository returns a new instance of AssetPostgreSQLRepository using the given Postgres connection.
 func NewAssetPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetPostgreSQLRepository {
-	c := &AssetPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "AssetPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for AssetPostgreSQLRepository",
+		"repository", "AssetPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "AssetPostgreSQLRepository")
+
+	return &AssetPostgreSQLRepository{
 		connection: pc,
 		tableName:  "asset",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new asset entity into Postgresql and returns it.
@@ -434,6 +434,14 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 // Update an Asset entity into Postgresql and returns the Asset updated.
 func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error) {
+	assert.NotNil(asset, "asset entity must not be nil for Update",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID,
+		"asset_id", id)
+
+	// Ensure FromEntity preserves the correct ID for Update operations
+	asset.ID = id.String()
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")

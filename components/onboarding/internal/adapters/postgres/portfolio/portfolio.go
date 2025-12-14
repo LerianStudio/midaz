@@ -53,8 +53,18 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 
 // FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if portfolio.ID != "" {
+		ID = portfolio.ID
+	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved portfolio ID must be valid UUID",
+		"portfolio_name", portfolio.Name,
+		"has_existing_id", portfolio.ID != "")
+
 	*t = PortfolioPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                ID,
 		Name:              portfolio.Name,
 		EntityID:          portfolio.EntityID,
 		LedgerID:          portfolio.LedgerID,
@@ -64,10 +74,6 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 		CreatedAt:         portfolio.CreatedAt,
 		UpdatedAt:         portfolio.UpdatedAt,
 	}
-
-	assert.That(assert.ValidUUID(t.ID),
-		"generated portfolio ID must be valid UUID",
-		"portfolio_name", portfolio.Name)
 
 	if portfolio.DeletedAt != nil {
 		deletedAtCopy := *portfolio.DeletedAt

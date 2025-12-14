@@ -49,8 +49,18 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 
 // FromEntity converts an entity.Ledger to LedgerPostgreSQLModel
 func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if ledger.ID != "" {
+		ID = ledger.ID
+	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved ledger ID must be valid UUID",
+		"ledger_name", ledger.Name,
+		"has_existing_id", ledger.ID != "")
+
 	*t = LedgerPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                ID,
 		Name:              ledger.Name,
 		OrganizationID:    ledger.OrganizationID,
 		Status:            ledger.Status.Code,
@@ -58,10 +68,6 @@ func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 		CreatedAt:         ledger.CreatedAt,
 		UpdatedAt:         ledger.UpdatedAt,
 	}
-
-	assert.That(assert.ValidUUID(t.ID),
-		"generated ledger ID must be valid UUID",
-		"ledger_name", ledger.Name)
 
 	if ledger.DeletedAt != nil {
 		deletedAtCopy := *ledger.DeletedAt

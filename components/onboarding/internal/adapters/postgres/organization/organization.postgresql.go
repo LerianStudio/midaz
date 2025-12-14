@@ -62,17 +62,17 @@ type OrganizationPostgreSQLRepository struct {
 
 // NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
 func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
-	c := &OrganizationPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OrganizationPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for OrganizationPostgreSQLRepository",
+		"repository", "OrganizationPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "OrganizationPostgreSQLRepository")
+
+	return &OrganizationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "organization",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
@@ -216,6 +216,9 @@ func (r *OrganizationPostgreSQLRepository) buildOrganizationUpdateQuery(organiza
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	assert.NotNil(organization, "organization entity must not be nil for Update",
 		"organization_id", id)
+
+	// Ensure FromEntity preserves the correct ID for Update operations
+	organization.ID = id.String()
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -53,17 +53,17 @@ type OperationRoutePostgreSQLRepository struct {
 
 // NewOperationRoutePostgreSQLRepository creates a new instance of OperationRoutePostgreSQLRepository.
 func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationRoutePostgreSQLRepository {
-	c := &OperationRoutePostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OperationRoutePostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for OperationRoutePostgreSQLRepository",
+		"repository", "OperationRoutePostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "OperationRoutePostgreSQLRepository")
+
+	return &OperationRoutePostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation_route",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create creates a new operation route in the database.

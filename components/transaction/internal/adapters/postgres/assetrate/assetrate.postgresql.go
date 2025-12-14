@@ -65,17 +65,17 @@ type AssetRatePostgreSQLRepository struct {
 
 // NewAssetRatePostgreSQLRepository returns a new instance of AssetRatePostgreSQLRepository using the given Postgres connection.
 func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetRatePostgreSQLRepository {
-	c := &AssetRatePostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "AssetRatePostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for AssetRatePostgreSQLRepository",
+		"repository", "AssetRatePostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "AssetRatePostgreSQLRepository")
+
+	return &AssetRatePostgreSQLRepository{
 		connection: pc,
 		tableName:  "asset_rate",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new AssetRate entity into Postgresql and returns it.

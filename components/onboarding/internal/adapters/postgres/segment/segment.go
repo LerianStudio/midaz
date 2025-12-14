@@ -51,8 +51,18 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 
 // FromEntity converts an entity.Segment to SegmentPostgreSQLModel
 func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if segment.ID != "" {
+		ID = segment.ID
+	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved segment ID must be valid UUID",
+		"segment_name", segment.Name,
+		"has_existing_id", segment.ID != "")
+
 	*t = SegmentPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                ID,
 		Name:              segment.Name,
 		LedgerID:          segment.LedgerID,
 		OrganizationID:    segment.OrganizationID,
@@ -61,10 +71,6 @@ func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 		CreatedAt:         segment.CreatedAt,
 		UpdatedAt:         segment.UpdatedAt,
 	}
-
-	assert.That(assert.ValidUUID(t.ID),
-		"generated segment ID must be valid UUID",
-		"segment_name", segment.Name)
 
 	if segment.DeletedAt != nil {
 		deletedAtCopy := *segment.DeletedAt

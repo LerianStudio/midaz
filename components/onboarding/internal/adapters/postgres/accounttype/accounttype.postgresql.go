@@ -65,17 +65,17 @@ type AccountTypePostgreSQLRepository struct {
 
 // NewAccountTypePostgreSQLRepository creates a new instance of AccountTypePostgreSQLRepository.
 func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountTypePostgreSQLRepository {
-	c := &AccountTypePostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "AccountTypePostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for AccountTypePostgreSQLRepository",
+		"repository", "AccountTypePostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "AccountTypePostgreSQLRepository")
+
+	return &AccountTypePostgreSQLRepository{
 		connection: pc,
 		tableName:  "account_type",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create creates a new account type.

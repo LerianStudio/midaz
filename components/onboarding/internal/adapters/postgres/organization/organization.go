@@ -55,8 +55,18 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 
 // FromEntity converts an entity.Organization to OrganizationPostgresModel
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if organization.ID != "" {
+		ID = organization.ID
+	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved organization ID must be valid UUID",
+		"organization_legal_name", organization.LegalName,
+		"has_existing_id", organization.ID != "")
+
 	*t = OrganizationPostgreSQLModel{
-		ID:                   libCommons.GenerateUUIDv7().String(),
+		ID:                   ID,
 		ParentOrganizationID: organization.ParentOrganizationID,
 		LegalName:            organization.LegalName,
 		DoingBusinessAs:      organization.DoingBusinessAs,
@@ -67,10 +77,6 @@ func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organizati
 		CreatedAt:            organization.CreatedAt,
 		UpdatedAt:            organization.UpdatedAt,
 	}
-
-	assert.That(assert.ValidUUID(t.ID),
-		"generated organization ID must be valid UUID",
-		"organization_legal_name", organization.LegalName)
 
 	if organization.DeletedAt != nil {
 		deletedAtCopy := *organization.DeletedAt

@@ -64,17 +64,17 @@ type SegmentPostgreSQLRepository struct {
 
 // NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
 func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
-	c := &SegmentPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "SegmentPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for SegmentPostgreSQLRepository",
+		"repository", "SegmentPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "SegmentPostgreSQLRepository")
+
+	return &SegmentPostgreSQLRepository{
 		connection: pc,
 		tableName:  "segment",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new segment entity into Postgresql and returns it.
@@ -430,6 +430,14 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // Update a Segment entity into Postgresql and returns the Segment updated.
 func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Segment) (*mmodel.Segment, error) {
+	assert.NotNil(prd, "segment entity must not be nil for Update",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID,
+		"segment_id", id)
+
+	// Ensure FromEntity preserves the correct ID for Update operations
+	prd.ID = id.String()
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_segment")

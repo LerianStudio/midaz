@@ -54,8 +54,18 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if asset.ID != "" {
+		ID = asset.ID
+	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved asset ID must be valid UUID",
+		"asset_code", asset.Code,
+		"has_existing_id", asset.ID != "")
+
 	*t = AssetPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                ID,
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,
@@ -66,10 +76,6 @@ func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 		CreatedAt:         asset.CreatedAt,
 		UpdatedAt:         asset.UpdatedAt,
 	}
-
-	assert.That(assert.ValidUUID(t.ID),
-		"generated asset ID must be valid UUID",
-		"asset_code", asset.Code)
 
 	if asset.DeletedAt != nil {
 		deletedAtCopy := *asset.DeletedAt

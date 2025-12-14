@@ -75,17 +75,17 @@ var operationColumnList = []string{
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
 func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationPostgreSQLRepository {
-	c := &OperationPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OperationPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for OperationPostgreSQLRepository",
+		"repository", "OperationPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "OperationPostgreSQLRepository")
+
+	return &OperationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new Operation entity into Postgresql and returns it.

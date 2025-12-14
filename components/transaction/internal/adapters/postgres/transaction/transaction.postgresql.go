@@ -89,17 +89,17 @@ type TransactionPostgreSQLRepository struct {
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
 func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionPostgreSQLRepository {
-	c := &TransactionPostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "TransactionPostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for TransactionPostgreSQLRepository",
+		"repository", "TransactionPostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "TransactionPostgreSQLRepository")
+
+	return &TransactionPostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 // Create a new Transaction entity into Postgresql and returns it.

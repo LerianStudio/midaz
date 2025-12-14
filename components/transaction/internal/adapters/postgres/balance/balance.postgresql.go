@@ -92,17 +92,17 @@ type BalancePostgreSQLRepository struct {
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
 func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
-	c := &BalancePostgreSQLRepository{
+	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "BalancePostgreSQLRepository")
+
+	db, err := pc.GetDB()
+	assert.NoError(err, "database connection required for BalancePostgreSQLRepository",
+		"repository", "BalancePostgreSQLRepository")
+	assert.NotNil(db, "database handle must not be nil", "repository", "BalancePostgreSQLRepository")
+
+	return &BalancePostgreSQLRepository{
 		connection: pc,
 		tableName:  "balance",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
 }
 
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
