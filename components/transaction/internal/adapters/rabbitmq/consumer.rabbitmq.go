@@ -237,8 +237,8 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 						logger.Warnf("Worker %d: failed to nack message after panic: %v", workerID, err)
 					}
 
-					// Record panic metric manually so worker can survive and continue
-					mruntime.RecordPanicToSpanWithComponent(&spanConsumer, "rabbitmq_consumer", "worker_"+queue, r, stack)
+					// Record panic to span and metrics manually so worker can survive and continue
+					mruntime.RecordPanicToSpanWithComponent(ctx, r, stack, "rabbitmq_consumer", "worker_"+queue)
 				}
 			}()
 
