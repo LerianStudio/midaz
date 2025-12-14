@@ -79,6 +79,19 @@ func Never(msg string, kv ...any) {
 	panicWithContext(msg, kv...)
 }
 
+const maxValueLength = 200 // Truncate values longer than this
+
+// truncateValue truncates long values for logging safety.
+// This prevents log bloat and reduces risk of sensitive data exposure.
+func truncateValue(v any) string {
+	s := fmt.Sprintf("%v", v)
+	if len(s) <= maxValueLength {
+		return s
+	}
+
+	return s[:maxValueLength] + "... (truncated " + fmt.Sprintf("%d", len(s)-maxValueLength) + " chars)"
+}
+
 // panicWithContext formats the message with key-value pairs and stack trace,
 // then panics with the formatted message.
 func panicWithContext(msg string, kv ...any) {
@@ -98,8 +111,8 @@ func panicWithContext(msg string, kv ...any) {
 			} else {
 				value = "MISSING_VALUE"
 			}
-			// TODO(review): Consider adding value truncation for large values (reported by security-reviewer, severity: Low)
-			fmt.Fprintf(&sb, "    %v=%v\n", kv[i], value)
+			// Truncate large values to prevent log bloat and sensitive data exposure
+			fmt.Fprintf(&sb, "    %v=%v\n", kv[i], truncateValue(value))
 		}
 	}
 

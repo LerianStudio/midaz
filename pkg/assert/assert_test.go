@@ -481,6 +481,68 @@ func TestIsNil(t *testing.T) {
 	})
 }
 
+// TestTruncateValue tests the truncateValue function for various input sizes.
+func TestTruncateValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{
+			name:     "short string",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "long string",
+			input:    strings.Repeat("a", 300),
+			expected: strings.Repeat("a", 200) + "... (truncated 100 chars)",
+		},
+		{
+			name:     "exactly max length",
+			input:    strings.Repeat("b", 200),
+			expected: strings.Repeat("b", 200),
+		},
+		{
+			name:     "one over max length",
+			input:    strings.Repeat("c", 201),
+			expected: strings.Repeat("c", 200) + "... (truncated 1 chars)",
+		},
+		{
+			name:     "integer value",
+			input:    42,
+			expected: "42",
+		},
+		{
+			name:     "nil value",
+			input:    nil,
+			expected: "<nil>",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := truncateValue(tc.input)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// TestTruncateValueInPanicContext verifies truncation is applied in panic messages.
+func TestTruncateValueInPanicContext(t *testing.T) {
+	longValue := strings.Repeat("x", 300)
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "expected panic")
+		msg := r.(string)
+		require.Contains(t, msg, "... (truncated 100 chars)")
+		require.NotContains(t, msg, strings.Repeat("x", 300))
+	}()
+
+	That(false, "test with long value", "long_key", longValue)
+}
+
 // TestPanicWithContext_FormatOutput verifies the formatting of panic messages.
 func TestPanicWithContext_FormatOutput(t *testing.T) {
 	defer func() {
