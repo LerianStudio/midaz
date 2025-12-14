@@ -37,6 +37,7 @@ const retryCountHeader = "x-midaz-retry-count"
 const dlqSuffix = ".dlq"
 
 // buildDLQName creates the Dead Letter Queue name for a given queue.
+// TODO(review): Consider adding validation for empty queueName - returns ".dlq" which may indicate programming error (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Low)
 func buildDLQName(queueName string) string {
 	return queueName + dlqSuffix
 }
@@ -110,6 +111,7 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 		prc.workerID, prc.retryCount+1, panicValue)
 
 	// Attempt to publish to DLQ
+	// TODO(review): Consider adding single retry with 1-2s backoff before fallback to reject (reported by business-logic-reviewer on 2025-12-14, severity: Medium)
 	dlqName := buildDLQName(prc.queue)
 	if err := prc.publishToDLQ(dlqName, panicValue); err != nil {
 		// CRITICAL: This is a double-failure scenario (max retries + DLQ unavailable)
@@ -137,6 +139,8 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 // publishToDLQ publishes a message to the Dead Letter Queue with error context.
 // Uses publisher confirms to prevent data loss - without confirms, broker crash
 // after Publish() but before persistence causes message loss (original already Ack'd).
+// NOTE: Single attempt only (no retry loop) - tradeoff to avoid blocking consumer worker.
+// TODO(review): Consider adding unit tests for confirmation scenarios (Ack/Nack/Timeout) using mock channels (reported by code-reviewer on 2025-12-14, severity: Medium)
 func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) error {
 	ch, err := prc.conn.Connection.Channel()
 	if err != nil {
@@ -167,7 +171,9 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	// Copy headers and add error context
+	// TODO(review): Use header allowlist instead of copyHeaders to prevent sensitive data propagation (CWE-200) (reported by security-reviewer on 2025-12-14, severity: Medium)
 	headers := copyHeaders(prc.msg.Headers)
+	// TODO(review): Sanitize panicValue before storing in header to prevent info disclosure (CWE-209) - stack traces/IDs may leak (reported by security-reviewer on 2025-12-14, severity: Medium)
 	headers["x-dlq-reason"] = fmt.Sprintf("%v", panicValue)
 	headers["x-dlq-original-queue"] = prc.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(prc.retryCount)
@@ -200,6 +206,7 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 
 		if confirmation.Ack {
 			// SUCCESS: Broker confirmed message persistence
+			// TODO(review): Consider adding retry_count and panic reason to log for better correlation (reported by code-reviewer on 2025-12-14, severity: Medium)
 			prc.logger.Infof("Worker %d: message confirmed by broker (delivery tag: %d) to DLQ %s",
 				prc.workerID, confirmation.DeliveryTag, dlqName)
 

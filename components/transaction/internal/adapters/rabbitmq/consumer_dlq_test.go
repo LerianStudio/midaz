@@ -58,3 +58,6 @@ func TestBuildDLQName(t *testing.T) {
 		})
 	}
 }
+
+// TODO(review): Add unit tests for publishToDLQ confirmation scenarios (Ack/Nack/Timeout/ChannelClose) using mock channels (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Low)
+// TODO(review): Add unit test validating DLQ header structure (x-dlq-reason, x-dlq-original-queue, x-dlq-retry-count, x-dlq-timestamp) (reported by business-logic-reviewer on 2025-12-14, severity: Low)
