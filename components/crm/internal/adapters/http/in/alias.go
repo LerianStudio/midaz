@@ -25,6 +25,7 @@ type AliasHandler struct {
 //	@Tags			Aliases
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			alias				body		mmodel.CreateAliasInput	true	"Alias Input"
@@ -32,7 +33,6 @@ type AliasHandler struct {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases [post]
 func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -75,6 +75,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 //	@Description	Retrieves detailed information about a specific alias using its unique identifier.
 //	@Tags			Aliases
 //	@Produce		json
+//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
 //	@Param			alias_id			path		string	true	"The unique identifier of the Alias account."
@@ -83,7 +84,6 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [get]
 func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -127,6 +127,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 //	@Tags			Aliases
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			alias_id			path		string					true	"The unique identifier of the Alias account."
@@ -135,7 +136,6 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [patch]
 func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -195,6 +195,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 //	@Summary		Delete an Alias
 //	@Description	Delete an Alias. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Aliases
+//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
 //	@Param			alias_id			path	string	true	"The unique identifier of the Alias account."
@@ -203,7 +204,6 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 //	@Failure		400	{object}	pkg.HTTPError
 //	@Failure		404	{object}	pkg.HTTPError
 //	@Failure		500	{object}	pkg.HTTPError
-//	@Security		BearerAuth
 //	@Router			/v1/holders/{holder_id}/aliases/{alias_id} [delete]
 func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -246,6 +246,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Description	List all Aliases with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.
 //	@Tags			Aliases
 //	@Produce		json
+//	@Param			Authorization			header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id		header		string	true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id				query		string	false	"The unique identifier of the Holder."
 //	@Param			metadata				query		string	false	"Metadata"
@@ -263,7 +264,6 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError
-//	@Security		BearerAuth
 //	@Router			/v1/aliases [get]
 func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	ctx := c.UserContext()

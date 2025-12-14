@@ -17,11 +17,6 @@ const docTemplatecrm = `{
     "paths": {
         "/v1/aliases": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "List all Aliases with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
                 "produces": [
                     "application/json"
@@ -31,6 +26,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "List Aliases",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -168,11 +169,6 @@ const docTemplatecrm = `{
         },
         "/v1/holders": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
                 "produces": [
                     "application/json"
@@ -182,6 +178,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "List Holders",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -287,11 +289,6 @@ const docTemplatecrm = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Creates a new holder with the provided details.",
                 "consumes": [
                     "application/json"
@@ -304,6 +301,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Create a Holder",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -351,11 +354,6 @@ const docTemplatecrm = `{
         },
         "/v1/holders/{holder_id}/aliases": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Enables a creation of an alias account, which represents an account in the ledger. The alias account is linked to specific business information, making it easier to manage and abstract account data within the system.",
                 "consumes": [
                     "application/json"
@@ -368,6 +366,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Create an Alias Account",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -422,11 +426,6 @@ const docTemplatecrm = `{
         },
         "/v1/holders/{holder_id}/aliases/{alias_id}": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Retrieves detailed information about a specific alias using its unique identifier.",
                 "produces": [
                     "application/json"
@@ -436,6 +435,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Retrieve Alias details",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -492,17 +497,18 @@ const docTemplatecrm = `{
                 }
             },
             "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Delete an Alias. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
                 "tags": [
                     "Aliases"
                 ],
                 "summary": "Delete an Alias",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -556,11 +562,6 @@ const docTemplatecrm = `{
                 }
             },
             "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Update details of an alias.",
                 "consumes": [
                     "application/json"
@@ -573,6 +574,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Update an Alias",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -634,11 +641,6 @@ const docTemplatecrm = `{
         },
         "/v1/holders/{id}": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Retrieves detailed information about a specific holder using its unique identifier.",
                 "produces": [
                     "application/json"
@@ -648,6 +650,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Retrieve Holder details",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -697,17 +705,18 @@ const docTemplatecrm = `{
                 }
             },
             "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
                 "tags": [
                     "Holders"
                 ],
                 "summary": "Delete a Holder",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
@@ -754,11 +763,6 @@ const docTemplatecrm = `{
                 }
             },
             "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Update details of a holder.",
                 "consumes": [
                     "application/json"
@@ -771,6 +775,12 @@ const docTemplatecrm = `{
                 ],
                 "summary": "Update a Holder",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization associated with the Ledger.",
