@@ -380,12 +380,10 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	// Calculate totals synchronously - no goroutines needed for sequential blocking calls
 	var sourcesTotal, destinationsTotal decimal.Decimal
 
-	sourcesTotal, response.From, response.Sources, response.OperationRoutesFrom =
-		CalculateTotal(transaction.Send.Source.From, transaction, transactionType)
+	sourcesTotal, response.From, response.Sources, response.OperationRoutesFrom = CalculateTotal(transaction.Send.Source.From, transaction, transactionType)
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Sources)
 
-	destinationsTotal, response.To, response.Destinations, response.OperationRoutesTo =
-		CalculateTotal(transaction.Send.Distribute.To, transaction, transactionType)
+	destinationsTotal, response.To, response.Destinations, response.OperationRoutesTo = CalculateTotal(transaction.Send.Distribute.To, transaction, transactionType)
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Destinations)
 
 	for i, source := range response.Sources {

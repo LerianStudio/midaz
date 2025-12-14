@@ -17,6 +17,7 @@ func sanitizeLabel(value string) string {
 	if len(value) > maxLabelLength {
 		return value[:maxLabelLength]
 	}
+
 	return value
 }
 
