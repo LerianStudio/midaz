@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateBalances func that is responsible to update balances without select for update.
@@ -84,7 +85,13 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 // is greater than the version being persisted. This prevents unnecessary database updates
 // and reduces Lock:tuple contention when multiple workers process the same balance.
 func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, logger libLog.Logger) []*mmodel.Balance {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, span := tracer.Start(ctx, "command.filter_stale_balances")
+	defer span.End()
+
 	result := make([]*mmodel.Balance, 0, len(balances))
+	skippedCount := 0
+	totalCount := len(balances)
 
 	for _, balance := range balances {
 		// Extract the balance key from alias format "0#@account1#default" -> "@account1#default"
@@ -101,13 +108,28 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 
 		if cachedBalance != nil && cachedBalance.Version > balance.Version {
 			// Cache has a newer version, skip this update
-			logger.Infof("Skipping stale balance update: balance_id=%s, alias=%s, key=%s, update_version=%d, cache_version=%d",
-				balance.ID, balance.Alias, balanceKey, balance.Version, cachedBalance.Version)
+			skippedCount++
+			logger.Warnf("STALE_BALANCE_SKIP: balance_id=%s, alias=%s, key=%s, msg_version=%d, cache_version=%d, gap=%d",
+				balance.ID, balance.Alias, balanceKey, balance.Version, cachedBalance.Version, cachedBalance.Version-balance.Version)
 
 			continue
 		}
 
 		result = append(result, balance)
+	}
+
+	// Record metrics via span attributes for observability
+	span.SetAttributes(
+		attribute.Int("balance.total_count", totalCount),
+		attribute.Int("balance.skipped_count", skippedCount),
+		attribute.Int("balance.updated_count", len(result)),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	if skippedCount > 0 {
+		logger.Warnf("BALANCE_FILTER_SUMMARY: total=%d, skipped=%d, updating=%d, org=%s, ledger=%s",
+			totalCount, skippedCount, len(result), organizationID, ledgerID)
 	}
 
 	return result
