@@ -108,6 +108,12 @@ make lint && make test            # Lint + unit tests (minimum check)
 | `docs/agents/observability.md` | Adding metrics, traces, structured logging |
 | `docs/agents/transaction-dsl.md` | Working with Gold language, ANTLR grammar |
 | `docs/agents/concurrency.md` | Goroutines, mruntime patterns, panic recovery |
+| `docs/agents/pkg-libraries/` | **Index** for all internal pkg/ libraries (assert, errors, mruntime, http, utils, models) |
+| `docs/agents/pkg-libraries/assert.md` | Domain invariant assertions (preconditions, postconditions, unreachable code) |
+| `docs/agents/pkg-libraries/errors.md` | Typed business errors (ValidationError, EntityNotFoundError, etc.) |
+| `docs/agents/pkg-libraries/mruntime.md` | Safe goroutine handling with panic recovery policies |
+| `docs/agents/pkg-libraries/http.md` | Fiber HTTP utilities (LocalUUID, Payload, response helpers, error mapping) |
+| `docs/agents/libcommons.md` | Using lib-commons (observability, tracking, PostgreSQL, OpenTelemetry) |
 
 **Note**: These files should be created as detailed guides - this CLAUDE.md keeps only universal instructions.
 
