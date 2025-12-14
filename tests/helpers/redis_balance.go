@@ -1,3 +1,11 @@
+// Package helpers provides test utilities for the Midaz test suite.
+//
+// SECURITY NOTICE: These helpers are designed for LOCAL TESTING ONLY
+// against Docker containers. They do NOT support production-grade security
+// configurations (password auth, TLS encryption, IAM). DO NOT use for production.
+//
+// TODO(review): Integrate RedisBalanceClient into chaos tests to actually use convergence checking (reported by code-reviewer on 2025-12-14, severity: High)
+// TODO(review): Add unit tests for buildBalanceKey, convergence wait, error handling (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Medium)
 package helpers
 
 import (
@@ -16,6 +24,7 @@ const (
 	// redisBalanceTimeout is the maximum time to wait for Redis+PostgreSQL convergence
 	redisBalanceTimeout = 30 * time.Second
 	// redisBalancePollInterval is the interval between convergence checks
+	// TODO(review): Standardize poll interval across helpers (balances.go uses 150ms, cache.go uses 100ms) (reported by code-reviewer on 2025-12-14, severity: Medium)
 	redisBalancePollInterval = 100 * time.Millisecond
 )
 
@@ -200,6 +209,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergenceWithHTTP(
 	timeout time.Duration,
 ) (*mmodel.BalanceRedis, error) {
 	// First get the Redis balance (source of truth)
+	// TODO(review): Make balance key configurable instead of hardcoded "default" (reported by business-logic-reviewer on 2025-12-14, severity: Low)
 	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, "default")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Redis balance: %w", err)
