@@ -1,3 +1,17 @@
+// Package http provides HTTP utilities for Fiber handlers.
+//
+// # Panic Recovery
+//
+// Functions in this package may panic on programming errors (e.g., missing middleware,
+// wrong payload types). These panics are intentionally caught by Fiber's built-in
+// recover middleware, which converts them to 500 Internal Server Error responses
+// with proper logging. This design ensures:
+//
+//   - Fast-fail on wiring mistakes during development
+//   - Safe error responses in production (no process crash)
+//   - Rich context in logs for debugging
+//
+// See also: github.com/gofiber/fiber/v2/middleware/recover
 package http
 
 import (
@@ -68,12 +82,34 @@ func Payload[T any](c *fiber.Ctx, p any) T {
 
 	var zero T
 	assert.That(ok, "payload has unexpected type",
-		"expected_type", fmt.Sprintf("%T", zero),
-		"actual_type", fmt.Sprintf("%T", p),
+		"expected_type", typeName(zero),
+		"actual_type", typeName(p),
 		"path", c.Path(),
 		"method", c.Method())
 
 	return payload
+}
+
+// LocalStringSlice safely extracts a []string from c.Locals().
+// Panics with rich context if the key is not set or is not a []string.
+//
+// Example:
+//
+//	fieldsToRemove := http.LocalStringSlice(c, "patchRemove")
+func LocalStringSlice(c *fiber.Ctx, key string) []string {
+	val := c.Locals(key)
+	assert.NotNil(val, "middleware must set locals key",
+		"key", key,
+		"path", c.Path(),
+		"method", c.Method())
+
+	slice, ok := val.([]string)
+	assert.That(ok, "locals value must be []string",
+		"key", key,
+		"actual_type", typeName(val),
+		"path", c.Path())
+
+	return slice
 }
 
 // typeName returns the type name of a value for error messages

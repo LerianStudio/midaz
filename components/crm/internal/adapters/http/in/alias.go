@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
@@ -160,14 +159,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	organizationID := c.Get("X-Organization-Id")
 	payload := http.Payload[*mmodel.UpdateAliasInput](c, p)
 
-	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
-	if !ok {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get fields to remove", cn.ErrInternalServer)
-
-		logger.Errorf("Failed to get fields to remove")
-
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, cn.ErrInternalServer))
-	}
+	fieldsToRemove := http.LocalStringSlice(c, "patchRemove")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
