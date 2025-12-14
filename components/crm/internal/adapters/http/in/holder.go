@@ -12,7 +12,6 @@ import (
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -43,7 +42,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_holder")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateHolderInput)
+	payload := http.Payload[*mmodel.CreateHolderInput](c, p)
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -95,7 +94,7 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_holder_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
 	organizationID := c.Get("X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
@@ -148,9 +147,9 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_holder")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateHolderInput)
+	payload := http.Payload[*mmodel.UpdateHolderInput](c, p)
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {
@@ -217,7 +216,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_holder_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
 	organizationID := c.Get("X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 

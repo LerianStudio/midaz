@@ -44,8 +44,8 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_alias")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateAliasInput)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	payload := http.Payload[*mmodel.CreateAliasInput](c, p)
+	holderID := http.LocalUUID(c, "holder_id")
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -99,8 +99,8 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_alias_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
+	holderID := http.LocalUUID(c, "holder_id")
 	organizationID := c.Get("X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
@@ -155,10 +155,10 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_alias")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
+	holderID := http.LocalUUID(c, "holder_id")
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateAliasInput)
+	payload := http.Payload[*mmodel.UpdateAliasInput](c, p)
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {
@@ -227,8 +227,8 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_alias_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
+	holderID := http.LocalUUID(c, "holder_id")
 	organizationID := c.Get("X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
