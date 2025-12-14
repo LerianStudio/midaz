@@ -26,6 +26,8 @@ const (
 	// redisBalancePollInterval is the interval between convergence checks
 	// TODO(review): Standardize poll interval across helpers (balances.go uses 150ms, cache.go uses 100ms) (reported by code-reviewer on 2025-12-14, severity: Medium)
 	redisBalancePollInterval = 100 * time.Millisecond
+	// redisConnectionTimeout is the maximum time to wait for initial Redis connection
+	redisConnectionTimeout = 5 * time.Second
 )
 
 var (
@@ -49,7 +51,7 @@ func NewRedisBalanceClient(addr string) (*RedisBalanceClient, error) {
 		Addr: addr,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), redisConnectionTimeout)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -64,7 +66,9 @@ func NewRedisBalanceClient(addr string) (*RedisBalanceClient, error) {
 // Close closes the Redis client connection
 func (r *RedisBalanceClient) Close() error {
 	if r.client != nil {
-		return r.client.Close()
+		if err := r.client.Close(); err != nil {
+			return fmt.Errorf("failed to close Redis client: %w", err)
+		}
 	}
 
 	return nil
@@ -156,7 +160,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return lastValue, ctx.Err()
+			return lastValue, fmt.Errorf("context cancelled while waiting for convergence: %w", ctx.Err())
 		default:
 		}
 
