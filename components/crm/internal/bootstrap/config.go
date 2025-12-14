@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -47,9 +48,10 @@ type Config struct {
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		panic(err)
-	}
+	err := libCommons.SetConfigFromEnvVars(cfg)
+	assert.NoError(err, "configuration required for CRM",
+		"package", "bootstrap",
+		"function", "InitServers")
 
 	logger := libZap.InitializeLogger()
 
@@ -85,10 +87,11 @@ func InitServers() *Service {
 		Logger:           logger,
 	}
 
-	err := dataSecurity.InitializeCipher()
-	if err != nil {
-		panic(err)
-	}
+	err = dataSecurity.InitializeCipher()
+	assert.NoError(err, "cipher initialization required for CRM",
+		"package", "bootstrap",
+		"function", "InitServers",
+		"component", "crypto")
 
 	holderMongoDBRepository := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
 	aliasMongoDBRepository := alias.NewMongoDBRepository(mongoConnection, dataSecurity)

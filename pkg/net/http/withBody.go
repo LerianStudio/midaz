@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -280,9 +281,10 @@ func newValidator() (*validator.Validate, ut.Translator) {
 
 	v := validator.New()
 
-	if err := en2.RegisterDefaultTranslations(v, trans); err != nil {
-		panic(err)
-	}
+	err := en2.RegisterDefaultTranslations(v, trans)
+	assert.NoError(err, "validator translations registration required",
+		"package", "http",
+		"function", "newValidator")
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", jsonTagSplitLimit)[0]

@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -38,83 +38,25 @@ const (
 	ensureIndexesTimeoutSeconds = 60
 )
 
-// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
-func envFallback(prefixed, fallback string) string {
-	if prefixed != "" {
-		return prefixed
-	}
-
-	return fallback
-}
-
-// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
-func envFallbackInt(prefixed, fallback int) int {
-	if prefixed != 0 {
-		return prefixed
-	}
-
-	return fallback
-}
-
 // Config is the top level configuration struct for the entire application.
-// Supports prefixed env vars (DB_TRANSACTION_*) with fallback to non-prefixed (DB_*) for backward compatibility.
 type Config struct {
-	EnvName  string `env:"ENV_NAME"`
-	LogLevel string `env:"LOG_LEVEL"`
-
-	// Server address - prefixed for unified ledger deployment
-	PrefixedServerAddress string `env:"SERVER_ADDRESS_TRANSACTION"`
-	ServerAddress         string `env:"SERVER_ADDRESS"`
-
-	// PostgreSQL Primary - prefixed vars for unified ledger deployment
-	PrefixedPrimaryDBHost     string `env:"DB_TRANSACTION_HOST"`
-	PrefixedPrimaryDBUser     string `env:"DB_TRANSACTION_USER"`
-	PrefixedPrimaryDBPassword string `env:"DB_TRANSACTION_PASSWORD"`
-	PrefixedPrimaryDBName     string `env:"DB_TRANSACTION_NAME"`
-	PrefixedPrimaryDBPort     string `env:"DB_TRANSACTION_PORT"`
-	PrefixedPrimaryDBSSLMode  string `env:"DB_TRANSACTION_SSLMODE"`
-
-	// PostgreSQL Primary - fallback vars for standalone deployment
-	PrimaryDBHost     string `env:"DB_HOST"`
-	PrimaryDBUser     string `env:"DB_USER"`
-	PrimaryDBPassword string `env:"DB_PASSWORD"`
-	PrimaryDBName     string `env:"DB_NAME"`
-	PrimaryDBPort     string `env:"DB_PORT"`
-	PrimaryDBSSLMode  string `env:"DB_SSLMODE"`
-
-	// PostgreSQL Replica - prefixed vars for unified ledger deployment
-	PrefixedReplicaDBHost     string `env:"DB_TRANSACTION_REPLICA_HOST"`
-	PrefixedReplicaDBUser     string `env:"DB_TRANSACTION_REPLICA_USER"`
-	PrefixedReplicaDBPassword string `env:"DB_TRANSACTION_REPLICA_PASSWORD"`
-	PrefixedReplicaDBName     string `env:"DB_TRANSACTION_REPLICA_NAME"`
-	PrefixedReplicaDBPort     string `env:"DB_TRANSACTION_REPLICA_PORT"`
-	PrefixedReplicaDBSSLMode  string `env:"DB_TRANSACTION_REPLICA_SSLMODE"`
-
-	// PostgreSQL Replica - fallback vars for standalone deployment
-	ReplicaDBHost     string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser     string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName     string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
-	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
-
-	// PostgreSQL connection pool - prefixed with fallback
-	PrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
-	PrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
-	MaxOpenConnections         int `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections         int `env:"DB_MAX_IDLE_CONNS"`
-
-	// MongoDB - prefixed vars for unified ledger deployment
-	PrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`
-	PrefixedMongoDBHost       string `env:"MONGO_TRANSACTION_HOST"`
-	PrefixedMongoDBName       string `env:"MONGO_TRANSACTION_NAME"`
-	PrefixedMongoDBUser       string `env:"MONGO_TRANSACTION_USER"`
-	PrefixedMongoDBPassword   string `env:"MONGO_TRANSACTION_PASSWORD"`
-	PrefixedMongoDBPort       string `env:"MONGO_TRANSACTION_PORT"`
-	PrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
-	PrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
-
-	// MongoDB - fallback vars for standalone deployment
+	EnvName                      string `env:"ENV_NAME"`
+	LogLevel                     string `env:"LOG_LEVEL"`
+	ServerAddress                string `env:"SERVER_ADDRESS"`
+	PrimaryDBHost                string `env:"DB_HOST"`
+	PrimaryDBUser                string `env:"DB_USER"`
+	PrimaryDBPassword            string `env:"DB_PASSWORD"`
+	PrimaryDBName                string `env:"DB_NAME"`
+	PrimaryDBPort                string `env:"DB_PORT"`
+	PrimaryDBSSLMode             string `env:"DB_SSLMODE"`
+	ReplicaDBHost                string `env:"DB_REPLICA_HOST"`
+	ReplicaDBUser                string `env:"DB_REPLICA_USER"`
+	ReplicaDBPassword            string `env:"DB_REPLICA_PASSWORD"`
+	ReplicaDBName                string `env:"DB_REPLICA_NAME"`
+	ReplicaDBPort                string `env:"DB_REPLICA_PORT"`
+	ReplicaDBSSLMode             string `env:"DB_REPLICA_SSLMODE"`
+	MaxOpenConnections           int    `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections           int    `env:"DB_MAX_IDLE_CONNS"`
 	MongoURI                     string `env:"MONGO_URI"`
 	MongoDBHost                  string `env:"MONGO_HOST"`
 	MongoDBName                  string `env:"MONGO_NAME"`
@@ -172,40 +114,20 @@ type Config struct {
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
+	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 }
 
-// Options contains optional dependencies that can be injected by callers.
-type Options struct {
-	// Logger allows callers to provide a pre-configured logger, avoiding double
-	// initialization when the cmd/app wants to handle bootstrap errors.
-	Logger libLog.Logger
-}
-
 // InitServers initiate http and grpc servers.
-func InitServers() (*Service, error) {
-	return InitServersWithOptions(nil)
-}
-
-// InitServersWithOptions initiates http and grpc servers with optional dependency injection.
-func InitServersWithOptions(opts *Options) (*Service, error) {
+func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
-	}
+	err := libCommons.SetConfigFromEnvVars(cfg)
+	assert.NoError(err, "configuration required for transaction",
+		"package", "bootstrap",
+		"function", "InitServers")
 
-	var logger libLog.Logger
-	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		logger = libZap.InitializeLogger()
-	}
-
-	// BalanceSyncWorkerEnabled defaults to true via struct tag
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
-	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
+	logger := libZap.InitializeLogger()
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -217,69 +139,39 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                    logger,
 	})
 
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort, cfg.PrimaryDBSSLMode)
 
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
+		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
 
 	postgresConnection := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
 		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
+		PrimaryDBName:           cfg.PrimaryDBName,
+		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               ApplicationName,
 		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
+		MaxOpenConnections:      cfg.MaxOpenConnections,
+		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
-
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPort := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParameters := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
+	if cfg.MaxPoolSize <= 0 {
+		cfg.MaxPoolSize = 100
 	}
 
-	if mongoParameters != "" {
-		mongoSource += "?" + mongoParameters
+	if cfg.MongoDBParameters != "" {
+		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
+		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
+		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -307,10 +199,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize redis: %w", err)
-	}
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
@@ -437,9 +326,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 
-	const defaultBalanceSyncMaxWorkers = 5
+	const (
+		defaultBalanceSyncWorkerEnabled = false
+		defaultBalanceSyncMaxWorkers    = 5
+	)
 
+	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
 	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
+
+	if !balanceSyncWorkerEnabled {
+		logger.Info("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=false")
+	}
 
 	if balanceSyncMaxWorkers <= 0 {
 		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
@@ -460,7 +357,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiQueueConsumer:       multiQueueConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled: cfg.BalanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
 		auth:                     auth,
