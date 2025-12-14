@@ -130,6 +130,8 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 }
 
 // publishToDLQ publishes a message to the Dead Letter Queue with error context.
+// Uses publisher confirms to prevent data loss - without confirms, broker crash
+// after Publish() but before persistence causes message loss (original already Ack'd).
 func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) error {
 	ch, err := prc.conn.Connection.Channel()
 	if err != nil {
@@ -150,6 +152,14 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 	if err != nil {
 		return fmt.Errorf("failed to declare DLQ: %w", err)
 	}
+
+	// Enable publisher confirm mode to ensure message persistence
+	if err = ch.Confirm(false); err != nil {
+		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
+	}
+
+	// Create channel to receive publish confirmation (buffer size 1 is sufficient)
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	// Copy headers and add error context
 	headers := copyHeaders(prc.msg.Headers)
@@ -174,9 +184,29 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 		return fmt.Errorf("failed to publish to DLQ: %w", err)
 	}
 
-	prc.logger.Infof("Worker %d: message published to DLQ %s", prc.workerID, dlqName)
+	// Wait for broker confirmation with timeout
+	// This is critical - without confirmation, message may be lost if broker crashes
+	select {
+	case confirmation, ok := <-confirms:
+		if !ok {
+			// Channel was closed - connection issue
+			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
+		}
 
-	return nil
+		if confirmation.Ack {
+			// SUCCESS: Broker confirmed message persistence
+			prc.logger.Infof("Worker %d: message confirmed by broker (delivery tag: %d) to DLQ %s",
+				prc.workerID, confirmation.DeliveryTag, dlqName)
+
+			return nil
+		}
+
+		// Broker NACK'd the message
+		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
+
+	case <-time.After(publishConfirmTimeout):
+		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
+	}
 }
 
 // republishWithRetry republishes a message with an incremented retry counter.
