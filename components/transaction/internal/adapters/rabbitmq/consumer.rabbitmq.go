@@ -2,9 +2,11 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -13,6 +15,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -78,6 +81,96 @@ func copyHeaders(src amqp.Table) amqp.Table {
 	return dst
 }
 
+// safeHeadersAllowlist defines headers safe to propagate to DLQ and retry messages.
+// Only these headers are copied to prevent sensitive data leakage (CWE-200).
+// Headers NOT in this list (auth tokens, PII, internal paths) are filtered out.
+var safeHeadersAllowlist = map[string]bool{
+	"x-correlation-id":    true,
+	"x-midaz-header-id":   true,
+	"content-type":        true,
+	retryCountHeader:      true, // x-midaz-retry-count
+	libConstants.HeaderID: true, // x-midaz-id
+}
+
+// copyHeadersSafe copies only allowlisted headers to prevent sensitive data propagation.
+// This is a security measure to filter out auth tokens, PII, and internal paths (CWE-200).
+func copyHeadersSafe(src amqp.Table) amqp.Table {
+	if src == nil {
+		return amqp.Table{}
+	}
+
+	dst := make(amqp.Table)
+	for k, v := range src {
+		if safeHeadersAllowlist[k] {
+			dst[k] = v
+		}
+	}
+
+	return dst
+}
+
+// sanitizeErrorForDLQ returns a safe error description for DLQ headers without sensitive details.
+// This prevents information disclosure (CWE-209) by mapping errors to generic categories
+// instead of exposing SQL queries, internal paths, user IDs, or stack traces.
+func sanitizeErrorForDLQ(err error) string {
+	if err == nil {
+		return "unknown_error"
+	}
+
+	// For typed business errors, use generic descriptions
+	if errors.Is(err, constant.ErrStaleBalanceUpdateSkipped) {
+		return "stale_balance_version_conflict"
+	}
+
+	// Check common error patterns and return generic categories
+	errorMsg := err.Error()
+	switch {
+	case strings.Contains(errorMsg, "connection"):
+		return "database_connection_error"
+	case strings.Contains(errorMsg, "timeout"):
+		return "operation_timeout"
+	case strings.Contains(errorMsg, "validation"):
+		return "validation_error"
+	case strings.Contains(errorMsg, "not found"):
+		return "resource_not_found"
+	case strings.Contains(errorMsg, "duplicate"):
+		return "duplicate_entry"
+	case strings.Contains(errorMsg, "permission") || strings.Contains(errorMsg, "unauthorized"):
+		return "authorization_error"
+	default:
+		return "processing_error"
+	}
+}
+
+// sanitizePanicForDLQ returns a safe panic description for DLQ headers.
+// Similar to sanitizeErrorForDLQ but handles panic values which may contain stack traces.
+func sanitizePanicForDLQ(panicValue any) string {
+	if panicValue == nil {
+		return "unknown_panic"
+	}
+
+	// Convert panic value to string for pattern matching
+	panicStr := fmt.Sprintf("%v", panicValue)
+
+	// Check common panic patterns and return generic categories
+	switch {
+	case strings.Contains(panicStr, "nil pointer"):
+		return "nil_pointer_dereference"
+	case strings.Contains(panicStr, "index out of range"):
+		return "index_out_of_bounds"
+	case strings.Contains(panicStr, "slice bounds"):
+		return "slice_bounds_error"
+	case strings.Contains(panicStr, "map"):
+		return "map_access_error"
+	case strings.Contains(panicStr, "channel"):
+		return "channel_operation_error"
+	case strings.Contains(panicStr, "runtime error"):
+		return "runtime_error"
+	default:
+		return "unhandled_panic"
+	}
+}
+
 // safeIncrementRetryCount increments retry count with int32 overflow protection.
 // Returns math.MaxInt32 if increment would overflow.
 func safeIncrementRetryCount(retryCount int) int32 {
@@ -88,6 +181,88 @@ func safeIncrementRetryCount(retryCount int) int32 {
 
 	//nolint:gosec // G115: Safe after bounds check above ensures retryCount+1 <= MaxInt32
 	return int32(retryCount + 1)
+}
+
+// dlqPublishParams holds parameters for publishing to a Dead Letter Queue.
+// Used by publishToDLQShared to consolidate DLQ publishing logic.
+type dlqPublishParams struct {
+	conn     *libRabbitmq.RabbitMQConnection
+	dlqName  string
+	msg      *amqp.Delivery
+	headers  amqp.Table
+	logger   libLog.Logger
+	workerID int
+}
+
+// publishToDLQShared publishes a message to the Dead Letter Queue with publisher confirms.
+// This is shared logic used by both businessErrorContext and panicRecoveryContext.
+// Uses publisher confirms to prevent data loss - without confirms, broker crash
+// after Publish() but before persistence causes message loss (original already Ack'd).
+// NOTE: Single attempt only (no retry loop) - tradeoff to avoid blocking consumer worker.
+func publishToDLQShared(params *dlqPublishParams) error {
+	ch, err := params.conn.Connection.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to get channel for DLQ: %w", err)
+	}
+	defer ch.Close()
+
+	// Declare DLQ if it doesn't exist (idempotent)
+	_, err = ch.QueueDeclare(
+		params.dlqName,
+		true,  // durable
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+
+	// Enable publisher confirm mode to ensure message persistence
+	if err = ch.Confirm(false); err != nil {
+		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
+	}
+
+	// Create channel to receive publish confirmation (buffer size 1 is sufficient)
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	err = ch.Publish(
+		"",             // exchange (default)
+		params.dlqName, // routing key (queue name)
+		false,          // mandatory
+		false,          // immediate
+		amqp.Publishing{
+			Headers:      params.headers,
+			Body:         params.msg.Body,
+			ContentType:  params.msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to publish to DLQ: %w", err)
+	}
+
+	// Wait for broker confirmation with timeout
+	// This is critical - without confirmation, message may be lost if broker crashes
+	select {
+	case confirmation, ok := <-confirms:
+		if !ok {
+			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
+		}
+
+		if confirmation.Ack {
+			params.logger.Infof("Worker %d: message confirmed by broker to DLQ %s",
+				params.workerID, params.dlqName)
+
+			return nil
+		}
+
+		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
+
+	case <-time.After(publishConfirmTimeout):
+		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
+	}
 }
 
 // panicRecoveryContext holds context for panic recovery handling
@@ -102,8 +277,6 @@ type panicRecoveryContext struct {
 
 // businessErrorContext holds context for business error handling with retry tracking.
 // Used by processHandler to track retries and route to DLQ after max attempts.
-//
-//nolint:unused // Infrastructure for Task 2.2 - will be used in processHandler
 type businessErrorContext struct {
 	logger     libLog.Logger
 	msg        *amqp.Delivery
@@ -115,10 +288,8 @@ type businessErrorContext struct {
 }
 
 // handleBusinessError handles a business error with retry tracking.
-// Returns true if the error was handled (either retried or sent to DLQ).
-//
-//nolint:unused // Infrastructure for Task 2.2 - will be used in processHandler
-func (bec *businessErrorContext) handleBusinessError() bool {
+// Routes to DLQ after max retries exceeded, or republishes with incremented counter.
+func (bec *businessErrorContext) handleBusinessError() {
 	if bec.retryCount >= maxRetries-1 {
 		// Max retries exceeded - route to DLQ
 		bec.logger.Errorf("Worker %d: business error after %d delivery attempts - routing to DLQ: %v",
@@ -134,7 +305,7 @@ func (bec *businessErrorContext) handleBusinessError() bool {
 				bec.logger.Warnf("Worker %d: failed to reject business error message: %v", bec.workerID, rejectErr)
 			}
 
-			return true
+			return
 		}
 
 		// Ack original message since we successfully published to DLQ
@@ -142,98 +313,50 @@ func (bec *businessErrorContext) handleBusinessError() bool {
 			bec.logger.Warnf("Worker %d: failed to ack original message after DLQ publish: %v", bec.workerID, err)
 		}
 
-		return true
+		return
 	}
 
 	// Retry with incremented counter
 	bec.republishWithRetry()
-
-	return true
 }
 
 // publishToDLQ publishes a business error message to the Dead Letter Queue.
-//
-//nolint:unused // Infrastructure for Task 2.2 - called by handleBusinessError
+// Uses publishToDLQShared to eliminate code duplication with panicRecoveryContext.
 func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
-	ch, err := bec.conn.Connection.Channel()
-	if err != nil {
-		return fmt.Errorf("failed to get channel for DLQ: %w", err)
-	}
-	defer ch.Close()
-
-	// Declare DLQ if it doesn't exist (idempotent)
-	_, err = ch.QueueDeclare(
-		dlqName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
-	)
-	if err != nil {
-		return fmt.Errorf("failed to declare DLQ: %w", err)
-	}
-
-	// Enable publisher confirm mode
-	if err = ch.Confirm(false); err != nil {
-		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
-	}
-
-	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	// Copy headers and add error context
-	headers := copyHeaders(bec.msg.Headers)
-	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %v", bec.err)
+	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
+	headers := copyHeadersSafe(bec.msg.Headers)
+	// Sanitize error message to prevent information disclosure (CWE-209)
+	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %s", sanitizeErrorForDLQ(bec.err))
 	headers["x-dlq-original-queue"] = bec.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(bec.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
 	headers["x-dlq-error-type"] = "business_error"
 
-	err = ch.Publish(
-		"",      // exchange (default)
-		dlqName, // routing key (queue name)
-		false,   // mandatory
-		false,   // immediate
-		amqp.Publishing{
-			Headers:      headers,
-			Body:         bec.msg.Body,
-			ContentType:  bec.msg.ContentType,
-			DeliveryMode: amqp.Persistent,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to publish to DLQ: %w", err)
-	}
-
-	// Wait for broker confirmation with timeout
-	select {
-	case confirmation, ok := <-confirms:
-		if !ok {
-			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
-		}
-
-		if confirmation.Ack {
-			bec.logger.Infof("Worker %d: business error message confirmed by broker to DLQ %s",
-				bec.workerID, dlqName)
-
-			return nil
-		}
-
-		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
-
-	case <-time.After(publishConfirmTimeout):
-		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
-	}
+	return publishToDLQShared(&dlqPublishParams{
+		conn:     bec.conn,
+		dlqName:  dlqName,
+		msg:      bec.msg,
+		headers:  headers,
+		logger:   bec.logger,
+		workerID: bec.workerID,
+	})
 }
 
 // republishWithRetry republishes the message with an incremented retry counter.
-//
-//nolint:unused // Infrastructure for Task 2.2 - called by handleBusinessError
+// TODO(review): No backoff between retries - tradeoff: consistent with panic handler pattern,
+// immediate redelivery to maximize throughput. RabbitMQ's consumer prefetch provides natural
+// rate limiting. (reported by code-reviewer on 2025-12-14, severity: Medium)
+// TODO(review): republishWithRetry does not use publisher confirms - tradeoff:
+// performance over guaranteed delivery. DLQ uses confirms (last chance), but
+// retry path accepts potential message loss during broker failure between
+// Publish success and message persistence. (reported by business-logic-reviewer
+// on 2025-12-14, severity: Medium)
 func (bec *businessErrorContext) republishWithRetry() {
 	bec.logger.Warnf("Worker %d: redelivering business error message (delivery %d of %d max): %v",
 		bec.workerID, bec.retryCount+1, maxRetries, bec.err)
 
-	headers := copyHeaders(bec.msg.Headers)
+	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
+	headers := copyHeadersSafe(bec.msg.Headers)
 	headers[retryCountHeader] = safeIncrementRetryCount(bec.retryCount)
 
 	ch, err := bec.conn.Connection.Channel()
@@ -270,9 +393,11 @@ func (bec *businessErrorContext) republishWithRetry() {
 }
 
 // nackWithLogging performs a Nack with logging on failure.
-//
-//nolint:unused // Infrastructure for Task 2.2 - called by republishWithRetry
+// This is a fallback path when channel acquisition fails - message will be redelivered
+// without retry count increment (reported by business-logic-reviewer on 2025-12-14).
 func (bec *businessErrorContext) nackWithLogging() {
+	bec.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable)", bec.workerID)
+
 	if nackErr := bec.msg.Nack(false, true); nackErr != nil {
 		bec.logger.Warnf("Worker %d: failed to nack business error message: %v", bec.workerID, nackErr)
 	}
@@ -315,97 +440,41 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 }
 
 // publishToDLQ publishes a message to the Dead Letter Queue with error context.
-// Uses publisher confirms to prevent data loss - without confirms, broker crash
-// after Publish() but before persistence causes message loss (original already Ack'd).
-// NOTE: Single attempt only (no retry loop) - tradeoff to avoid blocking consumer worker.
+// Uses publishToDLQShared to eliminate code duplication with businessErrorContext.
 // TODO(review): Consider adding unit tests for confirmation scenarios (Ack/Nack/Timeout) using mock channels (reported by code-reviewer on 2025-12-14, severity: Medium)
 func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) error {
-	ch, err := prc.conn.Connection.Channel()
-	if err != nil {
-		return fmt.Errorf("failed to get channel for DLQ: %w", err)
-	}
-
-	defer ch.Close()
-
-	// Declare DLQ if it doesn't exist (idempotent)
-	_, err = ch.QueueDeclare(
-		dlqName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
-	)
-	if err != nil {
-		return fmt.Errorf("failed to declare DLQ: %w", err)
-	}
-
-	// Enable publisher confirm mode to ensure message persistence
-	if err = ch.Confirm(false); err != nil {
-		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
-	}
-
-	// Create channel to receive publish confirmation (buffer size 1 is sufficient)
-	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	// Copy headers and add error context
-	// TODO(review): Use header allowlist instead of copyHeaders to prevent sensitive data propagation (CWE-200) (reported by security-reviewer on 2025-12-14, severity: Medium)
-	headers := copyHeaders(prc.msg.Headers)
-	// TODO(review): Sanitize panicValue before storing in header to prevent info disclosure (CWE-209) - stack traces/IDs may leak (reported by security-reviewer on 2025-12-14, severity: Medium)
-	headers["x-dlq-reason"] = fmt.Sprintf("%v", panicValue)
+	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
+	headers := copyHeadersSafe(prc.msg.Headers)
+	// Sanitize panic value to prevent information disclosure (CWE-209)
+	headers["x-dlq-reason"] = fmt.Sprintf("panic: %s", sanitizePanicForDLQ(panicValue))
 	headers["x-dlq-original-queue"] = prc.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(prc.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
 
-	err = ch.Publish(
-		"",      // exchange (default)
-		dlqName, // routing key (queue name)
-		false,   // mandatory
-		false,   // immediate
-		amqp.Publishing{
-			Headers:      headers,
-			Body:         prc.msg.Body,
-			ContentType:  prc.msg.ContentType,
-			DeliveryMode: amqp.Persistent,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to publish to DLQ: %w", err)
-	}
-
-	// Wait for broker confirmation with timeout
-	// This is critical - without confirmation, message may be lost if broker crashes
-	select {
-	case confirmation, ok := <-confirms:
-		if !ok {
-			// Channel was closed - connection issue
-			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
-		}
-
-		if confirmation.Ack {
-			// SUCCESS: Broker confirmed message persistence
-			// TODO(review): Consider adding retry_count and panic reason to log for better correlation (reported by code-reviewer on 2025-12-14, severity: Medium)
-			prc.logger.Infof("Worker %d: message confirmed by broker (delivery tag: %d) to DLQ %s",
-				prc.workerID, confirmation.DeliveryTag, dlqName)
-
-			return nil
-		}
-
-		// Broker NACK'd the message
-		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
-
-	case <-time.After(publishConfirmTimeout):
-		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
-	}
+	return publishToDLQShared(&dlqPublishParams{
+		conn:     prc.conn,
+		dlqName:  dlqName,
+		msg:      prc.msg,
+		headers:  headers,
+		logger:   prc.logger,
+		workerID: prc.workerID,
+	})
 }
 
 // republishWithRetry republishes a message with an incremented retry counter.
 // Falls back to Nack if republish fails.
+// TODO(review): No backoff between retries - tradeoff: consistent with business error handler,
+// immediate redelivery to maximize throughput. RabbitMQ's consumer prefetch provides natural
+// rate limiting. (reported by code-reviewer on 2025-12-14, severity: Medium)
+// TODO(review): Does not use publisher confirms - tradeoff: performance over guaranteed delivery.
+// DLQ uses confirms (last chance), but retry path accepts potential message loss during broker
+// failure. (reported by business-logic-reviewer on 2025-12-14, severity: Medium)
 func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
 	prc.logger.Warnf("Worker %d: redelivering message (delivery %d of %d max): %v",
 		prc.workerID, prc.retryCount+1, maxRetries, panicValue)
 
-	headers := copyHeaders(prc.msg.Headers)
+	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
+	headers := copyHeadersSafe(prc.msg.Headers)
 	headers[retryCountHeader] = safeIncrementRetryCount(prc.retryCount)
 
 	ch, err := prc.conn.Connection.Channel()
@@ -451,8 +520,12 @@ func (prc *panicRecoveryContext) publishAndAck(ch *amqp.Channel, headers amqp.Ta
 	}
 }
 
-// nackWithLogging performs a Nack with logging on failure
+// nackWithLogging performs a Nack with logging on failure.
+// This is a fallback path when channel acquisition fails - message will be redelivered
+// without retry count increment (reported by business-logic-reviewer on 2025-12-14).
 func (prc *panicRecoveryContext) nackWithLogging() {
+	prc.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable)", prc.workerID)
+
 	if nackErr := prc.msg.Nack(false, true); nackErr != nil {
 		prc.logger.Warnf("Worker %d: failed to nack message: %v", prc.workerID, nackErr)
 	}
@@ -549,7 +622,7 @@ func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 	mruntime.RecordPanicToSpanWithComponent(mpc.ctx, panicValue, stack, "rabbitmq_consumer", "worker_"+mpc.queue)
 }
 
-// processHandler invokes the handler and handles errors.
+// processHandler invokes the handler and handles errors with retry tracking.
 func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc) {
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&mpc.span, "app.request.rabbitmq.consumer.message", mpc.msg.Body); err != nil {
 		libOpentelemetry.HandleSpanError(&mpc.span, "Failed to convert message to JSON string", err)
@@ -558,19 +631,24 @@ func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc
 	if err := handlerFunc(mpc.ctx, mpc.msg.Body); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&mpc.span, "Error processing message from queue", err)
 		mpc.logger.Errorf("Worker %d: Error processing message from queue %s: %v", mpc.workerID, mpc.queue, err)
-		mpc.nackMessage()
+
+		// Use retry tracking for business errors instead of infinite NACK loop
+		retryCount := getRetryCount(mpc.msg.Headers)
+		bec := &businessErrorContext{
+			logger:     mpc.logger,
+			msg:        mpc.msg,
+			queue:      mpc.queue,
+			workerID:   mpc.workerID,
+			retryCount: retryCount,
+			conn:       mpc.conn,
+			err:        err,
+		}
+		bec.handleBusinessError()
 
 		return
 	}
 
 	mpc.ackMessage()
-}
-
-// nackMessage sends a Nack for the message.
-func (mpc *messageProcessingContext) nackMessage() {
-	if nackErr := mpc.msg.Nack(false, true); nackErr != nil {
-		mpc.logger.Warnf("Worker %d: failed to nack message: %v", mpc.workerID, nackErr)
-	}
 }
 
 // ackMessage sends an Ack for the message.
