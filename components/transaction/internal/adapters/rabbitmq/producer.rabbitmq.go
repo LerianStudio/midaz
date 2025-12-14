@@ -11,6 +11,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -33,16 +34,16 @@ type ProducerRabbitMQRepository struct {
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
 func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
-	prmq := &ProducerRabbitMQRepository{
+	assert.NotNil(c, "RabbitMQ connection must not be nil", "component", "TransactionProducer")
+
+	conn, err := c.GetNewConnect()
+	assert.NoError(err, "RabbitMQ connection required for TransactionProducer",
+		"component", "TransactionProducer")
+	assert.NotNil(conn, "RabbitMQ connection handle must not be nil", "component", "TransactionProducer")
+
+	return &ProducerRabbitMQRepository{
 		conn: c,
 	}
-
-	_, err := c.GetNewConnect()
-	if err != nil {
-		panic("Failed to connect rabbitmq")
-	}
-
-	return prmq
 }
 
 // CheckRabbitMQHealth checks the health of the rabbitmq connection.

@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime/debug"
 	"time"
 
@@ -63,6 +64,226 @@ func copyHeaders(src amqp.Table) amqp.Table {
 	}
 
 	return dst
+}
+
+// safeIncrementRetryCount increments retry count with int32 overflow protection.
+// Returns math.MaxInt32 if increment would overflow.
+func safeIncrementRetryCount(retryCount int) int32 {
+	// Check for overflow BEFORE incrementing to satisfy gosec G115
+	if retryCount >= math.MaxInt32 {
+		return math.MaxInt32
+	}
+
+	//nolint:gosec // G115: Safe after bounds check above ensures retryCount+1 <= MaxInt32
+	return int32(retryCount + 1)
+}
+
+// panicRecoveryContext holds context for panic recovery handling
+type panicRecoveryContext struct {
+	logger     libLog.Logger
+	msg        *amqp.Delivery
+	queue      string
+	workerID   int
+	retryCount int
+	conn       *libRabbitmq.RabbitMQConnection
+}
+
+// handlePoisonMessage rejects a message that has exceeded max retry attempts.
+// Returns true if the message was handled as a poison message.
+func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
+	if prc.retryCount < maxRetries-1 {
+		return false
+	}
+
+	prc.logger.Errorf("Worker %d: poison message rejected after %d delivery attempts: %v",
+		prc.workerID, prc.retryCount+1, panicValue)
+
+	if err := prc.msg.Reject(false); err != nil {
+		prc.logger.Warnf("Worker %d: failed to reject poison message: %v", prc.workerID, err)
+	}
+
+	return true
+}
+
+// republishWithRetry republishes a message with an incremented retry counter.
+// Falls back to Nack if republish fails.
+func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
+	prc.logger.Warnf("Worker %d: redelivering message (delivery %d of %d max): %v",
+		prc.workerID, prc.retryCount+1, maxRetries, panicValue)
+
+	headers := copyHeaders(prc.msg.Headers)
+	headers[retryCountHeader] = safeIncrementRetryCount(prc.retryCount)
+
+	ch, err := prc.conn.Connection.Channel()
+	if err != nil {
+		prc.handleChannelError(err)
+		return
+	}
+
+	defer ch.Close()
+
+	prc.publishAndAck(ch, headers)
+}
+
+// handleChannelError handles failure to get a channel for republishing
+func (prc *panicRecoveryContext) handleChannelError(err error) {
+	prc.logger.Errorf("Worker %d: failed to get channel for republish: %v", prc.workerID, err)
+	prc.nackWithLogging()
+}
+
+// publishAndAck publishes the message with updated headers and acks the original
+func (prc *panicRecoveryContext) publishAndAck(ch *amqp.Channel, headers amqp.Table) {
+	err := ch.Publish(
+		"",        // exchange (use default)
+		prc.queue, // routing key (queue name)
+		false,     // mandatory
+		false,     // immediate
+		amqp.Publishing{
+			Headers:      headers,
+			Body:         prc.msg.Body,
+			ContentType:  prc.msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		prc.logger.Errorf("Worker %d: failed to republish message: %v", prc.workerID, err)
+		prc.nackWithLogging()
+
+		return
+	}
+
+	if err := prc.msg.Ack(false); err != nil {
+		prc.logger.Warnf("Worker %d: failed to ack original message after republish: %v", prc.workerID, err)
+	}
+}
+
+// nackWithLogging performs a Nack with logging on failure
+func (prc *panicRecoveryContext) nackWithLogging() {
+	if nackErr := prc.msg.Nack(false, true); nackErr != nil {
+		prc.logger.Warnf("Worker %d: failed to nack message: %v", prc.workerID, nackErr)
+	}
+}
+
+// extractMidazID extracts the Midaz ID from message headers.
+// Returns a new UUID if header is not present or has an unsupported type.
+func extractMidazID(headers amqp.Table) string {
+	raw, ok := headers[libConstants.HeaderID]
+	if !ok {
+		return libCommons.GenerateUUIDv7().String()
+	}
+
+	switch v := raw.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	default:
+		return libCommons.GenerateUUIDv7().String()
+	}
+}
+
+// messageProcessingContext holds all context needed for processing a single message.
+type messageProcessingContext struct {
+	ctx          context.Context
+	logger       libLog.Logger
+	span         trace.Span
+	msg          *amqp.Delivery
+	queue        string
+	workerID     int
+	conn         *libRabbitmq.RabbitMQConnection
+}
+
+// createMessageProcessingContext creates all the context and tracing for message processing.
+func (cr *ConsumerRoutes) createMessageProcessingContext(msg *amqp.Delivery, queue string, workerID int) *messageProcessingContext {
+	midazID := extractMidazID(msg.Headers)
+
+	log := cr.Logger.WithFields(
+		libConstants.HeaderID, midazID,
+	).WithDefaultMessageTemplate(midazID + libConstants.LoggerDefaultSeparator)
+
+	ctx := libCommons.ContextWithLogger(
+		libCommons.ContextWithHeaderID(context.Background(), midazID),
+		log,
+	)
+
+	ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
+
+	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "rabbitmq.consumer.process_message")
+	ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqID))
+
+	return &messageProcessingContext{
+		ctx:      ctx,
+		logger:   logger,
+		span:     span,
+		msg:      msg,
+		queue:    queue,
+		workerID: workerID,
+		conn:     cr.conn,
+	}
+}
+
+// handlePanicRecovery handles panic recovery within message processing.
+func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
+	stack := debug.Stack()
+	retryCount := getRetryCount(mpc.msg.Headers)
+
+	mpc.span.AddEvent("panic.recovered", trace.WithAttributes(
+		attribute.String("panic.value", fmt.Sprintf("%v", panicValue)),
+		attribute.String("panic.stack", string(stack)),
+		attribute.String("rabbitmq.queue", mpc.queue),
+		attribute.Int("rabbitmq.worker_id", mpc.workerID),
+		attribute.Int("rabbitmq.retry_count", retryCount),
+	))
+
+	mpc.logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
+		mpc.workerID, mpc.queue, panicValue, string(stack))
+
+	prc := &panicRecoveryContext{
+		logger:     mpc.logger,
+		msg:        mpc.msg,
+		queue:      mpc.queue,
+		workerID:   mpc.workerID,
+		retryCount: retryCount,
+		conn:       mpc.conn,
+	}
+
+	if !prc.handlePoisonMessage(panicValue) {
+		prc.republishWithRetry(panicValue)
+	}
+
+	mruntime.RecordPanicToSpanWithComponent(mpc.ctx, panicValue, stack, "rabbitmq_consumer", "worker_"+mpc.queue)
+}
+
+// processHandler invokes the handler and handles errors.
+func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc) {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&mpc.span, "app.request.rabbitmq.consumer.message", mpc.msg.Body); err != nil {
+		libOpentelemetry.HandleSpanError(&mpc.span, "Failed to convert message to JSON string", err)
+	}
+
+	if err := handlerFunc(mpc.ctx, mpc.msg.Body); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&mpc.span, "Error processing message from queue", err)
+		mpc.logger.Errorf("Worker %d: Error processing message from queue %s: %v", mpc.workerID, mpc.queue, err)
+		mpc.nackMessage()
+
+		return
+	}
+
+	mpc.ackMessage()
+}
+
+// nackMessage sends a Nack for the message.
+func (mpc *messageProcessingContext) nackMessage() {
+	if nackErr := mpc.msg.Nack(false, true); nackErr != nil {
+		mpc.logger.Warnf("Worker %d: failed to nack message: %v", mpc.workerID, nackErr)
+	}
+}
+
+// ackMessage sends an Ack for the message.
+func (mpc *messageProcessingContext) ackMessage() {
+	if ackErr := mpc.msg.Ack(false); ackErr != nil {
+		mpc.logger.Warnf("Worker %d: failed to ack message (may cause redelivery): %v", mpc.workerID, ackErr)
+	}
 }
 
 // QueueHandlerFunc is a function that process a specific queue.
@@ -216,142 +437,26 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 }
 
 // startWorker starts a worker that processes messages from the queue.
-//
-//nolint:cyclop // Complexity from panic recovery with span events and message ack/nack handling is necessary for safety
 func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
-		func() {
-			// Safely extract HeaderID - handle both string and []byte types
-			midazID := libCommons.GenerateUUIDv7().String()
-
-			if raw, ok := msg.Headers[libConstants.HeaderID]; ok {
-				switch v := raw.(type) {
-				case string:
-					midazID = v
-				case []byte:
-					midazID = string(v)
-				}
-			}
-
-			log := cr.Logger.WithFields(
-				libConstants.HeaderID, midazID,
-			).WithDefaultMessageTemplate(midazID + libConstants.LoggerDefaultSeparator)
-
-			ctx := libCommons.ContextWithLogger(
-				libCommons.ContextWithHeaderID(context.Background(), midazID),
-				log,
-			)
-
-			ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
-
-			logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-			ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
-
-			ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
-
-			defer spanConsumer.End()
-
-			// Panic recovery with span event recording and poison message handling
-			// Uses custom x-midaz-retry-count header to track retries since x-death
-			// header is only populated when messages go through DLX, not on Nack requeue.
-			// Does NOT re-panic so the worker survives and continues processing.
-			defer func() {
-				if r := recover(); r != nil {
-					stack := debug.Stack()
-					retryCount := getRetryCount(msg.Headers)
-
-					spanConsumer.AddEvent("panic.recovered", trace.WithAttributes(
-						attribute.String("panic.value", fmt.Sprintf("%v", r)),
-						attribute.String("panic.stack", string(stack)),
-						attribute.String("rabbitmq.queue", queue),
-						attribute.Int("rabbitmq.worker_id", workerID),
-						attribute.Int("rabbitmq.retry_count", retryCount),
-					))
-
-					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
-						workerID, queue, r, string(stack))
-
-					// Check if message has exceeded max retry attempts (poison message)
-					if retryCount >= maxRetries-1 {
-						logger.Errorf("Worker %d: poison message rejected after %d delivery attempts: %v",
-							workerID, retryCount+1, r)
-						// Reject without requeue - message will go to DLX if configured
-						if err := msg.Reject(false); err != nil {
-							logger.Warnf("Worker %d: failed to reject poison message: %v", workerID, err)
-						}
-					} else {
-						logger.Warnf("Worker %d: redelivering message (delivery %d of %d max): %v",
-							workerID, retryCount+1, maxRetries, r)
-
-						// Republish message with incremented retry counter
-						headers := copyHeaders(msg.Headers)
-						headers[retryCountHeader] = int32(retryCount + 1)
-
-						ch, err := cr.conn.Connection.Channel()
-						if err != nil {
-							logger.Errorf("Worker %d: failed to get channel for republish: %v", workerID, err)
-							// Fallback: Nack without header (will retry indefinitely, but worker is already panicking)
-							if nackErr := msg.Nack(false, true); nackErr != nil {
-								logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
-							}
-						} else {
-							defer ch.Close()
-
-							err = ch.Publish(
-								"",    // exchange (use default)
-								queue, // routing key (queue name)
-								false, // mandatory
-								false, // immediate
-								amqp.Publishing{
-									Headers:      headers,
-									Body:         msg.Body,
-									ContentType:  msg.ContentType,
-									DeliveryMode: amqp.Persistent,
-								},
-							)
-							if err != nil {
-								logger.Errorf("Worker %d: failed to republish message: %v", workerID, err)
-								// Fallback: Nack
-								if nackErr := msg.Nack(false, true); nackErr != nil {
-									logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
-								}
-							} else {
-								// Successfully republished - Ack original to remove from queue
-								if err := msg.Ack(false); err != nil {
-									logger.Warnf("Worker %d: failed to ack original message after republish: %v", workerID, err)
-								}
-							}
-						}
-					}
-
-					// Record panic to span and metrics manually so worker can survive and continue
-					mruntime.RecordPanicToSpanWithComponent(ctx, r, stack, "rabbitmq_consumer", "worker_"+queue)
-				}
-			}()
-
-			err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
-			}
-
-			err = handlerFunc(ctx, msg.Body)
-			if err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
-				logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
-
-				// Nack(multiple=false, requeue=true)
-				if nackErr := msg.Nack(false, true); nackErr != nil {
-					logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
-				}
-
-				return
-			}
-
-			if ackErr := msg.Ack(false); ackErr != nil {
-				logger.Warnf("Worker %d: failed to ack message (may cause redelivery): %v", workerID, ackErr)
-			}
-		}()
+		cr.processOneMessage(&msg, queue, workerID, handlerFunc)
 	}
 
 	cr.Warnf("[Consumer %s] worker %d stopped (channel closed)", queue, workerID)
+}
+
+// processOneMessage handles a single message with panic recovery.
+// Does NOT re-panic so the worker survives and continues processing.
+func (cr *ConsumerRoutes) processOneMessage(msg *amqp.Delivery, queue string, workerID int, handlerFunc QueueHandlerFunc) {
+	mpc := cr.createMessageProcessingContext(msg, queue, workerID)
+
+	defer mpc.span.End()
+
+	defer func() {
+		if r := recover(); r != nil {
+			mpc.handlePanicRecovery(r)
+		}
+	}()
+
+	mpc.processHandler(handlerFunc)
 }
