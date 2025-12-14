@@ -103,15 +103,30 @@ func handleUnknownError(c *fiber.Ctx, err error) error {
 }
 
 // handleValidationFieldsError handles ValidationKnownFieldsError and ValidationUnknownFieldsError
+// It checks for both value and pointer types since ValidateStruct returns pointers.
 func handleValidationFieldsError(c *fiber.Ctx, err error) (bool, error) {
+	// Check for value type
 	var knownFieldsErr pkg.ValidationKnownFieldsError
 	if errors.As(err, &knownFieldsErr) {
 		return true, BadRequest(c, knownFieldsErr)
 	}
 
+	// Check for pointer type (ValidateStruct returns *ValidationKnownFieldsError)
+	var knownFieldsErrPtr *pkg.ValidationKnownFieldsError
+	if errors.As(err, &knownFieldsErrPtr) && knownFieldsErrPtr != nil {
+		return true, BadRequest(c, *knownFieldsErrPtr)
+	}
+
+	// Check for value type
 	var unknownFieldsErr pkg.ValidationUnknownFieldsError
 	if errors.As(err, &unknownFieldsErr) {
 		return true, BadRequest(c, unknownFieldsErr)
+	}
+
+	// Check for pointer type
+	var unknownFieldsErrPtr *pkg.ValidationUnknownFieldsError
+	if errors.As(err, &unknownFieldsErrPtr) && unknownFieldsErrPtr != nil {
+		return true, BadRequest(c, *unknownFieldsErrPtr)
 	}
 
 	return false, nil
