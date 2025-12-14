@@ -305,12 +305,12 @@ func scanBalanceRows(rows *sql.Rows) ([]*mmodel.Balance, error) {
 }
 
 // calculateBalancePagination calculates pagination cursor for balance results.
-func calculateBalancePagination(balances []*mmodel.Balance, filter http.Pagination, decodedCursor libHTTP.Cursor) (libHTTP.CursorPagination, error) {
+// hasPagination must be calculated BEFORE trimming results with PaginateRecords.
+func calculateBalancePagination(balances []*mmodel.Balance, filter http.Pagination, decodedCursor libHTTP.Cursor, hasPagination bool) (libHTTP.CursorPagination, error) {
 	if len(balances) == 0 {
 		return libHTTP.CursorPagination{}, nil
 	}
 
-	hasPagination := len(balances) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
 	cursor, err := libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, balances[0].ID, balances[len(balances)-1].ID)
@@ -393,7 +393,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 	balances = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, balances, filter.Limit, orderDirection)
 
-	cur, err := calculateBalancePagination(balances, filter, decodedCursor)
+	cur, err := calculateBalancePagination(balances, filter, decodedCursor, hasPagination)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
@@ -477,7 +477,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 	balances = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, balances, filter.Limit, orderDirection)
 
-	cur, err := calculateBalancePagination(balances, filter, decodedCursor)
+	cur, err := calculateBalancePagination(balances, filter, decodedCursor, hasPagination)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
