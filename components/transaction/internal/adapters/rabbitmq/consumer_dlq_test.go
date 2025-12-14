@@ -21,3 +21,40 @@ func TestDLQConstants(t *testing.T) {
 		assert.Equal(t, expected, dlqSuffix, "dlqSuffix constant should be '.dlq' for DLQ naming convention")
 	})
 }
+
+// TestBuildDLQName validates the buildDLQName helper function that constructs
+// Dead Letter Queue names by appending the dlqSuffix to the original queue name.
+func TestBuildDLQName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		queueName string
+		expected  string
+	}{
+		{
+			name:      "standard queue name",
+			queueName: "transactions",
+			expected:  "transactions.dlq",
+		},
+		{
+			name:      "hyphenated queue name",
+			queueName: "balance-updates",
+			expected:  "balance-updates.dlq",
+		},
+		{
+			name:      "empty queue name",
+			queueName: "",
+			expected:  ".dlq",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := buildDLQName(tt.queueName)
+			assert.Equal(t, tt.expected, result, "buildDLQName should append dlqSuffix to queue name")
+		})
+	}
+}

@@ -36,6 +36,11 @@ const retryCountHeader = "x-midaz-retry-count"
 // and manual replay during chaos scenarios or incident investigation.
 const dlqSuffix = ".dlq"
 
+// buildDLQName creates the Dead Letter Queue name for a given queue.
+func buildDLQName(queueName string) string {
+	return queueName + dlqSuffix
+}
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
