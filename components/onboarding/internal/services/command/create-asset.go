@@ -10,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -87,6 +88,10 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 		UpdatedAt: time.Now(),
 	}
 
+	assert.That(assert.ValidUUID(eAccount.ID),
+		"generated external account ID must be valid UUID",
+		"asset_code", cii.Code)
+
 	acc, err := uc.AccountRepo.Create(ctx, eAccount)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset external account", err)
@@ -95,6 +100,9 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 
 		return fmt.Errorf("failed to create: %w", err)
 	}
+
+	assert.NotNil(acc, "repository Create must return non-nil external account on success",
+		"asset_code", cii.Code)
 
 	logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
@@ -164,7 +172,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset by name or code", err)
 
-		logger.Errorf("Error creating asset: %v", err)
+		logger.Errorf("Error finding existing asset by code: %v", err)
 
 		return nil, fmt.Errorf("failed to find: %w", err)
 	}
@@ -188,6 +196,9 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
+
+	assert.NotNil(inst, "repository Create must return non-nil asset on success",
+		"asset_code", asset.Code)
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {

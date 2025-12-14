@@ -5,6 +5,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -63,6 +64,10 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 		CreatedAt:         portfolio.CreatedAt,
 		UpdatedAt:         portfolio.UpdatedAt,
 	}
+
+	assert.That(assert.ValidUUID(t.ID),
+		"generated portfolio ID must be valid UUID",
+		"portfolio_name", portfolio.Name)
 
 	if portfolio.DeletedAt != nil {
 		deletedAtCopy := *portfolio.DeletedAt

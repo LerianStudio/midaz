@@ -5,6 +5,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -60,6 +61,10 @@ func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 		CreatedAt:         segment.CreatedAt,
 		UpdatedAt:         segment.UpdatedAt,
 	}
+
+	assert.That(assert.ValidUUID(t.ID),
+		"generated segment ID must be valid UUID",
+		"segment_name", segment.Name)
 
 	if segment.DeletedAt != nil {
 		deletedAtCopy := *segment.DeletedAt

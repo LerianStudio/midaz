@@ -5,6 +5,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -57,6 +58,10 @@ func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 		CreatedAt:         ledger.CreatedAt,
 		UpdatedAt:         ledger.UpdatedAt,
 	}
+
+	assert.That(assert.ValidUUID(t.ID),
+		"generated ledger ID must be valid UUID",
+		"ledger_name", ledger.Name)
 
 	if ledger.DeletedAt != nil {
 		deletedAtCopy := *ledger.DeletedAt

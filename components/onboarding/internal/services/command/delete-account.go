@@ -11,6 +11,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -37,7 +38,10 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return fmt.Errorf("failed to find: %w", err)
 	}
 
-	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
+	assert.NotNil(accFound, "account must exist after successful Find",
+		"account_id", id)
+
+	if accFound.Type == "external" {
 		return fmt.Errorf("external account manipulation forbidden: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 

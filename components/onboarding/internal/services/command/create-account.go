@@ -23,8 +23,7 @@ import (
 
 // validateAccountPrerequisites validates asset, portfolio, and parent account before account creation
 func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, span *trace.Span) (uuid.UUID, error) {
-	logger, _, _, spanCtx := libCommons.NewTrackingFromContext(ctx)
-	_ = spanCtx // spanCtx intentionally unused
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
@@ -39,7 +38,7 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 	if libCommons.IsNilOrEmpty(cai.EntityID) && !libCommons.IsNilOrEmpty(cai.PortfolioID) {
 		assert.That(assert.ValidUUID(*cai.PortfolioID),
 			"portfolio ID must be valid UUID",
-			"value", *cai.PortfolioID)
+			"portfolio_id", *cai.PortfolioID)
 		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
@@ -50,13 +49,16 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 			return uuid.Nil, fmt.Errorf("failed to find: %w", err)
 		}
 
+		assert.NotNil(portfolio, "portfolio must exist after successful Find",
+			"portfolio_id", portfolioUUID)
+
 		cai.EntityID = &portfolio.EntityID
 	}
 
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
 		assert.That(assert.ValidUUID(*cai.ParentAccountID),
 			"parent account ID must be valid UUID",
-			"value", *cai.ParentAccountID)
+			"parent_account_id", *cai.ParentAccountID)
 
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
@@ -65,6 +67,9 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 
 			return uuid.Nil, fmt.Errorf("validation failed: %w", err)
 		}
+
+		assert.NotNil(acc, "parent account must exist after successful Find",
+			"parent_account_id", *cai.ParentAccountID)
 
 		if acc.AssetCode != cai.AssetCode {
 			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
@@ -79,8 +84,10 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 
 // createAccountBalance creates the default balance for an account via gRPC
 func (uc *UseCase) createAccountBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, acc *mmodel.Account, cai *mmodel.CreateAccountInput, requestID, token string, span *trace.Span) error {
-	logger, _, _, spanCtx := libCommons.NewTrackingFromContext(ctx)
-	_ = spanCtx // spanCtx intentionally unused
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	assert.NotNil(acc.Alias, "account alias must not be nil before balance creation",
+		"account_id", acc.ID)
 
 	balanceReq := &balanceproto.BalanceRequest{
 		RequestId:      requestID,
@@ -138,7 +145,7 @@ func (uc *UseCase) handleBalanceCreationError(ctx context.Context, err error, or
 
 	assert.That(assert.ValidUUID(accountID),
 		"account ID must be valid UUID",
-		"value", accountID)
+		"account_id", accountID)
 
 	delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(accountID))
 	if delErr != nil {
@@ -186,6 +193,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	ID := libCommons.GenerateUUIDv7().String()
 
+	assert.That(assert.ValidUUID(ID),
+		"generated account ID must be valid UUID",
+		"account_id", ID)
+
 	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, ID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
@@ -201,6 +212,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
+
+	assert.NotNil(acc, "repository Create must return non-nil account on success",
+		"account_id", account.ID)
 
 	if err := uc.createAccountBalance(ctx, organizationID, ledgerID, acc, cai, requestID, token, &span); err != nil {
 		return nil, uc.handleBalanceCreationError(ctx, err, organizationID, ledgerID, portfolioUUID, acc.ID)

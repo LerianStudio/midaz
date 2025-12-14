@@ -85,7 +85,7 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
-	assert.NotNil(acc, "acc entity must not be nil for Create",
+	assert.NotNil(acc, "account entity must not be nil for Create",
 		"repository", "AccountPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -874,6 +874,11 @@ func (r *AccountPostgreSQLRepository) buildAccountUpdateQuery(acc *mmodel.Accoun
 
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+	assert.NotNil(acc, "account entity must not be nil for Update",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID,
+		"account_id", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")

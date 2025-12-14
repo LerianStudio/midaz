@@ -6,6 +6,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -66,6 +67,10 @@ func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organizati
 		CreatedAt:            organization.CreatedAt,
 		UpdatedAt:            organization.UpdatedAt,
 	}
+
+	assert.That(assert.ValidUUID(t.ID),
+		"generated organization ID must be valid UUID",
+		"organization_legal_name", organization.LegalName)
 
 	if organization.DeletedAt != nil {
 		deletedAtCopy := *organization.DeletedAt

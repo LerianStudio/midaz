@@ -5,6 +5,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -65,6 +66,10 @@ func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 		CreatedAt:         asset.CreatedAt,
 		UpdatedAt:         asset.UpdatedAt,
 	}
+
+	assert.That(assert.ValidUUID(t.ID),
+		"generated asset ID must be valid UUID",
+		"asset_code", asset.Code)
 
 	if asset.DeletedAt != nil {
 		deletedAtCopy := *asset.DeletedAt

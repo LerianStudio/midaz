@@ -8,6 +8,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -42,6 +43,10 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		UpdatedAt:      time.Now(),
 	}
 
+	assert.That(assert.ValidUUID(segment.ID),
+		"generated segment ID must be valid UUID",
+		"segment_id", segment.ID)
+
 	_, err := uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find segment by name", err)
@@ -51,7 +56,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		return nil, fmt.Errorf("failed to find: %w", err)
 	}
 
-	prod, err := uc.SegmentRepo.Create(ctx, segment)
+	seg, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment", err)
 
@@ -60,7 +65,10 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
+	assert.NotNil(seg, "repository Create must return non-nil segment on success",
+		"segment_id", segment.ID)
+
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), seg.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment metadata", err)
 
@@ -69,7 +77,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
 
-	prod.Metadata = metadata
+	seg.Metadata = metadata
 
-	return prod, nil
+	return seg, nil
 }

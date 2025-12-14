@@ -3,6 +3,7 @@ package in
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime/debug"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
@@ -66,6 +67,8 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 			middleware.NewGRPCAuthUnaryPolicy(auth, middleware.PolicyConfig{
 				MethodPolicies: map[string]middleware.Policy{
 					"/balance.BalanceProto/CreateBalance":                {Resource: "balances", Action: "post"},
+					"/balance.BalanceProto/GetBalance":                   {Resource: "balances", Action: "get"},
+					"/balance.BalanceProto/DeleteBalance":                {Resource: "balances", Action: "delete"},
 					"/balance.BalanceProto/DeleteAllBalancesByAccountID": {Resource: "balances", Action: "delete"},
 				},
 				SubResolver: func(ctx context.Context, _ string, _ any) (string, error) { return midazName, nil },
@@ -73,7 +76,9 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 		),
 	)
 
-	reflection.Register(server)
+	if os.Getenv("GRPC_REFLECTION_ENABLED") == "true" {
+		reflection.Register(server)
+	}
 
 	balanceProto := &BalanceProto{
 		Command: commandUseCase,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -71,6 +72,11 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	if account.ID != "" {
 		ID = account.ID
 	}
+
+	assert.That(assert.ValidUUID(ID),
+		"resolved account ID must be valid UUID",
+		"account_name", account.Name,
+		"has_existing_id", account.ID != "")
 
 	*t = AccountPostgreSQLModel{
 		ID:                ID,

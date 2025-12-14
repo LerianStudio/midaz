@@ -214,6 +214,9 @@ func (r *OrganizationPostgreSQLRepository) buildOrganizationUpdateQuery(organiza
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
+	assert.NotNil(organization, "organization entity must not be nil for Update",
+		"organization_id", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")

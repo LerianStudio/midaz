@@ -8,6 +8,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -43,6 +44,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		UpdatedAt:      time.Now(),
 	}
 
+	assert.That(assert.ValidUUID(portfolio.ID), "generated portfolio ID must be valid UUID",
+		"portfolio_id", portfolio.ID)
+
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create portfolio", err)
@@ -51,6 +55,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
+
+	assert.NotNil(port, "repository Create must return non-nil portfolio on success",
+		"portfolio_id", portfolio.ID)
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {

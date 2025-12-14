@@ -4,10 +4,6 @@
 *.iml
 ide/
 tmp/
-CLAUDE.md
-.claude/
-.windsurf/
-.cursor/
 .run/onboarding.run.xml
 .run/transaction.run.xml
 

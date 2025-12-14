@@ -8,6 +8,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -36,7 +37,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find ledger by name", err)
 
-		logger.Errorf("Error creating ledger: %v", err)
+		logger.Errorf("Error finding existing ledger by name: %v", err)
 
 		return nil, fmt.Errorf("failed to find: %w", err)
 	}
@@ -57,6 +58,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		return nil, fmt.Errorf("failed to create: %w", err)
 	}
+
+	assert.NotNil(led, "repository Create must return non-nil ledger on success",
+		"ledger_name", ledger.Name)
 
 	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
 
