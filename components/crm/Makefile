@@ -252,6 +252,8 @@ build-docker:
 .PHONY: up
 up:
 	$(call title1,"Starting all services in detached mode")
+	@echo "Validating crypto keys..."
+	@bash $(MIDAZ_ROOT)/scripts/ensure-crypto-keys.sh $(PWD)
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
 

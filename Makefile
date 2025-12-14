@@ -221,6 +221,8 @@ cover:
 up-backend:
 	$(call print_title,Starting backend services)
 	$(call check_env_files)
+	@echo "Validating crypto keys..."
+	@bash $(PWD)/scripts/ensure-crypto-keys.sh
 	@echo "Starting infrastructure services first..."
 	@cd $(INFRA_DIR) && $(MAKE) up
 	@echo "Starting backend components..."
@@ -407,6 +409,8 @@ up:
 	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+	@echo "Validating crypto keys..."
+	@bash $(PWD)/scripts/ensure-crypto-keys.sh
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Starting services in $$dir..."; \
