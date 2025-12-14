@@ -779,7 +779,8 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		}
 
 		if rowsAffected == 0 {
-			logger.Infof("Zero rows affected")
+			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_cache, concurrent_update, replay_protection]",
+				balance.ID, balance.Version)
 
 			continue
 		}
