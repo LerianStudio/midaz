@@ -19,9 +19,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// maxRedeliveries is the maximum number of times a message can be redelivered
-// before being rejected as a poison message to prevent infinite retry loops.
-const maxRedeliveries = 3
+// maxRetries is the maximum number of delivery attempts (including first delivery)
+// before rejecting as a poison message to prevent infinite retry loops.
+const maxRetries = 4
+
+// retryCountHeader is the custom header used to track retry attempts.
+// We use a custom header instead of RabbitMQ's x-death because x-death
+// is only populated when messages go through a Dead Letter Exchange, not on
+// direct Nack requeues. Our custom header provides accurate retry tracking.
+const retryCountHeader = "x-midaz-retry-count"
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
@@ -30,19 +36,56 @@ type ConsumerRepository interface {
 	RunConsumers() error
 }
 
-// getRedeliveryCount extracts the redelivery count from RabbitMQ x-death header.
-// The x-death header is populated by RabbitMQ when messages are dead-lettered or
-// rejected with requeue. Returns 0 if the header is not present or malformed.
+// getRetryCount extracts the retry count from our custom retry tracking header.
+// This header is set and incremented by this consumer on each republish.
+// Returns 0 for first delivery (header not present).
+func getRetryCount(headers amqp.Table) int {
+	if val, ok := headers[retryCountHeader].(int32); ok {
+		return int(val)
+	}
+	// Check int64 for compatibility
+	if val, ok := headers[retryCountHeader].(int64); ok {
+		return int(val)
+	}
+
+	return 0
+}
+
+// getRedeliveryCount extracts the total redelivery count from RabbitMQ's x-death header.
+// In multi-hop DLX scenarios, the count might be distributed across multiple entries,
+// so this function aggregates counts from all x-death entries.
+// Returns 0 if no x-death header is present (first delivery or direct Nack requeue).
 func getRedeliveryCount(headers amqp.Table) int {
-	if xDeath, ok := headers["x-death"].([]interface{}); ok && len(xDeath) > 0 {
-		if death, ok := xDeath[0].(amqp.Table); ok {
+	xDeath, ok := headers["x-death"].([]interface{})
+	if !ok {
+		return 0
+	}
+
+	// Aggregate counts across all x-death entries for multi-hop DLX scenarios
+	totalCount := 0
+	for _, entry := range xDeath {
+		if death, ok := entry.(amqp.Table); ok {
 			if count, ok := death["count"].(int64); ok {
-				return int(count)
+				totalCount += int(count)
 			}
 		}
 	}
 
-	return 0
+	return totalCount
+}
+
+// copyHeaders creates a deep copy of amqp.Table for safe header modification
+func copyHeaders(src amqp.Table) amqp.Table {
+	if src == nil {
+		return amqp.Table{}
+	}
+
+	dst := make(amqp.Table, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+
+	return dst
 }
 
 // QueueHandlerFunc is a function that process a specific queue.
@@ -232,40 +275,75 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			defer spanConsumer.End()
 
 			// Panic recovery with span event recording and poison message handling
-			// Records custom span fields for debugging, tracks redelivery count via x-death header,
-			// and rejects messages after maxRedeliveries attempts to avoid infinite panic/redelivery loops.
+			// Uses custom x-midaz-retry-count header to track retries since x-death
+			// header is only populated when messages go through DLX, not on Nack requeue.
 			// Does NOT re-panic so the worker survives and continues processing.
 			defer func() {
 				if r := recover(); r != nil {
 					stack := debug.Stack()
-					redeliveryCount := getRedeliveryCount(msg.Headers)
+					retryCount := getRetryCount(msg.Headers)
 
 					spanConsumer.AddEvent("panic.recovered", trace.WithAttributes(
 						attribute.String("panic.value", fmt.Sprintf("%v", r)),
 						attribute.String("panic.stack", string(stack)),
 						attribute.String("rabbitmq.queue", queue),
 						attribute.Int("rabbitmq.worker_id", workerID),
-						attribute.Int("rabbitmq.redelivery_count", redeliveryCount),
+						attribute.Int("rabbitmq.retry_count", retryCount),
 					))
 
 					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
 						workerID, queue, r, string(stack))
 
-					// Check if message has exceeded max redelivery attempts (poison message)
-					if redeliveryCount >= maxRedeliveries {
-						logger.Errorf("Worker %d: poison message rejected after %d attempts: %v",
-							workerID, redeliveryCount, r)
+					// Check if message has exceeded max retry attempts (poison message)
+					if retryCount >= maxRetries-1 {
+						logger.Errorf("Worker %d: poison message rejected after %d delivery attempts: %v",
+							workerID, retryCount+1, r)
 						// Reject without requeue - message will go to DLX if configured
 						if err := msg.Reject(false); err != nil {
 							logger.Warnf("Worker %d: failed to reject poison message: %v", workerID, err)
 						}
 					} else {
-						logger.Warnf("Worker %d: redelivering message (attempt %d/%d): %v",
-							workerID, redeliveryCount+1, maxRedeliveries, r)
-						// Nack with requeue for retry
-						// Nack(multiple=false, requeue=true)
-						if err := msg.Nack(false, true); err != nil {
-							logger.Warnf("Worker %d: failed to nack message: %v", workerID, err)
+						logger.Warnf("Worker %d: redelivering message (delivery %d of %d max): %v",
+							workerID, retryCount+1, maxRetries, r)
+
+						// Republish message with incremented retry counter
+						headers := copyHeaders(msg.Headers)
+						headers[retryCountHeader] = int32(retryCount + 1)
+
+						ch, err := cr.conn.Connection.Channel()
+						if err != nil {
+							logger.Errorf("Worker %d: failed to get channel for republish: %v", workerID, err)
+							// Fallback: Nack without header (will retry indefinitely, but worker is already panicking)
+							if nackErr := msg.Nack(false, true); nackErr != nil {
+								logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
+							}
+						} else {
+							defer ch.Close()
+
+							err = ch.Publish(
+								"",    // exchange (use default)
+								queue, // routing key (queue name)
+								false, // mandatory
+								false, // immediate
+								amqp.Publishing{
+									Headers:      headers,
+									Body:         msg.Body,
+									ContentType:  msg.ContentType,
+									DeliveryMode: amqp.Persistent,
+								},
+							)
+							if err != nil {
+								logger.Errorf("Worker %d: failed to republish message: %v", workerID, err)
+								// Fallback: Nack
+								if nackErr := msg.Nack(false, true); nackErr != nil {
+									logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
+								}
+							} else {
+								// Successfully republished - Ack original to remove from queue
+								if err := msg.Ack(false); err != nil {
+									logger.Warnf("Worker %d: failed to ack original message after republish: %v", workerID, err)
+								}
+							}
 						}
 					}
 
