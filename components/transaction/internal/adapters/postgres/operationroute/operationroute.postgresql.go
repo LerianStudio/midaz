@@ -68,7 +68,10 @@ func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *
 
 // Create creates a new operation route in the database.
 func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
-	assert.NotNil(operationRoute, "operationRoute entity must not be nil for Create")
+	assert.NotNil(operationRoute, "operationRoute entity must not be nil for Create",
+		"repository", "OperationRoutePostgreSQLRepository",
+		"organizationID", organizationID,
+		"ledgerID", ledgerID)
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

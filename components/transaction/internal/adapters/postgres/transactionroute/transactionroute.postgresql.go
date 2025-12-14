@@ -70,7 +70,10 @@ func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection)
 // It returns the created transaction route and an error if the operation fails.
 // Uses database transactions to ensure atomicity - if any operation route relation fails, the entire operation is rolled back.
 func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
-	assert.NotNil(transactionRoute, "transactionRoute entity must not be nil for Create")
+	assert.NotNil(transactionRoute, "transactionRoute entity must not be nil for Create",
+		"repository", "TransactionRoutePostgreSQLRepository",
+		"organizationID", organizationID,
+		"ledgerID", ledgerID)
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

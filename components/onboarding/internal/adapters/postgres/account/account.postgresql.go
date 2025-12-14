@@ -85,7 +85,8 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
-	assert.NotNil(acc, "acc entity must not be nil for Create")
+	assert.NotNil(acc, "acc entity must not be nil for Create",
+		"repository", "AccountPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

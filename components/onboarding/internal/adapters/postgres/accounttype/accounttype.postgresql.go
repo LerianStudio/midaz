@@ -81,7 +81,10 @@ func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Acc
 // Create creates a new account type.
 // It returns the created account type and an error if the operation fails.
 func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
-	assert.NotNil(accountType, "accountType entity must not be nil for Create")
+	assert.NotNil(accountType, "accountType entity must not be nil for Create",
+		"repository", "AccountTypePostgreSQLRepository",
+		"organizationID", organizationID,
+		"ledgerID", ledgerID)
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -79,7 +79,8 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Segment
 
 // Create a new segment entity into Postgresql and returns it.
 func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error) {
-	assert.NotNil(segment, "segment entity must not be nil for Create")
+	assert.NotNil(segment, "segment entity must not be nil for Create",
+		"repository", "SegmentPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

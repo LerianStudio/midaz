@@ -106,7 +106,8 @@ func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Balance
 }
 
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
-	assert.NotNil(balance, "balance entity must not be nil for Create")
+	assert.NotNil(balance, "balance entity must not be nil for Create",
+		"repository", "BalancePostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -73,7 +73,8 @@ func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPo
 
 // Create a new Ledger entity into Postgresql and returns it.
 func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	assert.NotNil(ledger, "ledger entity must not be nil for Create")
+	assert.NotNil(ledger, "ledger entity must not be nil for Create",
+		"repository", "LedgerPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -80,7 +80,8 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Portf
 
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error) {
-	assert.NotNil(portfolio, "portfolio entity must not be nil for Create")
+	assert.NotNil(portfolio, "portfolio entity must not be nil for Create",
+		"repository", "PortfolioPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

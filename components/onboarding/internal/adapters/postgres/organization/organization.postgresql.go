@@ -77,7 +77,8 @@ func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Or
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
-	assert.NotNil(organization, "organization entity must not be nil for Create")
+	assert.NotNil(organization, "organization entity must not be nil for Create",
+		"repository", "OrganizationPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

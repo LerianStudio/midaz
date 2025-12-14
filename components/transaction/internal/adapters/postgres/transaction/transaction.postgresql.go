@@ -104,7 +104,8 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
-	assert.NotNil(transaction, "transaction entity must not be nil for Create")
+	assert.NotNil(transaction, "transaction entity must not be nil for Create",
+		"repository", "TransactionPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -90,7 +90,8 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Opera
 
 // Create a new Operation entity into Postgresql and returns it.
 func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
-	assert.NotNil(operation, "operation entity must not be nil for Create")
+	assert.NotNil(operation, "operation entity must not be nil for Create",
+		"repository", "OperationPostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -80,7 +80,8 @@ func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Asset
 
 // Create a new AssetRate entity into Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
-	assert.NotNil(assetRate, "assetRate entity must not be nil for Create")
+	assert.NotNil(assetRate, "assetRate entity must not be nil for Create",
+		"repository", "AssetRatePostgreSQLRepository")
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
