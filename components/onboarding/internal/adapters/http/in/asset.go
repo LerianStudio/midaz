@@ -146,8 +146,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 
-	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
-	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
+	logger.Infof("Initiating retrieval of all Assets with organization ID: %s", organizationID.String())
+	logger.Infof("Initiating retrieval of all Assets with ledger ID: %s", ledgerID.String())
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
