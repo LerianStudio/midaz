@@ -779,7 +779,9 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		}
 
 		if rowsAffected == 0 {
-			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_cache, concurrent_update, replay_protection]",
+			// TODO(review): Consider standardizing field name with Sync method (uses redis_version vs attempted_version) (reported by code-reviewer on 2025-12-14, severity: Low)
+			// TODO(review): Consider adding database_version to log for gap analysis (requires extra SELECT) (reported by business-logic-reviewer on 2025-12-14, severity: Low)
+			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_database, concurrent_update, replay_protection]",
 				balance.ID, balance.Version)
 
 			continue

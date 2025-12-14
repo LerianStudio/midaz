@@ -28,6 +28,7 @@ func (uc *UseCase) SyncBalance(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if !synchedBalance {
+		// TODO(review): Duplicate logging with repository Warn log - consider removing this Info log or aligning severity (reported by business-logic-reviewer on 2025-12-14, severity: Low)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance is newer, skipping sync", nil)
 
 		logger.Infof("Balance is newer, skipping sync")
