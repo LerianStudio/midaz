@@ -186,12 +186,15 @@ func safeIncrementRetryCount(retryCount int) int32 {
 // dlqPublishParams holds parameters for publishing to a Dead Letter Queue.
 // Used by publishToDLQShared to consolidate DLQ publishing logic.
 type dlqPublishParams struct {
-	conn     *libRabbitmq.RabbitMQConnection
-	dlqName  string
-	msg      *amqp.Delivery
-	headers  amqp.Table
-	logger   libLog.Logger
-	workerID int
+	conn          *libRabbitmq.RabbitMQConnection
+	dlqName       string
+	msg           *amqp.Delivery
+	headers       amqp.Table
+	logger        libLog.Logger
+	workerID      int
+	originalQueue string // Original queue name for logging
+	retryCount    int    // Retry count for logging
+	reason        string // Sanitized reason for logging
 }
 
 // publishToDLQShared publishes a message to the Dead Letter Queue with publisher confirms.
@@ -252,8 +255,8 @@ func publishToDLQShared(params *dlqPublishParams) error {
 		}
 
 		if confirmation.Ack {
-			params.logger.Infof("Worker %d: message confirmed by broker to DLQ %s",
-				params.workerID, params.dlqName)
+			params.logger.Warnf("DLQ_PUBLISH_SUCCESS: worker=%d, delivery_tag=%d, dlq=%s, queue=%s, retry_count=%d, reason=%s",
+				params.workerID, confirmation.DeliveryTag, params.dlqName, params.originalQueue, params.retryCount, params.reason)
 
 			return nil
 		}
@@ -326,19 +329,23 @@ func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
 	headers := copyHeadersSafe(bec.msg.Headers)
 	// Sanitize error message to prevent information disclosure (CWE-209)
-	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %s", sanitizeErrorForDLQ(bec.err))
+	sanitizedReason := sanitizeErrorForDLQ(bec.err)
+	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %s", sanitizedReason)
 	headers["x-dlq-original-queue"] = bec.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(bec.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
 	headers["x-dlq-error-type"] = "business_error"
 
 	return publishToDLQShared(&dlqPublishParams{
-		conn:     bec.conn,
-		dlqName:  dlqName,
-		msg:      bec.msg,
-		headers:  headers,
-		logger:   bec.logger,
-		workerID: bec.workerID,
+		conn:          bec.conn,
+		dlqName:       dlqName,
+		msg:           bec.msg,
+		headers:       headers,
+		logger:        bec.logger,
+		workerID:      bec.workerID,
+		originalQueue: bec.queue,
+		retryCount:    bec.retryCount + 1, // +1 because this is after the final attempt
+		reason:        fmt.Sprintf("business_error: %s", sanitizedReason),
 	})
 }
 
@@ -446,18 +453,22 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
 	headers := copyHeadersSafe(prc.msg.Headers)
 	// Sanitize panic value to prevent information disclosure (CWE-209)
-	headers["x-dlq-reason"] = fmt.Sprintf("panic: %s", sanitizePanicForDLQ(panicValue))
+	sanitizedReason := sanitizePanicForDLQ(panicValue)
+	headers["x-dlq-reason"] = fmt.Sprintf("panic: %s", sanitizedReason)
 	headers["x-dlq-original-queue"] = prc.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(prc.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
 
 	return publishToDLQShared(&dlqPublishParams{
-		conn:     prc.conn,
-		dlqName:  dlqName,
-		msg:      prc.msg,
-		headers:  headers,
-		logger:   prc.logger,
-		workerID: prc.workerID,
+		conn:          prc.conn,
+		dlqName:       dlqName,
+		msg:           prc.msg,
+		headers:       headers,
+		logger:        prc.logger,
+		workerID:      prc.workerID,
+		originalQueue: prc.queue,
+		retryCount:    prc.retryCount + 1, // +1 because this is after the final attempt
+		reason:        fmt.Sprintf("panic: %s", sanitizedReason),
 	})
 }
 
