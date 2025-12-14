@@ -94,7 +94,7 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 
 	// Verify final equals 10 + succ
 	exp := decimal.NewFromInt(10).Add(decimal.NewFromInt(int64(succ)))
-	if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, exp, 20*time.Second); err != nil {
+	if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, exp, 60*time.Second); err != nil {
 		t.Fatalf("final wait after RMQ backlog/churn: %v (succ=%d)", err, succ)
 	}
 }

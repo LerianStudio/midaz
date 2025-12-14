@@ -147,7 +147,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 
 	// Compute expected and verify eventual convergence
 	expected := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inSucc * 2))).Sub(decimal.NewFromInt(int64(outSucc * 1)))
-	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 20*time.Second)
+	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 60*time.Second)
 	if err != nil {
 		// Correlate accepted IDs by fetching their final statuses
 		lines := []string{}

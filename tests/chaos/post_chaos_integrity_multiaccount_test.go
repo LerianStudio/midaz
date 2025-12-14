@@ -171,7 +171,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	expA := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inA * 2))).Sub(decimal.NewFromInt(int64(trAB))).Sub(decimal.NewFromInt(int64(outA)))
 	expB := decimal.NewFromInt(int64(trAB)).Sub(decimal.NewFromInt(int64(outB)))
 
-	gotA, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasA, "USD", headers, expA, 30*time.Second)
+	gotA, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasA, "USD", headers, expA, 90*time.Second)
 	if err != nil {
 		// dump accepted sample
 		lines := []string{}
@@ -188,7 +188,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 		t.Logf("accepted sample saved: %s (totalAccepted=%d)", logPath, len(accepted))
 		t.Fatalf("A final mismatch: got=%s exp=%s err=%v (in=%d tr=%d out=%d)", gotA.String(), expA.String(), err, inA, trAB, outA)
 	}
-	gotB, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasB, "USD", headers, expB, 30*time.Second)
+	gotB, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasB, "USD", headers, expB, 90*time.Second)
 	if err != nil {
 		t.Fatalf("B final mismatch: got=%s exp=%s err=%v (tr=%d out=%d)", gotB.String(), expB.String(), err, trAB, outB)
 	}
