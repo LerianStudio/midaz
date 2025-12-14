@@ -11,6 +11,7 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.mongodb.org/mongo-driver/bson"
@@ -52,6 +53,10 @@ func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDB
 
 // Create inserts a new metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
+	assert.NotNil(metadata, "metadata must not be nil for Create",
+		"repository", "MetadataMongoDBRepository",
+		"collection", collection)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")

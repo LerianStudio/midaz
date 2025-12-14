@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -64,6 +65,10 @@ func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *li
 
 // Create inserts a holder into mongo.
 func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, holder *mmodel.Holder) (*mmodel.Holder, error) {
+	assert.NotNil(holder, "holder must not be nil for Create",
+		"repository", "HolderMongoDBRepository",
+		"organizationID", organizationID)
+
 	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_holder")

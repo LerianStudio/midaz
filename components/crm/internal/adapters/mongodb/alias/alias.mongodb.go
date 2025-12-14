@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -65,6 +66,10 @@ func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *li
 
 // Create inserts an alias into mongo
 func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, alias *mmodel.Alias) (*mmodel.Alias, error) {
+	assert.NotNil(alias, "alias must not be nil for Create",
+		"repository", "AliasMongoDBRepository",
+		"organizationID", organizationID)
+
 	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_alias")
