@@ -7,8 +7,9 @@ import (
 )
 
 // ErrorReporter defines an interface for external error reporting services.
-// This abstraction allows integration with services like Sentry without
-// creating a hard dependency on any specific SDK.
+// This abstraction allows integration with error tracking services (e.g., logging
+// to Grafana Loki, sending to an alerting system) without creating a hard
+// dependency on any specific SDK.
 //
 // Implementations should:
 //   - Handle nil contexts gracefully
@@ -30,27 +31,24 @@ var (
 // SetErrorReporter configures the global error reporter for panic reporting.
 // Pass nil to disable error reporting.
 //
-// This should be called once during application startup if Sentry or another
+// This should be called once during application startup if an external
 // error tracking service is desired.
 //
-// Example with Sentry:
+// Example with structured logging:
 //
-//	type sentryReporter struct{}
-//
-//	func (s *sentryReporter) CaptureException(ctx context.Context, err error, tags map[string]string) {
-//	    hub := sentry.GetHubFromContext(ctx)
-//	    if hub == nil {
-//	        hub = sentry.CurrentHub().Clone()
-//	    }
-//	    hub.WithScope(func(scope *sentry.Scope) {
-//	        for k, v := range tags {
-//	            scope.SetTag(k, v)
-//	        }
-//	        hub.CaptureException(err)
-//	    })
+//	type logReporter struct {
+//	    logger *slog.Logger
 //	}
 //
-//	mruntime.SetErrorReporter(&sentryReporter{})
+//	func (r *logReporter) CaptureException(ctx context.Context, err error, tags map[string]string) {
+//	    attrs := make([]any, 0, len(tags)*2)
+//	    for k, v := range tags {
+//	        attrs = append(attrs, k, v)
+//	    }
+//	    r.logger.ErrorContext(ctx, "panic recovered", append(attrs, "error", err)...)
+//	}
+//
+//	mruntime.SetErrorReporter(&logReporter{logger: slog.Default()})
 func SetErrorReporter(reporter ErrorReporter) {
 	errorReporterMu.Lock()
 	defer errorReporterMu.Unlock()
@@ -96,10 +94,12 @@ func reportPanicToErrorService(ctx context.Context, panicValue any, stack []byte
 	// Include stack trace if available (truncated to reasonable size for tags)
 	if len(stack) > 0 {
 		stackStr := string(stack)
+
 		const maxStackLen = 4096
 		if len(stackStr) > maxStackLen {
 			stackStr = stackStr[:maxStackLen] + "\n...[truncated]"
 		}
+
 		tags["stack_trace"] = stackStr
 	}
 
