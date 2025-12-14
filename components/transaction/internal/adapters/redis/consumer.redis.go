@@ -72,23 +72,21 @@ type RedisRepository interface {
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn               *libRedis.RedisConnection
-	balanceSyncEnabled bool
+	conn *libRedis.RedisConnection
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-// The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
-// When false, the ZADD to the balance sync schedule is skipped in the Lua script.
-func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*RedisConsumerRepository, error) {
-	r := &RedisConsumerRepository{
-		conn:               rc,
-		balanceSyncEnabled: balanceSyncEnabled,
-	}
-	if _, err := r.conn.GetClient(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to connect on redis: %w", err)
-	}
+func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
+	assert.NotNil(rc, "Redis connection must not be nil", "component", "TransactionConsumer")
 
-	return r, nil
+	client, err := rc.GetClient(context.Background())
+	assert.NoError(err, "Redis connection required for TransactionConsumer",
+		"component", "TransactionConsumer")
+	assert.NotNil(client, "Redis client handle must not be nil", "component", "TransactionConsumer")
+
+	return &RedisConsumerRepository{
+		conn: rc,
+	}
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
@@ -357,15 +355,7 @@ func (rr *RedisConsumerRepository) executeBalanceScript(ctx context.Context, rds
 	script := redis.NewScript(addSubLua)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	// Prepend balanceSyncEnabled flag (1 = enabled, 0 = disabled) to args
-	scheduleSync := 0
-	if rr.balanceSyncEnabled {
-		scheduleSync = 1
-	}
-
-	finalArgs := append([]any{scheduleSync}, args...)
-
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, finalArgs...).Result()
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
 	if err != nil {
 		return nil, rr.handleScriptExecutionError(&spanScript, logger, err)
 	}

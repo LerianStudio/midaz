@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 )
 
 // RedisRepository provides an interface for redis.
@@ -24,15 +25,17 @@ type RedisConsumerRepository struct {
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *libRedis.RedisConnection) (*RedisConsumerRepository, error) {
-	r := &RedisConsumerRepository{
+func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
+	assert.NotNil(rc, "Redis connection must not be nil", "component", "OnboardingConsumer")
+
+	client, err := rc.GetClient(context.Background())
+	assert.NoError(err, "Redis connection required for OnboardingConsumer",
+		"component", "OnboardingConsumer")
+	assert.NotNil(client, "Redis client handle must not be nil", "component", "OnboardingConsumer")
+
+	return &RedisConsumerRepository{
 		conn: rc,
 	}
-	if _, err := r.conn.GetClient(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to connect on redis: %w", err)
-	}
-
-	return r, nil
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
