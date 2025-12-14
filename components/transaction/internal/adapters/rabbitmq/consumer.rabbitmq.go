@@ -11,6 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -58,9 +59,10 @@ func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers in
 	}
 
 	_, err := conn.GetNewConnect()
-	if err != nil {
-		panic("Failed to connect rabbitmq")
-	}
+	assert.NoError(err, "RabbitMQ connection must succeed during initialization",
+		"component", "rabbitmq_consumer",
+		"workers", numbersOfWorkers,
+		"prefetch", numbersOfPrefetch)
 
 	return cr
 }
@@ -211,6 +213,8 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			defer spanConsumer.End()
 
 			// Panic recovery with span event recording
+			// Records custom span fields for debugging, Nacks message for redelivery, then re-panics
+			// so the outer mruntime.SafeGo wrapper can observe the panic for metrics and error reporting.
 			// TODO(review): Implement poison message handling - track redelivery count via x-death header
 			// and reject (don't requeue) after N attempts to avoid infinite panic/redelivery loops.
 			// Consider configuring a dead-letter exchange (DLX) in RabbitMQ for failed messages.
@@ -228,10 +232,13 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
 						workerID, queue, r, string(stack))
 
-					// Nack the message for redelivery
+					// Nack the message for redelivery before re-panicking
 					if err := msg.Nack(false, true); err != nil {
 						logger.Warnf("Worker %d: failed to nack message after panic: %v", workerID, err)
 					}
+
+					// Re-panic so outer mruntime.SafeGo wrapper can record metrics and invoke error reporter
+					panic(r)
 				}
 			}()
 

@@ -192,9 +192,8 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	defer span.End()
 
 	// Panic recovery with span event recording
-	// NOTE: This inner recovery captures panics to add OpenTelemetry span events.
-	// The outer SafeGo wrapper (line 147) provides a safety net for any panics
-	// in the defer chain itself. Both layers are intentional.
+	// Records custom span fields for debugging, then re-panics so the outer mruntime.SafeGo
+	// wrapper (line 147) can observe the panic for metrics and error reporting.
 	defer func() {
 		if rec := recover(); rec != nil {
 			stack := debug.Stack()
@@ -205,6 +204,8 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 			))
 			libOpentelemetry.HandleSpanError(&span, "Panic during balance sync processing", w.panicAsError(rec))
 			w.logger.WithFields("panic_value", fmt.Sprintf("%v", rec), "member", member).Errorf("Panic recovered while processing balance sync for member %s: %v", member, rec)
+			// Re-panic so outer mruntime.SafeGo wrapper can record metrics and invoke error reporter
+			panic(rec)
 		}
 	}()
 
