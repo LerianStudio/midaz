@@ -100,6 +100,184 @@ type panicRecoveryContext struct {
 	conn       *libRabbitmq.RabbitMQConnection
 }
 
+// businessErrorContext holds context for business error handling with retry tracking.
+// Used by processHandler to track retries and route to DLQ after max attempts.
+//
+//nolint:unused // Infrastructure for Task 2.2 - will be used in processHandler
+type businessErrorContext struct {
+	logger     libLog.Logger
+	msg        *amqp.Delivery
+	queue      string
+	workerID   int
+	retryCount int
+	conn       *libRabbitmq.RabbitMQConnection
+	err        error
+}
+
+// handleBusinessError handles a business error with retry tracking.
+// Returns true if the error was handled (either retried or sent to DLQ).
+//
+//nolint:unused // Infrastructure for Task 2.2 - will be used in processHandler
+func (bec *businessErrorContext) handleBusinessError() bool {
+	if bec.retryCount >= maxRetries-1 {
+		// Max retries exceeded - route to DLQ
+		bec.logger.Errorf("Worker %d: business error after %d delivery attempts - routing to DLQ: %v",
+			bec.workerID, bec.retryCount+1, bec.err)
+
+		dlqName := buildDLQName(bec.queue)
+		if err := bec.publishToDLQ(dlqName); err != nil {
+			bec.logger.Errorf("Worker %d: CRITICAL - DLQ publish failed for business error, message will be PERMANENTLY LOST - queue=%s, dlq=%s, retry_count=%d, error=%v, original_error=%v",
+				bec.workerID, bec.queue, dlqName, bec.retryCount+1, err, bec.err)
+
+			// Fall back to reject (message is lost - tradeoff accepted for max retries exceeded)
+			if rejectErr := bec.msg.Reject(false); rejectErr != nil {
+				bec.logger.Warnf("Worker %d: failed to reject business error message: %v", bec.workerID, rejectErr)
+			}
+
+			return true
+		}
+
+		// Ack original message since we successfully published to DLQ
+		if err := bec.msg.Ack(false); err != nil {
+			bec.logger.Warnf("Worker %d: failed to ack original message after DLQ publish: %v", bec.workerID, err)
+		}
+
+		return true
+	}
+
+	// Retry with incremented counter
+	bec.republishWithRetry()
+
+	return true
+}
+
+// publishToDLQ publishes a business error message to the Dead Letter Queue.
+//
+//nolint:unused // Infrastructure for Task 2.2 - called by handleBusinessError
+func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
+	ch, err := bec.conn.Connection.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to get channel for DLQ: %w", err)
+	}
+	defer ch.Close()
+
+	// Declare DLQ if it doesn't exist (idempotent)
+	_, err = ch.QueueDeclare(
+		dlqName,
+		true,  // durable
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+
+	// Enable publisher confirm mode
+	if err = ch.Confirm(false); err != nil {
+		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
+	}
+
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	// Copy headers and add error context
+	headers := copyHeaders(bec.msg.Headers)
+	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %v", bec.err)
+	headers["x-dlq-original-queue"] = bec.queue
+	headers["x-dlq-retry-count"] = safeIncrementRetryCount(bec.retryCount)
+	headers["x-dlq-timestamp"] = time.Now().Unix()
+	headers["x-dlq-error-type"] = "business_error"
+
+	err = ch.Publish(
+		"",      // exchange (default)
+		dlqName, // routing key (queue name)
+		false,   // mandatory
+		false,   // immediate
+		amqp.Publishing{
+			Headers:      headers,
+			Body:         bec.msg.Body,
+			ContentType:  bec.msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to publish to DLQ: %w", err)
+	}
+
+	// Wait for broker confirmation with timeout
+	select {
+	case confirmation, ok := <-confirms:
+		if !ok {
+			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
+		}
+
+		if confirmation.Ack {
+			bec.logger.Infof("Worker %d: business error message confirmed by broker to DLQ %s",
+				bec.workerID, dlqName)
+
+			return nil
+		}
+
+		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
+
+	case <-time.After(publishConfirmTimeout):
+		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
+	}
+}
+
+// republishWithRetry republishes the message with an incremented retry counter.
+//
+//nolint:unused // Infrastructure for Task 2.2 - called by handleBusinessError
+func (bec *businessErrorContext) republishWithRetry() {
+	bec.logger.Warnf("Worker %d: redelivering business error message (delivery %d of %d max): %v",
+		bec.workerID, bec.retryCount+1, maxRetries, bec.err)
+
+	headers := copyHeaders(bec.msg.Headers)
+	headers[retryCountHeader] = safeIncrementRetryCount(bec.retryCount)
+
+	ch, err := bec.conn.Connection.Channel()
+	if err != nil {
+		bec.logger.Errorf("Worker %d: failed to get channel for business error republish: %v", bec.workerID, err)
+		bec.nackWithLogging()
+
+		return
+	}
+	defer ch.Close()
+
+	err = ch.Publish(
+		"",        // exchange (use default)
+		bec.queue, // routing key (queue name)
+		false,     // mandatory
+		false,     // immediate
+		amqp.Publishing{
+			Headers:      headers,
+			Body:         bec.msg.Body,
+			ContentType:  bec.msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		bec.logger.Errorf("Worker %d: failed to republish business error message: %v", bec.workerID, err)
+		bec.nackWithLogging()
+
+		return
+	}
+
+	if err := bec.msg.Ack(false); err != nil {
+		bec.logger.Warnf("Worker %d: failed to ack original message after business error republish: %v", bec.workerID, err)
+	}
+}
+
+// nackWithLogging performs a Nack with logging on failure.
+//
+//nolint:unused // Infrastructure for Task 2.2 - called by republishWithRetry
+func (bec *businessErrorContext) nackWithLogging() {
+	if nackErr := bec.msg.Nack(false, true); nackErr != nil {
+		bec.logger.Warnf("Worker %d: failed to nack business error message: %v", bec.workerID, nackErr)
+	}
+}
+
 // handlePoisonMessage routes a message that has exceeded max retry attempts to the DLQ.
 // Returns true if the message was handled as a poison message.
 func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
