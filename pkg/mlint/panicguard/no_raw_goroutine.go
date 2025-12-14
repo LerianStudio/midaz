@@ -17,7 +17,7 @@ var NoRawGoroutineAnalyzer = &analysis.Analyzer{
 	Run:      runNoRawGoroutine,
 }
 
-func runNoRawGoroutine(pass *analysis.Pass) (interface{}, error) {
+func runNoRawGoroutine(pass *analysis.Pass) (any, error) {
 	// Build exclusion matcher
 	patterns := append([]string{}, CommonExclusions...)
 	patterns = append(patterns, MRuntimeExclusions...)

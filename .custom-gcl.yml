@@ -1,10 +1,16 @@
 # golangci-lint module plugins configuration.
-# Build command: golangci-lint custom
-# Run command: ./custom-gcl run
+#
+# Build command (from repo root):
+#   golangci-lint custom
+#   make lint-build
 #
 # This enables the panicguard linters as native golangci-lint plugins.
+# Output binary: ./bin/custom-gcl
 
 version: v2.7.2
+
+name: custom-gcl
+destination: ./bin
 
 plugins:
   # ERROR-level analyzers (blocking):

@@ -18,7 +18,7 @@ var NoPanicInProductionAnalyzer = &analysis.Analyzer{
 	Run:      runNoPanicInProduction,
 }
 
-func runNoPanicInProduction(pass *analysis.Pass) (interface{}, error) {
+func runNoPanicInProduction(pass *analysis.Pass) (any, error) {
 	// Build exclusion matcher
 	patterns := append([]string{}, CommonExclusions...)
 	patterns = append(patterns, PanicAllowedExclusions...)

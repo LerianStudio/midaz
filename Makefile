@@ -9,7 +9,6 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
-LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
@@ -100,14 +99,12 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Code Quality Commands:"
-	@echo "  make lint                        - Run linting on all components"
+	@echo "  make lint                        - Build custom linter & run on all components"
 	@echo "  make format                      - Format code in all components"
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks using gosec"
-	@echo "  make panicguard                  - Run panic hardening linter (golangci-lint plugin)"
-	@echo "  make panicguard-standalone       - Run panic hardening linter (standalone)"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -118,7 +115,6 @@ help:
 	@echo ""
 	@echo "Setup Commands:"
 	@echo "  make set-env                     - Copy .env.example to .env for all components"
-	@echo "  make clear-envs                  - Remove .env files from all components"
 	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
@@ -139,10 +135,6 @@ help:
 	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
 	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
 	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
-	@echo "  make up-unified-backend           - Start unified ledger service (onboarding + transaction in one process)"
-	@echo "  make down-unified-backend         - Stop unified ledger service"
-	@echo "  make restart-unified-backend      - Restart unified ledger service"
-	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -162,18 +154,12 @@ help:
 	@echo ""
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
-	@echo "  make test-integration            - Run Go integration tests (requires Docker stack)"
-	@echo "  make test-integ                  - Run integration tests with testcontainers (no stack needed)"
+	@echo "  make test-integration            - Run Go integration tests"
 	@echo "  make test-e2e                    - Run Apidog E2E tests"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests"
 	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests"
 	@echo "  make test-chaos                  - Run chaos/resilience tests"
 	@echo "  make test-property               - Run property-based tests"
-	@echo ""
-	@echo "Coverage Commands:"
-	@echo "  make coverage-unit               - Run unit tests and generate coverage report"
-	@echo "  make coverage-integ              - Run testcontainers tests and generate coverage"
-	@echo "  make coverage-combined           - Run unit + integ tests with merged coverage"
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
@@ -267,75 +253,35 @@ restart-backend:
 	@echo "[ok] Backend services restarted successfully ✔️"
 
 #-------------------------------------------------------
-# Unified Backend Commands
-#-------------------------------------------------------
-
-.PHONY: up-unified-backend
-up-unified-backend:
-	$(call print_title,Starting unified backend service)
-	$(call check_env_files)
-	@echo "Starting infrastructure services first..."
-	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting unified backend (onboarding + transaction)..."
-	@cd $(LEDGER_DIR) && $(MAKE) up
-	@echo "[ok] Unified backend service started successfully ✔️"
-
-.PHONY: down-unified-backend
-down-unified-backend:
-	$(call print_title,Stopping unified backend service)
-	@echo "Stopping unified backend..."
-	@cd $(LEDGER_DIR) && $(MAKE) down
-	@echo "Stopping infrastructure services..."
-	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "[ok] Unified backend service stopped successfully ✔️"
-
-.PHONY: restart-unified-backend
-restart-unified-backend:
-	$(call print_title,Restarting unified backend service)
-	@make down-unified-backend && make up-unified-backend
-	@echo "[ok] Unified backend service restarted successfully ✔️"
-
-#-------------------------------------------------------
 # Code Quality Commands
 #-------------------------------------------------------
 
 .PHONY: lint
-lint:
+lint: lint-build
 	$(call print_title,Running linters on all components)
-	@for dir in $(COMPONENTS); do \
-		echo "Checking for Go files in $$dir..."; \
-		if find "$$dir" -name "*.go" -type f | grep -q .; then \
-			echo "Linting in $$dir..."; \
-			(cd $$dir && $(MAKE) lint) || exit 1; \
-		else \
-			echo "No Go files found in $$dir, skipping linting"; \
-		fi; \
-	done
-	@echo "Checking for Go files in $(LEDGER_DIR)..."
-	@if find "$(LEDGER_DIR)" -name "*.go" -type f | grep -q .; then \
-		echo "Linting in $(LEDGER_DIR)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) lint) || exit 1; \
-	else \
-		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
-	fi
-	@echo "Checking for Go files in $(TESTS_DIR)..."
-	@if [ -d "$(TESTS_DIR)" ]; then \
+	@lint_failed=0; \
+	echo "Linting Go backend components and packages..."; \
+	./bin/custom-gcl run --fix --disable panicguard,panicguardwarn --timeout 10m ./components/... ./pkg/... || lint_failed=1; \
+	echo "Checking for Go files in $(TESTS_DIR)..."; \
+	if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(TESTS_DIR)..."; \
-			if ! command -v golangci-lint >/dev/null 2>&1; then \
-				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-			else \
-				echo "golangci-lint already installed ✔️"; \
-			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./...) || exit 1; \
+			./bin/custom-gcl run --fix --disable panicguard,panicguardwarn --timeout 10m ./$(TESTS_DIR)/... || lint_failed=1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \
 	else \
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
-	fi
-	@echo "[ok] Linting completed successfully"
+	fi; \
+	echo "Running panicguard ERROR checks (blocking)..."; \
+	./bin/custom-gcl run --enable-only panicguard --timeout 5m ./components/... ./pkg/... || lint_failed=1; \
+	echo "Running panicguard WARNING checks (report-only)..."; \
+	./bin/custom-gcl run --enable-only panicguardwarn --timeout 5m ./components/... ./pkg/... || true; \
+	if [ $$lint_failed -eq 1 ]; then \
+		echo "[FAIL] Linting found issues - see above"; \
+		exit 1; \
+	fi; \
+	echo "[ok] Linting completed successfully"
 
 .PHONY: format
 format:
@@ -385,26 +331,17 @@ sec:
 		echo "No Go files found, skipping security checks"; \
 	fi
 
-.PHONY: panicguard
-panicguard:
-	$(call print_title,Running panic hardening linter)
+.PHONY: lint-build
+lint-build:
+	$(call print_title,Building custom golangci-lint with panicguard plugins)
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "golangci-lint not found, installing..."; \
 		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.7.2; \
 	fi
-	@if [ ! -f ./custom-gcl ]; then \
-		echo "Building custom golangci-lint with panicguard plugins..."; \
-		golangci-lint custom; \
-	fi
-	@echo "Running panicguard linters..."
-	@./custom-gcl run --enable-only panicguard,panicguardwarn --timeout 5m ./components/... ./pkg/...
-	@echo "[ok] Panic hardening linter completed"
-
-.PHONY: panicguard-standalone
-panicguard-standalone:
-	$(call print_title,Running standalone panicguard linter)
-	@go run ./cmd/panicguard/main.go ./components/... ./pkg/...
-	@echo "[ok] Standalone panicguard linter completed"
+	@echo "Building custom-gcl to ./bin/..."
+	@golangci-lint custom
+	@test -x ./bin/custom-gcl || (echo "ERROR: custom-gcl build failed" && exit 1)
+	@echo "[ok] Custom golangci-lint built at ./bin/custom-gcl"
 
 #-------------------------------------------------------
 # Git Hook Commands
@@ -459,34 +396,7 @@ set-env:
 			echo ".env already exists in $$dir"; \
 		fi; \
 	done
-	@if [ -f "$(LEDGER_DIR)/.env.example" ] && [ ! -f "$(LEDGER_DIR)/.env" ]; then \
-		echo "Creating .env in $(LEDGER_DIR) from .env.example"; \
-		cp "$(LEDGER_DIR)/.env.example" "$(LEDGER_DIR)/.env"; \
-	elif [ ! -f "$(LEDGER_DIR)/.env.example" ]; then \
-		echo "Warning: No .env.example found in $(LEDGER_DIR)"; \
-	else \
-		echo ".env already exists in $(LEDGER_DIR)"; \
-	fi
 	@echo "[ok] Environment files set up successfully"
-
-.PHONY: clear-envs
-clear-envs:
-	$(call print_title,Removing environment files)
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/.env" ]; then \
-			echo "Removing .env in $$dir"; \
-			rm "$$dir/.env"; \
-		else \
-			echo "No .env found in $$dir"; \
-		fi; \
-	done
-	@if [ -f "$(LEDGER_DIR)/.env" ]; then \
-		echo "Removing .env in $(LEDGER_DIR)"; \
-		rm "$(LEDGER_DIR)/.env"; \
-	else \
-		echo "No .env found in $(LEDGER_DIR)"; \
-	fi
-	@echo "[ok] Environment files removed successfully"
 
 #-------------------------------------------------------
 # Service Commands
@@ -583,7 +493,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction ledger console all-components
+.PHONY: infra onboarding transaction console all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -607,14 +517,6 @@ transaction:
 		exit 1; \
 	fi
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
-
-ledger:
-	$(call print_title,"Running command in ledger component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
 
 console:
 	$(call print_title,"Running command in console component")

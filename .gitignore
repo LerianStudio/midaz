@@ -20,7 +20,7 @@ dist/
 coverage.out
 scripts/coverage_ignore.txt
 reports/
-custom-gcl
+/bin/
 
 # Docker compose files
 components/ledger/_docker-compose.yml

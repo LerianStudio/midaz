@@ -17,7 +17,18 @@ var NoBareRecoverAnalyzer = &analysis.Analyzer{
 	Run:      runNoBareRecover,
 }
 
-func runNoBareRecover(pass *analysis.Pass) (interface{}, error) {
+// Stack depth constants for AST traversal.
+const (
+	minStackDepthForParent      = 2
+	minStackDepthForGrandparent = 3
+)
+
+// runNoBareRecover inspects recover() calls to ensure they capture and log the panic value.
+// The cognitive complexity is inherent to distinguishing between allowed patterns
+// (r := recover()) and disallowed patterns (bare recover(), _ = recover()).
+//
+//nolint:gocognit,cyclop // AST analysis with stack context requires nested conditionals
+func runNoBareRecover(pass *analysis.Pass) (any, error) {
 	// Build exclusion matcher - only test files excluded
 	matcher := NewPathMatcher(CommonExclusions)
 
@@ -44,13 +55,13 @@ func runNoBareRecover(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		var parent ast.Node
-		if len(stack) >= 2 {
-			parent = stack[len(stack)-2]
+		if len(stack) >= minStackDepthForParent {
+			parent = stack[len(stack)-minStackDepthForParent]
 		}
 
 		var grandparent ast.Node
-		if len(stack) >= 3 {
-			grandparent = stack[len(stack)-3]
+		if len(stack) >= minStackDepthForGrandparent {
+			grandparent = stack[len(stack)-minStackDepthForGrandparent]
 		}
 
 		switch p := parent.(type) {
@@ -68,6 +79,7 @@ func runNoBareRecover(pass *analysis.Pass) (interface{}, error) {
 							"recover() result is discarded with blank identifier. "+
 								"The panic value must be captured and logged. "+
 								"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) }")
+
 						return true
 					}
 				}
@@ -88,6 +100,7 @@ func runNoBareRecover(pass *analysis.Pass) (interface{}, error) {
 					"Silently swallowing panics makes debugging impossible. "+
 					"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } "+
 					"Or use mruntime.RecoverAndLog(logger, \"name\").")
+
 			return true
 
 		case *ast.ExprStmt:
@@ -96,6 +109,7 @@ func runNoBareRecover(pass *analysis.Pass) (interface{}, error) {
 					"Silently swallowing panics makes debugging impossible. "+
 					"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } "+
 					"Or use mruntime.RecoverAndLog(logger, \"name\").")
+
 			return true
 		}
 

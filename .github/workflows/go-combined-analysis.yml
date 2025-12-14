@@ -96,11 +96,21 @@ jobs:
         run: |
           golangci-lint custom
           echo "Custom binary built successfully"
-          ./custom-gcl linters | grep -E "panicguard"
+          ./bin/custom-gcl linters | grep -E "panicguard"
 
-      - name: Run GolangCI-Lint with custom plugins
+      - name: Run GolangCI-Lint (standard linters)
         run: |
-          ./custom-gcl run --timeout 10m ./...
+          ./bin/custom-gcl run --disable panicguard,panicguardwarn --timeout 10m ./components/... ./pkg/... ./tests/...
+
+      - name: Run panicguard ERROR checks (blocking)
+        run: |
+          echo "Running panicguard ERROR checks (must pass)..."
+          ./bin/custom-gcl run --enable-only panicguard --timeout 5m ./components/... ./pkg/...
+
+      - name: Run panicguard WARNING checks (report-only)
+        run: |
+          echo "Running panicguard WARNING checks (informational)..."
+          ./bin/custom-gcl run --enable-only panicguardwarn --timeout 5m ./components/... ./pkg/... || true
 
   GoSec:
     name: Run GoSec to Midaz

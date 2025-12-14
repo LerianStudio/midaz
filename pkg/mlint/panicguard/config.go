@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// Pattern matching constants.
+const (
+	maxSplitParts = 2 // Maximum parts when splitting on wildcard
+)
+
 // PathMatcher determines if a file path should be excluded from analysis.
 type PathMatcher struct {
 	// Patterns are glob patterns to match against file paths.
@@ -32,6 +37,10 @@ func (pm *PathMatcher) ShouldExclude(filePath string) bool {
 }
 
 // matchPattern checks if the path matches the given pattern.
+// The cyclomatic complexity is justified by the need to handle multiple glob
+// pattern types (suffix, prefix, directory, double-star, simple) in a single function.
+//
+//nolint:cyclop // Pattern matching requires multiple branching conditions by design
 func (pm *PathMatcher) matchPattern(path, pattern string) bool {
 	// Handle suffix patterns like *_test.go
 	if strings.HasPrefix(pattern, "*") && !strings.Contains(pattern, "/") {
@@ -41,16 +50,9 @@ func (pm *PathMatcher) matchPattern(path, pattern string) bool {
 
 	// Handle prefix patterns like mock_* or mock_*.go
 	if strings.Contains(pattern, "*") && !strings.Contains(pattern, "/") && !strings.HasPrefix(pattern, "*") {
-		// Split pattern at * to get prefix and optional suffix
-		parts := strings.SplitN(pattern, "*", 2)
-		prefix := parts[0]
-		suffix := ""
-		if len(parts) > 1 {
-			suffix = parts[1]
+		if pm.matchPrefixPattern(path, pattern) {
+			return true
 		}
-		base := filepath.Base(path)
-
-		return strings.HasPrefix(base, prefix) && strings.HasSuffix(base, suffix)
 	}
 
 	// Handle directory patterns like /pkg/mruntime/
@@ -68,14 +70,8 @@ func (pm *PathMatcher) matchPattern(path, pattern string) bool {
 
 	// Handle glob patterns with **
 	if strings.Contains(pattern, "**") {
-		// Convert ** glob to simple contains check
-		parts := strings.Split(pattern, "**")
-		if len(parts) == 2 {
-			suffix := strings.TrimPrefix(parts[1], "/")
-			if suffix != "" {
-				return strings.HasSuffix(path, suffix) ||
-					strings.Contains(path, suffix)
-			}
+		if pm.matchDoubleStarPattern(path, pattern) {
+			return true
 		}
 	}
 
@@ -122,3 +118,34 @@ var (
 		"/pkg/assert/",
 	}
 )
+
+// matchPrefixPattern handles patterns like mock_* or mock_*.go.
+func (pm *PathMatcher) matchPrefixPattern(path, pattern string) bool {
+	// Split pattern at * to get prefix and optional suffix
+	parts := strings.SplitN(pattern, "*", maxSplitParts)
+	prefix := parts[0]
+
+	suffix := ""
+	if len(parts) == maxSplitParts {
+		suffix = parts[1]
+	}
+
+	base := filepath.Base(path)
+
+	return strings.HasPrefix(base, prefix) && strings.HasSuffix(base, suffix)
+}
+
+// matchDoubleStarPattern handles glob patterns with **.
+func (pm *PathMatcher) matchDoubleStarPattern(path, pattern string) bool {
+	// Convert ** glob to simple contains check
+	parts := strings.Split(pattern, "**")
+	if len(parts) == maxSplitParts {
+		suffix := strings.TrimPrefix(parts[1], "/")
+		if suffix != "" {
+			return strings.HasSuffix(path, suffix) ||
+				strings.Contains(path, suffix)
+		}
+	}
+
+	return false
+}

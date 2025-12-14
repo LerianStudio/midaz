@@ -18,7 +18,7 @@ var NoRecoverOutsideBoundaryAnalyzer = &analysis.Analyzer{
 	Run:      runNoRecoverOutsideBoundary,
 }
 
-func runNoRecoverOutsideBoundary(pass *analysis.Pass) (interface{}, error) {
+func runNoRecoverOutsideBoundary(pass *analysis.Pass) (any, error) {
 	// Build exclusion matcher - test files and boundary packages
 	patterns := append([]string{}, CommonExclusions...)
 	patterns = append(patterns, BoundaryPackageExclusions...)

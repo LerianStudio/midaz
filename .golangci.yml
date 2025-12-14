@@ -4,12 +4,6 @@ run:
 linters:
   enable:
     # ===========================================
-    # Custom Panic Hardening Linters (via module plugin)
-    # ===========================================
-    - panicguard      # ERROR: norawgoroutine + norecoveroutsideboundary
-    - panicguardwarn  # WARNING: nopanicinproduction + nobarerecover
-
-    # ===========================================
     # Security & Bug Detection
     # ===========================================
     - bidichk        # Dangerous unicode characters
@@ -136,15 +130,18 @@ linters:
           severity: warning
           disabled: false
     # ===========================================
-    # Custom Module Plugin Linters
+    # Custom Module Plugins (panicguard)
     # ===========================================
+    # These are compiled into ./bin/custom-gcl via .custom-gcl.yml
+    # and must be registered here with type: module for discovery.
+    # Run with: ./bin/custom-gcl run --enable-only panicguard ...
     custom:
       panicguard:
-        type: "module"
-        description: "Panic hardening (ERROR): Detects raw goroutines and recover outside boundary packages"
+        type: module
+        description: "ERROR-level panic hardening: blocks raw goroutines and misplaced recover()"
       panicguardwarn:
-        type: "module"
-        description: "Panic hardening (WARNING): Detects panic() in production and bare recover()"
+        type: module
+        description: "WARNING-level panic hardening: warns about panic() and bare recover()"
   exclusions:
     generated: lax
     rules:
