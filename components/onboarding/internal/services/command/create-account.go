@@ -23,7 +23,7 @@ import (
 
 // validateAccountPrerequisites validates asset, portfolio, and parent account before account creation
 func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, span *trace.Span) (uuid.UUID, error) {
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
@@ -84,7 +84,7 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 
 // createAccountBalance creates the default balance for an account via gRPC
 func (uc *UseCase) createAccountBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, acc *mmodel.Account, cai *mmodel.CreateAccountInput, requestID, token string, span *trace.Span) error {
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	assert.NotNil(acc.Alias, "account alias must not be nil before balance creation",
 		"account_id", acc.ID)

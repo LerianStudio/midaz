@@ -36,6 +36,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)
 			logger.Errorf("Error creating %s metadata: %v", entityName, err)
+
 			return nil, fmt.Errorf("failed to create: %w", err)
 		}
 
