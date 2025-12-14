@@ -10,6 +10,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -176,6 +177,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	}
 
 	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
+		assert.That(assert.ValidUUID(headerParams.PortfolioID),
+			"portfolio ID header must be valid UUID",
+			"portfolioID", headerParams.PortfolioID)
+
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
 

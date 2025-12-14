@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -1272,6 +1273,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()
+
+	assert.That(assert.ValidUUID(tran.OrganizationID),
+		"transaction organization ID must be valid UUID",
+		"organizationID", tran.OrganizationID)
+	assert.That(assert.ValidUUID(tran.LedgerID),
+		"transaction ledger ID must be valid UUID",
+		"ledgerID", tran.LedgerID)
 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)

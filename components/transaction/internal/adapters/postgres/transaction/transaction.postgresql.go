@@ -1027,6 +1027,10 @@ func groupTransactionsByID(rows *sql.Rows) (map[uuid.UUID]*Transaction, []uuid.U
 			return nil, nil, fmt.Errorf("failed to unmarshal body: %w", err)
 		}
 
+		assert.That(assert.ValidUUID(tran.ID),
+			"transaction ID from database must be valid UUID",
+			"id", tran.ID)
+
 		transactionUUID := uuid.MustParse(tran.ID)
 
 		t, exists := transactionsMap[transactionUUID]

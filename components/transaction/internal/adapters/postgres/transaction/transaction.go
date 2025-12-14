@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -407,6 +408,10 @@ type Transaction struct {
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
 func (t Transaction) IDtoUUID() uuid.UUID {
+	assert.That(assert.ValidUUID(t.ID),
+		"transaction ID must be valid UUID",
+		"id", t.ID)
+
 	return uuid.MustParse(t.ID)
 }
 
