@@ -185,7 +185,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 				attribute.String("header_id", m.HeaderID),
 			))
 			libOpentelemetry.HandleSpanError(&msgSpan, "Panic during Redis message processing", r.panicAsError(rec))
-			logger.WithFields("panic_value", fmt.Sprintf("%v", rec), "panic_stack", string(stack), "message_key", key).Errorf("Panic recovered while processing Redis message %s: %v", key, rec)
+			// Logger.Errorf removed - outer mruntime.SafeGo* wrapper logs with full context
 			// Re-panic so outer mruntime.SafeGo* wrapper can record metrics and invoke error reporter
 			panic(rec)
 		}

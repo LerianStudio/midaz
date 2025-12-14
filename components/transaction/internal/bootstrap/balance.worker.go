@@ -203,7 +203,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 				attribute.String("member", member),
 			))
 			libOpentelemetry.HandleSpanError(&span, "Panic during balance sync processing", w.panicAsError(rec))
-			w.logger.WithFields("panic_value", fmt.Sprintf("%v", rec), "member", member).Errorf("Panic recovered while processing balance sync for member %s: %v", member, rec)
+			// Logger.Errorf removed - outer mruntime.SafeGo wrapper logs with full context
 			// Re-panic so outer mruntime.SafeGo wrapper can record metrics and invoke error reporter
 			panic(rec)
 		}
