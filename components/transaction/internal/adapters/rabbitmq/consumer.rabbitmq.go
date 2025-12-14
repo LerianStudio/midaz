@@ -19,11 +19,30 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// maxRedeliveries is the maximum number of times a message can be redelivered
+// before being rejected as a poison message to prevent infinite retry loops.
+const maxRedeliveries = 3
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
 	Register(queueName string, handler QueueHandlerFunc)
 	RunConsumers() error
+}
+
+// getRedeliveryCount extracts the redelivery count from RabbitMQ x-death header.
+// The x-death header is populated by RabbitMQ when messages are dead-lettered or
+// rejected with requeue. Returns 0 if the header is not present or malformed.
+func getRedeliveryCount(headers amqp.Table) int {
+	if xDeath, ok := headers["x-death"].([]interface{}); ok && len(xDeath) > 0 {
+		if death, ok := xDeath[0].(amqp.Table); ok {
+			if count, ok := death["count"].(int64); ok {
+				return int(count)
+			}
+		}
+	}
+
+	return 0
 }
 
 // QueueHandlerFunc is a function that process a specific queue.
@@ -212,29 +231,42 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 
 			defer spanConsumer.End()
 
-			// Panic recovery with span event recording
-			// Records custom span fields for debugging, Nacks message for redelivery, and records
-			// panic metrics. Does NOT re-panic so the worker survives and continues processing.
-			// TODO(review): Implement poison message handling - track redelivery count via x-death header
-			// and reject (don't requeue) after N attempts to avoid infinite panic/redelivery loops.
-			// Consider configuring a dead-letter exchange (DLX) in RabbitMQ for failed messages.
-			// (reported by business-logic-reviewer on 2025-12-13, severity: Critical)
+			// Panic recovery with span event recording and poison message handling
+			// Records custom span fields for debugging, tracks redelivery count via x-death header,
+			// and rejects messages after maxRedeliveries attempts to avoid infinite panic/redelivery loops.
+			// Does NOT re-panic so the worker survives and continues processing.
 			defer func() {
 				if r := recover(); r != nil {
 					stack := debug.Stack()
+					redeliveryCount := getRedeliveryCount(msg.Headers)
+
 					spanConsumer.AddEvent("panic.recovered", trace.WithAttributes(
 						attribute.String("panic.value", fmt.Sprintf("%v", r)),
 						attribute.String("panic.stack", string(stack)),
 						attribute.String("rabbitmq.queue", queue),
 						attribute.Int("rabbitmq.worker_id", workerID),
+						attribute.Int("rabbitmq.redelivery_count", redeliveryCount),
 					))
 
 					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
 						workerID, queue, r, string(stack))
 
-					// Nack the message for redelivery
-					if err := msg.Nack(false, true); err != nil {
-						logger.Warnf("Worker %d: failed to nack message after panic: %v", workerID, err)
+					// Check if message has exceeded max redelivery attempts (poison message)
+					if redeliveryCount >= maxRedeliveries {
+						logger.Errorf("Worker %d: poison message rejected after %d attempts: %v",
+							workerID, redeliveryCount, r)
+						// Reject without requeue - message will go to DLX if configured
+						if err := msg.Reject(false); err != nil {
+							logger.Warnf("Worker %d: failed to reject poison message: %v", workerID, err)
+						}
+					} else {
+						logger.Warnf("Worker %d: redelivering message (attempt %d/%d): %v",
+							workerID, redeliveryCount+1, maxRedeliveries, r)
+						// Nack with requeue for retry
+						// Nack(multiple=false, requeue=true)
+						if err := msg.Nack(false, true); err != nil {
+							logger.Warnf("Worker %d: failed to nack message: %v", workerID, err)
+						}
 					}
 
 					// Record panic to span and metrics manually so worker can survive and continue
@@ -252,6 +284,7 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
 				logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
+				// Nack(multiple=false, requeue=true)
 				if nackErr := msg.Nack(false, true); nackErr != nil {
 					logger.Warnf("Worker %d: failed to nack message: %v", workerID, nackErr)
 				}
