@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime/debug"
+	"strconv"
 	"strings"
 )
 
@@ -89,7 +90,7 @@ func truncateValue(v any) string {
 		return s
 	}
 
-	return s[:maxValueLength] + "... (truncated " + fmt.Sprintf("%d", len(s)-maxValueLength) + " chars)"
+	return s[:maxValueLength] + "... (truncated " + strconv.Itoa(len(s)-maxValueLength) + " chars)"
 }
 
 // panicWithContext formats the message with key-value pairs and stack trace,
