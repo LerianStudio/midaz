@@ -30,6 +30,12 @@ const maxRetries = 4
 // direct Nack requeues. Our custom header provides accurate retry tracking.
 const retryCountHeader = "x-midaz-retry-count"
 
+// dlqSuffix is the suffix appended to queue names to form Dead Letter Queue names.
+// Example: "transactions" -> "transactions.dlq"
+// Messages that exceed maxRetries are routed to DLQ for post-mortem analysis
+// and manual replay during chaos scenarios or incident investigation.
+const dlqSuffix = ".dlq"
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
