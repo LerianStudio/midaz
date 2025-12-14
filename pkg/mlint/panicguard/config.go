@@ -39,12 +39,18 @@ func (pm *PathMatcher) matchPattern(path, pattern string) bool {
 		return strings.HasSuffix(path, suffix)
 	}
 
-	// Handle prefix patterns like mock_*
-	if strings.HasSuffix(pattern, "*") && !strings.Contains(pattern, "/") {
-		prefix := pattern[:len(pattern)-1]
+	// Handle prefix patterns like mock_* or mock_*.go
+	if strings.Contains(pattern, "*") && !strings.Contains(pattern, "/") && !strings.HasPrefix(pattern, "*") {
+		// Split pattern at * to get prefix and optional suffix
+		parts := strings.SplitN(pattern, "*", 2)
+		prefix := parts[0]
+		suffix := ""
+		if len(parts) > 1 {
+			suffix = parts[1]
+		}
 		base := filepath.Base(path)
 
-		return strings.HasPrefix(base, prefix)
+		return strings.HasPrefix(base, prefix) && strings.HasSuffix(base, suffix)
 	}
 
 	// Handle directory patterns like /pkg/mruntime/
