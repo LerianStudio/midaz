@@ -50,10 +50,10 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
-	payload := i.(*mmodel.CreateAccountInput)
+	payload := http.Payload[*mmodel.CreateAccountInput](c, i)
 	portfolioID := payload.PortfolioID
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
@@ -152,8 +152,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	var portfolioID *uuid.UUID
 
@@ -230,9 +230,9 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
@@ -283,8 +283,8 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 	code := c.Params("code")
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
@@ -338,8 +338,8 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 	alias := c.Params("alias")
 
 	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
@@ -395,13 +395,13 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating update of Account with ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateAccountInput)
+	payload := http.Payload[*mmodel.UpdateAccountInput](c, i)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -469,9 +469,9 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 	token := c.Get("Authorization")
 
 	logger.Infof("Initiating removal of Account with ID: %s", id.String())
@@ -520,8 +520,8 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Counting accounts for organization %s and ledger %s", organizationID, ledgerID)
 

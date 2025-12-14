@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -53,13 +52,13 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
-	payload := a.(*mmodel.CreateAssetInput)
+	payload := http.Payload[*mmodel.CreateAssetInput](c, a)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -144,8 +143,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
@@ -216,9 +215,9 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -273,13 +272,13 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	payload := a.(*mmodel.UpdateAssetInput)
+	payload := http.Payload[*mmodel.UpdateAssetInput](c, a)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -347,9 +346,9 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -397,8 +396,8 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_assets")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID)
 

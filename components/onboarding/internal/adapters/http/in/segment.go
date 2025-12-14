@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -53,12 +52,12 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Initiating create of Segment with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
-	payload := i.(*mmodel.CreateSegmentInput)
+	payload := http.Payload[*mmodel.CreateSegmentInput](c, i)
 	logger.Infof("Request to create a Segment with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -139,8 +138,8 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_segments")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Get Segments with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
@@ -210,9 +209,9 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_segment_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating retrieval of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -267,13 +266,13 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating update of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	payload := i.(*mmodel.UpdateSegmentInput)
+	payload := http.Payload[*mmodel.UpdateSegmentInput](c, i)
 	logger.Infof("Request to update an Segment with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -341,9 +340,9 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_segment_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating removal of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -391,8 +390,8 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_segments")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Counting segments for organization %s and ledger %s", organizationID, ledgerID)
 

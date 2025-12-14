@@ -17,7 +17,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -54,9 +53,9 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
 
-	payload := i.(*mmodel.CreateLedgerInput)
+	payload := http.Payload[*mmodel.CreateLedgerInput](c, i)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -108,8 +107,8 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
 
@@ -187,7 +186,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -257,12 +256,12 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id := http.LocalUUID(c, "id")
 	logger.Infof("Initiating update of Ledger with ID: %s", id.String())
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
 
-	payload := p.(*mmodel.UpdateLedgerInput)
+	payload := http.Payload[*mmodel.UpdateLedgerInput](c, p)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -329,8 +328,8 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	id := http.LocalUUID(c, "id")
 
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
@@ -391,7 +390,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
 
 	logger.Infof("Initiating count of all ledgers for organization: %s", organizationID)
 
