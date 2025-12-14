@@ -8,6 +8,8 @@ import (
 	"github.com/LerianStudio/lib-commons/v2/commons"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	localConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 
@@ -203,9 +205,16 @@ func applyBalanceOperation(amount Amount, available, onHold decimal.Decimal) (de
 		return applyApprovedOperation(amount, available, onHold)
 	case constant.CREATED:
 		return applyCreatedOperation(amount, available, onHold)
-	default:
-		// For unknown operations, return original values unchanged
+	case localConstant.NOTED:
+		// Annotation/no-op transactions must not affect balances.
 		return available, onHold, false
+	default:
+		// Note: operation is the balance operation type (DEBIT/CREDIT), distinct from transactionType
+		assert.Never("unhandled transaction type in applyBalanceOperation",
+			"transactionType", amount.TransactionType,
+			"operation", amount.Operation,
+			"value", amount.Value.String())
+		return available, onHold, false // unreachable, satisfies compiler
 	}
 }
 
@@ -214,14 +223,20 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 	total, totalOnHold, changed := applyBalanceOperation(amount, balance.Available, balance.OnHold)
 
 	if !changed {
-		// For unknown operations, return the original balance without changing the version.
+		// For no-op transactions (e.g., NOTED), return the original balance without changing the version.
 		return balance, nil
 	}
+
+	newVersion := balance.Version + 1
+	assert.That(assert.Positive(newVersion),
+		"balance version must be positive after increment",
+		"previousVersion", balance.Version,
+		"newVersion", newVersion)
 
 	return Balance{
 		Available: total,
 		OnHold:    totalOnHold,
-		Version:   balance.Version + 1,
+		Version:   newVersion,
 	}, nil
 }
 
@@ -247,7 +262,10 @@ func determineOperationForPendingTransaction(isFrom bool, transactionType string
 
 		return constant.CREDIT
 	default:
-		return constant.CREDIT
+		assert.Never("unhandled transaction type in determineOperationForPendingTransaction",
+			"transactionType", transactionType,
+			"isFrom", isFrom)
+		return constant.CREDIT // unreachable, satisfies compiler
 	}
 }
 

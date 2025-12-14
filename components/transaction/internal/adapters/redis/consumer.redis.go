@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -436,9 +438,13 @@ func (rr *RedisConsumerRepository) convertRedisBalancesToModel(blcsRedis []mmode
 
 	for _, b := range blcsRedis {
 		mapBalance, ok := mapBalances[b.Alias]
-		if !ok {
-			logger.Warnf("Failed to find balance for id: %v", b.ID)
-		}
+		// This assertion enforces a critical invariant: aliases returned from Redis must exist
+		// in mapBalances. If this fails, it indicates data corruption between the input we sent
+		// and the output Redis returned - crash is better than silent corruption.
+		assert.That(ok, "balance must exist in map for alias returned from Redis",
+			"alias", b.Alias,
+			"balance_id", b.ID,
+			"available_aliases", mapBalanceKeys(mapBalances))
 
 		balances = append(balances, &mmodel.Balance{
 			Alias:          b.Alias,
@@ -460,6 +466,18 @@ func (rr *RedisConsumerRepository) convertRedisBalancesToModel(blcsRedis []mmode
 	}
 
 	return balances
+}
+
+// mapBalanceKeys returns sorted keys from a balance map for deterministic debug output
+func mapBalanceKeys(m map[string]*mmodel.Balance) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {

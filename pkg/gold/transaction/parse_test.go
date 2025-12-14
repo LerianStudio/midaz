@@ -23,6 +23,24 @@ func TestParse(t *testing.T) {
 			expected:    nil,
 			expectError: true,
 		},
+		{
+			name:        "Variable in send amount numeric position should fail",
+			dsl:         `(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD $amount|0 (source (from @A :amount USD 100|0)) (distribute (to @B :amount USD 100|0))))`,
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name:        "Variable in from amount numeric position should fail",
+			dsl:         `(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 100|0 (source (from @A :amount USD $value|0)) (distribute (to @B :amount USD 100|0))))`,
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name:        "Variable in scale numeric position should fail",
+			dsl:         `(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 100|$scale (source (from @A :amount USD 100|0)) (distribute (to @B :amount USD 100|0))))`,
+			expected:    nil,
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

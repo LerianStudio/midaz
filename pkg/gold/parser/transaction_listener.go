@@ -41,8 +41,8 @@ type TransactionListener interface {
 	// EnterValue is called when entering the value production.
 	EnterValue(c *ValueContext)
 
-	// EnterValueOrVariable is called when entering the valueOrVariable production.
-	EnterValueOrVariable(c *ValueOrVariableContext)
+	// EnterNumericValue is called when entering the numericValue production.
+	EnterNumericValue(c *NumericValueContext)
 
 	// EnterAmount is called when entering the Amount production.
 	EnterAmount(c *AmountContext)
@@ -110,8 +110,8 @@ type TransactionListener interface {
 	// ExitValue is called when exiting the value production.
 	ExitValue(c *ValueContext)
 
-	// ExitValueOrVariable is called when exiting the valueOrVariable production.
-	ExitValueOrVariable(c *ValueOrVariableContext)
+	// ExitNumericValue is called when exiting the numericValue production.
+	ExitNumericValue(c *NumericValueContext)
 
 	// ExitAmount is called when exiting the Amount production.
 	ExitAmount(c *AmountContext)

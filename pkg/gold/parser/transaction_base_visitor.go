@@ -52,7 +52,7 @@ func (v *BaseTransactionVisitor) VisitValue(ctx *ValueContext) interface{} {
 	return v.VisitChildren(ctx)
 }
 
-func (v *BaseTransactionVisitor) VisitValueOrVariable(ctx *ValueOrVariableContext) interface{} {
+func (v *BaseTransactionVisitor) VisitNumericValue(ctx *NumericValueContext) interface{} {
 	return v.VisitChildren(ctx)
 }
 

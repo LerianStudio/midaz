@@ -89,11 +89,11 @@ func (s *BaseTransactionListener) EnterValue(ctx *ValueContext) {}
 // ExitValue is called when production value is exited.
 func (s *BaseTransactionListener) ExitValue(ctx *ValueContext) {}
 
-// EnterValueOrVariable is called when production valueOrVariable is entered.
-func (s *BaseTransactionListener) EnterValueOrVariable(ctx *ValueOrVariableContext) {}
+// EnterNumericValue is called when production numericValue is entered.
+func (s *BaseTransactionListener) EnterNumericValue(ctx *NumericValueContext) {}
 
-// ExitValueOrVariable is called when production valueOrVariable is exited.
-func (s *BaseTransactionListener) ExitValueOrVariable(ctx *ValueOrVariableContext) {}
+// ExitNumericValue is called when production numericValue is exited.
+func (s *BaseTransactionListener) ExitNumericValue(ctx *NumericValueContext) {}
 
 // EnterAmount is called when production Amount is entered.
 func (s *BaseTransactionListener) EnterAmount(ctx *AmountContext) {}

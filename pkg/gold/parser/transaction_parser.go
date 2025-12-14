@@ -47,8 +47,8 @@ func transactionParserInit() {
 	staticData.RuleNames = []string{
 		"transaction", "chartOfAccountsGroupName", "code", "trueOrFalse", "pending",
 		"description", "chartOfAccounts", "metadata", "pair", "key", "value",
-		"valueOrVariable", "sendTypes", "account", "rate", "from", "source",
-		"to", "distribute", "send",
+		"numericValue", "sendTypes", "account", "rate", "from", "source", "to",
+		"distribute", "send",
 	}
 	staticData.PredictionContextCache = antlr.NewPredictionContextCache()
 	staticData.serializedATN = []int32{
@@ -73,71 +73,71 @@ func transactionParserInit() {
 		18, 1, 18, 1, 18, 3, 18, 187, 8, 18, 1, 18, 4, 18, 190, 8, 18, 11, 18,
 		12, 18, 191, 1, 18, 1, 18, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1, 19, 1,
 		19, 1, 19, 1, 19, 1, 19, 1, 19, 0, 0, 20, 0, 2, 4, 6, 8, 10, 12, 14, 16,
-		18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 0, 5, 1, 0, 2, 3, 1, 0, 7,
-		8, 2, 0, 25, 25, 27, 27, 2, 0, 25, 25, 29, 29, 2, 0, 27, 27, 29, 30, 205,
-		0, 40, 1, 0, 0, 0, 2, 59, 1, 0, 0, 0, 4, 64, 1, 0, 0, 0, 6, 69, 1, 0, 0,
-		0, 8, 71, 1, 0, 0, 0, 10, 76, 1, 0, 0, 0, 12, 81, 1, 0, 0, 0, 14, 86, 1,
-		0, 0, 0, 16, 95, 1, 0, 0, 0, 18, 100, 1, 0, 0, 0, 20, 102, 1, 0, 0, 0,
-		22, 104, 1, 0, 0, 0, 24, 120, 1, 0, 0, 0, 26, 122, 1, 0, 0, 0, 28, 124,
-		1, 0, 0, 0, 30, 135, 1, 0, 0, 0, 32, 153, 1, 0, 0, 0, 34, 165, 1, 0, 0,
-		0, 36, 183, 1, 0, 0, 0, 38, 195, 1, 0, 0, 0, 40, 41, 5, 1, 0, 0, 41, 42,
-		7, 0, 0, 0, 42, 43, 5, 24, 0, 0, 43, 45, 3, 2, 1, 0, 44, 46, 3, 10, 5,
-		0, 45, 44, 1, 0, 0, 0, 45, 46, 1, 0, 0, 0, 46, 48, 1, 0, 0, 0, 47, 49,
-		3, 4, 2, 0, 48, 47, 1, 0, 0, 0, 48, 49, 1, 0, 0, 0, 49, 51, 1, 0, 0, 0,
-		50, 52, 3, 8, 4, 0, 51, 50, 1, 0, 0, 0, 51, 52, 1, 0, 0, 0, 52, 54, 1,
-		0, 0, 0, 53, 55, 3, 14, 7, 0, 54, 53, 1, 0, 0, 0, 54, 55, 1, 0, 0, 0, 55,
-		56, 1, 0, 0, 0, 56, 57, 3, 38, 19, 0, 57, 58, 5, 4, 0, 0, 58, 1, 1, 0,
-		0, 0, 59, 60, 5, 1, 0, 0, 60, 61, 5, 5, 0, 0, 61, 62, 5, 27, 0, 0, 62,
-		63, 5, 4, 0, 0, 63, 3, 1, 0, 0, 0, 64, 65, 5, 1, 0, 0, 65, 66, 5, 6, 0,
-		0, 66, 67, 5, 27, 0, 0, 67, 68, 5, 4, 0, 0, 68, 5, 1, 0, 0, 0, 69, 70,
-		7, 1, 0, 0, 70, 7, 1, 0, 0, 0, 71, 72, 5, 1, 0, 0, 72, 73, 5, 9, 0, 0,
-		73, 74, 3, 6, 3, 0, 74, 75, 5, 4, 0, 0, 75, 9, 1, 0, 0, 0, 76, 77, 5, 1,
-		0, 0, 77, 78, 5, 10, 0, 0, 78, 79, 5, 26, 0, 0, 79, 80, 5, 4, 0, 0, 80,
-		11, 1, 0, 0, 0, 81, 82, 5, 1, 0, 0, 82, 83, 5, 11, 0, 0, 83, 84, 5, 27,
-		0, 0, 84, 85, 5, 4, 0, 0, 85, 13, 1, 0, 0, 0, 86, 87, 5, 1, 0, 0, 87, 89,
-		5, 12, 0, 0, 88, 90, 3, 16, 8, 0, 89, 88, 1, 0, 0, 0, 90, 91, 1, 0, 0,
-		0, 91, 89, 1, 0, 0, 0, 91, 92, 1, 0, 0, 0, 92, 93, 1, 0, 0, 0, 93, 94,
-		5, 4, 0, 0, 94, 15, 1, 0, 0, 0, 95, 96, 5, 1, 0, 0, 96, 97, 3, 18, 9, 0,
-		97, 98, 3, 20, 10, 0, 98, 99, 5, 4, 0, 0, 99, 17, 1, 0, 0, 0, 100, 101,
-		7, 2, 0, 0, 101, 19, 1, 0, 0, 0, 102, 103, 7, 2, 0, 0, 103, 21, 1, 0, 0,
-		0, 104, 105, 7, 3, 0, 0, 105, 23, 1, 0, 0, 0, 106, 107, 5, 13, 0, 0, 107,
-		108, 5, 27, 0, 0, 108, 109, 3, 22, 11, 0, 109, 110, 5, 14, 0, 0, 110, 111,
-		3, 22, 11, 0, 111, 121, 1, 0, 0, 0, 112, 113, 5, 15, 0, 0, 113, 114, 3,
-		22, 11, 0, 114, 115, 5, 16, 0, 0, 115, 116, 3, 22, 11, 0, 116, 121, 1,
-		0, 0, 0, 117, 118, 5, 15, 0, 0, 118, 121, 3, 22, 11, 0, 119, 121, 5, 28,
-		0, 0, 120, 106, 1, 0, 0, 0, 120, 112, 1, 0, 0, 0, 120, 117, 1, 0, 0, 0,
-		120, 119, 1, 0, 0, 0, 121, 25, 1, 0, 0, 0, 122, 123, 7, 4, 0, 0, 123, 27,
-		1, 0, 0, 0, 124, 125, 5, 1, 0, 0, 125, 126, 5, 17, 0, 0, 126, 127, 5, 27,
-		0, 0, 127, 128, 5, 27, 0, 0, 128, 129, 5, 18, 0, 0, 129, 130, 5, 27, 0,
-		0, 130, 131, 3, 22, 11, 0, 131, 132, 5, 14, 0, 0, 132, 133, 3, 22, 11,
-		0, 133, 134, 5, 4, 0, 0, 134, 29, 1, 0, 0, 0, 135, 136, 5, 1, 0, 0, 136,
-		137, 5, 19, 0, 0, 137, 138, 3, 26, 13, 0, 138, 140, 3, 24, 12, 0, 139,
-		141, 3, 28, 14, 0, 140, 139, 1, 0, 0, 0, 140, 141, 1, 0, 0, 0, 141, 143,
-		1, 0, 0, 0, 142, 144, 3, 10, 5, 0, 143, 142, 1, 0, 0, 0, 143, 144, 1, 0,
-		0, 0, 144, 146, 1, 0, 0, 0, 145, 147, 3, 12, 6, 0, 146, 145, 1, 0, 0, 0,
-		146, 147, 1, 0, 0, 0, 147, 149, 1, 0, 0, 0, 148, 150, 3, 14, 7, 0, 149,
-		148, 1, 0, 0, 0, 149, 150, 1, 0, 0, 0, 150, 151, 1, 0, 0, 0, 151, 152,
-		5, 4, 0, 0, 152, 31, 1, 0, 0, 0, 153, 154, 5, 1, 0, 0, 154, 156, 5, 20,
-		0, 0, 155, 157, 5, 28, 0, 0, 156, 155, 1, 0, 0, 0, 156, 157, 1, 0, 0, 0,
-		157, 159, 1, 0, 0, 0, 158, 160, 3, 30, 15, 0, 159, 158, 1, 0, 0, 0, 160,
-		161, 1, 0, 0, 0, 161, 159, 1, 0, 0, 0, 161, 162, 1, 0, 0, 0, 162, 163,
-		1, 0, 0, 0, 163, 164, 5, 4, 0, 0, 164, 33, 1, 0, 0, 0, 165, 166, 5, 1,
-		0, 0, 166, 167, 5, 21, 0, 0, 167, 168, 3, 26, 13, 0, 168, 170, 3, 24, 12,
-		0, 169, 171, 3, 28, 14, 0, 170, 169, 1, 0, 0, 0, 170, 171, 1, 0, 0, 0,
-		171, 173, 1, 0, 0, 0, 172, 174, 3, 10, 5, 0, 173, 172, 1, 0, 0, 0, 173,
-		174, 1, 0, 0, 0, 174, 176, 1, 0, 0, 0, 175, 177, 3, 12, 6, 0, 176, 175,
-		1, 0, 0, 0, 176, 177, 1, 0, 0, 0, 177, 179, 1, 0, 0, 0, 178, 180, 3, 14,
-		7, 0, 179, 178, 1, 0, 0, 0, 179, 180, 1, 0, 0, 0, 180, 181, 1, 0, 0, 0,
-		181, 182, 5, 4, 0, 0, 182, 35, 1, 0, 0, 0, 183, 184, 5, 1, 0, 0, 184, 186,
-		5, 22, 0, 0, 185, 187, 5, 28, 0, 0, 186, 185, 1, 0, 0, 0, 186, 187, 1,
-		0, 0, 0, 187, 189, 1, 0, 0, 0, 188, 190, 3, 34, 17, 0, 189, 188, 1, 0,
-		0, 0, 190, 191, 1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191, 192, 1, 0, 0, 0,
-		192, 193, 1, 0, 0, 0, 193, 194, 5, 4, 0, 0, 194, 37, 1, 0, 0, 0, 195, 196,
-		5, 1, 0, 0, 196, 197, 5, 23, 0, 0, 197, 198, 5, 27, 0, 0, 198, 199, 3,
-		22, 11, 0, 199, 200, 5, 14, 0, 0, 200, 201, 3, 22, 11, 0, 201, 202, 3,
-		32, 16, 0, 202, 203, 3, 36, 18, 0, 203, 204, 5, 4, 0, 0, 204, 39, 1, 0,
-		0, 0, 18, 45, 48, 51, 54, 91, 120, 140, 143, 146, 149, 156, 161, 170, 173,
-		176, 179, 186, 191,
+		18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 0, 4, 1, 0, 2, 3, 1, 0, 7,
+		8, 2, 0, 25, 25, 27, 27, 2, 0, 27, 27, 29, 30, 205, 0, 40, 1, 0, 0, 0,
+		2, 59, 1, 0, 0, 0, 4, 64, 1, 0, 0, 0, 6, 69, 1, 0, 0, 0, 8, 71, 1, 0, 0,
+		0, 10, 76, 1, 0, 0, 0, 12, 81, 1, 0, 0, 0, 14, 86, 1, 0, 0, 0, 16, 95,
+		1, 0, 0, 0, 18, 100, 1, 0, 0, 0, 20, 102, 1, 0, 0, 0, 22, 104, 1, 0, 0,
+		0, 24, 120, 1, 0, 0, 0, 26, 122, 1, 0, 0, 0, 28, 124, 1, 0, 0, 0, 30, 135,
+		1, 0, 0, 0, 32, 153, 1, 0, 0, 0, 34, 165, 1, 0, 0, 0, 36, 183, 1, 0, 0,
+		0, 38, 195, 1, 0, 0, 0, 40, 41, 5, 1, 0, 0, 41, 42, 7, 0, 0, 0, 42, 43,
+		5, 24, 0, 0, 43, 45, 3, 2, 1, 0, 44, 46, 3, 10, 5, 0, 45, 44, 1, 0, 0,
+		0, 45, 46, 1, 0, 0, 0, 46, 48, 1, 0, 0, 0, 47, 49, 3, 4, 2, 0, 48, 47,
+		1, 0, 0, 0, 48, 49, 1, 0, 0, 0, 49, 51, 1, 0, 0, 0, 50, 52, 3, 8, 4, 0,
+		51, 50, 1, 0, 0, 0, 51, 52, 1, 0, 0, 0, 52, 54, 1, 0, 0, 0, 53, 55, 3,
+		14, 7, 0, 54, 53, 1, 0, 0, 0, 54, 55, 1, 0, 0, 0, 55, 56, 1, 0, 0, 0, 56,
+		57, 3, 38, 19, 0, 57, 58, 5, 4, 0, 0, 58, 1, 1, 0, 0, 0, 59, 60, 5, 1,
+		0, 0, 60, 61, 5, 5, 0, 0, 61, 62, 5, 27, 0, 0, 62, 63, 5, 4, 0, 0, 63,
+		3, 1, 0, 0, 0, 64, 65, 5, 1, 0, 0, 65, 66, 5, 6, 0, 0, 66, 67, 5, 27, 0,
+		0, 67, 68, 5, 4, 0, 0, 68, 5, 1, 0, 0, 0, 69, 70, 7, 1, 0, 0, 70, 7, 1,
+		0, 0, 0, 71, 72, 5, 1, 0, 0, 72, 73, 5, 9, 0, 0, 73, 74, 3, 6, 3, 0, 74,
+		75, 5, 4, 0, 0, 75, 9, 1, 0, 0, 0, 76, 77, 5, 1, 0, 0, 77, 78, 5, 10, 0,
+		0, 78, 79, 5, 26, 0, 0, 79, 80, 5, 4, 0, 0, 80, 11, 1, 0, 0, 0, 81, 82,
+		5, 1, 0, 0, 82, 83, 5, 11, 0, 0, 83, 84, 5, 27, 0, 0, 84, 85, 5, 4, 0,
+		0, 85, 13, 1, 0, 0, 0, 86, 87, 5, 1, 0, 0, 87, 89, 5, 12, 0, 0, 88, 90,
+		3, 16, 8, 0, 89, 88, 1, 0, 0, 0, 90, 91, 1, 0, 0, 0, 91, 89, 1, 0, 0, 0,
+		91, 92, 1, 0, 0, 0, 92, 93, 1, 0, 0, 0, 93, 94, 5, 4, 0, 0, 94, 15, 1,
+		0, 0, 0, 95, 96, 5, 1, 0, 0, 96, 97, 3, 18, 9, 0, 97, 98, 3, 20, 10, 0,
+		98, 99, 5, 4, 0, 0, 99, 17, 1, 0, 0, 0, 100, 101, 7, 2, 0, 0, 101, 19,
+		1, 0, 0, 0, 102, 103, 7, 2, 0, 0, 103, 21, 1, 0, 0, 0, 104, 105, 5, 25,
+		0, 0, 105, 23, 1, 0, 0, 0, 106, 107, 5, 13, 0, 0, 107, 108, 5, 27, 0, 0,
+		108, 109, 3, 22, 11, 0, 109, 110, 5, 14, 0, 0, 110, 111, 3, 22, 11, 0,
+		111, 121, 1, 0, 0, 0, 112, 113, 5, 15, 0, 0, 113, 114, 3, 22, 11, 0, 114,
+		115, 5, 16, 0, 0, 115, 116, 3, 22, 11, 0, 116, 121, 1, 0, 0, 0, 117, 118,
+		5, 15, 0, 0, 118, 121, 3, 22, 11, 0, 119, 121, 5, 28, 0, 0, 120, 106, 1,
+		0, 0, 0, 120, 112, 1, 0, 0, 0, 120, 117, 1, 0, 0, 0, 120, 119, 1, 0, 0,
+		0, 121, 25, 1, 0, 0, 0, 122, 123, 7, 3, 0, 0, 123, 27, 1, 0, 0, 0, 124,
+		125, 5, 1, 0, 0, 125, 126, 5, 17, 0, 0, 126, 127, 5, 27, 0, 0, 127, 128,
+		5, 27, 0, 0, 128, 129, 5, 18, 0, 0, 129, 130, 5, 27, 0, 0, 130, 131, 3,
+		22, 11, 0, 131, 132, 5, 14, 0, 0, 132, 133, 3, 22, 11, 0, 133, 134, 5,
+		4, 0, 0, 134, 29, 1, 0, 0, 0, 135, 136, 5, 1, 0, 0, 136, 137, 5, 19, 0,
+		0, 137, 138, 3, 26, 13, 0, 138, 140, 3, 24, 12, 0, 139, 141, 3, 28, 14,
+		0, 140, 139, 1, 0, 0, 0, 140, 141, 1, 0, 0, 0, 141, 143, 1, 0, 0, 0, 142,
+		144, 3, 10, 5, 0, 143, 142, 1, 0, 0, 0, 143, 144, 1, 0, 0, 0, 144, 146,
+		1, 0, 0, 0, 145, 147, 3, 12, 6, 0, 146, 145, 1, 0, 0, 0, 146, 147, 1, 0,
+		0, 0, 147, 149, 1, 0, 0, 0, 148, 150, 3, 14, 7, 0, 149, 148, 1, 0, 0, 0,
+		149, 150, 1, 0, 0, 0, 150, 151, 1, 0, 0, 0, 151, 152, 5, 4, 0, 0, 152,
+		31, 1, 0, 0, 0, 153, 154, 5, 1, 0, 0, 154, 156, 5, 20, 0, 0, 155, 157,
+		5, 28, 0, 0, 156, 155, 1, 0, 0, 0, 156, 157, 1, 0, 0, 0, 157, 159, 1, 0,
+		0, 0, 158, 160, 3, 30, 15, 0, 159, 158, 1, 0, 0, 0, 160, 161, 1, 0, 0,
+		0, 161, 159, 1, 0, 0, 0, 161, 162, 1, 0, 0, 0, 162, 163, 1, 0, 0, 0, 163,
+		164, 5, 4, 0, 0, 164, 33, 1, 0, 0, 0, 165, 166, 5, 1, 0, 0, 166, 167, 5,
+		21, 0, 0, 167, 168, 3, 26, 13, 0, 168, 170, 3, 24, 12, 0, 169, 171, 3,
+		28, 14, 0, 170, 169, 1, 0, 0, 0, 170, 171, 1, 0, 0, 0, 171, 173, 1, 0,
+		0, 0, 172, 174, 3, 10, 5, 0, 173, 172, 1, 0, 0, 0, 173, 174, 1, 0, 0, 0,
+		174, 176, 1, 0, 0, 0, 175, 177, 3, 12, 6, 0, 176, 175, 1, 0, 0, 0, 176,
+		177, 1, 0, 0, 0, 177, 179, 1, 0, 0, 0, 178, 180, 3, 14, 7, 0, 179, 178,
+		1, 0, 0, 0, 179, 180, 1, 0, 0, 0, 180, 181, 1, 0, 0, 0, 181, 182, 5, 4,
+		0, 0, 182, 35, 1, 0, 0, 0, 183, 184, 5, 1, 0, 0, 184, 186, 5, 22, 0, 0,
+		185, 187, 5, 28, 0, 0, 186, 185, 1, 0, 0, 0, 186, 187, 1, 0, 0, 0, 187,
+		189, 1, 0, 0, 0, 188, 190, 3, 34, 17, 0, 189, 188, 1, 0, 0, 0, 190, 191,
+		1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191, 192, 1, 0, 0, 0, 192, 193, 1, 0,
+		0, 0, 193, 194, 5, 4, 0, 0, 194, 37, 1, 0, 0, 0, 195, 196, 5, 1, 0, 0,
+		196, 197, 5, 23, 0, 0, 197, 198, 5, 27, 0, 0, 198, 199, 3, 22, 11, 0, 199,
+		200, 5, 14, 0, 0, 200, 201, 3, 22, 11, 0, 201, 202, 3, 32, 16, 0, 202,
+		203, 3, 36, 18, 0, 203, 204, 5, 4, 0, 0, 204, 39, 1, 0, 0, 0, 18, 45, 48,
+		51, 54, 91, 120, 140, 143, 146, 149, 156, 161, 170, 173, 176, 179, 186,
+		191,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
@@ -222,7 +222,7 @@ const (
 	TransactionParserRULE_pair                     = 8
 	TransactionParserRULE_key                      = 9
 	TransactionParserRULE_value                    = 10
-	TransactionParserRULE_valueOrVariable          = 11
+	TransactionParserRULE_numericValue             = 11
 	TransactionParserRULE_sendTypes                = 12
 	TransactionParserRULE_account                  = 13
 	TransactionParserRULE_rate                     = 14
@@ -1851,8 +1851,8 @@ errorExit:
 	goto errorExit // Trick to prevent compiler error if the label is not used
 }
 
-// IValueOrVariableContext is an interface to support dynamic dispatch.
-type IValueOrVariableContext interface {
+// INumericValueContext is an interface to support dynamic dispatch.
+type INumericValueContext interface {
 	antlr.ParserRuleContext
 
 	// GetParser returns the parser.
@@ -1860,97 +1860,87 @@ type IValueOrVariableContext interface {
 
 	// Getter signatures
 	INT() antlr.TerminalNode
-	VARIABLE() antlr.TerminalNode
 
-	// IsValueOrVariableContext differentiates from other interfaces.
-	IsValueOrVariableContext()
+	// IsNumericValueContext differentiates from other interfaces.
+	IsNumericValueContext()
 }
 
-type ValueOrVariableContext struct {
+type NumericValueContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
-func NewEmptyValueOrVariableContext() *ValueOrVariableContext {
-	var p = new(ValueOrVariableContext)
+func NewEmptyNumericValueContext() *NumericValueContext {
+	var p = new(NumericValueContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
-	p.RuleIndex = TransactionParserRULE_valueOrVariable
+	p.RuleIndex = TransactionParserRULE_numericValue
 	return p
 }
 
-func InitEmptyValueOrVariableContext(p *ValueOrVariableContext) {
+func InitEmptyNumericValueContext(p *NumericValueContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
-	p.RuleIndex = TransactionParserRULE_valueOrVariable
+	p.RuleIndex = TransactionParserRULE_numericValue
 }
 
-func (*ValueOrVariableContext) IsValueOrVariableContext() {}
+func (*NumericValueContext) IsNumericValueContext() {}
 
-func NewValueOrVariableContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ValueOrVariableContext {
-	var p = new(ValueOrVariableContext)
+func NewNumericValueContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *NumericValueContext {
+	var p = new(NumericValueContext)
 
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
 
 	p.parser = parser
-	p.RuleIndex = TransactionParserRULE_valueOrVariable
+	p.RuleIndex = TransactionParserRULE_numericValue
 
 	return p
 }
 
-func (s *ValueOrVariableContext) GetParser() antlr.Parser { return s.parser }
+func (s *NumericValueContext) GetParser() antlr.Parser { return s.parser }
 
-func (s *ValueOrVariableContext) INT() antlr.TerminalNode {
+func (s *NumericValueContext) INT() antlr.TerminalNode {
 	return s.GetToken(TransactionParserINT, 0)
 }
 
-func (s *ValueOrVariableContext) VARIABLE() antlr.TerminalNode {
-	return s.GetToken(TransactionParserVARIABLE, 0)
-}
-
-func (s *ValueOrVariableContext) GetRuleContext() antlr.RuleContext {
+func (s *NumericValueContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
-func (s *ValueOrVariableContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+func (s *NumericValueContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
-func (s *ValueOrVariableContext) EnterRule(listener antlr.ParseTreeListener) {
+func (s *NumericValueContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.EnterValueOrVariable(s)
+		listenerT.EnterNumericValue(s)
 	}
 }
 
-func (s *ValueOrVariableContext) ExitRule(listener antlr.ParseTreeListener) {
+func (s *NumericValueContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.ExitValueOrVariable(s)
+		listenerT.ExitNumericValue(s)
 	}
 }
 
-func (s *ValueOrVariableContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
+func (s *NumericValueContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
-		return t.VisitValueOrVariable(s)
+		return t.VisitNumericValue(s)
 
 	default:
 		return t.VisitChildren(s)
 	}
 }
 
-func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext) {
-	localctx = NewValueOrVariableContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 22, TransactionParserRULE_valueOrVariable)
-	var _la int
-
+func (p *TransactionParser) NumericValue() (localctx INumericValueContext) {
+	localctx = NewNumericValueContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 22, TransactionParserRULE_numericValue)
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(104)
-		_la = p.GetTokenStream().LA(1)
-
-		if !(_la == TransactionParserINT || _la == TransactionParserVARIABLE) {
-			p.GetErrorHandler().RecoverInline(p)
-		} else {
-			p.GetErrorHandler().ReportMatch(p)
-			p.Consume()
+		p.Match(TransactionParserINT)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
 		}
 	}
 
@@ -2039,10 +2029,10 @@ func (s *ShareIntContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
-func (s *ShareIntContext) ValueOrVariable() IValueOrVariableContext {
+func (s *ShareIntContext) NumericValue() INumericValueContext {
 	var t antlr.RuleContext
 	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2052,7 +2042,7 @@ func (s *ShareIntContext) ValueOrVariable() IValueOrVariableContext {
 		return nil
 	}
 
-	return t.(IValueOrVariableContext)
+	return t.(INumericValueContext)
 }
 
 func (s *ShareIntContext) EnterRule(listener antlr.ParseTreeListener) {
@@ -2099,20 +2089,20 @@ func (s *AmountContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
-func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext {
+func (s *AmountContext) AllNumericValue() []INumericValueContext {
 	children := s.GetChildren()
 	len := 0
 	for _, ctx := range children {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			len++
 		}
 	}
 
-	tst := make([]IValueOrVariableContext, len)
+	tst := make([]INumericValueContext, len)
 	i := 0
 	for _, ctx := range children {
-		if t, ok := ctx.(IValueOrVariableContext); ok {
-			tst[i] = t.(IValueOrVariableContext)
+		if t, ok := ctx.(INumericValueContext); ok {
+			tst[i] = t.(INumericValueContext)
 			i++
 		}
 	}
@@ -2120,11 +2110,11 @@ func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
-func (s *AmountContext) ValueOrVariable(i int) IValueOrVariableContext {
+func (s *AmountContext) NumericValue(i int) INumericValueContext {
 	var t antlr.RuleContext
 	j := 0
 	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2137,7 +2127,7 @@ func (s *AmountContext) ValueOrVariable(i int) IValueOrVariableContext {
 		return nil
 	}
 
-	return t.(IValueOrVariableContext)
+	return t.(INumericValueContext)
 }
 
 func (s *AmountContext) EnterRule(listener antlr.ParseTreeListener) {
@@ -2180,20 +2170,20 @@ func (s *ShareIntOfIntContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
-func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext {
+func (s *ShareIntOfIntContext) AllNumericValue() []INumericValueContext {
 	children := s.GetChildren()
 	len := 0
 	for _, ctx := range children {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			len++
 		}
 	}
 
-	tst := make([]IValueOrVariableContext, len)
+	tst := make([]INumericValueContext, len)
 	i := 0
 	for _, ctx := range children {
-		if t, ok := ctx.(IValueOrVariableContext); ok {
-			tst[i] = t.(IValueOrVariableContext)
+		if t, ok := ctx.(INumericValueContext); ok {
+			tst[i] = t.(INumericValueContext)
 			i++
 		}
 	}
@@ -2201,11 +2191,11 @@ func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
-func (s *ShareIntOfIntContext) ValueOrVariable(i int) IValueOrVariableContext {
+func (s *ShareIntOfIntContext) NumericValue(i int) INumericValueContext {
 	var t antlr.RuleContext
 	j := 0
 	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2218,7 +2208,7 @@ func (s *ShareIntOfIntContext) ValueOrVariable(i int) IValueOrVariableContext {
 		return nil
 	}
 
-	return t.(IValueOrVariableContext)
+	return t.(INumericValueContext)
 }
 
 func (s *ShareIntOfIntContext) EnterRule(listener antlr.ParseTreeListener) {
@@ -2318,7 +2308,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(108)
-			p.ValueOrVariable()
+			p.NumericValue()
 		}
 		{
 			p.SetState(109)
@@ -2330,7 +2320,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(110)
-			p.ValueOrVariable()
+			p.NumericValue()
 		}
 
 	case 2:
@@ -2346,7 +2336,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(113)
-			p.ValueOrVariable()
+			p.NumericValue()
 		}
 		{
 			p.SetState(114)
@@ -2358,7 +2348,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(115)
-			p.ValueOrVariable()
+			p.NumericValue()
 		}
 
 	case 3:
@@ -2374,7 +2364,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(118)
-			p.ValueOrVariable()
+			p.NumericValue()
 		}
 
 	case 4:
@@ -2537,8 +2527,8 @@ type IRateContext interface {
 	// Getter signatures
 	AllUUID() []antlr.TerminalNode
 	UUID(i int) antlr.TerminalNode
-	AllValueOrVariable() []IValueOrVariableContext
-	ValueOrVariable(i int) IValueOrVariableContext
+	AllNumericValue() []INumericValueContext
+	NumericValue(i int) INumericValueContext
 
 	// IsRateContext differentiates from other interfaces.
 	IsRateContext()
@@ -2584,20 +2574,20 @@ func (s *RateContext) UUID(i int) antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, i)
 }
 
-func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
+func (s *RateContext) AllNumericValue() []INumericValueContext {
 	children := s.GetChildren()
 	len := 0
 	for _, ctx := range children {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			len++
 		}
 	}
 
-	tst := make([]IValueOrVariableContext, len)
+	tst := make([]INumericValueContext, len)
 	i := 0
 	for _, ctx := range children {
-		if t, ok := ctx.(IValueOrVariableContext); ok {
-			tst[i] = t.(IValueOrVariableContext)
+		if t, ok := ctx.(INumericValueContext); ok {
+			tst[i] = t.(INumericValueContext)
 			i++
 		}
 	}
@@ -2605,11 +2595,11 @@ func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
-func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext {
+func (s *RateContext) NumericValue(i int) INumericValueContext {
 	var t antlr.RuleContext
 	j := 0
 	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2622,7 +2612,7 @@ func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext {
 		return nil
 	}
 
-	return t.(IValueOrVariableContext)
+	return t.(INumericValueContext)
 }
 
 func (s *RateContext) GetRuleContext() antlr.RuleContext {
@@ -2709,7 +2699,7 @@ func (p *TransactionParser) Rate() (localctx IRateContext) {
 	}
 	{
 		p.SetState(130)
-		p.ValueOrVariable()
+		p.NumericValue()
 	}
 	{
 		p.SetState(131)
@@ -2721,7 +2711,7 @@ func (p *TransactionParser) Rate() (localctx IRateContext) {
 	}
 	{
 		p.SetState(132)
-		p.ValueOrVariable()
+		p.NumericValue()
 	}
 	{
 		p.SetState(133)
@@ -3722,8 +3712,8 @@ type ISendContext interface {
 
 	// Getter signatures
 	UUID() antlr.TerminalNode
-	AllValueOrVariable() []IValueOrVariableContext
-	ValueOrVariable(i int) IValueOrVariableContext
+	AllNumericValue() []INumericValueContext
+	NumericValue(i int) INumericValueContext
 	Source() ISourceContext
 	Distribute() IDistributeContext
 
@@ -3767,20 +3757,20 @@ func (s *SendContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
-func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext {
+func (s *SendContext) AllNumericValue() []INumericValueContext {
 	children := s.GetChildren()
 	len := 0
 	for _, ctx := range children {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			len++
 		}
 	}
 
-	tst := make([]IValueOrVariableContext, len)
+	tst := make([]INumericValueContext, len)
 	i := 0
 	for _, ctx := range children {
-		if t, ok := ctx.(IValueOrVariableContext); ok {
-			tst[i] = t.(IValueOrVariableContext)
+		if t, ok := ctx.(INumericValueContext); ok {
+			tst[i] = t.(INumericValueContext)
 			i++
 		}
 	}
@@ -3788,11 +3778,11 @@ func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
-func (s *SendContext) ValueOrVariable(i int) IValueOrVariableContext {
+func (s *SendContext) NumericValue(i int) INumericValueContext {
 	var t antlr.RuleContext
 	j := 0
 	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
+		if _, ok := ctx.(INumericValueContext); ok {
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -3805,7 +3795,7 @@ func (s *SendContext) ValueOrVariable(i int) IValueOrVariableContext {
 		return nil
 	}
 
-	return t.(IValueOrVariableContext)
+	return t.(INumericValueContext)
 }
 
 func (s *SendContext) Source() ISourceContext {
@@ -3900,7 +3890,7 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 	}
 	{
 		p.SetState(198)
-		p.ValueOrVariable()
+		p.NumericValue()
 	}
 	{
 		p.SetState(199)
@@ -3912,7 +3902,7 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 	}
 	{
 		p.SetState(200)
-		p.ValueOrVariable()
+		p.NumericValue()
 	}
 	{
 		p.SetState(201)

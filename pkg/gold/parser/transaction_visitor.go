@@ -41,8 +41,8 @@ type TransactionVisitor interface {
 	// Visit a parse tree produced by TransactionParser#value.
 	VisitValue(ctx *ValueContext) interface{}
 
-	// Visit a parse tree produced by TransactionParser#valueOrVariable.
-	VisitValueOrVariable(ctx *ValueOrVariableContext) interface{}
+	// Visit a parse tree produced by TransactionParser#numericValue.
+	VisitNumericValue(ctx *NumericValueContext) interface{}
 
 	// Visit a parse tree produced by TransactionParser#Amount.
 	VisitAmount(ctx *AmountContext) interface{}

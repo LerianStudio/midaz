@@ -67,6 +67,60 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 				}
 			}(),
 		},
+		{
+			name: "Scale correctly applied (100|2 equals 1.00)",
+			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 100|2 (source (from @A :amount USD 100|2)) (distribute (to @B :amount USD 100|2))))",
+			want: libTransaction.Transaction{
+				ChartOfAccountsGroupName: "FUNDING",
+				Send: libTransaction.Send{
+					Asset: "USD",
+					Value: decimal.RequireFromString("1.00"),
+					Source: libTransaction.Source{
+						Remaining: "",
+						From: []libTransaction.FromTo{{
+							AccountAlias: "@A",
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							IsFrom:       true,
+						}},
+					},
+					Distribute: libTransaction.Distribute{
+						Remaining: "",
+						To: []libTransaction.FromTo{{
+							AccountAlias: "@B",
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							IsFrom:       false,
+						}},
+					},
+				},
+			},
+		},
+		{
+			name: "Scale correctly applied with larger scale (12345|4 equals 1.2345)",
+			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 12345|4 (source (from @A :amount USD 12345|4)) (distribute (to @B :amount USD 12345|4))))",
+			want: libTransaction.Transaction{
+				ChartOfAccountsGroupName: "FUNDING",
+				Send: libTransaction.Send{
+					Asset: "USD",
+					Value: decimal.RequireFromString("1.2345"),
+					Source: libTransaction.Source{
+						Remaining: "",
+						From: []libTransaction.FromTo{{
+							AccountAlias: "@A",
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							IsFrom:       true,
+						}},
+					},
+					Distribute: libTransaction.Distribute{
+						Remaining: "",
+						To: []libTransaction.FromTo{{
+							AccountAlias: "@B",
+							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							IsFrom:       false,
+						}},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {

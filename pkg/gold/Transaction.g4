@@ -36,13 +36,14 @@ value: UUID
      | INT
      ;
 
-valueOrVariable: INT
-               | VARIABLE
-               ;
+// NOTE: Variables ($var) are NOT supported in numeric positions (amounts, shares, rates, scales).
+// Variables ARE supported for account references (see 'account' rule below).
+// For template variable support, resolve variables to concrete values before parsing.
+numericValue: INT;
 
-sendTypes: ':amount' UUID valueOrVariable '|' valueOrVariable               # Amount
-         | ':share' valueOrVariable ':of' valueOrVariable                    # ShareIntOfInt
-         | ':share' valueOrVariable                                          # ShareInt
+sendTypes: ':amount' UUID numericValue '|' numericValue               # Amount
+         | ':share' numericValue ':of' numericValue                    # ShareIntOfInt
+         | ':share' numericValue                                          # ShareInt
          | REMAINING                                                         # Remaining
          ;
 
@@ -52,7 +53,7 @@ account: VARIABLE
        ;
 
 
-rate: '(' 'rate' UUID UUID '->' UUID valueOrVariable '|' valueOrVariable ')';
+rate: '(' 'rate' UUID UUID '->' UUID numericValue '|' numericValue ')';
 
 from: '(' 'from' account sendTypes rate? description? chartOfAccounts? metadata? ')';
 source: '(' 'source' REMAINING? from+ ')';
@@ -60,4 +61,4 @@ source: '(' 'source' REMAINING? from+ ')';
 to: '(' 'to' account sendTypes rate? description? chartOfAccounts? metadata? ')';
 distribute: '(' 'distribute' REMAINING? to+ ')';
 
-send: '(' 'send' UUID valueOrVariable '|' valueOrVariable source distribute ')';
+send: '(' 'send' UUID numericValue '|' numericValue source distribute ')';
