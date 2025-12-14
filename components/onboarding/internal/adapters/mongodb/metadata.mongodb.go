@@ -40,15 +40,36 @@ type MetadataMongoDBRepository struct {
 
 // NewMetadataMongoDBRepository returns a new instance of MetadataMongoDBLRepository using the given MongoDB connection.
 func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDBRepository {
-	r := &MetadataMongoDBRepository{
+	assert.NotNil(mc, "MongoDB connection must not be nil", "repository", "MetadataMongoDBRepository")
+
+	db, err := mc.GetDB(context.Background())
+	assert.NoError(err, "MongoDB connection required for MetadataMongoDBRepository",
+		"repository", "MetadataMongoDBRepository")
+	assert.NotNil(db, "MongoDB database handle must not be nil", "repository", "MetadataMongoDBRepository")
+
+	return &MetadataMongoDBRepository{
 		connection: mc,
 		Database:   mc.Database,
 	}
-	if _, err := r.connection.GetDB(context.Background()); err != nil {
-		panic("Failed to connect mongodb")
+}
+
+// buildMongoFilter constructs MongoDB filter from query header.
+// Returns error if metadata values are invalid (e.g., nested maps that could enable NoSQL injection).
+func buildMongoFilter(filter http.QueryHeader) (bson.M, error) {
+	mongoFilter := bson.M{}
+
+	if filter.Metadata != nil {
+		for key, value := range *filter.Metadata {
+			safeValue, err := http.ValidateMetadataValue(value)
+			if err != nil {
+				return nil, fmt.Errorf("invalid metadata value for key %s: %w", key, err)
+			}
+
+			mongoFilter[key] = safeValue
+		}
 	}
 
-	return r
+	return mongoFilter, nil
 }
 
 // Create inserts a new metadata entity into mongodb.
@@ -124,9 +145,17 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		opts = options.FindOptions{Limit: &limit, Skip: &skip}
 	}
 
+	mongoFilter, err := buildMongoFilter(filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Invalid metadata filter value", err)
+		logger.Errorf("Invalid metadata filter value: %v", err)
+
+		return nil, err
+	}
+
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter.Metadata, &opts)
+	cur, err := coll.Find(ctx, mongoFilter, &opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
 

@@ -54,15 +54,17 @@ type MongoDBRepository struct {
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection
 func NewMongoDBRepository(connection *libMongo.MongoConnection) *MongoDBRepository {
-	r := &MongoDBRepository{
+	assert.NotNil(connection, "MongoDB connection must not be nil", "repository", "HolderLinkMongoDBRepository")
+
+	db, err := connection.GetDB(context.Background())
+	assert.NoError(err, "MongoDB connection required for HolderLinkMongoDBRepository",
+		"repository", "HolderLinkMongoDBRepository")
+	assert.NotNil(db, "MongoDB database handle must not be nil", "repository", "HolderLinkMongoDBRepository")
+
+	return &MongoDBRepository{
 		connection: connection,
 		Database:   connection.Database,
 	}
-	if _, err := r.connection.GetDB(context.Background()); err != nil {
-		panic("Failed to connect mongo")
-	}
-
-	return r
 }
 
 // Create inserts a holder link into mongo
