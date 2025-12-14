@@ -92,12 +92,19 @@ func isLastAttempt(attempt int) bool {
 // the broker has acknowledged message persistence, preventing message loss during
 // infrastructure failures.
 //
+// NOTE: On confirmation timeout, the message may have already been persisted by the broker.
+// Retries may result in duplicate messages (at-least-once delivery semantic).
+// Consumer-side idempotency (via unique constraints) handles this gracefully.
+//
 //nolint:gocognit,cyclop // Complexity is inherent to retry logic with multiple error scenarios:
 // channel setup, confirm mode, publish, and confirmation handling (Ack/Nack/Timeout/Context).
 // Each path requires distinct handling for proper observability and graceful degradation.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
+	// TODO(review): Consider validating exchange/key length for defensive logging (reported by security-reviewer on 2025-12-14, severity: Low)
+	// TODO(review): The *string return value is always nil - consider deprecating in future cleanup (reported by code-reviewer on 2025-12-14, severity: Low)
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
+	// TODO(review): Entry log emitted before nil/context checks - minor observability improvement possible (reported by code-reviewer on 2025-12-14, severity: Low)
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
@@ -146,8 +153,9 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			continue
 		}
 
-		// Enable publisher confirm mode on the channel
-		// This must be done before publishing to receive confirmations
+		// Enable publisher confirm mode on the channel.
+		// This must be called on every iteration because EnsureChannel() may
+		// return a new channel after connection recovery (idempotent per AMQP spec).
 		if err = prmq.conn.Channel.Confirm(false); err != nil {
 			logger.Errorf("Failed to enable confirm mode on channel: %v", err)
 
@@ -227,6 +235,9 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 			if confirmation.Ack {
 				// SUCCESS: Broker confirmed message persistence
+				// TODO(review): Add observability metrics for publisher confirms (success/nack/timeout counters, duration histogram) (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Low)
+				// TODO(review): Consider logging delivery tag at DEBUG level only for production (reported by security-reviewer on 2025-12-14, severity: Low)
+				// TODO(review): Consider using structured logging fields for better log aggregation (reported by business-logic-reviewer on 2025-12-14, severity: Low)
 				logger.Infof("Message confirmed by broker (delivery tag: %d) to exchange: %s, key: %s",
 					confirmation.DeliveryTag, exchange, key)
 
