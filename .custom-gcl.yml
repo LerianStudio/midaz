@@ -1,0 +1,22 @@
+# golangci-lint module plugins configuration.
+# Build command: golangci-lint custom
+# Run command: ./custom-gcl run
+#
+# This enables the panicguard linters as native golangci-lint plugins.
+
+version: v2.7.2
+
+plugins:
+  # ERROR-level analyzers (blocking):
+  # - norawgoroutine: Detects raw 'go' statements (use mruntime.SafeGo)
+  # - norecoveroutsideboundary: Restricts recover() to boundary packages
+  - module: 'github.com/LerianStudio/midaz/v3'
+    import: 'github.com/LerianStudio/midaz/v3/pkg/mlint/panicguard'
+    path: .
+
+  # WARNING-level analyzers (report-only):
+  # - nopanicinproduction: Warns against panic() in production code
+  # - nobarerecover: Ensures recover() captures panic value
+  - module: 'github.com/LerianStudio/midaz/v3'
+    import: 'github.com/LerianStudio/midaz/v3/pkg/mlint/panicguardwarn'
+    path: .

@@ -104,6 +104,8 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
+require github.com/golangci/plugin-module-register v0.1.2
+
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect

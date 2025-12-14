@@ -106,6 +106,8 @@ help:
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks using gosec"
+	@echo "  make panicguard                  - Run panic hardening linter (golangci-lint plugin)"
+	@echo "  make panicguard-standalone       - Run panic hardening linter (standalone)"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -382,6 +384,27 @@ sec:
 	else \
 		echo "No Go files found, skipping security checks"; \
 	fi
+
+.PHONY: panicguard
+panicguard:
+	$(call print_title,Running panic hardening linter)
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "golangci-lint not found, installing..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.7.2; \
+	fi
+	@if [ ! -f ./custom-gcl ]; then \
+		echo "Building custom golangci-lint with panicguard plugins..."; \
+		golangci-lint custom; \
+	fi
+	@echo "Running panicguard linters..."
+	@./custom-gcl run --enable-only panicguard,panicguardwarn --timeout 5m ./components/... ./pkg/...
+	@echo "[ok] Panic hardening linter completed"
+
+.PHONY: panicguard-standalone
+panicguard-standalone:
+	$(call print_title,Running standalone panicguard linter)
+	@go run ./cmd/panicguard/main.go ./components/... ./pkg/...
+	@echo "[ok] Standalone panicguard linter completed"
 
 #-------------------------------------------------------
 # Git Hook Commands

@@ -4,6 +4,12 @@ run:
 linters:
   enable:
     # ===========================================
+    # Custom Panic Hardening Linters (via module plugin)
+    # ===========================================
+    - panicguard      # ERROR: norawgoroutine + norecoveroutsideboundary
+    - panicguardwarn  # WARNING: nopanicinproduction + nobarerecover
+
+    # ===========================================
     # Security & Bug Detection
     # ===========================================
     - bidichk        # Dangerous unicode characters
@@ -129,6 +135,16 @@ linters:
         - name: use-any
           severity: warning
           disabled: false
+    # ===========================================
+    # Custom Module Plugin Linters
+    # ===========================================
+    custom:
+      panicguard:
+        type: "module"
+        description: "Panic hardening (ERROR): Detects raw goroutines and recover outside boundary packages"
+      panicguardwarn:
+        type: "module"
+        description: "Panic hardening (WARNING): Detects panic() in production and bare recover()"
   exclusions:
     generated: lax
     rules:
