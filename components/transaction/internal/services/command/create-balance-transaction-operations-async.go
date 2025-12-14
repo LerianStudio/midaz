@@ -87,11 +87,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("failed to create operations: %w", err)
 	}
 
-	mruntime.SafeGoWithContext(ctx, logger, "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
+	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
 		uc.SendTransactionEvents(ctx, tran)
 	})
 
-	mruntime.SafeGoWithContext(ctx, logger, "remove_transaction_from_redis", mruntime.KeepRunning, func(ctx context.Context) {
+	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "remove_transaction_from_redis", mruntime.KeepRunning, func(ctx context.Context) {
 		uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
 	})
 

@@ -280,3 +280,152 @@ func TestSafeGoWithContext_WithPanic(t *testing.T) {
 // CrashProcess policy in TestRecoverWithPolicy_CrashProcess, which verifies the
 // re-panic behavior. In production, CrashProcess is intended to terminate the
 // process, which is the expected and correct behavior.
+
+// TestSafeGoWithContext_WithComponent tests SafeGoWithContextAndComponent.
+func TestSafeGoWithContext_WithComponent(t *testing.T) {
+	logger := newMockLogger()
+	ctx := context.Background()
+	done := make(chan struct{})
+
+	SafeGoWithContextAndComponent(ctx, logger, "transaction", "test-component", KeepRunning, func(ctx context.Context) {
+		defer close(done)
+		panic("component panic")
+	})
+
+	select {
+	case <-done:
+		// Success - panic was caught
+	case <-time.After(time.Second):
+		t.Fatal("Goroutine did not complete in time")
+	}
+
+	// Wait for logging via channel
+	require.True(t, logger.waitForPanicLog(time.Second), "Should log the panic")
+}
+
+// TestRecoverWithPolicyAndContext_KeepRunning tests context-aware recovery with KeepRunning.
+func TestRecoverWithPolicyAndContext_KeepRunning(t *testing.T) {
+	logger := newMockLogger()
+	ctx := context.Background()
+
+	func() {
+		defer RecoverWithPolicyAndContext(ctx, logger, "test-component", "test-handler", KeepRunning)
+		panic("context panic")
+	}()
+
+	assert.True(t, logger.wasPanicLogged(), "Should log the panic")
+}
+
+// TestRecoverWithPolicyAndContext_CrashProcess tests context-aware recovery with CrashProcess.
+func TestRecoverWithPolicyAndContext_CrashProcess(t *testing.T) {
+	logger := newMockLogger()
+	ctx := context.Background()
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "Should re-panic with CrashProcess policy")
+	}()
+
+	func() {
+		defer RecoverWithPolicyAndContext(ctx, logger, "test-component", "test-crash", CrashProcess)
+		panic("crash panic")
+	}()
+
+	t.Fatal("Should not reach here")
+}
+
+// TestRecoverAndLogWithContext tests RecoverAndLogWithContext.
+func TestRecoverAndLogWithContext(t *testing.T) {
+	logger := newMockLogger()
+	ctx := context.Background()
+
+	func() {
+		defer RecoverAndLogWithContext(ctx, logger, "test-component", "test-handler")
+		panic("log context panic")
+	}()
+
+	assert.True(t, logger.wasPanicLogged(), "Should log the panic")
+}
+
+// TestRecoverAndCrashWithContext tests RecoverAndCrashWithContext.
+func TestRecoverAndCrashWithContext(t *testing.T) {
+	logger := newMockLogger()
+	ctx := context.Background()
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "Should re-panic after logging")
+		assert.Equal(t, "crash context panic", r)
+	}()
+
+	func() {
+		defer RecoverAndCrashWithContext(ctx, logger, "test-component", "test-crash")
+		panic("crash context panic")
+	}()
+
+	t.Fatal("Should not reach here - panic should propagate")
+}
+
+// TestPanicMetrics_NilFactory tests that nil factory doesn't cause panic.
+func TestPanicMetrics_NilFactory(t *testing.T) {
+	ctx := context.Background()
+
+	// Should not panic even with nil metrics
+	var pm *PanicMetrics
+	pm.RecordPanicRecovered(ctx, "test", "test")
+
+	// Also test the package-level function with no initialization
+	recordPanicMetric(ctx, "test", "test")
+}
+
+// TestErrorReporter_NilReporter tests that nil reporter doesn't cause panic.
+func TestErrorReporter_NilReporter(t *testing.T) {
+	ctx := context.Background()
+
+	// Ensure no reporter is set
+	SetErrorReporter(nil)
+
+	// Should not panic
+	reportPanicToErrorService(ctx, "test panic", nil, "test", "test")
+
+	assert.Nil(t, GetErrorReporter())
+}
+
+// TestErrorReporter_CustomReporter tests custom error reporter integration.
+func TestErrorReporter_CustomReporter(t *testing.T) {
+	ctx := context.Background()
+	var capturedErr error
+	var capturedTags map[string]string
+
+	// Create a mock reporter
+	mockReporter := &mockErrorReporter{
+		captureFunc: func(ctx context.Context, err error, tags map[string]string) {
+			capturedErr = err
+			capturedTags = tags
+		},
+	}
+
+	// Set the reporter with proper cleanup
+	t.Cleanup(func() { SetErrorReporter(nil) })
+	SetErrorReporter(mockReporter)
+
+	// Report a panic
+	reportPanicToErrorService(ctx, "test panic", []byte("test stack trace"), "transaction", "worker")
+
+	require.NotNil(t, capturedErr)
+	assert.Contains(t, capturedErr.Error(), "test panic")
+	assert.Equal(t, "transaction", capturedTags["component"])
+	assert.Equal(t, "worker", capturedTags["goroutine_name"])
+	assert.Equal(t, "test stack trace", capturedTags["stack_trace"])
+}
+
+// mockErrorReporter is a test implementation of ErrorReporter.
+type mockErrorReporter struct {
+	captureFunc func(ctx context.Context, err error, tags map[string]string)
+}
+
+func (m *mockErrorReporter) CaptureException(ctx context.Context, err error, tags map[string]string) {
+	if m.captureFunc != nil {
+		m.captureFunc(ctx, err, tags)
+	}
+}

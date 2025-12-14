@@ -126,7 +126,7 @@ Outer:
 
 		wg.Add(1)
 
-		mruntime.SafeGoWithContext(ctx, r.Logger, "redis_consumer_process_message", mruntime.KeepRunning, func(ctx context.Context) {
+		mruntime.SafeGoWithContextAndComponent(ctx, r.Logger, "transaction", "redis_consumer_process_message", mruntime.KeepRunning, func(ctx context.Context) {
 			r.processMessage(ctx, tracer, sem, &wg, key, transaction)
 		})
 	}

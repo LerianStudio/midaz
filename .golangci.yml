@@ -101,6 +101,11 @@ linters:
       allow-first-in-block: true
       allow-whole-block: false
       branch-max-lines: 2
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^mruntime\.SafeGoWithContext$'
+          message: 'use mruntime.SafeGoWithContextAndComponent(ctx, logger, "<component>", name, policy, fn) for better observability'
     depguard:
       rules:
         main:
@@ -193,6 +198,9 @@ linters:
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
       - path: (.+)\.go$
         text: parameter .* always receives
+      - linters:
+          - forbidigo
+        path: pkg/mruntime/
     paths:
       - third_party$
       - builtin$

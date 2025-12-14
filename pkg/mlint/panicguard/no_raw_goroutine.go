@@ -9,7 +9,7 @@ import (
 )
 
 // NoRawGoroutineAnalyzer detects raw 'go' statements and requires the use of
-// mruntime.SafeGo() or mruntime.SafeGoWithContext() for proper panic recovery.
+// mruntime.SafeGo(), mruntime.SafeGoWithContext(), or mruntime.SafeGoWithContextAndComponent() for proper panic recovery.
 var NoRawGoroutineAnalyzer = &analysis.Analyzer{
 	Name:     "norawgoroutine",
 	Doc:      "detects raw 'go' statements that should use mruntime.SafeGo()",
@@ -39,7 +39,7 @@ func runNoRawGoroutine(pass *analysis.Pass) (any, error) {
 		}
 
 		pass.Reportf(goStmt.Pos(),
-			"raw goroutine detected; use mruntime.SafeGo() or mruntime.SafeGoWithContext() "+
+			"raw goroutine detected; use mruntime.SafeGo() or mruntime.SafeGoWithContextAndComponent() "+
 				"instead of raw 'go' statements to ensure panic recovery. "+
 				"See pkg/mruntime/ for documentation.")
 	})

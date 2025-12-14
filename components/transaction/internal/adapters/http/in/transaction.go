@@ -1222,10 +1222,10 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 		return nil
 	}
 
-	mruntime.SafeGoWithContext(ctx, logger, "idempotency_key_update", mruntime.KeepRunning, func(ctx context.Context) {
+	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "idempotency_key_update", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 	})
-	mruntime.SafeGoWithContext(ctx, logger, "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
+	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
 
@@ -1356,7 +1356,7 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 		return nil
 	}
 
-	mruntime.SafeGoWithContext(ctx, logger, "commit_cancel_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
+	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "commit_cancel_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
 
