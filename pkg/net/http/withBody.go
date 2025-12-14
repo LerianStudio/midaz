@@ -104,33 +104,33 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	bodyBytes := c.Body() // Get the body bytes
 
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return WithError(c, pkg.ValidateUnmarshallingError(err))
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return WithError(c, pkg.ValidateUnmarshallingError(err))
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return WithError(c, pkg.ValidateUnmarshallingError(err))
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return WithError(c, pkg.ValidateUnmarshallingError(err))
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
 		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
-		return WithError(c, err)
+		return BadRequest(c, err)
 	}
 
 	if err := ValidateStruct(s); err != nil {
-		return WithError(c, err)
+		return BadRequest(c, err)
 	}
 
 	c.Locals("fields", diffFields)
@@ -262,7 +262,7 @@ func ParseUUIDPathParameters(entityName string) fiber.Handler {
 			parsedUUID, err := uuid.Parse(value)
 			if err != nil {
 				err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
-				return WithError(c, err)
+				return BadRequest(c, err)
 			}
 
 			c.Locals(param, parsedUUID)
