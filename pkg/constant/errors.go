@@ -136,6 +136,7 @@ var (
 	ErrDefaultBalanceNotFound                   = errors.New("0126")
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrInvalidDatetimeFormat                    = errors.New("0128")
+	ErrStaleBalanceUpdateSkipped                = errors.New("0129")
 
 	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
