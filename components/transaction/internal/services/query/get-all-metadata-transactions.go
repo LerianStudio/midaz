@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -76,6 +77,10 @@ func (uc *UseCase) prepareMetadataLookup(metadata []*mongodb.Metadata) ([]uuid.U
 	metadataMap := make(map[string]map[string]any, len(metadata))
 
 	for i, meta := range metadata {
+		assert.That(assert.ValidUUID(meta.EntityID),
+			"metadata entity ID must be valid UUID",
+			"value", meta.EntityID,
+			"index", i)
 		uuids[i] = uuid.MustParse(meta.EntityID)
 		metadataMap[meta.EntityID] = meta.Data
 	}

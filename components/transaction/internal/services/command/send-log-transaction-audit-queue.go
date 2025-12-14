@@ -9,6 +9,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -32,7 +33,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 	queueData := make([]mmodel.QueueData, 0)
 
-	for _, o := range operations {
+	for i, o := range operations {
 		oLog := o.ToLog()
 
 		marshal, err := json.Marshal(oLog)
@@ -40,6 +41,10 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
 		}
 
+		assert.That(assert.ValidUUID(o.ID),
+			"operation ID must be valid UUID",
+			"value", o.ID,
+			"index", i)
 		queueData = append(queueData, mmodel.QueueData{
 			ID:    uuid.MustParse(o.ID),
 			Value: marshal,

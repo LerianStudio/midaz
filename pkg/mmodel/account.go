@@ -3,6 +3,7 @@ package mmodel
 import (
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/google/uuid"
 )
 
@@ -250,6 +251,10 @@ type Account struct {
 //
 // Returns the UUID representation of the account's ID
 func (a *Account) IDtoUUID() uuid.UUID {
+	assert.That(assert.ValidUUID(a.ID),
+		"account ID must be valid UUID",
+		"value", a.ID)
+
 	return uuid.MustParse(a.ID)
 }
 

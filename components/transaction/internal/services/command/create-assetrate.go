@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -80,6 +81,10 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 	logger.Infof("Trying to update asset rate: %v", cari)
 
 	uc.updateAssetRateFields(arFound, cari)
+
+	assert.That(assert.ValidUUID(arFound.ID),
+		"asset rate ID must be valid UUID",
+		"value", arFound.ID)
 
 	updated, err := uc.AssetRateRepo.Update(ctx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -36,6 +37,9 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 	var portfolioUUID uuid.UUID
 
 	if libCommons.IsNilOrEmpty(cai.EntityID) && !libCommons.IsNilOrEmpty(cai.PortfolioID) {
+		assert.That(assert.ValidUUID(*cai.PortfolioID),
+			"portfolio ID must be valid UUID",
+			"value", *cai.PortfolioID)
 		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
@@ -50,6 +54,10 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 	}
 
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
+		assert.That(assert.ValidUUID(*cai.ParentAccountID),
+			"parent account ID must be valid UUID",
+			"value", *cai.ParentAccountID)
+
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
@@ -127,6 +135,10 @@ func (uc *UseCase) buildAccountModel(organizationID, ledgerID uuid.UUID, cai *mm
 // handleBalanceCreationError handles balance creation failure with compensation
 func (uc *UseCase) handleBalanceCreationError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, portfolioUUID uuid.UUID, accountID string) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
+
+	assert.That(assert.ValidUUID(accountID),
+		"account ID must be valid UUID",
+		"value", accountID)
 
 	delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(accountID))
 	if delErr != nil {

@@ -10,6 +10,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -40,6 +41,10 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 	metadataMap := make(map[string]map[string]any, len(metadata))
 
 	for i, meta := range metadata {
+		assert.That(assert.ValidUUID(meta.EntityID),
+			"metadata entity ID must be valid UUID",
+			"value", meta.EntityID,
+			"index", i)
 		uuids[i] = uuid.MustParse(meta.EntityID)
 		metadataMap[meta.EntityID] = meta.Data
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 )
@@ -66,8 +67,21 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
 
+	assert.That(assert.ValidUUID(tran.OrganizationID),
+		"transaction organization ID must be valid UUID",
+		"value", tran.OrganizationID,
+		"transactionID", tran.ID)
 	organizationID := uuid.MustParse(tran.OrganizationID)
+
+	assert.That(assert.ValidUUID(tran.LedgerID),
+		"transaction ledger ID must be valid UUID",
+		"value", tran.LedgerID,
+		"transactionID", tran.ID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
+
+	assert.That(assert.ValidUUID(tran.ID),
+		"transaction ID must be valid UUID",
+		"value", tran.ID)
 	transactionID := uuid.MustParse(tran.ID)
 
 	logger.Infof("Trying to update transaction using status: : %v", tran.Status.Description)
