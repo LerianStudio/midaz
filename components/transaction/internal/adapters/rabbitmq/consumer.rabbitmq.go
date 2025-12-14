@@ -213,8 +213,8 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			defer spanConsumer.End()
 
 			// Panic recovery with span event recording
-			// Records custom span fields for debugging, Nacks message for redelivery, then re-panics
-			// so the outer mruntime.SafeGo wrapper can observe the panic for metrics and error reporting.
+			// Records custom span fields for debugging, Nacks message for redelivery, and records
+			// panic metrics. Does NOT re-panic so the worker survives and continues processing.
 			// TODO(review): Implement poison message handling - track redelivery count via x-death header
 			// and reject (don't requeue) after N attempts to avoid infinite panic/redelivery loops.
 			// Consider configuring a dead-letter exchange (DLX) in RabbitMQ for failed messages.
@@ -232,13 +232,13 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 					logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
 						workerID, queue, r, string(stack))
 
-					// Nack the message for redelivery before re-panicking
+					// Nack the message for redelivery
 					if err := msg.Nack(false, true); err != nil {
 						logger.Warnf("Worker %d: failed to nack message after panic: %v", workerID, err)
 					}
 
-					// Re-panic so outer mruntime.SafeGo wrapper can record metrics and invoke error reporter
-					panic(r)
+					// Record panic metric manually so worker can survive and continue
+					mruntime.RecordPanicToSpanWithComponent(&spanConsumer, "rabbitmq_consumer", "worker_"+queue, r, stack)
 				}
 			}()
 
