@@ -150,7 +150,11 @@ func parseSimpleQueryParameter(key, value string, query *QueryHeader) {
 func parsePaginationParameter(key, value string, query *QueryHeader) bool {
 	switch {
 	case strings.Contains(key, "metadata."):
-		query.Metadata = &bson.M{key: value}
+		if query.Metadata == nil {
+			query.Metadata = &bson.M{}
+		}
+
+		(*query.Metadata)[key] = value
 		query.UseMetadata = true
 
 		return true

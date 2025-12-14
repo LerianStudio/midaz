@@ -130,7 +130,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if err := ValidateStruct(s); err != nil {
-		return BadRequest(c, err)
+		return WithError(c, err)
 	}
 
 	c.Locals("fields", diffFields)

@@ -857,7 +857,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Message Broker Unavailable",
 			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
 		},
-		constant.ErrAccountAliasInvalid: InternalServerError{
+		constant.ErrAccountAliasInvalid: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
 			Title:      "Invalid Account Alias",
