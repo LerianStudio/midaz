@@ -7,19 +7,20 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
 // UpdateBalances func that is responsible to update balances without select for update.
-func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance) error {
+func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
+	fromTo := make(map[string]libTransaction.Amount, len(validate.From)+len(validate.To))
 	for k, v := range validate.From {
 		fromTo[k] = v
 	}
@@ -33,7 +34,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	for _, balance := range balances {
 		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
-		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
+		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err.Error())
@@ -56,9 +57,17 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	balancesToUpdate := uc.filterStaleBalances(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
 
 	if len(balancesToUpdate) == 0 {
-		logger.Info("All balances are stale, skipping database update")
+		// CRITICAL: Do NOT return success when all balances are skipped!
+		// This was the root cause of 82-97% data loss in chaos tests.
+		// Transaction/operations are created but balance never persisted.
+		logger.Errorf("CRITICAL: All %d balances are stale, returning error to trigger retry. "+
+			"org=%s ledger=%s balance_count=%d",
+			len(newBalances), organizationID, ledgerID, len(newBalances))
 
-		return nil
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "All balances stale - data integrity risk", nil)
+
+		return fmt.Errorf("all %d balance updates skipped due to stale versions: %w",
+			len(newBalances), constant.ErrStaleBalanceUpdateSkipped)
 	}
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
@@ -79,7 +88,7 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 
 	for _, balance := range balances {
 		// Extract the balance key from alias format "0#@account1#default" -> "@account1#default"
-		balanceKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
+		balanceKey := libTransaction.SplitAliasWithKey(balance.Alias)
 
 		cachedBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, balanceKey)
 		if err != nil {
