@@ -1274,6 +1274,11 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 		return false, fmt.Errorf("failed: %w", err)
 	}
 
+	if affected == 0 {
+		logger.Warnf("Balance sync skipped (stale version): balance_id=%s, redis_version=%d, possible_causes=[already_synced, concurrent_sync, replay_protection]",
+			b.ID, b.Version)
+	}
+
 	return affected > 0, nil
 }
 
