@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
@@ -33,14 +34,13 @@ type BalanceGRPCRepository struct {
 
 // NewBalanceGRPC returns a new instance of BalanceGRPCRepository using the given gRPC connection.
 func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
-	agrpc := &BalanceGRPCRepository{conn: c}
+	assert.NotNil(c, "gRPC connection must not be nil", "client", "BalanceGRPCClient")
 
-	_, err := c.GetNewClient()
-	if err != nil {
-		panic("Failed to connect gRPC")
-	}
+	client, err := c.GetNewClient()
+	assert.NoError(err, "gRPC connection required for BalanceGRPCClient", "client", "BalanceGRPCClient")
+	assert.NotNil(client, "gRPC client handle must not be nil", "client", "BalanceGRPCClient")
 
-	return agrpc
+	return &BalanceGRPCRepository{conn: c}
 }
 
 // CreateBalance creates a balance via gRPC using the provided request.
