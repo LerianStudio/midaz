@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -55,8 +54,8 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -143,9 +142,9 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	accountID := http.LocalUUID(c, "account_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -226,9 +225,9 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	balanceID := http.LocalUUID(c, "balance_id")
 
 	logger.Infof("Initiating retrieval of balance by id")
 
@@ -280,9 +279,9 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	balanceID := http.LocalUUID(c, "balance_id")
 
 	logger.Infof("Initiating delete balance by id")
 
@@ -336,13 +335,13 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_balance")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	balanceID := http.LocalUUID(c, "balance_id")
 
 	logger.Infof("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String())
 
-	payload := p.(*mmodel.UpdateBalance)
+	payload := http.Payload[*mmodel.UpdateBalance](c, p)
 	logger.Infof("Request to update a Balance with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -410,8 +409,8 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balances_by_alias")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 	alias := c.Params("alias")
 
 	logger.Infof("Initiating retrieval of balances by alias")
@@ -470,8 +469,8 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balances_external_by_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
@@ -531,11 +530,11 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	accountID := http.LocalUUID(c, "account_id")
 
-	payload := p.(*mmodel.CreateAdditionalBalance)
+	payload := http.Payload[*mmodel.CreateAdditionalBalance](c, p)
 	logger.Infof("Request to create a Balance with details: %#v", payload)
 
 	ctx, span := tracer.Start(ctx, "handler.create_additional_balance")

@@ -74,7 +74,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input := http.Payload[*transaction.CreateTransactionInput](c, p)
 	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
@@ -120,7 +120,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input := http.Payload[*transaction.CreateTransactionInput](c, p)
 	parserDSL := input.FromDSL()
 	logger.Infof("Create an transaction annotation without an affected balance: %#v", parserDSL)
 
@@ -156,7 +156,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInflowInput)
+	input := http.Payload[*transaction.CreateTransactionInflowInput](c, p)
 	parserDSL := input.InflowFromDSL()
 	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
 
@@ -199,7 +199,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionOutflowInput)
+	input := http.Payload[*transaction.CreateTransactionOutflowInput](c, p)
 	parserDSL := input.OutflowFromDSL()
 	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
@@ -356,9 +356,9 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
 
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
@@ -403,9 +403,9 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
 
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
@@ -452,9 +452,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
@@ -586,13 +586,13 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
 
 	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
-	payload := p.(*transaction.UpdateTransactionInput)
+	payload := http.Payload[*transaction.UpdateTransactionInput](c, p)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
@@ -660,9 +660,9 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
 
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
@@ -747,8 +747,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_transactions")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -998,9 +998,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	parentID := http.LocalUUIDOptional(c, "transaction_id")
 	transactionID := libCommons.GenerateUUIDv7()
 
 	c.Set(libConstants.IdempotencyReplayed, "false")

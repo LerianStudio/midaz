@@ -11,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -48,13 +47,13 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
 
-	payload := p.(*assetrate.CreateAssetRateInput)
+	payload := http.Payload[*assetrate.CreateAssetRateInput](c, p)
 	logger.Infof("Request to create an AssetRate with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -105,9 +104,9 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	externalID := c.Locals("external_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	externalID := http.LocalUUID(c, "external_id")
 
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
 		organizationID.String(), ledgerID.String(), externalID.String())
@@ -163,8 +162,8 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 	assetCode := c.Params("asset_code")
 
 	headerParams, err := http.ValidateParameters(c.Queries())

@@ -49,10 +49,10 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
-	payload := i.(*mmodel.CreateTransactionRouteInput)
+	payload := http.Payload[*mmodel.CreateTransactionRouteInput](c, i)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -116,9 +116,9 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "transaction_route_id")
 
 	logger.Infof("Request to get transaction route with ID: %s", id.String())
 
@@ -169,13 +169,13 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "transaction_route_id")
 
 	logger.Infof("Request to update transaction route with ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateTransactionRouteInput)
+	payload := http.Payload[*mmodel.UpdateTransactionRouteInput](c, i)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -252,9 +252,9 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "transaction_route_id")
 
 	logger.Infof("Request to delete transaction route with ID: %s", id.String())
 
@@ -314,8 +314,8 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

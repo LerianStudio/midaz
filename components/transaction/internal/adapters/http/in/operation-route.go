@@ -54,10 +54,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
-	payload := i.(*mmodel.CreateOperationRouteInput)
+	payload := http.Payload[*mmodel.CreateOperationRouteInput](c, i)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -118,9 +118,9 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "operation_route_id")
 
 	logger.Infof("Initiating retrieval of Operation Route with Operation Route ID: %s", id.String())
 
@@ -175,13 +175,13 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "operation_route_id")
 
 	logger.Infof("Initiating update of Operation Route with Operation Route ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateOperationRouteInput)
+	payload := http.Payload[*mmodel.UpdateOperationRouteInput](c, i)
 	logger.Infof("Request to update an Operation Route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
@@ -269,9 +269,9 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	id := http.LocalUUID(c, "operation_route_id")
 
 	logger.Infof("Initiating deletion of Operation Route with Operation Route ID: %s", id.String())
 
@@ -326,8 +326,8 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

@@ -56,9 +56,9 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	accountID := http.LocalUUID(c, "account_id")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -176,10 +176,10 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	accountID := http.LocalUUID(c, "account_id")
+	operationID := http.LocalUUID(c, "operation_id")
 
 	logger.Infof("Initiating retrieval of Operation by account")
 
@@ -234,14 +234,14 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	transactionID := http.LocalUUID(c, "transaction_id")
+	operationID := http.LocalUUID(c, "operation_id")
 
 	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 
-	payload := p.(*operation.UpdateOperationInput)
+	payload := http.Payload[*operation.UpdateOperationInput](c, p)
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
