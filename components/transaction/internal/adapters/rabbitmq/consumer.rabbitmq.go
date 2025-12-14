@@ -112,8 +112,13 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 	// Attempt to publish to DLQ
 	dlqName := buildDLQName(prc.queue)
 	if err := prc.publishToDLQ(dlqName, panicValue); err != nil {
-		prc.logger.Errorf("Worker %d: failed to publish to DLQ %s: %v - rejecting message", prc.workerID, dlqName, err)
-		// Fall back to reject if DLQ publish fails
+		// CRITICAL: This is a double-failure scenario (max retries + DLQ unavailable)
+		// The message will be permanently lost via Reject(false) below
+		// TODO(review): Add metrics for alerting: metrics.IncrCounter("dlq.publish.failure", 1) (reported by business-logic-reviewer on 2025-12-14, severity: High)
+		prc.logger.Errorf("Worker %d: CRITICAL - DLQ publish failed, message will be PERMANENTLY LOST - queue=%s, dlq=%s, retry_count=%d, error=%v",
+			prc.workerID, prc.queue, dlqName, prc.retryCount+1, err)
+
+		// Fall back to reject (message is lost - tradeoff accepted for double-failure)
 		if rejectErr := prc.msg.Reject(false); rejectErr != nil {
 			prc.logger.Warnf("Worker %d: failed to reject poison message: %v", prc.workerID, rejectErr)
 		}
