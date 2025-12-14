@@ -346,7 +346,7 @@ func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
-		assert.Equal(t, time.Duration(60), ttl)
+		assert.Equal(t, 60*time.Second, ttl)
 		return c.SendStatus(fiber.StatusOK)
 	})
 

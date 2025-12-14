@@ -104,33 +104,33 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	bodyBytes := c.Body() // Get the body bytes
 
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return WithError(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return WithError(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return WithError(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return WithError(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
 		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
-		return BadRequest(c, err)
+		return WithError(c, err)
 	}
 
 	if err := ValidateStruct(s); err != nil {
-		return BadRequest(c, err)
+		return WithError(c, err)
 	}
 
 	c.Locals("fields", diffFields)
@@ -471,6 +471,11 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 
 // convertFieldToString converts a reflect.Value to string based on its kind
 func convertFieldToString(field reflect.Value) string {
+	// Handle interface{} by getting the underlying element
+	if field.Kind() == reflect.Interface && !field.IsNil() {
+		field = field.Elem()
+	}
+
 	switch field.Kind() {
 	case reflect.Int:
 		return strconv.Itoa(int(field.Int()))
