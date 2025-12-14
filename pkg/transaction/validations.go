@@ -214,6 +214,7 @@ func applyBalanceOperation(amount Amount, available, onHold decimal.Decimal) (de
 			"transactionType", amount.TransactionType,
 			"operation", amount.Operation,
 			"value", amount.Value.String())
+
 		return available, onHold, false // unreachable, satisfies compiler
 	}
 }
@@ -265,6 +266,7 @@ func determineOperationForPendingTransaction(isFrom bool, transactionType string
 		assert.Never("unhandled transaction type in determineOperationForPendingTransaction",
 			"transactionType", transactionType,
 			"isFrom", isFrom)
+
 		return constant.CREDIT // unreachable, satisfies compiler
 	}
 }

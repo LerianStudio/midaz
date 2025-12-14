@@ -289,7 +289,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		return nil, err
 	}
 
-	return rr.convertRedisBalancesToModel(blcsRedis, mapBalances, logger), nil
+	return rr.convertRedisBalancesToModel(blcsRedis, mapBalances), nil
 }
 
 // handleRedisClientError handles Redis client connection errors
@@ -433,7 +433,7 @@ func (rr *RedisConsumerRepository) unmarshalBalanceRedis(balanceJSON []byte, spa
 }
 
 // convertRedisBalancesToModel converts Redis balances to model balances
-func (rr *RedisConsumerRepository) convertRedisBalancesToModel(blcsRedis []mmodel.BalanceRedis, mapBalances map[string]*mmodel.Balance, logger libLog.Logger) []*mmodel.Balance {
+func (rr *RedisConsumerRepository) convertRedisBalancesToModel(blcsRedis []mmodel.BalanceRedis, mapBalances map[string]*mmodel.Balance) []*mmodel.Balance {
 	balances := make([]*mmodel.Balance, 0, len(blcsRedis))
 
 	for _, b := range blcsRedis {
