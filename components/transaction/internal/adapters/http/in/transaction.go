@@ -1223,9 +1223,9 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 		return nil
 	}
 
-	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "idempotency_key_update", mruntime.KeepRunning, func(ctx context.Context) {
-		handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
-	})
+	// Idempotency key update MUST be synchronous to ensure subsequent requests
+	// can detect replays immediately. This is critical for financial transaction safety.
+	handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
