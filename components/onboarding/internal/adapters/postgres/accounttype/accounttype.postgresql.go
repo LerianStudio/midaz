@@ -121,11 +121,11 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
@@ -143,11 +143,11 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("failed to create account type: %w", err)
+		return nil, fmt.Errorf("failed to create account type: %w", notFoundErr)
 	}
 
 	spanExec.End()
@@ -335,13 +335,13 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Warnf("Failed to execute update query: %v", err)
+			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -361,11 +361,11 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := services.ErrDatabaseItemNotFound
+		notFoundErr := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", notFoundErr)
 
-		return nil, err
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil

@@ -40,7 +40,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 			input: &mmodel.UpdateOrganizationInput{
 				ParentOrganizationID: nil,
 				LegalName:            "Updated Organization",
-				DoingBusinessAs:      "Updated DBA",
+				DoingBusinessAs:      utils.StringPtr("Updated DBA"),
 				Address:              mmodel.Address{Country: "US"},
 				Status:               mmodel.Status{Code: "active"},
 				Metadata:             map[string]any{"key": "value"},

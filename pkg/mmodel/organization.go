@@ -105,7 +105,7 @@ type UpdateOrganizationInput struct {
 	// required: false
 	// example: Lerian Group
 	// maxLength: 256
-	DoingBusinessAs string `json:"doingBusinessAs" validate:"max=256" example:"Lerian Group" maxLength:"256"`
+	DoingBusinessAs *string `json:"doingBusinessAs" validate:"omitempty,max=256" example:"Lerian Group" maxLength:"256"`
 
 	// Updated physical address of the organization
 	// required: false

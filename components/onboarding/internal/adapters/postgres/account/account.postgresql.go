@@ -161,13 +161,13 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", validatedErr)
 
-			logger.Errorf("Failed to execute query: %v", err)
+			logger.Errorf("Failed to execute query: %v", validatedErr)
 
-			return nil, fmt.Errorf("failed to execute query: %w", err)
+			return nil, fmt.Errorf("failed to execute query: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -189,13 +189,13 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account", notFoundErr)
 
-		logger.Warnf("Failed to create account: %v", err)
+		logger.Warnf("Failed to create account: %v", notFoundErr)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, fmt.Errorf("validation failed: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil
@@ -911,13 +911,13 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Errorf("Failed to execute update query: %v", err)
+			logger.Errorf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("failed to execute query: %w", err)
+			return nil, fmt.Errorf("failed to execute query: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -937,13 +937,13 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", notFoundErr)
 
-		logger.Warnf("Failed to update account: %v", err)
+		logger.Warnf("Failed to update account: %v", notFoundErr)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, fmt.Errorf("validation failed: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil

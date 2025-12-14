@@ -115,13 +115,13 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Errorf("Failed to execute update query: %v", err)
+			logger.Errorf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -143,13 +143,13 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment. Rows affected is 0", notFoundErr)
 
-		logger.Warnf("Failed to create segment. Rows affected is 0: %v", err)
+		logger.Warnf("Failed to create segment. Rows affected is 0: %v", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil
@@ -488,13 +488,13 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Errorf("Failed to execute update query: %v", err)
+			logger.Errorf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -516,13 +516,13 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment. Rows affected is 0", notFoundErr)
 
-		logger.Warnf("Failed to update segment. Rows affected is 0: %v", err)
+		logger.Warnf("Failed to update segment. Rows affected is 0: %v", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil

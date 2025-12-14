@@ -117,13 +117,13 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Warnf("Failed to execute update query: %v", err)
+			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -145,13 +145,13 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio. Rows affected is 0", notFoundErr)
 
-		logger.Warnf("Failed to create Portfolio. Rows affected is 0: %v", err)
+		logger.Warnf("Failed to create Portfolio. Rows affected is 0: %v", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil
@@ -528,13 +528,13 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validatedErr)
 
-			logger.Warnf("Failed to execute update query: %v", err)
+			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -556,11 +556,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
 	}
 
 	return record.ToEntity(), nil
