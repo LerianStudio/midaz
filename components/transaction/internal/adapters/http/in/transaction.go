@@ -1224,7 +1224,9 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 	}
 
 	// Idempotency key update MUST be synchronous to ensure subsequent requests
-	// can detect replays immediately. This is critical for financial transaction safety.
+	// can detect replays immediately. Previously async (via goroutine), which created
+	// a race condition where Request 2 could arrive before the cached response was stored.
+	// This is critical for financial transaction safety.
 	handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())

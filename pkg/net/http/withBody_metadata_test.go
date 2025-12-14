@@ -7,6 +7,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateStruct_MetadataValueMaxLength(t *testing.T) {
@@ -19,18 +21,13 @@ func TestValidateStruct_MetadataValueMaxLength(t *testing.T) {
 	s := &payload{Metadata: map[string]any{"note": strings.Repeat("x", 2001)}}
 
 	err := ValidateStruct(s)
-	if err == nil {
-		t.Fatalf("expected validation error")
-	}
+	require.Error(t, err, "expected validation error")
 
 	var vErr pkg.ValidationError
-	if !errors.As(err, &vErr) {
-		t.Fatalf("expected pkg.ValidationError, got %T: %v", err, err)
-	}
+	require.True(t, errors.As(err, &vErr), "expected pkg.ValidationError, got %T: %v", err, err)
 
-	if vErr.Code != constant.ErrMetadataValueLengthExceeded.Error() {
-		t.Fatalf("expected code %s, got %s", constant.ErrMetadataValueLengthExceeded.Error(), vErr.Code)
-	}
+	assert.Equal(t, constant.ErrMetadataValueLengthExceeded.Error(), vErr.Code,
+		"expected code %s, got %s", constant.ErrMetadataValueLengthExceeded.Error(), vErr.Code)
 }
 
 func TestValidateStruct_MetadataKeyMaxLength(t *testing.T) {
@@ -44,16 +41,11 @@ func TestValidateStruct_MetadataKeyMaxLength(t *testing.T) {
 	s := &payload{Metadata: map[string]any{key: "ok"}}
 
 	err := ValidateStruct(s)
-	if err == nil {
-		t.Fatalf("expected validation error")
-	}
+	require.Error(t, err, "expected validation error")
 
 	var vErr pkg.ValidationError
-	if !errors.As(err, &vErr) {
-		t.Fatalf("expected pkg.ValidationError, got %T: %v", err, err)
-	}
+	require.True(t, errors.As(err, &vErr), "expected pkg.ValidationError, got %T: %v", err, err)
 
-	if vErr.Code != constant.ErrMetadataKeyLengthExceeded.Error() {
-		t.Fatalf("expected code %s, got %s", constant.ErrMetadataKeyLengthExceeded.Error(), vErr.Code)
-	}
+	assert.Equal(t, constant.ErrMetadataKeyLengthExceeded.Error(), vErr.Code,
+		"expected code %s, got %s", constant.ErrMetadataKeyLengthExceeded.Error(), vErr.Code)
 }

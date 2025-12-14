@@ -10,6 +10,7 @@ import (
 	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -599,4 +600,71 @@ func TestValidateDates_SameDay(t *testing.T) {
 	err := validateDates(&startDate, &endDate)
 
 	require.NoError(t, err)
+}
+
+func TestGetIdempotencyKeyAndTTL_WithZeroTTL(t *testing.T) {
+	app := fiber.New()
+
+	expectedDefaultTTL := time.Duration(libRedis.TTL) * time.Second
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		key, ttl := GetIdempotencyKeyAndTTL(c)
+		assert.Equal(t, "test-key", key)
+		// Zero TTL should fall back to default
+		assert.Equal(t, expectedDefaultTTL, ttl, "zero TTL should fall back to libRedis.TTL * time.Second")
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set(libConstants.IdempotencyKey, "test-key")
+	req.Header.Set(libConstants.IdempotencyTTL, "0")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetIdempotencyKeyAndTTL_WithMissingTTLHeader(t *testing.T) {
+	app := fiber.New()
+
+	expectedDefaultTTL := time.Duration(libRedis.TTL) * time.Second
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		key, ttl := GetIdempotencyKeyAndTTL(c)
+		assert.Equal(t, "test-key", key)
+		// Missing TTL header should fall back to default
+		assert.Equal(t, expectedDefaultTTL, ttl, "missing TTL header should fall back to libRedis.TTL * time.Second")
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set(libConstants.IdempotencyKey, "test-key")
+	// Intentionally NOT setting IdempotencyTTL header
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetIdempotencyKeyAndTTL_DefaultValueIsCorrect(t *testing.T) {
+	app := fiber.New()
+
+	expectedDefaultTTL := time.Duration(libRedis.TTL) * time.Second
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		_, ttl := GetIdempotencyKeyAndTTL(c)
+		// Verify the default TTL is libRedis.TTL converted to seconds
+		assert.Equal(t, expectedDefaultTTL, ttl,
+			"default TTL should be libRedis.TTL (%d) * time.Second", libRedis.TTL)
+		// Verify the TTL is positive
+		assert.True(t, ttl > 0, "default TTL should be positive")
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	// No headers - testing pure default behavior
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }

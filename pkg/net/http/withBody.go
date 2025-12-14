@@ -471,8 +471,8 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 
 // convertFieldToString converts a reflect.Value to string based on its kind
 func convertFieldToString(field reflect.Value) string {
-	// Handle interface{} by getting the underlying element
-	if field.Kind() == reflect.Interface && !field.IsNil() {
+	// Handle interface{} by getting the underlying element (loop for nested interfaces)
+	for field.Kind() == reflect.Interface && !field.IsNil() {
 		field = field.Elem()
 	}
 
