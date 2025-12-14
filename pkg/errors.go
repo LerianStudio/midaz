@@ -1055,6 +1055,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Datetime Format Error",
 			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' or 'yyyy-mm-dd hh:mm:ss' format and try again.",
 		},
+		constant.ErrStaleBalanceUpdateSkipped: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrStaleBalanceUpdateSkipped.Error(),
+			Title:      "Stale Balance Update Skipped",
+			Message:    "All balance updates were skipped because newer versions exist. The transaction was created but balances were not persisted. This indicates a version conflict that requires retry.",
+		},
 		constant.ErrHolderNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrHolderNotFound.Error(),
