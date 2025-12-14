@@ -52,7 +52,10 @@ func NotEmpty(s string, msg string, kv ...any) {
 func NoError(err error, msg string, kv ...any) {
 	if err != nil {
 		// Prepend error and error_type to key-value pairs for richer debugging
-		kvWithError := make([]any, 0, len(kv)+4)
+		// errorKVPairs: 2 pairs added (error + error_type), each pair = 2 elements
+		const errorKVPairs = 4
+
+		kvWithError := make([]any, 0, len(kv)+errorKVPairs)
 		kvWithError = append(kvWithError, "error", err.Error())
 		kvWithError = append(kvWithError, "error_type", fmt.Sprintf("%T", err))
 		kvWithError = append(kvWithError, kv...)
@@ -87,6 +90,7 @@ func panicWithContext(msg string, kv ...any) {
 	// Format key-value pairs
 	if len(kv) > 0 {
 		sb.WriteString("\n")
+
 		for i := 0; i < len(kv); i += 2 {
 			var value any
 			if i+1 < len(kv) {

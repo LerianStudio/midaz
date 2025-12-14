@@ -40,8 +40,8 @@ func NotZero(n int64) bool {
 // Example:
 //
 //	assert.That(assert.InRange(page, 1, 1000), "page out of range", "page", page)
-func InRange(n, min, max int64) bool {
-	return n >= min && n <= max
+func InRange(n, minVal, maxVal int64) bool {
+	return n >= minVal && n <= maxVal
 }
 
 // ValidUUID returns true if s is a valid UUID string.
@@ -56,7 +56,9 @@ func ValidUUID(s string) bool {
 	if s == "" {
 		return false
 	}
+
 	_, err := uuid.Parse(s)
+
 	return err == nil
 }
 
