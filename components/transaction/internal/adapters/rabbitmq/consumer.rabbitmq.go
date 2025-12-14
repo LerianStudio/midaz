@@ -51,29 +51,6 @@ func getRetryCount(headers amqp.Table) int {
 	return 0
 }
 
-// getRedeliveryCount extracts the total redelivery count from RabbitMQ's x-death header.
-// In multi-hop DLX scenarios, the count might be distributed across multiple entries,
-// so this function aggregates counts from all x-death entries.
-// Returns 0 if no x-death header is present (first delivery or direct Nack requeue).
-func getRedeliveryCount(headers amqp.Table) int {
-	xDeath, ok := headers["x-death"].([]interface{})
-	if !ok {
-		return 0
-	}
-
-	// Aggregate counts across all x-death entries for multi-hop DLX scenarios
-	totalCount := 0
-	for _, entry := range xDeath {
-		if death, ok := entry.(amqp.Table); ok {
-			if count, ok := death["count"].(int64); ok {
-				totalCount += int(count)
-			}
-		}
-	}
-
-	return totalCount
-}
-
 // copyHeaders creates a deep copy of amqp.Table for safe header modification
 func copyHeaders(src amqp.Table) amqp.Table {
 	if src == nil {
