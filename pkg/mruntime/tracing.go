@@ -2,12 +2,16 @@ package mruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// ErrPanic is the sentinel error for recovered panics recorded to spans.
+var ErrPanic = errors.New("panic")
 
 // PanicSpanEventName is the event name used when recording panic events on spans.
 const PanicSpanEventName = "panic.recovered"
@@ -69,12 +73,13 @@ func recordPanicToSpanInternal(ctx context.Context, panicValue any, stack []byte
 	span.AddEvent(PanicSpanEventName, trace.WithAttributes(attrs...))
 
 	// Record as error for error-tracking integrations
-	span.RecordError(fmt.Errorf("panic: %v", panicValue))
+	span.RecordError(fmt.Errorf("%w: %v", ErrPanic, panicValue))
 
 	// Set span status to Error
-	statusMsg := fmt.Sprintf("panic recovered in %s", goroutineName)
+	statusMsg := "panic recovered in " + goroutineName
 	if component != "" {
 		statusMsg = fmt.Sprintf("panic recovered in %s/%s", component, goroutineName)
 	}
+
 	span.SetStatus(codes.Error, statusMsg)
 }
