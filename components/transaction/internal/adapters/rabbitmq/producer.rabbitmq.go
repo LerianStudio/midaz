@@ -18,6 +18,15 @@ import (
 
 const (
 	attemptDisplayOffset = 2
+
+	// publishConfirmTimeout defines how long the producer waits for broker
+	// acknowledgment before considering a publish operation failed.
+	// Set to 10s to allow temporary broker unavailability during chaos
+	// scenarios while not blocking excessively during normal operations.
+	// This value is critical for ensuring data consistency - without publisher
+	// confirms, messages may be lost if the broker fails between accepting
+	// the message and persisting it.
+	publishConfirmTimeout = 10 * time.Second
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
