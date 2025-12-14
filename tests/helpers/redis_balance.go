@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 )
@@ -26,33 +27,6 @@ var (
 	// ErrRedisBalanceUnmarshal indicates failure to unmarshal Redis balance data
 	ErrRedisBalanceUnmarshal = errors.New("failed to unmarshal Redis balance data")
 )
-
-// RedisBalance represents the balance data stored in Redis
-// Matches the BalanceRedis struct format from pkg/mmodel/balance.go
-type RedisBalance struct {
-	// Unique identifier for the balance (UUID format)
-	ID string `json:"id"`
-	// Alias for the account
-	Alias string `json:"alias"`
-	// Account that holds this balance
-	AccountID string `json:"accountId"`
-	// Asset code identifying the currency or asset type
-	AssetCode string `json:"assetCode"`
-	// Amount available for transactions
-	Available decimal.Decimal `json:"available"`
-	// Amount currently on hold
-	OnHold decimal.Decimal `json:"onHold"`
-	// Optimistic concurrency control version
-	Version int64 `json:"version"`
-	// Type of account holding this balance
-	AccountType string `json:"accountType"`
-	// Whether the account can send funds (1=true, 0=false)
-	AllowSending int `json:"allowSending"`
-	// Whether the account can receive funds (1=true, 0=false)
-	AllowReceiving int `json:"allowReceiving"`
-	// Unique key for the balance
-	Key string `json:"key"`
-}
 
 // RedisBalanceClient provides methods to read balance data from Redis
 // and wait for convergence between Redis and PostgreSQL
@@ -95,7 +69,7 @@ func buildBalanceKey(orgID, ledgerID, alias, key string) string {
 
 // GetBalanceFromRedis retrieves a balance from Redis by its key components
 // Returns nil without error if the balance is not found (redis.Nil)
-func (r *RedisBalanceClient) GetBalanceFromRedis(ctx context.Context, orgID, ledgerID, alias, key string) (*RedisBalance, error) {
+func (r *RedisBalanceClient) GetBalanceFromRedis(ctx context.Context, orgID, ledgerID, alias, key string) (*mmodel.BalanceRedis, error) {
 	redisKey := buildBalanceKey(orgID, ledgerID, alias, key)
 
 	value, err := r.client.Get(ctx, redisKey).Result()
@@ -108,7 +82,7 @@ func (r *RedisBalanceClient) GetBalanceFromRedis(ctx context.Context, orgID, led
 		return nil, fmt.Errorf("failed to get balance from Redis key %s: %w", redisKey, err)
 	}
 
-	var balance RedisBalance
+	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(value), &balance); err != nil {
 		return nil, fmt.Errorf("%w for key %s: %w", ErrRedisBalanceUnmarshal, redisKey, err)
 	}
@@ -118,7 +92,7 @@ func (r *RedisBalanceClient) GetBalanceFromRedis(ctx context.Context, orgID, led
 
 // GetBalanceFromRedisByFullKey retrieves a balance using the full Redis key
 // Returns nil without error if the balance is not found (redis.Nil)
-func (r *RedisBalanceClient) GetBalanceFromRedisByFullKey(ctx context.Context, redisKey string) (*RedisBalance, error) {
+func (r *RedisBalanceClient) GetBalanceFromRedisByFullKey(ctx context.Context, redisKey string) (*mmodel.BalanceRedis, error) {
 	value, err := r.client.Get(ctx, redisKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -128,7 +102,7 @@ func (r *RedisBalanceClient) GetBalanceFromRedisByFullKey(ctx context.Context, r
 		return nil, fmt.Errorf("failed to get balance from Redis key %s: %w", redisKey, err)
 	}
 
-	var balance RedisBalance
+	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(value), &balance); err != nil {
 		return nil, fmt.Errorf("%w for key %s: %w", ErrRedisBalanceUnmarshal, redisKey, err)
 	}
@@ -164,8 +138,11 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 	}
 
 	deadline := time.Now().Add(timeout)
-	var lastValue decimal.Decimal
-	var lastErr error
+
+	var (
+		lastValue decimal.Decimal
+		lastErr   error
+	)
 
 	for time.Now().Before(deadline) {
 		select {
@@ -177,6 +154,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 		pgValue, err := checkPostgres(ctx)
 		if err != nil {
 			lastErr = err
+
 			time.Sleep(redisBalancePollInterval)
 
 			continue
@@ -220,7 +198,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergenceWithHTTP(
 	orgID, ledgerID, alias, assetCode string,
 	headers map[string]string,
 	timeout time.Duration,
-) (*RedisBalance, error) {
+) (*mmodel.BalanceRedis, error) {
 	// First get the Redis balance (source of truth)
 	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, "default")
 	if err != nil {
