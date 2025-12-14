@@ -233,12 +233,12 @@ func scanOperationRows(rows *sql.Rows) ([]*Operation, error) {
 }
 
 // calculateOperationPagination calculates pagination cursor for operation results.
-func calculateOperationPagination(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor) (libHTTP.CursorPagination, error) {
+// hasPagination must be calculated BEFORE trimming results with PaginateRecords.
+func calculateOperationPagination(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, hasPagination bool) (libHTTP.CursorPagination, error) {
 	if len(operations) == 0 {
 		return libHTTP.CursorPagination{}, nil
 	}
 
-	hasPagination := len(operations) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
 	cursor, err := libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
@@ -318,11 +318,9 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	hasPagination := len(operations) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
-	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+	operations, hasPagination := paginateOperations(operations, filter, decodedCursor, orderDirection)
 
-	cur, err := calculateOperationPagination(operations, filter, decodedCursor)
+	cur, err := calculateOperationPagination(operations, filter, decodedCursor, hasPagination)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
@@ -798,11 +796,13 @@ func (r *OperationPostgreSQLRepository) executeOperationQuery(ctx context.Contex
 }
 
 // paginateOperations applies pagination logic to the operations list
-func paginateOperations(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) []*Operation {
+// paginateOperations trims operation results and returns hasPagination flag for cursor calculation.
+func paginateOperations(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) ([]*Operation, bool) {
 	hasPagination := len(operations) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
-	return libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+	trimmed := libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+	return trimmed, hasPagination
 }
 
 // buildOperationByAccountQuery constructs the SQL query for finding operations by account
@@ -868,9 +868,9 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	operations = paginateOperations(operations, filter, decodedCursor, orderDirection)
+	operations, hasPagination := paginateOperations(operations, filter, decodedCursor, orderDirection)
 
-	cur, err := calculateOperationPagination(operations, filter, decodedCursor)
+	cur, err := calculateOperationPagination(operations, filter, decodedCursor, hasPagination)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)

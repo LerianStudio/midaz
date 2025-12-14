@@ -527,12 +527,12 @@ func scanOperationRouteListRows(rows *sql.Rows) ([]*mmodel.OperationRoute, error
 }
 
 // calculateOperationRoutePagination calculates pagination cursor for operation route results.
-func calculateOperationRoutePagination(operationRoutes []*mmodel.OperationRoute, filter http.Pagination, decodedCursor libHTTP.Cursor) (libHTTP.CursorPagination, error) {
+// hasPagination must be calculated BEFORE trimming results with PaginateRecords.
+func calculateOperationRoutePagination(operationRoutes []*mmodel.OperationRoute, filter http.Pagination, decodedCursor libHTTP.Cursor, hasPagination bool) (libHTTP.CursorPagination, error) {
 	if len(operationRoutes) == 0 {
 		return libHTTP.CursorPagination{}, nil
 	}
 
-	hasPagination := len(operationRoutes) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
 	cursor, err := libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes[0].ID.String(), operationRoutes[len(operationRoutes)-1].ID.String())
@@ -618,7 +618,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 	operationRoutes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operationRoutes, filter.Limit, orderDirection)
 
-	cur, err := calculateOperationRoutePagination(operationRoutes, filter, decodedCursor)
+	cur, err := calculateOperationRoutePagination(operationRoutes, filter, decodedCursor, hasPagination)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
