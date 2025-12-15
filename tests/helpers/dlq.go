@@ -41,7 +41,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 	dlqName := BuildDLQName(queueName)
 	url := fmt.Sprintf("%s/api/queues/%%2F/%s", mgmtURL, dlqName)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -49,6 +49,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 	req.SetBasicAuth(user, pass)
 
 	client := &http.Client{Timeout: 10 * time.Second}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to query RabbitMQ management API: %w", err)
@@ -108,6 +109,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 
 	// Get final count for error message
 	finalCount, _ := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
+
 	return fmt.Errorf("DLQ %s still has %d messages after %v", BuildDLQName(queueName), finalCount, timeout)
 }
 
