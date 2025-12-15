@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -80,8 +81,9 @@ type Config struct {
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
 	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQBalanceCreateQueue              string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
+	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
 	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -351,6 +353,29 @@ func InitServers() *Service {
 		logger.Info("BalanceSyncWorker disabled.")
 	}
 
+	// DLQ Consumer - monitors Dead Letter Queues and replays messages after infrastructure recovery
+	var dlqConsumer *DLQConsumer
+	dlqConsumerEnabled := os.Getenv("DLQ_CONSUMER_ENABLED") == "true"
+
+	if dlqConsumerEnabled {
+		// Get queue names from environment (same ones used by MultiQueueConsumer)
+		queueNames := []string{
+			cfg.RabbitMQBalanceCreateQueue,
+			cfg.RabbitMQTransactionBalanceOperationQueue,
+		}
+
+		dlqConsumer = NewDLQConsumer(
+			logger,
+			rabbitMQConsumerConnection,
+			postgresConnection,
+			redisConnection,
+			queueNames,
+		)
+		logger.Info("DLQConsumer enabled - will monitor and replay failed messages")
+	} else {
+		logger.Info("DLQConsumer disabled (set DLQ_CONSUMER_ENABLED=true to enable)")
+	}
+
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
@@ -358,6 +383,8 @@ func InitServers() *Service {
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceSyncWorkerEnabled: cfg.BalanceSyncWorkerEnabled,
+		DLQConsumer:              dlqConsumer,
+		DLQConsumerEnabled:       dlqConsumerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
 		auth:                     auth,

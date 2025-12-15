@@ -17,6 +17,8 @@ type Service struct {
 	*RedisQueueConsumer
 	*BalanceSyncWorker
 	BalanceSyncWorkerEnabled bool
+	*DLQConsumer
+	DLQConsumerEnabled bool
 	libLog.Logger
 
 	// balancePort holds the reference for use in unified ledger mode.
@@ -46,6 +48,10 @@ func (app *Service) Run() {
 
 	if app.BalanceSyncWorkerEnabled {
 		opts = append(opts, libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker))
+	}
+
+	if app.DLQConsumerEnabled {
+		opts = append(opts, libCommons.RunApp("DLQ Consumer", app.DLQConsumer))
 	}
 
 	libCommons.NewLauncher(opts...).Run()
