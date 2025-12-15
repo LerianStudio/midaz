@@ -176,7 +176,18 @@ func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path stri
 	)
 
 	for i := 0; i < attempts; i++ {
-		code, b, hdr, err := c.RequestFull(ctx, method, path, headers, body)
+		// Generate fresh request ID for each retry to avoid idempotency key collisions
+		// This mimics real client behavior where retries use new IDs
+		retryHeaders := make(map[string]string)
+		for k, v := range headers {
+			retryHeaders[k] = v
+		}
+		if i > 0 {
+			// On retry attempts (not first), generate new request ID
+			retryHeaders["X-Request-Id"] = "retry-" + RandHex(16)
+		}
+
+		code, b, hdr, err := c.RequestFull(ctx, method, path, retryHeaders, body)
 
 		lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
 		if err == nil && code != httpRetryStatusTooManyRequests && code != httpRetryStatusBadGateway && code != httpRetryStatusServiceUnavail && code != httpRetryStatusGatewayTimeout {

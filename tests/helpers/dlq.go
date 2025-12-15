@@ -4,6 +4,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,6 +20,17 @@ const (
 
 	// dlqPollInterval is how often to check DLQ message count
 	dlqPollInterval = 5 * time.Second
+
+	// httpClientTimeout is the timeout for HTTP requests to RabbitMQ Management API
+	httpClientTimeout = 10 * time.Second
+)
+
+var (
+	// ErrUnexpectedStatusCode indicates RabbitMQ Management API returned a non-OK status
+	ErrUnexpectedStatusCode = errors.New("unexpected status code from RabbitMQ Management API")
+
+	// ErrDLQNotEmpty indicates DLQ still has messages after timeout
+	ErrDLQNotEmpty = errors.New("DLQ not empty after timeout")
 )
 
 // BuildDLQName constructs the DLQ name for a given queue.
@@ -48,7 +60,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 	req.SetBasicAuth(user, pass)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: httpClientTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -62,7 +74,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return 0, fmt.Errorf("%w: %d", ErrUnexpectedStatusCode, resp.StatusCode)
 	}
 
 	var queueInfo RabbitMQQueueInfo
@@ -87,7 +99,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
 		default:
 		}
 
@@ -110,7 +122,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	// Get final count for error message
 	finalCount, _ := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 
-	return fmt.Errorf("DLQ %s still has %d messages after %v", BuildDLQName(queueName), finalCount, timeout)
+	return fmt.Errorf("%w: %s still has %d messages after %v", ErrDLQNotEmpty, BuildDLQName(queueName), finalCount, timeout)
 }
 
 // DLQCounts holds message counts for all DLQs used in chaos tests.
