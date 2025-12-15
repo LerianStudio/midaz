@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -840,10 +841,18 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}
 
-		op := operation.OperationPostgreSQLModel{}
-
 		var body *string
-		var opID *string
+
+		// Nullable pointers for operation fields (LEFT JOIN may return NULL)
+		var opID, opTransactionID, opDescription, opType, opAssetCode *string
+		var opStatus, opStatusDescription, opAccountID, opAccountAlias *string
+		var opBalanceID, opChartOfAccounts, opOrganizationID, opLedgerID *string
+		var opRoute, opBalanceKey *string
+		var opAmount, opAvailableBalance, opOnHoldBalance *decimal.Decimal
+		var opAvailableBalanceAfter, opOnHoldBalanceAfter *decimal.Decimal
+		var opCreatedAt, opUpdatedAt *time.Time
+		var opDeletedAt sql.NullTime
+		var opBalanceAffected *bool
 
 		if err := rows.Scan(
 			&tran.ID,
@@ -862,29 +871,29 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.DeletedAt,
 			&tran.Route,
 			&opID,
-			&op.TransactionID,
-			&op.Description,
-			&op.Type,
-			&op.AssetCode,
-			&op.Amount,
-			&op.AvailableBalance,
-			&op.OnHoldBalance,
-			&op.AvailableBalanceAfter,
-			&op.OnHoldBalanceAfter,
-			&op.Status,
-			&op.StatusDescription,
-			&op.AccountID,
-			&op.AccountAlias,
-			&op.BalanceID,
-			&op.ChartOfAccounts,
-			&op.OrganizationID,
-			&op.LedgerID,
-			&op.CreatedAt,
-			&op.UpdatedAt,
-			&op.DeletedAt,
-			&op.Route,
-			&op.BalanceAffected,
-			&op.BalanceKey,
+			&opTransactionID,
+			&opDescription,
+			&opType,
+			&opAssetCode,
+			&opAmount,
+			&opAvailableBalance,
+			&opOnHoldBalance,
+			&opAvailableBalanceAfter,
+			&opOnHoldBalanceAfter,
+			&opStatus,
+			&opStatusDescription,
+			&opAccountID,
+			&opAccountAlias,
+			&opBalanceID,
+			&opChartOfAccounts,
+			&opOrganizationID,
+			&opLedgerID,
+			&opCreatedAt,
+			&opUpdatedAt,
+			&opDeletedAt,
+			&opRoute,
+			&opBalanceAffected,
+			&opBalanceKey,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -914,8 +923,34 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			transactionOrder = append(transactionOrder, transactionUUID)
 		}
 
+		// Only append operation if it exists (opID not NULL)
 		if opID != nil {
-			op.ID = *opID
+			op := operation.OperationPostgreSQLModel{
+				ID:                    *opID,
+				TransactionID:         *opTransactionID,
+				Description:           *opDescription,
+				Type:                  *opType,
+				AssetCode:             *opAssetCode,
+				Amount:                opAmount,
+				AvailableBalance:      opAvailableBalance,
+				OnHoldBalance:         opOnHoldBalance,
+				AvailableBalanceAfter: opAvailableBalanceAfter,
+				OnHoldBalanceAfter:    opOnHoldBalanceAfter,
+				Status:                *opStatus,
+				StatusDescription:     opStatusDescription,
+				AccountID:             *opAccountID,
+				AccountAlias:          *opAccountAlias,
+				BalanceID:             *opBalanceID,
+				ChartOfAccounts:       *opChartOfAccounts,
+				OrganizationID:        *opOrganizationID,
+				LedgerID:              *opLedgerID,
+				CreatedAt:             *opCreatedAt,
+				UpdatedAt:             *opUpdatedAt,
+				DeletedAt:             opDeletedAt,
+				Route:                 opRoute,
+				BalanceAffected:       *opBalanceAffected,
+				BalanceKey:            *opBalanceKey,
+			}
 			t.Operations = append(t.Operations, op.ToEntity())
 		}
 	}
