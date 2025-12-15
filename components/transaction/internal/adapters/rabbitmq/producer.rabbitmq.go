@@ -143,7 +143,15 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		}
 
 		if err = prmq.conn.EnsureChannel(); err != nil {
-			logger.Errorf("Failed to reopen channel: %v", err)
+			logger.Errorf("Failed to reopen channel, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, err)
+
+			if isLastAttempt(attempt) {
+				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to establish channel after retries", err)
+				logger.Errorf("Giving up after %d attempts: failed to establish channel", utils.MaxRetries+1)
+
+				return nil, fmt.Errorf("failed to establish channel for exchange %s with key %s after %d retries: %w",
+					exchange, key, utils.MaxRetries+1, err)
+			}
 
 			sleepDuration := utils.FullJitter(backoff)
 			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
@@ -158,7 +166,15 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		// This must be called on every iteration because EnsureChannel() may
 		// return a new channel after connection recovery (idempotent per AMQP spec).
 		if err = prmq.conn.Channel.Confirm(false); err != nil {
-			logger.Errorf("Failed to enable confirm mode on channel: %v", err)
+			logger.Errorf("Failed to enable confirm mode on channel, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, err)
+
+			if isLastAttempt(attempt) {
+				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to enable confirm mode after retries", err)
+				logger.Errorf("Giving up after %d attempts: failed to enable confirm mode", utils.MaxRetries+1)
+
+				return nil, fmt.Errorf("failed to enable confirm mode for exchange %s with key %s after %d retries: %w",
+					exchange, key, utils.MaxRetries+1, err)
+			}
 
 			sleepDuration := utils.FullJitter(backoff)
 			logger.Infof("Retrying to enable confirms in %v...", sleepDuration)
