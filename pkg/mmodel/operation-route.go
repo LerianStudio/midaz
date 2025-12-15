@@ -64,7 +64,7 @@ type CreateOperationRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
-}
+} // @name CreateOperationRouteInput
 
 // UpdateOperationRouteInput is a struct designed to store Operation Route input data.
 //
@@ -95,4 +95,4 @@ type AccountRule struct {
 	// The rule condition for account selection. String for alias type, array for account_type.
 	// example: @cash_account
 	ValidIf any `json:"validIf,omitempty" example:"@cash_account"`
-}
+} // @name AccountRule
