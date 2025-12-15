@@ -45,11 +45,13 @@ var balanceColumnList = []string{
 }
 
 const (
-	aliasKeyParts         = 2
-	whereOrgIDOffset      = 3
-	whereLedgerIDOffset   = 2
-	whereOrgIDOnlyOffset  = 2
-	placeholderStartIndex = 2
+	aliasKeyParts            = 2
+	whereOrgIDOffset         = 3
+	whereLedgerIDOffset      = 2
+	whereOrgIDOnlyOffset     = 2
+	placeholderStartIndex    = 2
+	balanceUpdateFieldCount  = 4
+	balanceUpdateArgCapacity = 7
 )
 
 var (
@@ -59,6 +61,8 @@ var (
 	ErrAllowSendingRequired = errors.New("allow_sending value is required")
 	// ErrAllowReceivingRequired is returned when allow_receiving value is required
 	ErrAllowReceivingRequired = errors.New("allow_receiving value is required")
+	// ErrNoBalancesUpdated is returned when no balances were successfully updated
+	ErrNoBalancesUpdated = errors.New("no balances updated: all stale or missing rows")
 )
 
 // Repository provides an interface for operations related to balance template entities.
@@ -695,6 +699,83 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	return balances, nil
 }
 
+// balanceUpdateResult holds the result of a single balance update operation
+type balanceUpdateResult struct {
+	updated bool
+	err     error
+}
+
+// txExecutor abstracts transaction execution for balance updates
+type txExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// executeBalanceUpdate performs a single balance update within a transaction
+func (r *BalancePostgreSQLRepository) executeBalanceUpdate(ctx context.Context, tx txExecutor, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) balanceUpdateResult {
+	updates := make([]string, 0, balanceUpdateFieldCount)
+	args := make([]any, 0, balanceUpdateArgCapacity)
+
+	updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
+	args = append(args, balance.Available)
+
+	updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
+	args = append(args, balance.OnHold)
+
+	updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+	args = append(args, balance.Version)
+
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	args = append(args, time.Now(), organizationID, ledgerID, balance.ID, balance.Version)
+
+	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOffset) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-whereLedgerIDOffset) +
+		` AND id = $` + strconv.Itoa(len(args)-1) +
+		` AND version < $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	result, err := tx.ExecContext(ctx, queryUpdate, args...)
+	if err != nil {
+		return balanceUpdateResult{false, fmt.Errorf("failed: %w", err)}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return balanceUpdateResult{false, fmt.Errorf("failed: %w", err)}
+	}
+
+	return balanceUpdateResult{rowsAffected > 0, nil}
+}
+
+// processBalanceUpdates processes all balance updates within a transaction and returns the success count
+func (r *BalancePostgreSQLRepository) processBalanceUpdates(ctx context.Context, tx txExecutor, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) (int, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	successCount := 0
+
+	for _, balance := range balances {
+		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
+		result := r.executeBalanceUpdate(ctxBalance, tx, organizationID, ledgerID, balance)
+
+		spanUpdate.End()
+
+		if result.err != nil {
+			libOpentelemetry.HandleSpanError(&spanUpdate, "Err on balance update", result.err)
+			logger.Errorf("Err on balance update: %v", result.err)
+
+			return 0, result.err
+		}
+
+		if result.updated {
+			successCount++
+		} else {
+			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_database, concurrent_update, replay_protection]",
+				balance.ID, balance.Version)
+		}
+	}
+
+	return successCount, nil
+}
+
 // BalancesUpdate updates the balances in the database.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -705,99 +786,47 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
 		return fmt.Errorf("failed: %w", err)
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
-
 		return fmt.Errorf("failed: %w", err)
 	}
 
+	committed := false
+
 	defer func() {
-		if err != nil {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to init balances", rollbackErr)
+		if committed {
+			return
+		}
 
-				logger.Errorf("err on rollback: %v", rollbackErr)
-			}
-		} else {
-			commitErr := tx.Commit()
-			if commitErr != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to init balances", commitErr)
-
-				logger.Errorf("err on commit: %v", commitErr)
-			}
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			libOpentelemetry.HandleSpanError(&span, "Failed to rollback balances update", rollbackErr)
+			logger.Errorf("err on rollback: %v", rollbackErr)
 		}
 	}()
 
-	successCount := 0
-
-	for _, balance := range balances {
-		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
-
-		var updates []string
-
-		var args []any
-
-		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.Available)
-
-		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.OnHold)
-
-		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.Version)
-
-		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, balance.ID, balance.Version)
-
-		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOffset) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-whereLedgerIDOffset) +
-			` AND id = $` + strconv.Itoa(len(args)-1) +
-			` AND version < $` + strconv.Itoa(len(args)) +
-			` AND deleted_at IS NULL`
-
-		result, err := tx.ExecContext(ctxBalance, queryUpdate, args...)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdate, "Err on result exec content", err)
-
-			logger.Errorf("Err on result exec content: %v", err)
-
-			return fmt.Errorf("failed: %w", err)
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdate, "Err ", err)
-
-			logger.Errorf("Err: %v", err)
-
-			return fmt.Errorf("failed: %w", err)
-		}
-
-		if rowsAffected == 0 {
-			// TODO(review): Consider standardizing field name with Sync method (uses redis_version vs attempted_version) (reported by code-reviewer on 2025-12-14, severity: Low)
-			// TODO(review): Consider adding database_version to log for gap analysis (requires extra SELECT) (reported by business-logic-reviewer on 2025-12-14, severity: Low)
-			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_database, concurrent_update, replay_protection]",
-				balance.ID, balance.Version)
-
-			continue
-		}
-
-		successCount++
-
-		spanUpdate.End()
+	successCount, err := r.processBalanceUpdates(ctx, tx, organizationID, ledgerID, balances)
+	if err != nil {
+		return err
 	}
 
-	// Return error if no balances were successfully updated
 	if successCount == 0 && len(balances) > 0 {
-		return fmt.Errorf("no balances updated: %d attempted, 0 succeeded (all stale or missing rows)", len(balances))
+		return fmt.Errorf("%w: %d attempted, 0 succeeded", ErrNoBalancesUpdated, len(balances))
 	}
+
+	commitErr := tx.Commit()
+	if commitErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit balances update", commitErr)
+		logger.Errorf("err on commit: %v", commitErr)
+
+		return fmt.Errorf("failed: %w", commitErr)
+	}
+
+	committed = true
 
 	return nil
 }
