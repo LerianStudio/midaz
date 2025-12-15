@@ -130,14 +130,14 @@ func TestHandleBusinessError_RoutingDecision_MaxRetriesExceeded(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "4th delivery (retryCount=3) routes to DLQ",
-			retryCount:  3, // maxRetries-1 = 3, so this triggers DLQ routing
+			name:        "5th delivery (retryCount=4) routes to DLQ",
+			retryCount:  4, // maxRetries-1 = 4, so this triggers DLQ routing
 			shouldRoute: true,
 			description: "When retryCount equals maxRetries-1, message should route to DLQ",
 		},
 		{
-			name:        "5th delivery (retryCount=4) routes to DLQ",
-			retryCount:  4, // Greater than maxRetries-1, definitely DLQ
+			name:        "6th delivery (retryCount=5) routes to DLQ",
+			retryCount:  5, // Greater than maxRetries-1, definitely DLQ
 			shouldRoute: true,
 			description: "When retryCount exceeds maxRetries-1, message should route to DLQ",
 		},
@@ -239,23 +239,23 @@ func TestHandleBusinessError_BoundaryCondition(t *testing.T) {
 			retryCount, retryCount+1, retryCount, maxRetries-1)
 	})
 
-	t.Run("retryCount=3 should route to DLQ (at boundary)", func(t *testing.T) {
+	t.Run("retryCount=4 should route to DLQ (at boundary)", func(t *testing.T) {
 		t.Parallel()
 
-		retryCount := 3
-		shouldRouteToDLQ := retryCount >= maxRetries-1 // 3 >= 3 = true
+		retryCount := 4
+		shouldRouteToDLQ := retryCount >= maxRetries-1 // 4 >= 4 = true
 
 		assert.True(t, shouldRouteToDLQ,
 			"retryCount=%d (delivery %d) should route to DLQ because %d >= %d (maxRetries-1)",
 			retryCount, retryCount+1, retryCount, maxRetries-1)
 	})
 
-	t.Run("maxRetries constant is 4", func(t *testing.T) {
+	t.Run("maxRetries constant is 5", func(t *testing.T) {
 		t.Parallel()
 
-		// Verify the constant value hasn't changed unexpectedly
-		assert.Equal(t, 4, maxRetries,
-			"maxRetries should be 4 (4 delivery attempts before routing to DLQ)")
+		// Verify the constant value (5 delivery attempts = 4 retries with backoff: 0s, 5s, 15s, 30s)
+		assert.Equal(t, 5, maxRetries,
+			"maxRetries should be 5 (5 delivery attempts to enable all 4 backoff delays)")
 	})
 }
 
@@ -580,7 +580,8 @@ func TestRetryLogic_CompleteFlow(t *testing.T) {
 			{retryCount: 0, action: "republish", deliveryNum: 1},
 			{retryCount: 1, action: "republish", deliveryNum: 2},
 			{retryCount: 2, action: "republish", deliveryNum: 3},
-			{retryCount: 3, action: "dlq", deliveryNum: 4},
+			{retryCount: 3, action: "republish", deliveryNum: 4},
+			{retryCount: 4, action: "dlq", deliveryNum: 5},
 		}
 
 		for _, d := range sequence {
@@ -638,8 +639,8 @@ func TestRetryLogic_PanicVsBusinessError(t *testing.T) {
 		// if bec.retryCount >= maxRetries-1 { /* DLQ */ }
 
 		// Both use the same boundary: maxRetries-1
-		assert.Equal(t, 4, maxRetries, "maxRetries should be 4")
-		assert.Equal(t, 3, maxRetries-1, "DLQ routing boundary should be at retryCount=3")
+		assert.Equal(t, 5, maxRetries, "maxRetries should be 5 (5 deliveries = 4 retries)")
+		assert.Equal(t, 4, maxRetries-1, "DLQ routing boundary should be at retryCount=4")
 	})
 
 	t.Run("both handlers use safeIncrementRetryCount", func(t *testing.T) {
@@ -714,19 +715,85 @@ func TestRetryBackoffCalculation(t *testing.T) {
 func TestRetryBackoffConstants(t *testing.T) {
 	t.Parallel()
 
-	t.Run("retry delays should span ~50 seconds total", func(t *testing.T) {
+	t.Run("retry delays array spans ~50 seconds", func(t *testing.T) {
 		t.Parallel()
 
-		// 0 + 5 + 15 + 30 = 50 seconds total retry window
-		// This should cover most PostgreSQL restart times (10-30s)
+		// Sum the delays in the array: 0 + 5 + 15 + 30 = 50 seconds
+		// This tests the theoretical maximum if all delays are used
 		totalDelay := time.Duration(0)
-		for i := 1; i <= maxRetries; i++ {
-			totalDelay += calculateRetryBackoff(i)
+		for i := 0; i < len(retryBackoffDelays); i++ {
+			totalDelay += retryBackoffDelays[i]
+		}
+
+		assert.Equal(t, 50*time.Second, totalDelay,
+			"retryBackoffDelays array should sum to 50 seconds")
+	})
+
+	t.Run("actual retry flow window matches requirements", func(t *testing.T) {
+		t.Parallel()
+
+		// Validate ACTUAL retry flow: backoffs applied BEFORE each retry
+		// Messages go to DLQ at retryCount >= maxRetries-1, so last backoff must be used
+		totalDelay := time.Duration(0)
+		for retryCount := 0; retryCount < maxRetries-1; retryCount++ {
+			// republishWithRetry calls calculateRetryBackoff(retryCount + 1)
+			totalDelay += calculateRetryBackoff(retryCount + 1)
 		}
 
 		assert.GreaterOrEqual(t, totalDelay, 45*time.Second,
-			"Total retry window should be at least 45 seconds")
+			"Actual retry window (retryCount 0 to %d) should cover PostgreSQL restart times", maxRetries-2)
 		assert.LessOrEqual(t, totalDelay, 60*time.Second,
-			"Total retry window should be at most 60 seconds")
+			"Actual retry window should not exceed 60 seconds")
 	})
+}
+
+func TestRetryBackoffCalculation_EdgeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		retryCount    int
+		expectedDelay time.Duration
+		rationale     string
+	}{
+		{
+			name:          "zero retry count returns zero",
+			retryCount:    0,
+			expectedDelay: 0,
+			rationale:     "Defensive case: retryCount=0 should return 0 delay",
+		},
+		{
+			name:          "negative retry count returns zero",
+			retryCount:    -1,
+			expectedDelay: 0,
+			rationale:     "Defensive case: negative values should fail-safe to 0 delay",
+		},
+		{
+			name:          "large negative retry count returns zero",
+			retryCount:    -2147483648, // int32 min
+			expectedDelay: 0,
+			rationale:     "Extreme negative should fail-safe to 0 delay",
+		},
+		{
+			name:          "retry count beyond array length caps at max",
+			retryCount:    5,
+			expectedDelay: 30 * time.Second,
+			rationale:     "Beyond array bounds should cap at last element (30s)",
+		},
+		{
+			name:          "large retry count caps at max",
+			retryCount:    1000,
+			expectedDelay: 30 * time.Second,
+			rationale:     "Very large values should cap at last element (30s)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			delay := calculateRetryBackoff(tt.retryCount)
+			assert.Equal(t, tt.expectedDelay, delay, tt.rationale)
+		})
+	}
 }

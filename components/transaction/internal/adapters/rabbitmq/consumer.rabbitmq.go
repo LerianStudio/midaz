@@ -25,7 +25,8 @@ import (
 
 // maxRetries is the maximum number of delivery attempts (including first delivery)
 // before rejecting as a poison message to prevent infinite retry loops.
-const maxRetries = 4
+// Set to 5 to allow 4 retries with backoff delays: 0s, 5s, 15s, 30s (50s total).
+const maxRetries = 5
 
 // retryCountHeader is the custom header used to track retry attempts.
 // We use a custom header instead of RabbitMQ's x-death because x-death
@@ -386,6 +387,9 @@ func (bec *businessErrorContext) republishWithRetry() {
 		bec.workerID, bec.retryCount+1, maxRetries, backoffDelay, bec.err)
 
 	// Apply backoff delay before republishing
+	// TODO(review): Consider using context-aware sleep (select with ctx.Done()) to support
+	// graceful shutdown during backoff. Current blocking sleep may delay shutdown by up to 30s.
+	// (reported by security-reviewer on 2025-12-14, severity: Low)
 	if backoffDelay > 0 {
 		time.Sleep(backoffDelay)
 	}
@@ -513,6 +517,9 @@ func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
 		prc.workerID, prc.retryCount+1, maxRetries, backoffDelay, panicValue)
 
 	// Apply backoff delay before republishing
+	// TODO(review): Consider using context-aware sleep (select with ctx.Done()) to support
+	// graceful shutdown during backoff. Current blocking sleep may delay shutdown by up to 30s.
+	// (reported by security-reviewer on 2025-12-14, severity: Low)
 	if backoffDelay > 0 {
 		time.Sleep(backoffDelay)
 	}
@@ -640,6 +647,9 @@ func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 	retryCount := getRetryCount(mpc.msg.Headers)
 	backoffDelay := calculateRetryBackoff(retryCount + 1)
 
+	// TODO(review): Span attribute retry.backoff_seconds is set even when message routes to DLQ
+	// without applying backoff. Consider adding retry.action attribute ('retry' | 'dlq') for clarity.
+	// (reported by code-reviewer on 2025-12-14, severity: Medium)
 	mpc.span.AddEvent("panic.recovered", trace.WithAttributes(
 		attribute.String("panic.value", fmt.Sprintf("%v", panicValue)),
 		attribute.String("panic.stack", string(stack)),
@@ -678,7 +688,9 @@ func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc
 		retryCount := getRetryCount(mpc.msg.Headers)
 		backoffDelay := calculateRetryBackoff(retryCount + 1)
 
-		// Add backoff info to span
+		// TODO(review): Span attribute retry.backoff_seconds is set even when message routes to DLQ
+		// without applying backoff. Consider adding retry.action attribute ('retry' | 'dlq') for clarity.
+		// (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Medium)
 		mpc.span.SetAttributes(
 			attribute.Int64("retry.backoff_seconds", int64(backoffDelay.Seconds())),
 		)
