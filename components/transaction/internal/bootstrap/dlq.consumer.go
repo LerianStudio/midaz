@@ -150,7 +150,7 @@ func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 }
 
 // calculateDLQBackoff returns the delay before the next DLQ replay attempt.
-// Uses exponential backoff: 1min, 5min, 15min, 30min (capped).
+// Uses tiered backoff with predefined intervals: 1min, 5min, 15min, 30min (capped).
 // This is longer than regular retry backoff because DLQ processing
 // happens after infrastructure recovery.
 func calculateDLQBackoff(attempt int) time.Duration {
@@ -158,25 +158,18 @@ func calculateDLQBackoff(attempt int) time.Duration {
 		return dlqInitialBackoff
 	}
 
-	// Exponential backoff: 1min * multiplier based on attempt
+	// Tiered backoff with predefined intervals
 	// Attempt 1: 1min, 2: 5min, 3: 15min, 4+: 30min (max)
-	var delay time.Duration
 	switch attempt {
 	case 1:
-		delay = 1 * time.Minute
+		return 1 * time.Minute
 	case 2:
-		delay = 5 * time.Minute
+		return 5 * time.Minute
 	case 3:
-		delay = 15 * time.Minute
+		return 15 * time.Minute
 	default:
-		delay = dlqMaxBackoff
-	}
-
-	if delay > dlqMaxBackoff {
 		return dlqMaxBackoff
 	}
-
-	return delay
 }
 
 // processQueue processes messages from a single DLQ.

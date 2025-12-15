@@ -61,6 +61,16 @@ func TestDLQRetryBackoffCalculation(t *testing.T) {
 		expectedDelay time.Duration
 	}{
 		{
+			name:          "zero attempt should return initial backoff",
+			attempt:       0,
+			expectedDelay: 1 * time.Minute, // dlqInitialBackoff
+		},
+		{
+			name:          "negative attempt should return initial backoff",
+			attempt:       -1,
+			expectedDelay: 1 * time.Minute, // dlqInitialBackoff
+		},
+		{
 			name:          "first DLQ retry",
 			attempt:       1,
 			expectedDelay: 1 * time.Minute,
