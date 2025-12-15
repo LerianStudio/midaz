@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -30,13 +31,36 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
-		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
+		// Retry balance lookup to handle transient connection issues during chaos scenarios
+		// Max 5 attempts with exponential backoff: 200ms, 400ms, 800ms, 1600ms (total ~3s)
+		// This covers typical connection pool warmup time after service restart (2-5s)
+		var balancesByAliases []*mmodel.Balance
+		var err error
 
-			logger.Error("Failed to get account by alias on balance database", err.Error())
+		for attempt := 0; attempt < 5; attempt++ {
+			balancesByAliases, err = uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
+			if err == nil {
+				break // Success
+			}
 
-			return nil, fmt.Errorf("failed to list balances by aliases with keys: %w", err)
+			// Check if error is retriable (connection issues, timeouts)
+			errStr := strings.ToLower(err.Error())
+			isRetriable := strings.Contains(errStr, "connection") ||
+				strings.Contains(errStr, "timeout") ||
+				strings.Contains(errStr, "deadline") ||
+				strings.Contains(errStr, "unavailable")
+
+			if !isRetriable || attempt == 4 {
+				// Non-retriable error or last attempt
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
+				logger.Error("Failed to get account by alias on balance database", err.Error())
+				return nil, fmt.Errorf("failed to list balances by aliases with keys after %d attempts: %w", attempt+1, err)
+			}
+
+			// Exponential backoff: 200ms, 400ms, 800ms, 1600ms
+			backoffMs := 200 * (1 << attempt)
+			logger.Warnf("Balance lookup failed (attempt %d/5), retrying in %dms: %v", attempt+1, backoffMs, err)
+			time.Sleep(time.Duration(backoffMs) * time.Millisecond)
 		}
 
 		balances = append(balances, balancesByAliases...)
