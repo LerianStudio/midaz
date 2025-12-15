@@ -210,6 +210,7 @@ func calculateDLQBackoff(attempt int) time.Duration {
 
 	// Tiered backoff with predefined intervals
 	// Attempt 1: 1min, 2: 5min, 3: 15min, 4+: 30min (max)
+	// TODO(review): Consider extracting backoff tier durations to named constants (Low severity - code style)
 	switch attempt {
 	case 1:
 		return 1 * time.Minute
@@ -498,6 +499,7 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 		}
 	}
 
+	// TODO(review): Add bounds check for int32 conversion to prevent overflow (gosec G115, Low severity)
 	headers[dlqRetryCountHeader] = int32(dlqRetryCount + 1)
 	// Reset the regular retry count so message gets fresh retry attempts
 	delete(headers, "x-midaz-retry-count")
@@ -535,6 +537,7 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 	}
 
 	// Wait for broker confirmation
+	// TODO(review): Consider adding ctx.Done() case for faster shutdown response (Low severity - efficiency)
 	select {
 	case confirmation, ok := <-confirms:
 		if !ok {
