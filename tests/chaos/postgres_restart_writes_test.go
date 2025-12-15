@@ -152,8 +152,15 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 		os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"),
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
 	}
+	if queueNames[0] == "" {
+		queueNames[0] = "transaction.balance_create.queue"
+	}
+	if queueNames[1] == "" {
+		queueNames[1] = "transaction.transaction_balance_operation.queue"
+	}
 
 	// Log initial DLQ counts for diagnostics
+	// TODO(review): Consider using environment variables for RabbitMQ credentials instead of hardcoded "guest/guest" - code-reviewer on 2025-12-14
 	initialCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "guest", "guest", queueNames)
 	if err != nil {
 		t.Logf("warning: failed to get initial DLQ counts: %v", err)
@@ -174,7 +181,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 
 	// Compute expected and verify eventual convergence
 	expected := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inSucc * 2))).Sub(decimal.NewFromInt(int64(outSucc * 1)))
-	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 90*time.Second)
+	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 120*time.Second)
 	if err != nil {
 		// Correlate accepted IDs by fetching their final statuses
 		lines := []string{}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,7 @@ type RabbitMQQueueInfo struct {
 
 // GetDLQMessageCount queries RabbitMQ Management API for DLQ message count.
 // Returns the number of messages in the DLQ, or 0 if the queue doesn't exist.
+// TODO(review): Add queue name validation to prevent URL path injection (queueName from env vars) - security-reviewer on 2025-12-14
 func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass string) (int, error) {
 	dlqName := BuildDLQName(queueName)
 	url := fmt.Sprintf("%s/api/queues/%%2F/%s", mgmtURL, dlqName)
@@ -72,6 +74,8 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 // WaitForDLQEmpty waits until the DLQ has zero messages or timeout.
 // This is useful after chaos tests to wait for DLQ consumer to replay all messages.
+// TODO(review): Add unit tests with HTTP mocking for GetDLQMessageCount, WaitForDLQEmpty, GetAllDLQCounts - code-reviewer on 2025-12-14
+// TODO(review): Consider logging or tracking consecutive errors to fail faster on persistent issues - code-reviewer on 2025-12-14
 func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string, timeout time.Duration) error {
 	if timeout == 0 {
 		timeout = defaultDLQWaitTimeout
@@ -89,6 +93,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 		count, err := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 		if err != nil {
 			// Log but continue - transient errors are expected during chaos
+			// TODO(review): Use context-aware sleep to respect ctx.Done() - security-reviewer on 2025-12-14
 			time.Sleep(dlqPollInterval)
 			continue
 		}
@@ -97,6 +102,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 			return nil
 		}
 
+		// TODO(review): Use context-aware sleep to respect ctx.Done() - security-reviewer on 2025-12-14
 		time.Sleep(dlqPollInterval)
 	}
 
@@ -106,6 +112,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 }
 
 // DLQCounts holds message counts for all DLQs used in chaos tests.
+// TODO(review): Consider using map instead of struct fields if new queue types are added - code-reviewer on 2025-12-14
 type DLQCounts struct {
 	BalanceCreateDLQ  int
 	TransactionOpsDLQ int
@@ -126,26 +133,12 @@ func GetAllDLQCounts(ctx context.Context, mgmtURL, user, pass string, queueNames
 
 		// Map to named fields based on queue name pattern
 		switch {
-		case contains(queueName, "balance") && contains(queueName, "create"):
+		case strings.Contains(queueName, "balance") && strings.Contains(queueName, "create"):
 			counts.BalanceCreateDLQ = count
-		case contains(queueName, "transaction") || contains(queueName, "operation"):
+		case strings.Contains(queueName, "transaction") || strings.Contains(queueName, "operation"):
 			counts.TransactionOpsDLQ = count
 		}
 	}
 
 	return counts, nil
-}
-
-// contains is a simple string contains check
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsImpl(s, substr))
-}
-
-func containsImpl(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

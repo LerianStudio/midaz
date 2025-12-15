@@ -175,10 +175,10 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
 	}
 	if queueNames[0] == "" {
-		queueNames[0] = "balance_create"
+		queueNames[0] = "transaction.balance_create.queue"
 	}
 	if queueNames[1] == "" {
-		queueNames[1] = "transaction_balance_operation"
+		queueNames[1] = "transaction.transaction_balance_operation.queue"
 	}
 
 	// Log DLQ counts
@@ -190,12 +190,11 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 			dlqCounts.BalanceCreateDLQ, dlqCounts.TransactionOpsDLQ, dlqCounts.TotalDLQMessages)
 	}
 
-	// Wait for DLQ to be empty if DLQ consumer is enabled
-	if os.Getenv("DLQ_CONSUMER_ENABLED") == "true" {
-		for _, queueName := range queueNames {
-			if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "guest", "guest", 2*time.Minute); err != nil {
-				t.Logf("Warning: DLQ wait timed out for %s: %v", queueName, err)
-			}
+	// Wait for all DLQs to empty (indicating replay completion)
+	// Timeout: 5 minutes to account for exponential backoff (max delay 30s + processing time)
+	for _, queueName := range queueNames {
+		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "guest", "guest", 5*time.Minute); err != nil {
+			t.Logf("Warning: DLQ wait timed out for %s: %v", queueName, err)
 		}
 	}
 
