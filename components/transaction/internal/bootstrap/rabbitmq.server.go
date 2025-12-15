@@ -44,6 +44,48 @@ func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 	return nil
 }
 
+// Infrastructure error patterns for different failure types
+var (
+	postgresPatterns = []string{
+		"connection refused",
+		"connection reset",
+		"connection closed",
+		"no connection to the server",
+		"server closed the connection",
+		"connection timed out",
+		"could not connect to server",
+		"connection does not exist",
+	}
+
+	redisPatterns = []string{
+		"redis",
+		"valkey",
+	}
+
+	timeoutPatterns = []string{
+		"timeout",
+		"deadline exceeded",
+		"context deadline exceeded",
+		"context canceled",
+	}
+
+	rabbitmqPatterns = []string{
+		"rabbitmq",
+		"amqp",
+	}
+)
+
+// containsAnyPattern checks if s contains any of the specified patterns.
+func containsAnyPattern(s string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if strings.Contains(s, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isInfrastructureError detects if an error is caused by infrastructure failure
 // (PostgreSQL, Redis, RabbitMQ connection issues) that should trigger retries.
 // Returns true for retriable infrastructure errors, false for validation errors
@@ -55,39 +97,11 @@ func isInfrastructureError(err error) bool {
 
 	errStr := strings.ToLower(err.Error())
 
-	// PostgreSQL connection errors
-	if strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "connection closed") ||
-		strings.Contains(errStr, "no connection to the server") ||
-		strings.Contains(errStr, "server closed the connection") ||
-		strings.Contains(errStr, "connection timed out") ||
-		strings.Contains(errStr, "could not connect to server") ||
-		strings.Contains(errStr, "connection does not exist") {
-		return true
-	}
-
-	// Redis/Valkey errors
-	if strings.Contains(errStr, "redis") ||
-		strings.Contains(errStr, "valkey") {
-		return true
-	}
-
-	// Timeout and deadline errors
-	if strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "deadline exceeded") ||
-		strings.Contains(errStr, "context deadline exceeded") ||
-		strings.Contains(errStr, "context canceled") {
-		return true
-	}
-
-	// RabbitMQ errors
-	if strings.Contains(errStr, "rabbitmq") ||
-		strings.Contains(errStr, "amqp") {
-		return true
-	}
-
-	return false
+	// Check against all infrastructure error patterns
+	return containsAnyPattern(errStr, postgresPatterns) ||
+		containsAnyPattern(errStr, redisPatterns) ||
+		containsAnyPattern(errStr, timeoutPatterns) ||
+		containsAnyPattern(errStr, rabbitmqPatterns)
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
