@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -43,6 +44,52 @@ func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 	return nil
 }
 
+// isInfrastructureError detects if an error is caused by infrastructure failure
+// (PostgreSQL, Redis, RabbitMQ connection issues) that should trigger retries.
+// Returns true for retriable infrastructure errors, false for validation errors
+// or business logic errors that should fail fast.
+func isInfrastructureError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// PostgreSQL connection errors
+	if strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "connection closed") ||
+		strings.Contains(errStr, "no connection to the server") ||
+		strings.Contains(errStr, "server closed the connection") ||
+		strings.Contains(errStr, "connection timed out") ||
+		strings.Contains(errStr, "could not connect to server") ||
+		strings.Contains(errStr, "connection does not exist") {
+		return true
+	}
+
+	// Redis/Valkey errors
+	if strings.Contains(errStr, "redis") ||
+		strings.Contains(errStr, "valkey") {
+		return true
+	}
+
+	// Timeout and deadline errors
+	if strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "deadline exceeded") ||
+		strings.Contains(errStr, "context deadline exceeded") ||
+		strings.Contains(errStr, "context canceled") {
+		return true
+	}
+
+	// RabbitMQ errors
+	if strings.Contains(errStr, "rabbitmq") ||
+		strings.Contains(errStr, "amqp") {
+		return true
+	}
+
+	return false
+}
+
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
 func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, body []byte) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -69,7 +116,13 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating balance", err)
 
-		logger.Errorf("Error creating balance: %v", err)
+		// Log infrastructure vs business errors differently for debugging
+		if isInfrastructureError(err) {
+			logger.Errorf("Infrastructure error creating balance (will retry): %v", err)
+			return fmt.Errorf("infrastructure failure during balance creation for account %s: %w", message.AccountID, err)
+		}
+
+		logger.Errorf("Business error creating balance: %v", err)
 
 		return fmt.Errorf("failed to create balance for account %s: %w", message.AccountID, err)
 	}
@@ -103,7 +156,13 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
 
-		logger.Errorf("Error creating transaction: %v", err)
+		// Log infrastructure vs business errors differently for debugging
+		if isInfrastructureError(err) {
+			logger.Errorf("Infrastructure error creating transaction (will retry): %v", err)
+			return fmt.Errorf("infrastructure failure during balance operation for transaction %s: %w", message.QueueData[0].ID, err)
+		}
+
+		logger.Errorf("Business error creating transaction: %v", err)
 
 		return fmt.Errorf("failed to create balance transaction operations for transaction %s: %w", message.QueueData[0].ID, err)
 	}
