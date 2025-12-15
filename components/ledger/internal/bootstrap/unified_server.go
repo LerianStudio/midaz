@@ -6,8 +6,10 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber app.
@@ -51,6 +53,11 @@ func NewUnifiedServer(
 
 	// Version endpoint
 	app.Get("/version", libHTTP.Version)
+
+	// Swagger documentation (unified onboarding + transaction)
+	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+		fiberSwagger.InstanceName("swagger"),
+	))
 
 	// Register routes from each module
 	for _, registrar := range routeRegistrars {

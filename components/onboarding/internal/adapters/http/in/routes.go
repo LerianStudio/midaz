@@ -41,7 +41,9 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 
 	// Doc
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+		fiberSwagger.InstanceName("onboarding"),
+	))
 
 	f.Use(tlMid.EndTracingSpans)
 
