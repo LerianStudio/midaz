@@ -16,6 +16,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	maxBalanceLookupAttempts = 5
+	balanceLookupBaseBackoff = 200 * time.Millisecond
+)
+
 // GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -31,36 +36,12 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
-		// Retry balance lookup to handle transient connection issues during chaos scenarios
-		// Max 5 attempts with exponential backoff: 200ms, 400ms, 800ms, 1600ms (total ~3s)
-		// This covers typical connection pool warmup time after service restart (2-5s)
-		var balancesByAliases []*mmodel.Balance
-		var err error
+		balancesByAliases, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, logger)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
+			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-		for attempt := 0; attempt < 5; attempt++ {
-			balancesByAliases, err = uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
-			if err == nil {
-				break // Success
-			}
-
-			// Check if error is retriable (connection issues, timeouts)
-			errStr := strings.ToLower(err.Error())
-			isRetriable := strings.Contains(errStr, "connection") ||
-				strings.Contains(errStr, "timeout") ||
-				strings.Contains(errStr, "deadline") ||
-				strings.Contains(errStr, "unavailable")
-
-			if !isRetriable || attempt == 4 {
-				// Non-retriable error or last attempt
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
-				logger.Error("Failed to get account by alias on balance database", err.Error())
-				return nil, fmt.Errorf("failed to list balances by aliases with keys after %d attempts: %w", attempt+1, err)
-			}
-
-			// Exponential backoff: 200ms, 400ms, 800ms, 1600ms
-			backoffMs := 200 * (1 << attempt)
-			logger.Warnf("Balance lookup failed (attempt %d/5), retrying in %dms: %v", attempt+1, backoffMs, err)
-			time.Sleep(time.Duration(backoffMs) * time.Millisecond)
+			return nil, fmt.Errorf("failed to list balances by aliases with keys: %w", err)
 		}
 
 		balances = append(balances, balancesByAliases...)
@@ -76,6 +57,43 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	return newBalances, nil
+}
+
+func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, logger interface{ Warnf(string, ...any) }) ([]*mmodel.Balance, error) {
+	// Retry balance lookup to handle transient connection issues during chaos scenarios
+	// Attempts with exponential backoff: 200ms, 400ms, 800ms, 1600ms (total ~3s)
+	var lastErr error
+
+	for attempt := 0; attempt < maxBalanceLookupAttempts; attempt++ {
+		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
+		if err == nil {
+			return balancesByAliases, nil
+		}
+
+		lastErr = err
+		if !isRetriableBalanceLookupErr(err) || attempt == maxBalanceLookupAttempts-1 {
+			return nil, fmt.Errorf("after %d attempts: %w", attempt+1, lastErr)
+		}
+
+		backoff := time.Duration(1<<attempt) * balanceLookupBaseBackoff
+		logger.Warnf("Balance lookup failed (attempt %d/%d), retrying in %s: %v", attempt+1, maxBalanceLookupAttempts, backoff, err)
+		time.Sleep(backoff)
+	}
+
+	return nil, fmt.Errorf("after %d attempts: %w", maxBalanceLookupAttempts, lastErr)
+}
+
+func isRetriableBalanceLookupErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	return strings.Contains(errStr, "connection") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "deadline") ||
+		strings.Contains(errStr, "unavailable")
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
