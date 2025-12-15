@@ -2222,8 +2222,6 @@ paths:
       responses:
         "204":
           description: Balance successfully deleted
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:

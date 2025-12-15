@@ -1282,10 +1282,7 @@ const docTemplatetransaction = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Balance successfully deleted",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Balance successfully deleted"
                     },
                     "401": {
                         "description": "Unauthorized access",

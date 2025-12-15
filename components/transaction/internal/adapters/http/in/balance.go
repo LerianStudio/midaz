@@ -227,7 +227,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string			true	"Organization ID"
 //	@Param			ledger_id		path		string			true	"Ledger ID"
 //	@Param			balance_id		path		string			true	"Balance ID"
-//	@Success		204				{string}	string			"Balance successfully deleted"
+//	@Success		204				"Balance successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"

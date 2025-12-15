@@ -241,10 +241,7 @@ const docTemplateonboarding = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No content with X-Total-Count header containing the count",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "No content with X-Total-Count header containing the count"
                     },
                     "401": {
                         "description": "Unauthorized access",
@@ -368,10 +365,7 @@ const docTemplateonboarding = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Organization successfully deleted",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Organization successfully deleted"
                     },
                     "401": {
                         "description": "Unauthorized access",
@@ -739,10 +733,7 @@ const docTemplateonboarding = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No content with X-Total-Count header containing the count",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "No content with X-Total-Count header containing the count"
                     },
                     "401": {
                         "description": "Unauthorized access",
@@ -880,10 +871,7 @@ const docTemplateonboarding = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Ledger successfully deleted",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Ledger successfully deleted"
                     },
                     "401": {
                         "description": "Unauthorized access",
@@ -2494,10 +2482,7 @@ const docTemplateonboarding = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No content with X-Total-Count header containing the count",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "No content with X-Total-Count header containing the count"
                     },
                     "401": {
                         "description": "Unauthorized access",

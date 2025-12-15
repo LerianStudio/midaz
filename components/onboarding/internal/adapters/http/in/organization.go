@@ -266,7 +266,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			id				path		string			true	"Organization ID in UUID format"
-//	@Success		204				{string}	string			"Organization successfully deleted"
+//	@Success		204				"Organization successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"
@@ -315,7 +315,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Success		204				{string}	string			"No content with X-Total-Count header containing the count"
+//	@Success		204				"No content with X-Total-Count header containing the count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization not found"
