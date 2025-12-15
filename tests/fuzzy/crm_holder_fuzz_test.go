@@ -31,8 +31,8 @@ func FuzzCPFValidation(f *testing.F) {
 	// Seed: wrong length
 	f.Add("1234567890")   // 10 digits
 	f.Add("123456789012") // 12 digits
-	f.Add("")            // empty
-	f.Add("1")           // single digit
+	f.Add("")             // empty
+	f.Add("1")            // single digit
 
 	// Seed: non-numeric
 	f.Add("1234567890a")

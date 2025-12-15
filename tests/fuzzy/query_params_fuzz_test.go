@@ -22,13 +22,13 @@ func FuzzPaginationCursor(f *testing.F) {
 	f.Add("")
 
 	// Seed: valid base64, invalid JSON
-	f.Add("bm90LWpzb24=")                      // "not-json"
-	f.Add("e30=")                               // "{}"
-	f.Add("eyJpZCI6bnVsbH0=")                   // {"id":null}
+	f.Add("bm90LWpzb24=")     // "not-json"
+	f.Add("e30=")             // "{}"
+	f.Add("eyJpZCI6bnVsbH0=") // {"id":null}
 
 	// Seed: malformed JSON
-	f.Add("eyJpZCI6ImludmFsaWQifQ==")           // {"id":"invalid"} (not a UUID)
-	f.Add("eyJwb2ludHNOZXh0IjoxMjN9")            // {"pointsNext":123} (wrong type)
+	f.Add("eyJpZCI6ImludmFsaWQifQ==") // {"id":"invalid"} (not a UUID)
+	f.Add("eyJwb2ludHNOZXh0IjoxMjN9") // {"pointsNext":123} (wrong type)
 
 	// Seed: injection attempts
 	f.Add("'; DROP TABLE balance; --")
@@ -60,17 +60,17 @@ func FuzzDateRangeFilter(f *testing.F) {
 	f.Add("", "")
 	f.Add("2024-01-01", "")
 	f.Add("", "2024-12-31")
-	f.Add("1970-01-01", "2038-01-19")  // Unix epoch boundaries
-	f.Add("0001-01-01", "9999-12-31")  // Extreme dates
+	f.Add("1970-01-01", "2038-01-19") // Unix epoch boundaries
+	f.Add("0001-01-01", "9999-12-31") // Extreme dates
 
 	// Seed: invalid dates
-	f.Add("2024-13-01", "2024-12-31")  // Invalid month
-	f.Add("2024-02-30", "2024-12-31")  // Invalid day
+	f.Add("2024-13-01", "2024-12-31") // Invalid month
+	f.Add("2024-02-30", "2024-12-31") // Invalid day
 	f.Add("not-a-date", "also-not")
-	f.Add("2024/01/01", "2024/12/31")  // Wrong format
+	f.Add("2024/01/01", "2024/12/31") // Wrong format
 
 	// Seed: inverted range
-	f.Add("2024-12-31", "2024-01-01")  // End before start
+	f.Add("2024-12-31", "2024-01-01") // End before start
 
 	// Seed: injection
 	f.Add("2024-01-01'; DROP TABLE--", "2024-12-31")
@@ -117,9 +117,9 @@ func FuzzLimitOffset(f *testing.F) {
 	f.Add("1e10", "0")
 
 	// Seed: overflow
-	f.Add("9223372036854775807", "0")   // max int64
-	f.Add("9223372036854775808", "0")   // overflow
-	f.Add("18446744073709551615", "0")  // max uint64
+	f.Add("9223372036854775807", "0")  // max int64
+	f.Add("9223372036854775808", "0")  // overflow
+	f.Add("18446744073709551615", "0") // max uint64
 
 	f.Fuzz(func(t *testing.T, limitStr, offsetStr string) {
 		defer func() {

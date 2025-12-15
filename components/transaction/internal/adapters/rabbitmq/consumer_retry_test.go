@@ -168,11 +168,11 @@ func TestHandleBusinessError_RoutingDecision_RetriesRemaining(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		retryCount   int
-		shouldRepub  bool // true = republish, false = route to DLQ
-		description  string
-		deliveryNum  int  // Human-readable delivery number (retryCount + 1)
+		name        string
+		retryCount  int
+		shouldRepub bool // true = republish, false = route to DLQ
+		description string
+		deliveryNum int // Human-readable delivery number (retryCount + 1)
 	}{
 		{
 			name:        "1st delivery (retryCount=0) republishes",
@@ -272,11 +272,11 @@ func TestPublishToDLQ_ConfirmationScenarios(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		scenario       string
-		expectedError  error
-		isSuccess      bool
-		description    string
+		name          string
+		scenario      string
+		expectedError error
+		isSuccess     bool
+		description   string
 	}{
 		{
 			name:          "broker ACK - success path",
@@ -528,9 +528,9 @@ func TestRepublishWithRetry_DeliveryNumberTracking(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		retryCount      int
+		retryCount       int
 		expectedDelivery int
-		expectedMax     int
+		expectedMax      int
 	}{
 		{retryCount: 0, expectedDelivery: 1, expectedMax: maxRetries},
 		{retryCount: 1, expectedDelivery: 2, expectedMax: maxRetries},
@@ -571,9 +571,9 @@ func TestRetryLogic_CompleteFlow(t *testing.T) {
 
 		// Simulate the complete retry sequence
 		type delivery struct {
-			retryCount   int
-			action       string // "republish" or "dlq"
-			deliveryNum  int
+			retryCount  int
+			action      string // "republish" or "dlq"
+			deliveryNum int
 		}
 
 		sequence := []delivery{

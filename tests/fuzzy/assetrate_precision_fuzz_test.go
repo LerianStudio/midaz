@@ -17,10 +17,10 @@ func FuzzAssetRatePrecisionLoss(f *testing.F) {
 	f.Add(int64(999999999999), int64(12))
 
 	// Seed: values near float64 precision boundary (2^53 = 9007199254740992)
-	f.Add(int64(9007199254740992), int64(0))  // exactly 2^53
-	f.Add(int64(9007199254740993), int64(0))  // 2^53 + 1 (loses precision)
-	f.Add(int64(9007199254740994), int64(0))  // 2^53 + 2
-	f.Add(int64(9007199254740991), int64(0))  // 2^53 - 1
+	f.Add(int64(9007199254740992), int64(0)) // exactly 2^53
+	f.Add(int64(9007199254740993), int64(0)) // 2^53 + 1 (loses precision)
+	f.Add(int64(9007199254740994), int64(0)) // 2^53 + 2
+	f.Add(int64(9007199254740991), int64(0)) // 2^53 - 1
 
 	// Seed: larger values (definite precision loss)
 	f.Add(int64(9223372036854775807), int64(0))  // max int64
