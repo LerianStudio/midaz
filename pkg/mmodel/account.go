@@ -9,9 +9,9 @@ import (
 // CreateAccountInput is a struct designed to encapsulate request create payload data.
 //
 // swagger:model CreateAccountInput
-// @Description Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.
+//	@Description	Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.
 //
-//	@example {
+//	@example		{
 //	  "name": "Corporate Checking Account",
 //	  "assetCode": "USD",
 //	  "status": {
@@ -84,14 +84,14 @@ type CreateAccountInput struct {
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateAccountInput
+} //	@name	CreateAccountInput
 
 // UpdateAccountInput is a struct designed to encapsulate request update payload data.
 //
 // swagger:model UpdateAccountInput
-// @Description Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.
+//	@Description	Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.
 //
-//	@example {
+//	@example		{
 //	  "name": "Primary Corporate Checking Account",
 //	  "status": {
 //	    "code": "ACTIVE"
@@ -137,14 +137,14 @@ type UpdateAccountInput struct {
 	// required: false
 	// example: {"department": "Global Treasury", "purpose": "Primary Operations", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateAccountInput
+} //	@name	UpdateAccountInput
 
 // Account is a struct designed to encapsulate response payload data.
 //
 // swagger:model Account
-// @Description Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.
+//	@Description	Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.
 //
-//	@example {
+//	@example		{
 //	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
 //	  "name": "Corporate Checking Account",
 //	  "assetCode": "USD",
@@ -244,7 +244,7 @@ type Account struct {
 	// Custom key-value pairs for extending the account information
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-} // @name Account
+} //	@name	Account
 
 // IDtoUUID converts the account's string ID to a UUID object
 //
@@ -256,9 +256,9 @@ func (a *Account) IDtoUUID() uuid.UUID {
 // Accounts struct to return a paginated list of accounts.
 //
 // swagger:model Accounts
-// @Description Paginated list of accounts with metadata about the current page, limit, and the account items themselves. Used for list operations.
+//	@Description	Paginated list of accounts with metadata about the current page, limit, and the account items themselves. Used for list operations.
 //
-//	@example {
+//	@example		{
 //	  "items": [
 //	    {
 //	      "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
@@ -305,12 +305,12 @@ type Accounts struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} // @name Accounts
+} //	@name	Accounts
 
 // AccountResponse represents a success response containing a single account.
 //
 // swagger:response AccountResponse
-// @Description Successful response containing a single account entity.
+//	@Description	Successful response containing a single account entity.
 type AccountResponse struct {
 	// in: body
 	Body Account
@@ -319,7 +319,7 @@ type AccountResponse struct {
 // AccountsResponse represents a success response containing a paginated list of accounts.
 //
 // swagger:response AccountsResponse
-// @Description Successful response containing a paginated list of accounts.
+//	@Description	Successful response containing a paginated list of accounts.
 type AccountsResponse struct {
 	// in: body
 	Body Accounts
@@ -328,9 +328,9 @@ type AccountsResponse struct {
 // AccountErrorResponse represents an error response for account operations.
 //
 // swagger:response AccountErrorResponse
-// @Description Error response for account operations with error code and message.
+//	@Description	Error response for account operations with error code and message.
 //
-//	@example {
+//	@example		{
 //	  "code": 400001,
 //	  "message": "Invalid input: field 'assetCode' is required",
 //	  "details": {

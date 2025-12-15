@@ -25,16 +25,16 @@ type TransactionRouteHandler struct {
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			Authorization		header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id		path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction-route	body		mmodel.CreateTransactionRouteInput	true	"Transaction Route Input"
-//	@Success		201				{object}	mmodel.TransactionRoute				"Successfully created transaction route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Success		201					{object}	mmodel.TransactionRoute				"Successfully created transaction route"
+//	@Failure		400					{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error						"Forbidden access"
+//	@Failure		500					{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes [post]
 func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -83,17 +83,17 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
-//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Transaction Route not found"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Param			Authorization			header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id			header		string					false	"Request ID for tracing"
+//	@Param			organization_id			path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id				path		string					true	"Ledger ID in UUID format"
+//	@Param			transaction_route_id	path		string					true	"Transaction Route ID in UUID format"
+//	@Success		200						{object}	mmodel.TransactionRoute	"Successfully retrieved transaction route"
+//	@Failure		400						{object}	mmodel.Error			"Invalid input, validation errors"
+//	@Failure		401						{object}	mmodel.Error			"Unauthorized access"
+//	@Failure		403						{object}	mmodel.Error			"Forbidden access"
+//	@Failure		404						{object}	mmodel.Error			"Transaction Route not found"
+//	@Failure		500						{object}	mmodel.Error			"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [get]
 func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -128,17 +128,17 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			Authorization			header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id			header		string								false	"Request ID for tracing"
+//	@Param			organization_id			path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id				path		string								true	"Ledger ID in UUID format"
 //	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
-//	@Param			transaction-route	body		mmodel.UpdateTransactionRouteInput	true	"Transaction Route Input"
-//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully updated transaction route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Param			transaction-route		body		mmodel.UpdateTransactionRouteInput	true	"Transaction Route Input"
+//	@Success		200						{object}	mmodel.TransactionRoute				"Successfully updated transaction route"
+//	@Failure		400						{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401						{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403						{object}	mmodel.Error						"Forbidden access"
+//	@Failure		500						{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [patch]
 func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -199,17 +199,17 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
-//	@Success		204				{object}	nil								"Successfully deleted transaction route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Transaction Route not found"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Param			Authorization			header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id			header		string			false	"Request ID for tracing"
+//	@Param			organization_id			path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id				path		string			true	"Ledger ID in UUID format"
+//	@Param			transaction_route_id	path		string			true	"Transaction Route ID in UUID format"
+//	@Success		204						"Successfully deleted transaction route"
+//	@Failure		400						{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401						{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403						{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404						{object}	mmodel.Error	"Transaction Route not found"
+//	@Failure		500						{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [delete]
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -250,20 +250,20 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			limit			query		int									false	"Limit"			default(10)
-//	@Param			start_date		query		string								false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string								false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string								false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string								false	"Cursor"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes [get]
 func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()

@@ -1,7 +1,6 @@
 package command
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
@@ -11,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.
@@ -42,6 +42,9 @@ type UseCase struct {
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
 
-	// BalanceGRPCRepo provides an abstraction on top of the balance gRPC client.
-	BalanceGRPCRepo out.Repository
+	// BalancePort provides an abstraction for balance operations.
+	// This is a transport-agnostic "port" that can be implemented by either:
+	//   - transaction.UseCase: Direct in-process calls (unified ledger mode)
+	//   - GRPCBalanceAdapter: Network calls via gRPC (separate services mode)
+	BalancePort mbootstrap.BalancePort
 }

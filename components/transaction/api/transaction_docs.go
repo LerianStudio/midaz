@@ -3,7 +3,7 @@ package api
 
 import "github.com/swaggo/swag"
 
-const docTemplate = `{
+const docTemplatetransaction = `{
     "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
@@ -80,12 +80,6 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -94,6 +88,12 @@ const docTemplate = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -184,12 +184,6 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -198,6 +192,12 @@ const docTemplate = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -319,12 +319,6 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -333,6 +327,12 @@ const docTemplate = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -562,12 +562,6 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -576,6 +570,12 @@ const docTemplate = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1109,12 +1109,6 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        " next_cursor": {
-                                            "type": "string"
-                                        },
-                                        " prev_cursor": {
-                                            "type": "string"
-                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
@@ -1123,6 +1117,12 @@ const docTemplate = `{
                                         },
                                         "limit": {
                                             "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1282,10 +1282,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Balance successfully deleted",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Balance successfully deleted"
                     },
                     "401": {
                         "description": "Unauthorized access",
@@ -2541,7 +2538,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -2812,7 +2809,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -3132,6 +3129,9 @@ const docTemplate = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
             "post": {
                 "description": "Cancel a previously created pre transaction",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3224,6 +3224,9 @@ const docTemplate = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
                 "description": "Commit a previously created transaction",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3960,9 +3963,6 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
-                    },
-                    "example": {
-                        "{\"name\"": " \"Field 'name' is required\"}"
                     }
                 },
                 "message": {
@@ -4534,7 +4534,119 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+        "mmodel.AccountRule": {
+            "type": "object"
+        },
+        "mmodel.Balance": {
+            "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "accountType": {
+                    "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "creditCard"
+                },
+                "alias": {
+                    "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "@person1"
+                },
+                "allowReceiving": {
+                    "description": "Whether the account can receive funds to this balance\nexample: true",
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "description": "Whether the account can send funds from this balance\nexample: true",
+                    "type": "boolean",
+                    "example": true
+                },
+                "assetCode": {
+                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
+                    "type": "string",
+                    "maxLength": 10,
+                    "minLength": 2,
+                    "example": "USD"
+                },
+                "available": {
+                    "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 1500
+                },
+                "createdAt": {
+                    "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "key": {
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "asset-freeze"
+                },
+                "ledgerId": {
+                    "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "description": "Custom key-value pairs for extending the balance information\nexample: {\"purpose\": \"Main savings\", \"category\": \"Personal\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "onHold": {
+                    "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 500
+                },
+                "organizationId": {
+                    "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "version": {
+                    "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                }
+            }
+        },
+        "mmodel.CreateOperationRouteInput": {
+            "type": "object"
+        },
+        "transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",
             "type": "object",
             "properties": {
@@ -4672,136 +4784,32 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "mmodel.AccountRule": {
-            "type": "object"
-        },
-        "mmodel.Balance": {
-            "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
-            "type": "object",
-            "properties": {
-                "accountId": {
-                    "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "accountType": {
-                    "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
-                    "type": "string",
-                    "maxLength": 50,
-                    "example": "creditCard"
-                },
-                "alias": {
-                    "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
-                    "type": "string",
-                    "maxLength": 256,
-                    "example": "@person1"
-                },
-                "allowReceiving": {
-                    "description": "Whether the account can receive funds to this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "description": "Whether the account can send funds from this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "assetCode": {
-                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
-                    "type": "string",
-                    "maxLength": 10,
-                    "minLength": 2,
-                    "example": "USD"
-                },
-                "available": {
-                    "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
-                },
-                "createdAt": {
-                    "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "id": {
-                    "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "key": {
-                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "asset-freeze"
-                },
-                "ledgerId": {
-                    "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "metadata": {
-                    "description": "Custom key-value pairs for extending the balance information\nexample: {\"purpose\": \"Main savings\", \"category\": \"Personal\"}",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "onHold": {
-                    "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
-                },
-                "organizationId": {
-                    "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "updatedAt": {
-                    "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "version": {
-                    "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 1
-                }
-            }
-        },
-        "mmodel.CreateOperationRouteInput": {
-            "type": "object"
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`
 
-// SwaggerInfo holds exported Swagger Info so clients can modify it
-var SwaggerInfo = &swag.Spec{
+// SwaggerInfotransaction holds exported Swagger Info so clients can modify it
+var SwaggerInfotransaction = &swag.Spec{
 	Version:          "v1.48.0",
 	Host:             "localhost:3001",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Midaz Transaction API",
 	Description:      "This is a swagger documentation for the Midaz Transaction API",
-	InfoInstanceName: "swagger",
-	SwaggerTemplate:  docTemplate,
+	InfoInstanceName: "transaction",
+	SwaggerTemplate:  docTemplatetransaction,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }
 
 func init() {
-	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+	swag.Register(SwaggerInfotransaction.InstanceName(), SwaggerInfotransaction)
 }

@@ -75,11 +75,11 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Returns detailed information about an account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Account Type ID in UUID format"
+//	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
+//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
+//	@Param			id				path		string				true	"Account Type ID in UUID format"
 //	@Success		200				{object}	mmodel.AccountType	"Successfully retrieved account type"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
@@ -184,11 +184,11 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Deletes an existing account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Account Type ID in UUID format"
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Param			id				path	string	true	"Account Type ID in UUID format"
 //	@Success		204				"Successfully deleted account type"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		404				{object}	mmodel.Error	"Account type not found"
@@ -227,23 +227,23 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string	false	"JSON string to filter account types by metadata fields"
-//	@Param			limit			query		int		false	"Limit of account types per page (default: 10, max: 100)"
-//	@Param			page			query		int		false	"Page number for offset pagination (default: 1)"
-//	@Param			cursor			query		string	false	"Cursor for cursor-based pagination"
-//	@Param			sort_order		query		string	false	"Sort order (asc or desc, default: asc)"
-//	@Param			start_date		query		string	false	"Start date for filtering (YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"End date for filtering (YYYY-MM-DD)"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.AccountType,next_cursor=string,prev_cursor=string,limit=int,page=nil}	"Successfully retrieved account types"
-//	@Failure		400				{object}	mmodel.Error							"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error							"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error							"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error							"Organization, ledger, or account types not found"
-//	@Failure		500				{object}	mmodel.Error							"Internal server error"
+//	@Param			Authorization	header		string																										true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string																										false	"Request ID for tracing"
+//	@Param			organization_id	path		string																										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string																										true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string																										false	"JSON string to filter account types by metadata fields"
+//	@Param			limit			query		int																											false	"Limit of account types per page (default: 10, max: 100)"
+//	@Param			page			query		int																											false	"Page number for offset pagination (default: 1)"
+//	@Param			cursor			query		string																										false	"Cursor for cursor-based pagination"
+//	@Param			sort_order		query		string																										false	"Sort order (asc or desc, default: asc)"
+//	@Param			start_date		query		string																										false	"Start date for filtering (YYYY-MM-DD)"
+//	@Param			end_date		query		string																										false	"End date for filtering (YYYY-MM-DD)"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.AccountType,next_cursor=string,prev_cursor=string,limit=int,page=int}	"Successfully retrieved account types"
+//	@Failure		400				{object}	mmodel.Error																								"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error																								"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error																								"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error																								"Organization, ledger, or account types not found"
+//	@Failure		500				{object}	mmodel.Error																								"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types [get]
 func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
