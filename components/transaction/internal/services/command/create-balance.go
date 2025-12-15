@@ -66,8 +66,10 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	return nil
 }
 
-// CreateBalanceSync creates a new balance using the request-supplied properties.
+// CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
 // If key != "default", it validates that the default balance exists and that the account type allows additional balances.
+// This method implements mbootstrap.BalancePort, allowing the transaction module
+// to be used directly by the onboarding module in unified ledger mode.
 func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -75,6 +77,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	defer span.End()
 
 	normalizedKey := strings.ToLower(strings.TrimSpace(input.Key))
+
+	logger.Infof("Creating balance for account id: %v with key: %v", input.AccountID, normalizedKey)
 
 	if normalizedKey != constant.DefaultBalanceKey {
 		existsDefault, err := uc.BalanceRepo.ExistsByAccountIDAndKey(ctx, input.OrganizationID, input.LedgerID, input.AccountID, constant.DefaultBalanceKey)

@@ -538,8 +538,6 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
-        example:
-          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
@@ -1119,7 +1117,150 @@ definitions:
         maxLength: 50
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+  mmodel.AccountRule:
+    type: object
+  mmodel.Balance:
+    description: Complete balance entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for balance operations. Balances represent the amount of a specific asset held
+      in an account, including available and on-hold amounts.
+    properties:
+      accountId:
+        description: |-
+          Account that holds this balance
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      accountType:
+        description: |-
+          Type of account holding this balance
+          example: creditCard
+          maxLength: 50
+        example: creditCard
+        maxLength: 50
+        type: string
+      alias:
+        description: |-
+          Alias for the account, used for easy identification or tagging
+          example: @person1
+          maxLength: 256
+        example: '@person1'
+        maxLength: 256
+        type: string
+      allowReceiving:
+        description: |-
+          Whether the account can receive funds to this balance
+          example: true
+        example: true
+        type: boolean
+      allowSending:
+        description: |-
+          Whether the account can send funds from this balance
+          example: true
+        example: true
+        type: boolean
+      assetCode:
+        description: |-
+          Asset code identifying the currency or asset type of this balance
+          example: USD
+          minLength: 2
+          maxLength: 10
+        example: USD
+        maxLength: 10
+        minLength: 2
+        type: string
+      available:
+        description: |-
+          Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+          example: 1500
+          minimum: 0
+        example: 1500
+        minimum: 0
+        type: number
+      createdAt:
+        description: |-
+          Timestamp when the balance was created (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      deletedAt:
+        description: |-
+          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
+          example: null
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      id:
+        description: |-
+          Unique identifier for the balance (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      key:
+        description: |-
+          Unique key for the balance
+          example: asset-freeze
+          maxLength: 100
+        example: asset-freeze
+        maxLength: 100
+        type: string
+      ledgerId:
+        description: |-
+          Ledger containing the account this balance belongs to
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Custom key-value pairs for extending the balance information
+          example: {"purpose": "Main savings", "category": "Personal"}
+        type: object
+      onHold:
+        description: |-
+          Amount currently on hold and unavailable for transactions
+          example: 500
+          minimum: 0
+        example: 500
+        minimum: 0
+        type: number
+      organizationId:
+        description: |-
+          Organization that owns this balance
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
+      updatedAt:
+        description: |-
+          Timestamp when the balance was last updated (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      version:
+        description: |-
+          Optimistic concurrency control version
+          example: 1
+          minimum: 1
+        example: 1
+        minimum: 1
+        type: integer
+    type: object
+  mmodel.CreateOperationRouteInput:
+    type: object
+  transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
       structure defined inline
     properties:
@@ -1289,149 +1430,6 @@ definitions:
           required: false
         type: string
     type: object
-  mmodel.AccountRule:
-    type: object
-  mmodel.Balance:
-    description: Complete balance entity containing all fields including system-generated
-      fields like ID, creation timestamps, and metadata. This is the response format
-      for balance operations. Balances represent the amount of a specific asset held
-      in an account, including available and on-hold amounts.
-    properties:
-      accountId:
-        description: |-
-          Account that holds this balance
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      accountType:
-        description: |-
-          Type of account holding this balance
-          example: creditCard
-          maxLength: 50
-        example: creditCard
-        maxLength: 50
-        type: string
-      alias:
-        description: |-
-          Alias for the account, used for easy identification or tagging
-          example: @person1
-          maxLength: 256
-        example: '@person1'
-        maxLength: 256
-        type: string
-      allowReceiving:
-        description: |-
-          Whether the account can receive funds to this balance
-          example: true
-        example: true
-        type: boolean
-      allowSending:
-        description: |-
-          Whether the account can send funds from this balance
-          example: true
-        example: true
-        type: boolean
-      assetCode:
-        description: |-
-          Asset code identifying the currency or asset type of this balance
-          example: USD
-          minLength: 2
-          maxLength: 10
-        example: USD
-        maxLength: 10
-        minLength: 2
-        type: string
-      available:
-        description: |-
-          Amount available for transactions (in the smallest unit of the asset, e.g. cents)
-          example: 1500
-          minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
-      createdAt:
-        description: |-
-          Timestamp when the balance was created (RFC3339 format)
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      deletedAt:
-        description: |-
-          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
-          example: null
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      id:
-        description: |-
-          Unique identifier for the balance (UUID format)
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      key:
-        description: |-
-          Unique key for the balance
-          example: asset-freeze
-          maxLength: 100
-        example: asset-freeze
-        maxLength: 100
-        type: string
-      ledgerId:
-        description: |-
-          Ledger containing the account this balance belongs to
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      metadata:
-        additionalProperties: {}
-        description: |-
-          Custom key-value pairs for extending the balance information
-          example: {"purpose": "Main savings", "category": "Personal"}
-        type: object
-      onHold:
-        description: |-
-          Amount currently on hold and unavailable for transactions
-          example: 500
-          minimum: 0
-        example: 500
-        minimum: 0
-        type: number
-      organizationId:
-        description: |-
-          Organization that owns this balance
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      updatedAt:
-        description: |-
-          Timestamp when the balance was last updated (RFC3339 format)
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      version:
-        description: |-
-          Optimistic concurrency control version
-          example: 1
-          minimum: 1
-        example: 1
-        minimum: 1
-        type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
-    type: object
 host: localhost:3001
 info:
   contact:
@@ -1503,16 +1501,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1664,16 +1662,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1794,16 +1792,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -1861,16 +1859,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2161,16 +2159,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2224,8 +2222,6 @@ paths:
       responses:
         "204":
           description: Balance successfully deleted
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -3215,6 +3211,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      consumes:
+      - application/json
       description: Cancel a previously created pre transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3277,6 +3275,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      consumes:
+      - application/json
       description: Commit a previously created transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3506,7 +3506,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:
@@ -3688,7 +3688,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:
@@ -3780,4 +3780,11 @@ paths:
       summary: Create a Transaction without passing to distribution
       tags:
       - Transactions
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

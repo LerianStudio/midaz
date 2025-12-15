@@ -27,7 +27,7 @@ type AssetRateHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
@@ -81,7 +81,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			external_id		path		string	true	"External ID"
@@ -127,15 +127,15 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Param			Authorization	header		string		true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string		false	"Request ID"
+//	@Param			X-Request-Id	header		string		false	"Request ID"
 //	@Param			organization_id	path		string		true	"Organization ID"
 //	@Param			ledger_id		path		string		true	"Ledger ID"
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
-//	@Param			to				query		[]string	false	"To Asset Codes"	example "BRL,USD,SGD"
+//	@Param			to				query		[]string	false	"To Asset Codes"	example	"BRL,USD,SGD"
 //	@Param			limit			query		int			false	"Limit"				default(10)
-//	@Param			start_date		query		string		false	"Start Date"		example "2021-01-01"
-//	@Param			end_date		query		string		false	"End Date"			example "2021-01-01"
+//	@Param			start_date		query		string		false	"Start Date"		example	"2021-01-01"
+//	@Param			end_date		query		string		false	"End Date"			example	"2021-01-01"
 //	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
 //	@Param			cursor			query		string		false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}

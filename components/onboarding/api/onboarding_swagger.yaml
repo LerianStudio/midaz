@@ -621,8 +621,6 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
-        example:
-          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
@@ -1155,7 +1153,7 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API
+  description: This is a swagger documentation for the Midaz Onboarding API
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
@@ -1318,8 +1316,6 @@ paths:
       responses:
         "204":
           description: Organization successfully deleted
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -1618,8 +1614,6 @@ paths:
       responses:
         "204":
           description: Ledger successfully deleted
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -1823,7 +1817,7 @@ paths:
                 next_cursor:
                   type: string
                 page:
-                  type: object
+                  type: integer
                 prev_cursor:
                   type: string
               type: object
@@ -2482,7 +2476,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       description: Returns detailed information about an account identified by its
-        alias within the specified ledger
+        external code within the specified ledger
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -2524,15 +2518,15 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "404":
-          description: Account with the specified alias, ledger, or organization not
-            found
+          description: Account with the specified external code, ledger, or organization
+            not found
           schema:
             $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-      summary: Retrieve an account by alias
+      summary: Retrieve an account by external code
       tags:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
@@ -2560,7 +2554,7 @@ paths:
         required: true
         type: string
       responses:
-        "200":
+        "204":
           description: Successfully retrieved accounts count
         "401":
           description: Unauthorized access
@@ -2952,8 +2946,6 @@ paths:
       responses:
         "204":
           description: No content with X-Total-Count header containing the count
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -3736,7 +3728,7 @@ paths:
         required: true
         type: string
       responses:
-        "200":
+        "204":
           description: Successfully retrieved segments count
         "401":
           description: Unauthorized access
@@ -3779,8 +3771,6 @@ paths:
       responses:
         "204":
           description: No content with X-Total-Count header containing the count
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -3817,8 +3807,6 @@ paths:
       responses:
         "204":
           description: No content with X-Total-Count header containing the count
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -3838,4 +3826,11 @@ paths:
       summary: Count total organizations
       tags:
       - Organizations
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

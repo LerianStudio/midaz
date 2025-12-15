@@ -12,13 +12,13 @@ import (
 func WithSwaggerEnvConfig() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		envVars := map[string]*string{
-			"SWAGGER_TITLE":       &api.SwaggerInfo.Title,
-			"SWAGGER_DESCRIPTION": &api.SwaggerInfo.Description,
-			"SWAGGER_VERSION":     &api.SwaggerInfo.Version,
-			"SWAGGER_HOST":        &api.SwaggerInfo.Host,
-			"SWAGGER_BASE_PATH":   &api.SwaggerInfo.BasePath,
-			"SWAGGER_LEFT_DELIM":  &api.SwaggerInfo.LeftDelim,
-			"SWAGGER_RIGHT_DELIM": &api.SwaggerInfo.RightDelim,
+			"SWAGGER_TITLE":       &api.SwaggerInfotransaction.Title,
+			"SWAGGER_DESCRIPTION": &api.SwaggerInfotransaction.Description,
+			"SWAGGER_VERSION":     &api.SwaggerInfotransaction.Version,
+			"SWAGGER_HOST":        &api.SwaggerInfotransaction.Host,
+			"SWAGGER_BASE_PATH":   &api.SwaggerInfotransaction.BasePath,
+			"SWAGGER_LEFT_DELIM":  &api.SwaggerInfotransaction.LeftDelim,
+			"SWAGGER_RIGHT_DELIM": &api.SwaggerInfotransaction.RightDelim,
 		}
 
 		for env, field := range envVars {
@@ -32,7 +32,7 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		}
 
 		if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
-			api.SwaggerInfo.Schemes = []string{schemes}
+			api.SwaggerInfotransaction.Schemes = []string{schemes}
 		}
 
 		return c.Next()

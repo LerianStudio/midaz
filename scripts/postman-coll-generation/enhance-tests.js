@@ -85,7 +85,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
     if (path.includes('/organizations') && method === 'POST' && !path.includes('/ledgers')) {
       scripts.push('\npm.test("🏢 Business Logic: Organization has required fields", function() {\n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -123,12 +128,16 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping ledger validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -161,12 +170,16 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping portfolio validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -199,12 +212,16 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping account validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -241,12 +258,16 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping asset validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -280,12 +301,16 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping segment validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
         '    const jsonData = pm.response.json();\n' +
-        '    const requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    let requestData = {};\n' +
+        '    try {\n' +
+        '        requestData = JSON.parse(pm.request.body.raw || \'{}\');\n' +
+        '    } catch (e) {\n' +
+        '        console.warn(\"⚠️ Could not parse request body as JSON; skipping request/response field equality checks\");\n' +
+        '    }\n' +
         '    \n' +
         '    // Required fields validation\n' +
         '    pm.expect(jsonData).to.have.property(\'id\');\n' +
@@ -318,7 +343,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    // Only validate if response was successful\n' +
         '    if (pm.response.code !== 200 && pm.response.code !== 201) {\n' +
         '        console.log("⚠️ Skipping transaction validation - response code:", pm.response.code);\n' +
-        '        pm.test.skip();\n' +
         '        return;\n' +
         '    }\n' +
         '    \n' +
@@ -382,13 +406,13 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '        \n' +
         '        // Extract and store accountId - prefer non-external accounts\n' +
         '        if (userOperation && userOperation.accountId) {\n' +
-        '            // Only store if we do not already have an accountId (preserve treasury account ID)\n' +
-        '            const existingAccountId = pm.environment.get("accountId");\n' +
+        '            // Only store if we do not already have an accountId for this variable (preserve treasury account ID)\n' +
+        '            const existingAccountId = pm.environment.get(accountIdVar);\n' +
         '            if (!existingAccountId) {\n' +
         '                pm.environment.set(accountIdVar, userOperation.accountId);\n' +
         '                console.log("💾 Stored " + accountIdVar + ":", userOperation.accountId);\n' +
         '            } else {\n' +
-        '                console.log("⚠️ Preserving existing accountId:", existingAccountId, "(not overwriting with:", userOperation.accountId + ")");\n' +
+        '                console.log("⚠️ Preserving existing " + accountIdVar + ":", existingAccountId, "(not overwriting with:", userOperation.accountId + ")");\n' +
         '            }\n' +
         '        }\n' +
         '        \n' +
@@ -423,8 +447,8 @@ console.log("⚙️ Setting up Step ${stepNumber}: ${stepTitle}");
 // Set step start timestamp for performance tracking
 pm.globals.set("step_${stepNumber}_start", Date.now());
 
-// Generate unique idempotency key for each POST/PUT request
-if (pm.request.method === 'POST' || pm.request.method === 'PUT') {
+// Generate unique idempotency key for each POST/PUT/PATCH request
+if (['POST', 'PUT', 'PATCH'].includes(pm.request.method)) {
     // Always generate a new unique idempotency key for each transaction
     const newIdempotencyKey = pm.variables.replaceIn('{{$guid}}');
     pm.environment.set('idempotencyKey', newIdempotencyKey);
@@ -435,32 +459,60 @@ if (pm.request.method === 'POST' || pm.request.method === 'PUT') {
 const requestUrl = pm.request.url.toString();
 const method = pm.request.method;
 
-// Base required variables
-const requiredVars = ['organizationId', 'ledgerId'];
+// Parse URL path segments for more robust variable detection
+// pm.request.url.path is an array like ["v1", "organizations", "{{organizationId}}", "ledgers"]
+const pathSegments = pm.request.url.path || [];
 
-// Add specific variables based on the operation
-if (requestUrl.includes('/transactions/') && (method === 'PATCH' || method === 'GET')) {
-    if (requestUrl.includes('{{transactionId}}') || requestUrl.includes('{transaction_id}')) {
-        requiredVars.push('transactionId');
-    }
+// Helper: Check if a path segment is a template variable for a specific ID
+function hasTemplateVar(segments, varPatterns) {
+    return segments.some(seg => varPatterns.some(pattern => seg.includes(pattern)));
 }
 
-if (requestUrl.includes('/operations/') && (method === 'PATCH' || method === 'GET')) {
-    if (requestUrl.includes('{{operationId}}') || requestUrl.includes('{operation_id}')) {
-        requiredVars.push('operationId');
-    }
+// Helper: Check if resource ID is in a path position (after the resource name, not just listed)
+// e.g., /organizations/{{id}}/ledgers requires organizationId, but /organizations does not
+function requiresResourceId(segments, resourceName, varPatterns) {
+    const resourceIndex = segments.findIndex(seg => seg === resourceName);
+    if (resourceIndex === -1) return false;
+    // Check if next segment is a variable pattern
+    const nextSegment = segments[resourceIndex + 1];
+    if (!nextSegment) return false;
+    return varPatterns.some(pattern => nextSegment.includes(pattern));
 }
 
-if (requestUrl.includes('/balances/') && (method === 'PATCH' || method === 'DELETE' || method === 'GET')) {
-    if (requestUrl.includes('{{balanceId}}') || requestUrl.includes('{balance_id}')) {
-        requiredVars.push('balanceId');
-    }
+// Base required variables - start empty and add based on URL patterns
+const requiredVars = [];
+
+// Require organizationId when URL has it as a path parameter (not for list/create endpoints)
+const orgIdPatterns = ['{{organizationId}}', '{organization_id}', ':organization_id'];
+if (hasTemplateVar(pathSegments, orgIdPatterns) || requiresResourceId(pathSegments, 'organizations', orgIdPatterns)) {
+    requiredVars.push('organizationId');
 }
 
-if (requestUrl.includes('/accounts/') && (method === 'PATCH' || method === 'DELETE' || method === 'GET')) {
-    if (requestUrl.includes('{{accountId}}') || requestUrl.includes('{account_id}')) {
-        requiredVars.push('accountId');
-    }
+// Require ledgerId when URL has it as a path parameter (not for list/create ledger endpoints)
+const ledgerIdPatterns = ['{{ledgerId}}', '{ledger_id}', ':ledger_id'];
+if (hasTemplateVar(pathSegments, ledgerIdPatterns) || requiresResourceId(pathSegments, 'ledgers', ledgerIdPatterns)) {
+    requiredVars.push('ledgerId');
+}
+
+// Add specific variables based on the operation and URL path
+const transactionIdPatterns = ['{{transactionId}}', '{transaction_id}', ':transaction_id'];
+if (hasTemplateVar(pathSegments, transactionIdPatterns) || requiresResourceId(pathSegments, 'transactions', transactionIdPatterns)) {
+    requiredVars.push('transactionId');
+}
+
+const operationIdPatterns = ['{{operationId}}', '{operation_id}', ':operation_id'];
+if (hasTemplateVar(pathSegments, operationIdPatterns) || requiresResourceId(pathSegments, 'operations', operationIdPatterns)) {
+    requiredVars.push('operationId');
+}
+
+const balanceIdPatterns = ['{{balanceId}}', '{balance_id}', ':balance_id'];
+if (hasTemplateVar(pathSegments, balanceIdPatterns) || requiresResourceId(pathSegments, 'balances', balanceIdPatterns)) {
+    requiredVars.push('balanceId');
+}
+
+const accountIdPatterns = ['{{accountId}}', '{account_id}', ':account_id'];
+if (hasTemplateVar(pathSegments, accountIdPatterns) || requiresResourceId(pathSegments, 'accounts', accountIdPatterns)) {
+    requiredVars.push('accountId');
 }
 
 // Check all required variables

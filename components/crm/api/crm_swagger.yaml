@@ -1,38 +1,78 @@
 basePath: /
 definitions:
+  AddHolderLinkInput:
+    description: AddHolderLinkInput payload
+    properties:
+      holderId:
+        description: Unique identifier of the holder to be linked.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      linkType:
+        description: Type of relationship between the holder and the alias (TpVinc).
+        enum:
+        - PRIMARY_HOLDER
+        - LEGAL_REPRESENTATIVE
+        - RESPONSIBLE_PARTY
+        example: LEGAL_REPRESENTATIVE
+        type: string
+    required:
+    - holderId
+    - linkType
+    type: object
   Address:
-    description: Address object
+    description: Structured address information following standard postal address
+      format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
+      codes). Used for organization physical locations and other address needs.
     properties:
       city:
-        description: The city of the address.
+        description: |-
+          City or locality name
+          example: New York
+          maxLength: 100
         example: New York
+        maxLength: 100
         type: string
       country:
-        description: The two-letter code (ISO 3166-1 alpha2) that represents the country
-          of the address.
+        description: |-
+          Country code in ISO 3166-1 alpha-2 format (two-letter country code)
+          example: US
+          minLength: 2
+          maxLength: 2
         example: US
-        type: string
-      description:
-        description: A description of the address.
-        example: Home address
+        maxLength: 2
+        minLength: 2
         type: string
       line1:
-        description: The first line of the address. Usually used to inform the name
-          of the street and the number of the building.
-        example: Street 1
+        description: |-
+          Primary address line (street address or PO Box)
+          example: 123 Financial Avenue
+          maxLength: 256
+        example: 123 Financial Avenue
+        maxLength: 256
         type: string
       line2:
-        description: The second line of the address. Usually used to inform about
-          any complements such as the number of the apartment.
-        example: Street 2
+        description: |-
+          Secondary address information like apartment number, suite, or floor
+          example: Suite 1500
+          maxLength: 256
+        example: Suite 1500
+        maxLength: 256
         type: string
       state:
-        description: The state or region of the address.
+        description: |-
+          State, province, or region name or code
+          example: NY
+          maxLength: 100
         example: NY
+        maxLength: 100
         type: string
       zipCode:
-        description: The postal code of the address.
-        example: 00000-000
+        description: |-
+          Postal code or ZIP code
+          example: 10001
+          maxLength: 20
+        example: "10001"
+        maxLength: 20
         type: string
     type: object
   Addresses:
@@ -53,6 +93,9 @@ definitions:
         type: string
       bankingDetails:
         $ref: '#/definitions/BankingDetails'
+      closingDate:
+        example: "2025-01-01T00:00:00Z"
+        type: string
       createdAt:
         example: "2025-01-01T00:00:00Z"
         type: string
@@ -65,6 +108,10 @@ definitions:
       holderId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
+      holderLinks:
+        items:
+          $ref: '#/definitions/HolderLinkResponse'
+        type: array
       id:
         example: 00000000-0000-0000-0000-000000000000
         type: string
@@ -74,6 +121,9 @@ definitions:
       metadata:
         additionalProperties: {}
         type: object
+      participantDocument:
+        example: "12345678901234"
+        type: string
       type:
         example: LEGAL_PERSON
         type: string
@@ -149,14 +199,29 @@ definitions:
         description: Unique identifier of the ledger of the related account.
         example: 00000000-0000-0000-0000-000000000000
         type: string
+      linkType:
+        description: Type of relationship between the holder and the alias (TpVinc).
+          Optional - if not provided, no HolderLink will be created.
+        enum:
+        - PRIMARY_HOLDER
+        - LEGAL_REPRESENTATIVE
+        - RESPONSIBLE_PARTY
+        example: PRIMARY_HOLDER
+        type: string
       metadata:
         additionalProperties: {}
         description: An object containing key-value pairs to add as metadata, where
           the field name is the key and the field value is the value.
         type: object
+      participantDocument:
+        description: Document of the participant (identifies which financial-group
+          entity owns the relationship)
+        example: "12345678912345"
+        type: string
     required:
     - accountId
     - ledgerId
+    - participantDocument
     type: object
   CreateHolderRequest:
     description: CreateHolderRequest payload
@@ -212,17 +277,37 @@ definitions:
     - name
     - type
     type: object
-  ErrorMessage:
-    description: Response message error
+  HolderLinkResponse:
+    description: HolderLinkResponse payload - represents the relationship (TpVinc)
+      between a Holder and an Alias
     properties:
-      code:
-        example: CRM-0000
+      aliasId:
+        example: 00000000-0000-0000-0000-000000000000
         type: string
-      message:
-        example: Error message
+      createdAt:
+        example: "2025-01-01T00:00:00Z"
         type: string
-      title:
-        example: Error title
+      deletedAt:
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      holderId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      linkType:
+        enum:
+        - PRIMARY_HOLDER
+        - LEGAL_REPRESENTATIVE
+        - RESPONSIBLE_PARTY
+        example: PRIMARY_HOLDER
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      updatedAt:
+        example: "2025-01-01T00:00:00Z"
         type: string
     type: object
   HolderResponse:
@@ -342,14 +427,24 @@ definitions:
         type: string
     type: object
   Pagination:
-    description: Pagination query params
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
     properties:
       items: {}
       limit:
         example: 10
         type: integer
+      next_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
       page:
+        example: 1
         type: integer
+      prev_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
     type: object
   Representative:
     description: Representative object from LegalPerson
@@ -374,15 +469,28 @@ definitions:
   UpdateAliasRequest:
     description: UpdateAliasRequest payload
     properties:
+      addHolderLink:
+        allOf:
+        - $ref: '#/definitions/AddHolderLinkInput'
+        description: Add a new holder link to the alias (optional).
       bankingDetails:
         allOf:
         - $ref: '#/definitions/BankingDetails'
         description: Object with banking information of the related account.
+      closingDate:
+        description: The date the alias was closed.
+        example: "2025-01-01T00:00:00Z"
+        type: string
       metadata:
         additionalProperties: {}
         description: An object containing key-value pairs to add as metadata, where
           the field name is the key and the field value is the value.
         type: object
+      participantDocument:
+        description: Document of the participant (identifies which financial-group
+          entity owns the relationship)
+        example: "12345678912345"
+        type: string
     type: object
   UpdateHolderRequest:
     description: UpdateHolderRequest payload
@@ -418,12 +526,24 @@ definitions:
         - $ref: '#/definitions/NaturalPerson'
         description: Object with natural person information.
     type: object
+  pkg.HTTPError:
+    properties:
+      code:
+        type: string
+      entityType:
+        type: string
+      err: {}
+      message:
+        type: string
+      title:
+        type: string
+    type: object
 host: localhost:4003
 info:
   contact: {}
   description: The CRM API provides a set of endpoints for managing holder data, including
     information related to their ledger accounts.
-  title: Plugin CRM
+  title: CRM API
   version: 1.0.0
 paths:
   /v1/aliases:
@@ -518,15 +638,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: List Aliases
       tags:
       - Aliases
@@ -602,15 +722,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: List Holders
       tags:
       - Holders
@@ -646,15 +766,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Create a Holder
       tags:
       - Holders
@@ -698,15 +818,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Create an Alias Account
       tags:
       - Aliases
@@ -749,15 +869,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Delete an Alias
       tags:
       - Aliases
@@ -800,15 +920,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Retrieve Alias details
       tags:
       - Aliases
@@ -854,15 +974,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Update an Alias
       tags:
       - Aliases
@@ -900,15 +1020,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Delete a Holder
       tags:
       - Holders
@@ -946,15 +1066,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Retrieve Holder details
       tags:
       - Holders
@@ -995,16 +1115,23 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ErrorMessage'
+            $ref: '#/definitions/pkg.HTTPError'
       summary: Update a Holder
       tags:
       - Holders
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
