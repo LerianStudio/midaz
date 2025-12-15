@@ -62,9 +62,11 @@ func calculateRetryBackoff(retryCount int) time.Duration {
 	if retryCount <= 0 {
 		return 0
 	}
+
 	if retryCount > len(retryBackoffDelays) {
 		return retryBackoffDelays[len(retryBackoffDelays)-1]
 	}
+
 	return retryBackoffDelays[retryCount-1]
 }
 
@@ -123,6 +125,7 @@ func copyHeadersSafe(src amqp.Table) amqp.Table {
 	}
 
 	dst := make(amqp.Table)
+
 	for k, v := range src {
 		if safeHeadersAllowlist[k] {
 			dst[k] = v
@@ -353,7 +356,7 @@ func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
 	headers := copyHeadersSafe(bec.msg.Headers)
 	// Sanitize error message to prevent information disclosure (CWE-209)
 	sanitizedReason := sanitizeErrorForDLQ(bec.err)
-	headers["x-dlq-reason"] = fmt.Sprintf("business_error: %s", sanitizedReason)
+	headers["x-dlq-reason"] = "business_error: " + sanitizedReason
 	headers["x-dlq-original-queue"] = bec.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(bec.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
@@ -368,7 +371,7 @@ func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
 		workerID:      bec.workerID,
 		originalQueue: bec.queue,
 		retryCount:    bec.retryCount + 1, // +1 because this is after the final attempt
-		reason:        fmt.Sprintf("business_error: %s", sanitizedReason),
+		reason:        "business_error: " + sanitizedReason,
 	})
 }
 
@@ -431,13 +434,31 @@ func (bec *businessErrorContext) republishWithRetry() {
 	}
 }
 
-// nackWithLogging performs a Nack with logging on failure.
-// This is a fallback path when channel acquisition fails - message will be redelivered
-// without retry count increment (reported by business-logic-reviewer on 2025-12-14).
+// nackWithLogging performs a Nack with retry-aware logic to prevent infinite loops.
+// When channel acquisition fails and we can't republish with retry tracking,
+// we must check retry count to decide: reject (max retries) or nack without requeue.
 func (bec *businessErrorContext) nackWithLogging() {
-	bec.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable)", bec.workerID)
+	// Check if message has exceeded max retries
+	if bec.retryCount >= maxRetries-1 {
+		// Max retries exceeded - reject without requeue to prevent infinite loop
+		// This is data loss, but preferable to infinite redelivery loop
+		bec.logger.Errorf("Worker %d: max retries (%d) exceeded during channel failure, REJECTING message (data loss) - queue=%s",
+			bec.workerID, bec.retryCount+1, bec.queue)
 
-	if nackErr := bec.msg.Nack(false, true); nackErr != nil {
+		if rejectErr := bec.msg.Reject(false); rejectErr != nil {
+			bec.logger.Warnf("Worker %d: failed to reject message: %v", bec.workerID, rejectErr)
+		}
+
+		return
+	}
+
+	// Still have retries available - NACK without requeue (let RabbitMQ handle DLX if configured)
+	bec.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable) - retry %d/%d",
+		bec.workerID, bec.retryCount+1, maxRetries)
+
+	// CRITICAL: requeue=false to prevent infinite loop
+	// Message will be lost if no DLX is configured, but that's better than infinite loop
+	if nackErr := bec.msg.Nack(false, false); nackErr != nil {
 		bec.logger.Warnf("Worker %d: failed to nack business error message: %v", bec.workerID, nackErr)
 	}
 }
@@ -486,7 +507,7 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 	headers := copyHeadersSafe(prc.msg.Headers)
 	// Sanitize panic value to prevent information disclosure (CWE-209)
 	sanitizedReason := sanitizePanicForDLQ(panicValue)
-	headers["x-dlq-reason"] = fmt.Sprintf("panic: %s", sanitizedReason)
+	headers["x-dlq-reason"] = "panic: " + sanitizedReason
 	headers["x-dlq-original-queue"] = prc.queue
 	headers["x-dlq-retry-count"] = safeIncrementRetryCount(prc.retryCount)
 	headers["x-dlq-timestamp"] = time.Now().Unix()
@@ -500,7 +521,7 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 		workerID:      prc.workerID,
 		originalQueue: prc.queue,
 		retryCount:    prc.retryCount + 1, // +1 because this is after the final attempt
-		reason:        fmt.Sprintf("panic: %s", sanitizedReason),
+		reason:        "panic: " + sanitizedReason,
 	})
 }
 
@@ -571,13 +592,29 @@ func (prc *panicRecoveryContext) publishAndAck(ch *amqp.Channel, headers amqp.Ta
 	}
 }
 
-// nackWithLogging performs a Nack with logging on failure.
-// This is a fallback path when channel acquisition fails - message will be redelivered
-// without retry count increment (reported by business-logic-reviewer on 2025-12-14).
+// nackWithLogging performs a Nack with retry-aware logic to prevent infinite loops.
+// When channel acquisition fails and we can't republish with retry tracking,
+// we must check retry count to decide: reject (max retries) or nack without requeue.
 func (prc *panicRecoveryContext) nackWithLogging() {
-	prc.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable)", prc.workerID)
+	// Check if message has exceeded max retries
+	if prc.retryCount >= maxRetries-1 {
+		// Max retries exceeded - reject without requeue to prevent infinite loop
+		prc.logger.Errorf("Worker %d: max retries (%d) exceeded during channel failure, REJECTING message (data loss) - queue=%s",
+			prc.workerID, prc.retryCount+1, prc.queue)
 
-	if nackErr := prc.msg.Nack(false, true); nackErr != nil {
+		if rejectErr := prc.msg.Reject(false); rejectErr != nil {
+			prc.logger.Warnf("Worker %d: failed to reject message: %v", prc.workerID, rejectErr)
+		}
+
+		return
+	}
+
+	// Still have retries available - NACK without requeue
+	prc.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable) - retry %d/%d",
+		prc.workerID, prc.retryCount+1, maxRetries)
+
+	// CRITICAL: requeue=false to prevent infinite loop
+	if nackErr := prc.msg.Nack(false, false); nackErr != nil {
 		prc.logger.Warnf("Worker %d: failed to nack message: %v", prc.workerID, nackErr)
 	}
 }
