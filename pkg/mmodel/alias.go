@@ -64,7 +64,7 @@ type Alias struct {
 	LedgerID            *string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	AccountID           *string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
 	HolderID            *uuid.UUID      `json:"holderId" example:"00000000-0000-0000-0000-000000000000"`
-	HolderLinks         []*HolderLink   `json:"holderLinks,omitempty" example:"[]"`
+	HolderLinks         []*HolderLink   `json:"holderLinks,omitempty"`
 	Metadata            map[string]any  `json:"metadata,omitempty"`
 	BankingDetails      *BankingDetails `json:"bankingDetails,omitempty"`
 	ClosingDate         *time.Time      `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`

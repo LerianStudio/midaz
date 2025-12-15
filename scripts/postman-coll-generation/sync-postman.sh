@@ -16,6 +16,7 @@ POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
 ONBOARDING_API="${MIDAZ_ROOT}/components/onboarding/api"
 TRANSACTION_API="${MIDAZ_ROOT}/components/transaction/api"
+CRM_API="${MIDAZ_ROOT}/components/crm/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
@@ -81,99 +82,106 @@ convert_component() {
 echo "Converting OpenAPI specs to Postman collections..."
 
 # Process components in parallel
-convert_component "onboarding" "${ONBOARDING_API}/swagger.json"
+convert_component "onboarding" "${ONBOARDING_API}/onboarding_swagger.json"
 ONBOARDING_PID=$!
 
-convert_component "transaction" "${TRANSACTION_API}/swagger.json"
+convert_component "transaction" "${TRANSACTION_API}/transaction_swagger.json"
 TRANSACTION_PID=$!
 
-# Wait for both conversions to complete
-wait $ONBOARDING_PID $TRANSACTION_PID
+convert_component "crm" "${CRM_API}/crm_swagger.json"
+CRM_PID=$!
+
+# Wait for all conversions to complete
+wait $ONBOARDING_PID $TRANSACTION_PID $CRM_PID
 
 # Check conversion results
 ONBOARDING_STATUS=$(cat "${TEMP_DIR}/onboarding.status" 2>/dev/null || echo "FAILED")
 TRANSACTION_STATUS=$(cat "${TEMP_DIR}/transaction.status" 2>/dev/null || echo "FAILED")
+CRM_STATUS=$(cat "${TEMP_DIR}/crm.status" 2>/dev/null || echo "FAILED")
 
-# Function to merge collections efficiently
-merge_collections() {
-    local collection1=$1
-    local collection2=$2
-    local env1=$3
-    local env2=$4
-    
-    # Merge collections and environments in a single jq invocation
-    if [ -f "$collection1" ] && [ -f "$collection2" ]; then
-        echo "Merging collections..."
-        
-        # Create merged collection with optimized jq script
-        jq -s '
-            # Start with first collection as base
-            .[0] as $base |
-            .[1] as $addition |
-            
-            # Merge and update in one pass
-            $base |
-            .item = ([$base.item[], $addition.item[]] | map(select(.name != "E2E Flow"))) |
-            .variable = (
-                if ($base.variable != null and $addition.variable != null) then
-                    ($base.variable + $addition.variable | unique_by(.key))
-                elif ($addition.variable != null) then
-                    $addition.variable
-                else
-                    $base.variable
-                end
-            ) |
-            .info.name = "MIDAZ" |
-            .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"
-        ' "$collection1" "$collection2" > "${POSTMAN_COLLECTION}"
-        
-        # Merge environments if both exist
-        if [ -f "$env1" ] && [ -f "$env2" ]; then
-            echo "Merging environment templates..."
-            jq -s '
-                # Start with first environment as base
-                .[0] as $base |
-                .[1] as $addition |
-                
-                $base |
-                .name = "MIDAZ Environment" |
-                .id = "midaz-environment-id" |
-                .values = ($base.values + $addition.values | unique_by(.key))
-            ' "$env1" "$env2" > "${POSTMAN_ENVIRONMENT}"
-        elif [ -f "$env1" ]; then
-            jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$env1" > "${POSTMAN_ENVIRONMENT}"
-        elif [ -f "$env2" ]; then
-            jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$env2" > "${POSTMAN_ENVIRONMENT}"
+# Function to merge multiple collections efficiently
+merge_all_collections() {
+    local -a collections=()
+    local -a environments=()
+
+    # Collect all successful collections and environments
+    for component in onboarding transaction crm; do
+        local status=$(cat "${TEMP_DIR}/${component}.status" 2>/dev/null || echo "FAILED")
+        if [ "$status" != "SUCCESS" ]; then
+            echo "Skipping ${component}: conversion status is ${status}"
+            continue
         fi
-        
-        return 0
+
+        local coll="${TEMP_DIR}/${component}.postman_collection.json"
+        local env="${TEMP_DIR}/${component}.environment.json"
+        if [ -f "$coll" ]; then
+            collections+=("$coll")
+        fi
+        if [ -f "$env" ]; then
+            environments+=("$env")
+        fi
+    done
+
+    local num_collections=${#collections[@]}
+
+    if [ "$num_collections" -eq 0 ]; then
+        return 1
+    elif [ "$num_collections" -eq 1 ]; then
+        echo "Single collection found. Using it as the main collection..."
+        jq '.info.name = "MIDAZ" | .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"' \
+            "${collections[0]}" > "${POSTMAN_COLLECTION}"
+    else
+        echo "Merging ${num_collections} collections..."
+        # Merge all collections using jq slurp
+        jq -s '
+            # Combine all items from all collections, excluding E2E Flow
+            reduce .[] as $coll (
+                {
+                    info: (.[0].info | .name = "MIDAZ" | ._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"),
+                    item: [],
+                    variable: []
+                };
+                .item += ($coll.item // [] | map(select(.name != "E2E Flow"))) |
+                .variable += ($coll.variable // [])
+            ) |
+            .variable = (.variable | unique_by(.key))
+        ' "${collections[@]}" > "${POSTMAN_COLLECTION}"
     fi
-    
-    return 1
+
+    # Merge environments
+    local num_environments=${#environments[@]}
+    if [ "$num_environments" -eq 1 ]; then
+        jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' \
+            "${environments[0]}" > "${POSTMAN_ENVIRONMENT}"
+    elif [ "$num_environments" -gt 1 ]; then
+        echo "Merging ${num_environments} environment templates..."
+        jq -s '
+            reduce .[] as $env (
+                {
+                    name: "MIDAZ Environment",
+                    id: "midaz-environment-id",
+                    values: []
+                };
+                .values += ($env.values // [])
+            ) |
+            .values = (.values | unique_by(.key))
+        ' "${environments[@]}" > "${POSTMAN_ENVIRONMENT}"
+    fi
+
+    return 0
 }
 
 # Process based on what was successfully converted
-ONBOARDING_COLLECTION="${TEMP_DIR}/onboarding.postman_collection.json"
-TRANSACTION_COLLECTION="${TEMP_DIR}/transaction.postman_collection.json"
-ONBOARDING_ENV="${TEMP_DIR}/onboarding.environment.json"
-TRANSACTION_ENV="${TEMP_DIR}/transaction.environment.json"
-
-if [ "$ONBOARDING_STATUS" = "SUCCESS" ] && [ "$TRANSACTION_STATUS" = "SUCCESS" ]; then
-    merge_collections "$ONBOARDING_COLLECTION" "$TRANSACTION_COLLECTION" "$ONBOARDING_ENV" "$TRANSACTION_ENV"
-elif [ "$ONBOARDING_STATUS" = "SUCCESS" ]; then
-    echo "Only onboarding component found. Using it as the main collection..."
-    jq '.info.name = "MIDAZ" | .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"' \
-        "$ONBOARDING_COLLECTION" > "${POSTMAN_COLLECTION}"
-    [ -f "$ONBOARDING_ENV" ] && \
-        jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$ONBOARDING_ENV" > "${POSTMAN_ENVIRONMENT}"
-elif [ "$TRANSACTION_STATUS" = "SUCCESS" ]; then
-    echo "Only transaction component found. Using it as the main collection..."
-    jq '.info.name = "MIDAZ" | .info._postman_id = "00b3869d-895d-49b2-a6b5-68b193471560"' \
-        "$TRANSACTION_COLLECTION" > "${POSTMAN_COLLECTION}"
-    [ -f "$TRANSACTION_ENV" ] && \
-        jq '.name = "MIDAZ Environment" | .id = "midaz-environment-id"' "$TRANSACTION_ENV" > "${POSTMAN_ENVIRONMENT}"
-else
+# Check if at least one component succeeded
+if [ "$ONBOARDING_STATUS" != "SUCCESS" ] && [ "$TRANSACTION_STATUS" != "SUCCESS" ] && [ "$CRM_STATUS" != "SUCCESS" ]; then
     echo -e "${RED}No OpenAPI specs were successfully converted.${NC}"
+    rm -rf "${TEMP_DIR}"
+    exit 1
+fi
+
+# Merge all successful collections
+if ! merge_all_collections; then
+    echo -e "${RED}Failed to merge collections.${NC}"
     rm -rf "${TEMP_DIR}"
     exit 1
 fi

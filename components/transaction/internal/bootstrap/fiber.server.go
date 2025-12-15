@@ -23,9 +23,12 @@ func (s *Server) ServerAddress() string {
 
 // NewServer creates an instance of Server.
 func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *Server {
+	// Use prefixed server address if available, otherwise fallback to non-prefixed
+	serverAddress := envFallback(cfg.PrefixedServerAddress, cfg.ServerAddress)
+
 	return &Server{
 		app:           app,
-		serverAddress: cfg.ServerAddress,
+		serverAddress: serverAddress,
 		logger:        logger,
 		telemetry:     *telemetry,
 	}
