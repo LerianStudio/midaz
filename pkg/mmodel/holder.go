@@ -20,7 +20,10 @@ type CreateHolderInput struct {
 	// Holders name.
 	// **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
 	Name string `json:"name" validate:"required" example:"John Doe"`
-	// The holder’s identification document.
+	// The holder's identification document.
+	// TODO(globalization): This validation is restricted to Brazilian CPF/CNPJ formats.
+	// Midaz should support international document types (SSN, NIF, TIN, etc.) for global usage.
+	// See: https://github.com/LerianStudio/midaz/issues/XXX (tracking issue to be created)
 	Document string `json:"document" validate:"required,cpfcnpj" example:"91315026015"`
 	// Object of addresses.
 	Addresses *Addresses `json:"addresses"`
