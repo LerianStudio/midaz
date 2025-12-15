@@ -372,17 +372,23 @@ func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
 }
 
 // republishWithRetry republishes the message with an incremented retry counter.
-// TODO(review): No backoff between retries - tradeoff: consistent with panic handler pattern,
-// immediate redelivery to maximize throughput. RabbitMQ's consumer prefetch provides natural
-// rate limiting. (reported by code-reviewer on 2025-12-14, severity: Medium)
+// Applies exponential backoff to spread retries over ~50 seconds total,
+// covering typical PostgreSQL restart times.
 // TODO(review): republishWithRetry does not use publisher confirms - tradeoff:
 // performance over guaranteed delivery. DLQ uses confirms (last chance), but
 // retry path accepts potential message loss during broker failure between
 // Publish success and message persistence. (reported by business-logic-reviewer
 // on 2025-12-14, severity: Medium)
 func (bec *businessErrorContext) republishWithRetry() {
-	bec.logger.Warnf("Worker %d: redelivering business error message (delivery %d of %d max): %v",
-		bec.workerID, bec.retryCount+1, maxRetries, bec.err)
+	backoffDelay := calculateRetryBackoff(bec.retryCount + 1)
+
+	bec.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering business error message (delivery %d of %d max), delay=%v: %v",
+		bec.workerID, bec.retryCount+1, maxRetries, backoffDelay, bec.err)
+
+	// Apply backoff delay before republishing
+	if backoffDelay > 0 {
+		time.Sleep(backoffDelay)
+	}
 
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
 	headers := copyHeadersSafe(bec.msg.Headers)
@@ -496,15 +502,20 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 
 // republishWithRetry republishes a message with an incremented retry counter.
 // Falls back to Nack if republish fails.
-// TODO(review): No backoff between retries - tradeoff: consistent with business error handler,
-// immediate redelivery to maximize throughput. RabbitMQ's consumer prefetch provides natural
-// rate limiting. (reported by code-reviewer on 2025-12-14, severity: Medium)
+// Applies exponential backoff to spread retries over ~50 seconds total.
 // TODO(review): Does not use publisher confirms - tradeoff: performance over guaranteed delivery.
 // DLQ uses confirms (last chance), but retry path accepts potential message loss during broker
 // failure. (reported by business-logic-reviewer on 2025-12-14, severity: Medium)
 func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
-	prc.logger.Warnf("Worker %d: redelivering message (delivery %d of %d max): %v",
-		prc.workerID, prc.retryCount+1, maxRetries, panicValue)
+	backoffDelay := calculateRetryBackoff(prc.retryCount + 1)
+
+	prc.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering message (delivery %d of %d max), delay=%v: %v",
+		prc.workerID, prc.retryCount+1, maxRetries, backoffDelay, panicValue)
+
+	// Apply backoff delay before republishing
+	if backoffDelay > 0 {
+		time.Sleep(backoffDelay)
+	}
 
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
 	headers := copyHeadersSafe(prc.msg.Headers)
