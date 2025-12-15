@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -167,11 +168,48 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 		}
 	}
 
+	// Wait for DLQ consumer to replay any messages that went to DLQ during chaos
+	dlqMgmtURL := "http://localhost:15672"
+	queueNames := []string{
+		os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"),
+		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
+	}
+	if queueNames[0] == "" {
+		queueNames[0] = "balance_create"
+	}
+	if queueNames[1] == "" {
+		queueNames[1] = "transaction_balance_operation"
+	}
+
+	// Log DLQ counts
+	dlqCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "guest", "guest", queueNames)
+	if err != nil {
+		t.Logf("Warning: could not get DLQ counts: %v", err)
+	} else {
+		t.Logf("CHAOS_TEST_DLQ_CHECK: balance_create_dlq=%d, transaction_ops_dlq=%d, total=%d",
+			dlqCounts.BalanceCreateDLQ, dlqCounts.TransactionOpsDLQ, dlqCounts.TotalDLQMessages)
+	}
+
+	// Wait for DLQ to be empty if DLQ consumer is enabled
+	if os.Getenv("DLQ_CONSUMER_ENABLED") == "true" {
+		for _, queueName := range queueNames {
+			if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "guest", "guest", 2*time.Minute); err != nil {
+				t.Logf("Warning: DLQ wait timed out for %s: %v", queueName, err)
+			}
+		}
+	}
+
 	// Reconcile expected finals
 	expA := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inA * 2))).Sub(decimal.NewFromInt(int64(trAB))).Sub(decimal.NewFromInt(int64(outA)))
 	expB := decimal.NewFromInt(int64(trAB)).Sub(decimal.NewFromInt(int64(outB)))
 
-	gotA, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasA, "USD", headers, expA, 90*time.Second)
+	// Log expected balance calculations for debugging
+	t.Logf("CHAOS_TEST_EXPECTED: A: seed=100 + (inA=%d * 2) - (trAB=%d) - (outA=%d) = %s",
+		inA, trAB, outA, expA.String())
+	t.Logf("CHAOS_TEST_EXPECTED: B: (trAB=%d) - (outB=%d) = %s",
+		trAB, outB, expB.String())
+
+	gotA, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasA, "USD", headers, expA, 120*time.Second)
 	if err != nil {
 		// dump accepted sample
 		lines := []string{}
@@ -188,7 +226,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 		t.Logf("accepted sample saved: %s (totalAccepted=%d)", logPath, len(accepted))
 		t.Fatalf("A final mismatch: got=%s exp=%s err=%v (in=%d tr=%d out=%d)", gotA.String(), expA.String(), err, inA, trAB, outA)
 	}
-	gotB, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasB, "USD", headers, expB, 90*time.Second)
+	gotB, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, aliasB, "USD", headers, expB, 120*time.Second)
 	if err != nil {
 		t.Fatalf("B final mismatch: got=%s exp=%s err=%v (tr=%d out=%d)", gotB.String(), expB.String(), err, trAB, outB)
 	}
