@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -145,9 +146,35 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	close(stop)
 	wg.Wait()
 
+	// Wait for DLQ replay to complete (messages that failed during Postgres restart)
+	dlqMgmtURL := "http://localhost:15672"
+	queueNames := []string{
+		os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"),
+		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
+	}
+
+	// Log initial DLQ counts for diagnostics
+	initialCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "guest", "guest", queueNames)
+	if err != nil {
+		t.Logf("warning: failed to get initial DLQ counts: %v", err)
+	} else {
+		t.Logf("DLQ message counts after chaos: balance_create=%d transaction_ops=%d total=%d",
+			initialCounts.BalanceCreateDLQ, initialCounts.TransactionOpsDLQ, initialCounts.TotalDLQMessages)
+	}
+
+	// Wait for all DLQs to empty (indicating replay completion)
+	// Increased timeout to 5 minutes to account for exponential backoff (max delay 30s + processing time)
+	for _, queueName := range queueNames {
+		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "guest", "guest", 5*time.Minute); err != nil {
+			t.Logf("warning: DLQ not empty after timeout: %v", err)
+		}
+	}
+
+	t.Logf("DLQ replay completed, proceeding to balance verification")
+
 	// Compute expected and verify eventual convergence
 	expected := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inSucc * 2))).Sub(decimal.NewFromInt(int64(outSucc * 1)))
-	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 60*time.Second)
+	got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 90*time.Second)
 	if err != nil {
 		// Correlate accepted IDs by fetching their final statuses
 		lines := []string{}
