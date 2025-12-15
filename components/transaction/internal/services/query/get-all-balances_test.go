@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +64,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), []string{key}).
@@ -109,7 +109,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		cached := mmodel.BalanceRedis{
 			Available: decimal.NewFromInt(999),
 			OnHold:    decimal.NewFromInt(777),
@@ -161,7 +161,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		_ = key // key construction is deterministic; expectation uses Any to avoid tight coupling
 		mockRedisRepo.
 			EXPECT().
@@ -207,7 +207,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), []string{key}).
@@ -253,7 +253,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		cachedJSON := `{"available":"123.4500","onHold":"0.5500","version":12}`
 
 		mockRedisRepo.
@@ -302,7 +302,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		requested := mmodel.BalanceRedis{Available: decimal.NewFromInt(777), OnHold: decimal.NewFromInt(333), Version: 42}
 		reqData, _ := json.Marshal(requested)
 		unrelated := mmodel.BalanceRedis{Available: decimal.NewFromInt(9999), OnHold: decimal.NewFromInt(9999), Version: 999}
@@ -365,8 +365,8 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		k1 := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b1.Alias+"#"+b1.Key)
-		k2 := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b2.Alias+"#"+b2.Key)
+		k1 := utils.BalanceInternalKey(organizationID, ledgerID, b1.Alias+"#"+b1.Key)
+		k2 := utils.BalanceInternalKey(organizationID, ledgerID, b2.Alias+"#"+b2.Key)
 
 		valid := mmodel.BalanceRedis{Available: decimal.NewFromInt(111), OnHold: decimal.NewFromInt(9), Version: 7}
 		validJSON, _ := json.Marshal(valid)
@@ -430,8 +430,8 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		kDefault := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bDefault.Alias+"#"+bDefault.Key)
-		kExtra := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bExtra.Alias+"#"+bExtra.Key)
+		kDefault := utils.BalanceInternalKey(organizationID, ledgerID, bDefault.Alias+"#"+bDefault.Key)
+		kExtra := utils.BalanceInternalKey(organizationID, ledgerID, bExtra.Alias+"#"+bExtra.Key)
 		overlay := mmodel.BalanceRedis{Available: decimal.NewFromInt(42), OnHold: decimal.Zero, Version: 99}
 		overlayJSON, _ := json.Marshal(overlay)
 
@@ -493,8 +493,8 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		kA := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bA.Alias+"#"+bA.Key)
-		kB := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bB.Alias+"#"+bB.Key)
+		kA := utils.BalanceInternalKey(organizationID, ledgerID, bA.Alias+"#"+bA.Key)
+		kB := utils.BalanceInternalKey(organizationID, ledgerID, bB.Alias+"#"+bB.Key)
 		overlayA := mmodel.BalanceRedis{Available: decimal.NewFromInt(77), OnHold: decimal.Zero, Version: 71}
 		overlayAJSON, _ := json.Marshal(overlayA)
 
@@ -546,7 +546,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		largeAvail := "123456789012345678901234567890.123456789012345678901234567890"
 		largeHold := "987654321098765432109876543210.987654321098765432109876543210"
 		cachedJSON := fmt.Sprintf(`{"available":"%s","onHold":"%s","version":77}`, largeAvail, largeHold)
@@ -627,7 +627,7 @@ func TestGetAllBalances(t *testing.T) {
 			Return(balances, mockCur, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
+		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		cachedJSON := `{"available":123.45,"onHold":0.55,"version":2}`
 
 		mockRedisRepo.
@@ -676,7 +676,7 @@ func TestGetAllBalances(t *testing.T) {
 				OnHold:    decimal.Zero,
 			}
 			balances = append(balances, b)
-			k := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+			k := utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
 			keys = append(keys, k)
 			cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(int64(i)), OnHold: decimal.NewFromInt(int64(i % 7)), Version: int64(i)}
 			data, _ := json.Marshal(cached)
@@ -811,7 +811,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			Times(1)
 
 		// Expect an MGet call with proper key and return nothing to overlay
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), alias+"#default")
+		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), []string{key}).
@@ -879,7 +879,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			Return(balances, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), alias+"#default")
+		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(999), OnHold: decimal.NewFromInt(777), Version: 12}
 		data, _ := json.Marshal(cached)
 
@@ -973,7 +973,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			Return(balances, nil).
 			Times(1)
 
-		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), alias+"#default")
+		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), []string{key}).
@@ -1041,14 +1041,14 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			Return(balances, nil).
 			Times(1)
 
-		k1 := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), alias+"#default")
+		k1 := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		// No entry for k2 to simulate partial overlay
 		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(42), OnHold: decimal.Zero, Version: 9}
 		data, _ := json.Marshal(cached)
 
 		mockRedisRepo.
 			EXPECT().
-			MGet(gomock.Any(), []string{k1, libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), alias+"#k1")}).
+			MGet(gomock.Any(), []string{k1, utils.BalanceInternalKey(organizationID, ledgerID, alias+"#k1")}).
 			Return(map[string]string{k1: string(data)}, nil).
 			Times(1)
 

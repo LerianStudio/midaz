@@ -9,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -39,7 +40,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	balanceCacheKeys := make([]string, len(balances))
 
 	for i, b := range balances {
-		balanceCacheKeys[i] = libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
 	}
 
 	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)
@@ -96,7 +97,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 
 	balanceCacheKeys := make([]string, len(balances))
 	for i, b := range balances {
-		balanceCacheKeys[i] = libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
 	}
 
 	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)

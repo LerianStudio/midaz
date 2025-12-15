@@ -4,9 +4,7 @@ import { inject, injectable } from 'inversify'
 import { AuthHttpService } from '../services/auth-http-service'
 
 @injectable()
-export class IdentityAuthPermissionRepository
-  implements AuthPermissionRepository
-{
+export class IdentityAuthPermissionRepository implements AuthPermissionRepository {
   constructor(
     @inject(AuthHttpService)
     private readonly httpService: AuthHttpService

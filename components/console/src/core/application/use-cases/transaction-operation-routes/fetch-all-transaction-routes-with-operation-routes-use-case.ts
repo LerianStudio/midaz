@@ -19,9 +19,7 @@ export interface FetchAllTransactionRoutesWithOperationRoutes {
 }
 
 @injectable()
-export class FetchAllTransactionRoutesWithOperationRoutesUseCase
-  implements FetchAllTransactionRoutesWithOperationRoutes
-{
+export class FetchAllTransactionRoutesWithOperationRoutesUseCase implements FetchAllTransactionRoutesWithOperationRoutes {
   constructor(
     @inject(TransactionRoutesRepository)
     private readonly transactionRoutesRepository: TransactionRoutesRepository

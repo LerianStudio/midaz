@@ -19,9 +19,7 @@ export interface CreateOnboardingOrganization {
 }
 
 @injectable()
-export class CreateOnboardingOrganizationUseCase
-  implements CreateOnboardingOrganization
-{
+export class CreateOnboardingOrganizationUseCase implements CreateOnboardingOrganization {
   constructor(
     @inject(OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,

@@ -20,7 +20,8 @@ const InputVariants = cva('relative', {
 })
 
 export interface InputWithIconProps
-  extends React.InputHTMLAttributes<HTMLInputElement>,
+  extends
+    React.InputHTMLAttributes<HTMLInputElement>,
     VariantProps<typeof InputVariants> {
   icon?: JSX.Element
 }
