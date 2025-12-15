@@ -1,3 +1,25 @@
+## [v3.5.0-beta.22] - 2025-12-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.21...v3.5.0-beta.22)
+Contributors: Caio Alexandre Troti Caetano, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Timelines**: The frontend now includes a new date comparison utility and improved JSON serialization for `TransactionDate`. This ensures consistent and accurate display of transaction timelines, making it easier for users to track and compare dates.
+
+### 🐛 Bug Fixes
+- **Improved Code Quality**: Resolved various lint issues across backend and frontend components. This fix enhances system stability and reduces potential runtime errors, providing a smoother user experience.
+
+### ⚡ Performance
+- **Efficient Balance Updates**: The backend `UpdateBalances` method has been refactored for better performance and accuracy. Users will benefit from faster and more reliable balance operations, ensuring up-to-date financial information.
+
+### 🔄 Changes
+- **Consistent Date Management**: Both the database and frontend now handle `TransactionDate` with a custom type, leading to better JSON serialization and more reliable date management across the application.
+
+### 🔧 Maintenance
+- **Updated Dependencies**: The Next.js package has been updated to the latest version, ensuring compatibility with modern web standards and improving overall application performance.
+- **Streamlined Codebase**: Deprecated `lib-commons v2.6.0-beta.4` references have been removed and updated to `v2.6.0`, utilizing the latest utility functions for validation and reducing code redundancy.
+
+
 ## [v3.5.0-beta.21] - 2025-12-15
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.20...v3.5.0-beta.21)
