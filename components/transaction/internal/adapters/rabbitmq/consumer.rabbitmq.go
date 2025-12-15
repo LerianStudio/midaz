@@ -638,6 +638,7 @@ func (cr *ConsumerRoutes) createMessageProcessingContext(msg *amqp.Delivery, que
 func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 	stack := debug.Stack()
 	retryCount := getRetryCount(mpc.msg.Headers)
+	backoffDelay := calculateRetryBackoff(retryCount + 1)
 
 	mpc.span.AddEvent("panic.recovered", trace.WithAttributes(
 		attribute.String("panic.value", fmt.Sprintf("%v", panicValue)),
@@ -645,6 +646,7 @@ func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 		attribute.String("rabbitmq.queue", mpc.queue),
 		attribute.Int("rabbitmq.worker_id", mpc.workerID),
 		attribute.Int("rabbitmq.retry_count", retryCount),
+		attribute.Int64("retry.backoff_seconds", int64(backoffDelay.Seconds())),
 	))
 
 	mpc.logger.Errorf("Worker %d: panic recovered while processing message from queue %s: %v\n%s",
@@ -673,11 +675,18 @@ func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc
 	}
 
 	if err := handlerFunc(mpc.ctx, mpc.msg.Body); err != nil {
+		retryCount := getRetryCount(mpc.msg.Headers)
+		backoffDelay := calculateRetryBackoff(retryCount + 1)
+
+		// Add backoff info to span
+		mpc.span.SetAttributes(
+			attribute.Int64("retry.backoff_seconds", int64(backoffDelay.Seconds())),
+		)
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&mpc.span, "Error processing message from queue", err)
 		mpc.logger.Errorf("Worker %d: Error processing message from queue %s: %v", mpc.workerID, mpc.queue, err)
 
 		// Use retry tracking for business errors instead of infinite NACK loop
-		retryCount := getRetryCount(mpc.msg.Headers)
 		bec := &businessErrorContext{
 			logger:     mpc.logger,
 			msg:        mpc.msg,
