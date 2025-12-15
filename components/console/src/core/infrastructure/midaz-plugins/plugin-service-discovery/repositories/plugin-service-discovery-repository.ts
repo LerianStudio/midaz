@@ -6,9 +6,7 @@ import { PluginManifestHttpService } from '../services/plugin-manifest-http-serv
 import { HttpService } from '@/lib/http'
 
 @injectable()
-export class PluginServiceDiscoveryRepository
-  implements ServiceDiscoveryRepository
-{
+export class PluginServiceDiscoveryRepository implements ServiceDiscoveryRepository {
   private baseUrl: string = process.env.NGINX_BASE_PATH as string
 
   constructor(

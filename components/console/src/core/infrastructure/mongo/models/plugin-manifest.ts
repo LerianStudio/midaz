@@ -3,8 +3,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface PluginManifestDocument
-  extends Omit<PluginManifestEntity, 'id'>,
-    Document {
+  extends Omit<PluginManifestEntity, 'id'>, Document {
   createdAt: Date
   updatedAt: Date
 }

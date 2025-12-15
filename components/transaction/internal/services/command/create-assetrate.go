@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
-	if err := libCommons.ValidateCode(cari.From); err != nil {
+	if err := utils.ValidateCode(cari.From); err != nil {
 		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", err)
@@ -30,7 +31,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	if err := libCommons.ValidateCode(cari.To); err != nil {
+	if err := utils.ValidateCode(cari.To); err != nil {
 		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset code", err)
