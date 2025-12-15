@@ -169,7 +169,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	}
 
 	// Wait for DLQ consumer to replay any messages that went to DLQ during chaos
-	dlqMgmtURL := "http://localhost:15672"
+	dlqMgmtURL := "http://localhost:3004"
 	queueNames := []string{
 		os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"),
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
@@ -182,8 +182,8 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	}
 
 	// Log DLQ counts
-	// TODO(review): Consider using environment variables for RabbitMQ credentials instead of hardcoded "guest/guest" - code-reviewer on 2025-12-14
-	dlqCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "guest", "guest", queueNames)
+	// TODO(review): Consider using environment variables for RabbitMQ credentials instead of hardcoded values - code-reviewer on 2025-12-14
+	dlqCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "midaz", "lerian", queueNames)
 	if err != nil {
 		t.Logf("Warning: could not get DLQ counts: %v", err)
 	} else {
@@ -194,7 +194,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	// Wait for all DLQs to empty (indicating replay completion)
 	// Timeout: 5 minutes to account for exponential backoff (max delay 30s + processing time)
 	for _, queueName := range queueNames {
-		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "guest", "guest", 5*time.Minute); err != nil {
+		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "midaz", "lerian", 5*time.Minute); err != nil {
 			t.Logf("Warning: DLQ wait timed out for %s: %v", queueName, err)
 		}
 	}
