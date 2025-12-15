@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,13 @@ const (
 	operationTypeDebit  = "DEBIT"
 	// External account prefix for inflow/outflow detection
 	externalAccountPrefix = "@external/"
+)
+
+var (
+	// ErrFetchTransactionsFailed is returned when fetching transactions fails with a non-OK status
+	ErrFetchTransactionsFailed = errors.New("fetch transactions failed")
+	// ErrBalanceInconsistency is returned when actual balance doesn't match expected from history
+	ErrBalanceInconsistency = errors.New("balance inconsistency detected")
 )
 
 // TransactionOperation represents an operation within a transaction
@@ -89,15 +97,44 @@ type TransactionHistorySummary struct {
 	NetImpact         decimal.Decimal
 }
 
+// transactionPageResult holds the result of fetching a single page of transactions
+type transactionPageResult struct {
+	items      []TransactionRecord
+	nextCursor string
+	err        error
+}
+
+// fetchTransactionPage fetches a single page of transactions
+func fetchTransactionPage(ctx context.Context, trans *HTTPClient, path string, headers map[string]string) transactionPageResult {
+	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
+	if err != nil {
+		return transactionPageResult{err: fmt.Errorf("failed to fetch transactions: %w", err)}
+	}
+
+	if code != transactionHTTPStatusOK {
+		return transactionPageResult{err: fmt.Errorf("%w: status %d: %s", ErrFetchTransactionsFailed, code, string(body))}
+	}
+
+	var response TransactionListResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return transactionPageResult{err: fmt.Errorf("failed to unmarshal transactions response: %w", err)}
+	}
+
+	nextCursor := ""
+	if response.NextCursor != nil {
+		nextCursor = *response.NextCursor
+	}
+
+	return transactionPageResult{items: response.Items, nextCursor: nextCursor}
+}
+
 // FetchAllTransactionsForLedger fetches all transactions for a ledger with pagination handling
 // NOTE: The API defaults to returning only transactions from the last month when no date range
 // is specified. We explicitly set start_date to epoch to fetch ALL transactions.
 func FetchAllTransactionsForLedger(ctx context.Context, trans *HTTPClient, orgID, ledgerID string, headers map[string]string) ([]TransactionRecord, error) {
 	var allTransactions []TransactionRecord
-	cursor := ""
 
-	// Use epoch as start_date to ensure ALL transactions are fetched, not just recent ones
-	// The API defaults to MAX_PAGINATION_MONTH_DATE_RANGE (1 month) when dates aren't provided
+	cursor := ""
 	startDate := "1970-01-01"
 	endDate := time.Now().Format("2006-01-02")
 
@@ -108,34 +145,22 @@ func FetchAllTransactionsForLedger(ctx context.Context, trans *HTTPClient, orgID
 			path += "&cursor=" + cursor
 		}
 
-		code, body, err := trans.Request(ctx, "GET", path, headers, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch transactions: %w", err)
+		result := fetchTransactionPage(ctx, trans, path, headers)
+		if result.err != nil {
+			return nil, result.err
 		}
 
-		if code != transactionHTTPStatusOK {
-			return nil, fmt.Errorf("fetch transactions returned status %d: %s", code, string(body))
-		}
-
-		var response TransactionListResponse
-		if err := json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal transactions response: %w", err)
-		}
-
-		// Debug: Log when we get an empty first page (potential date range issue)
-		if len(allTransactions) == 0 && len(response.Items) == 0 && cursor == "" {
-			// This could indicate the date range filter excluded all transactions
-			// Check MAX_PAGINATION_MONTH_DATE_RANGE environment variable or verify transactions exist
+		if len(allTransactions) == 0 && len(result.items) == 0 && cursor == "" {
 			fmt.Printf("[DEBUG] FetchAllTransactionsForLedger: First page returned 0 items for ledger=%s (path=%s)\n", ledgerID, path)
 		}
 
-		allTransactions = append(allTransactions, response.Items...)
+		allTransactions = append(allTransactions, result.items...)
 
-		// Check if there are more pages
-		if response.NextCursor == nil || *response.NextCursor == "" {
+		if result.nextCursor == "" {
 			break
 		}
-		cursor = *response.NextCursor
+
+		cursor = result.nextCursor
 	}
 
 	return allTransactions, nil
@@ -151,7 +176,7 @@ func FetchTransactionByID(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 	}
 
 	if code != transactionHTTPStatusOK {
-		return nil, fmt.Errorf("fetch transaction %s returned status %d: %s", txnID, code, string(body))
+		return nil, fmt.Errorf("%w: transaction %s status %d: %s", ErrFetchTransactionsFailed, txnID, code, string(body))
 	}
 
 	var txn TransactionRecord
@@ -195,6 +220,7 @@ func transactionInvolvesAccount(txn TransactionRecord, accountAlias string) bool
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -207,6 +233,7 @@ func aliasMatches(alias1, alias2 string) bool {
 	// Strip any key suffix (format: alias#key)
 	base1 := strings.Split(alias1, "#")[0]
 	base2 := strings.Split(alias2, "#")[0]
+
 	return base1 == base2
 }
 
@@ -261,12 +288,44 @@ func CalculateExpectedBalanceFromHistory(seedBalance decimal.Decimal, transactio
 	return balance
 }
 
+// processOperationForSummary processes a single operation and updates the summary
+func processOperationForSummary(summary *TransactionHistorySummary, op TransactionOperation, txn TransactionRecord) {
+	if op.Amount.Value == nil {
+		return
+	}
+
+	isFromExternal := hasExternalSource(txn)
+	isToExternal := hasExternalDestination(txn)
+
+	switch op.Type {
+	case operationTypeCredit:
+		summary.NetImpact = summary.NetImpact.Add(*op.Amount.Value)
+		if isFromExternal {
+			summary.InflowCount++
+		} else {
+			summary.TransferInCount++
+		}
+	case operationTypeDebit:
+		summary.NetImpact = summary.NetImpact.Sub(*op.Amount.Value)
+		if isToExternal {
+			summary.OutflowCount++
+		} else {
+			summary.TransferOutCount++
+		}
+	}
+}
+
+// isValidTransactionStatus checks if transaction has a valid status for processing
+func isValidTransactionStatus(code string) bool {
+	return code == "APPROVED" || code == "CREATED"
+}
+
 // GetTransactionHistorySummary provides a summary of transaction history for an account
 func GetTransactionHistorySummary(transactions []TransactionRecord, accountAlias, assetCode string) TransactionHistorySummary {
 	summary := TransactionHistorySummary{}
 
 	for _, txn := range transactions {
-		if txn.Status.Code != "APPROVED" && txn.Status.Code != "CREATED" {
+		if !isValidTransactionStatus(txn.Status.Code) {
 			continue
 		}
 
@@ -278,31 +337,7 @@ func GetTransactionHistorySummary(transactions []TransactionRecord, accountAlias
 			}
 
 			summary.TotalOperations++
-
-			if op.Amount.Value == nil {
-				continue
-			}
-
-			// Classify the operation
-			isFromExternal := hasExternalSource(txn)
-			isToExternal := hasExternalDestination(txn)
-
-			switch op.Type {
-			case operationTypeCredit:
-				summary.NetImpact = summary.NetImpact.Add(*op.Amount.Value)
-				if isFromExternal {
-					summary.InflowCount++
-				} else {
-					summary.TransferInCount++
-				}
-			case operationTypeDebit:
-				summary.NetImpact = summary.NetImpact.Sub(*op.Amount.Value)
-				if isToExternal {
-					summary.OutflowCount++
-				} else {
-					summary.TransferOutCount++
-				}
-			}
+			processOperationForSummary(&summary, op, txn)
 		}
 	}
 
@@ -316,6 +351,7 @@ func hasExternalSource(txn TransactionRecord) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -326,6 +362,7 @@ func hasExternalDestination(txn TransactionRecord) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -355,7 +392,8 @@ func VerifyBalanceConsistency(ctx context.Context, trans *HTTPClient, orgID, led
 
 	// 6. Compare
 	if !actualBalance.Equal(expectedBalance) {
-		return fmt.Errorf("balance inconsistency for %s: actual=%s expected_from_history=%s (diff=%s, txn_count=%d, inflows=%d, outflows=%d, transfers_in=%d, transfers_out=%d, net_impact=%s)",
+		return fmt.Errorf("%w: account=%s actual=%s expected_from_history=%s (diff=%s, txn_count=%d, inflows=%d, outflows=%d, transfers_in=%d, transfers_out=%d, net_impact=%s)",
+			ErrBalanceInconsistency,
 			accountAlias,
 			actualBalance.String(),
 			expectedBalance.String(),
@@ -438,5 +476,5 @@ func CompareHTTPCountsWithActual(httpCounts map[string]int, summary TransactionH
 		actualInflowCount, actualOutflowCount, actualTransferIn, actualTransferOut,
 		ghostCount, missingCount)
 
-	return
+	return ghostCount, details
 }

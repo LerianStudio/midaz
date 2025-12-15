@@ -17,6 +17,7 @@ const (
 	httpRetryStatusGatewayTimeout  = 504
 	httpDefaultRetryAttempts       = 1
 	httpDefaultBackoff             = 200 * time.Millisecond
+	randHexRequestIDLength         = 16
 )
 
 // HTTPClient wraps a standard http.Client with base URL handling.
@@ -157,6 +158,28 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 	return resp.StatusCode, data, resp.Header, nil
 }
 
+// isRetryableStatus returns true if the HTTP status code should trigger a retry
+func isRetryableStatus(code int) bool {
+	return code == httpRetryStatusTooManyRequests ||
+		code == httpRetryStatusBadGateway ||
+		code == httpRetryStatusServiceUnavail ||
+		code == httpRetryStatusGatewayTimeout
+}
+
+// prepareRetryHeaders creates headers for a retry attempt
+func prepareRetryHeaders(headers map[string]string, isRetry bool) map[string]string {
+	retryHeaders := make(map[string]string)
+	for k, v := range headers {
+		retryHeaders[k] = v
+	}
+
+	if isRetry {
+		retryHeaders["X-Request-Id"] = "retry-" + RandHex(randHexRequestIDLength)
+	}
+
+	return retryHeaders
+}
+
 // RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
 // Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
@@ -176,24 +199,14 @@ func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path stri
 	)
 
 	for i := 0; i < attempts; i++ {
-		// Generate fresh request ID for each retry to avoid idempotency key collisions
-		// This mimics real client behavior where retries use new IDs
-		retryHeaders := make(map[string]string)
-		for k, v := range headers {
-			retryHeaders[k] = v
-		}
-		if i > 0 {
-			// On retry attempts (not first), generate new request ID
-			retryHeaders["X-Request-Id"] = "retry-" + RandHex(16)
-		}
-
+		retryHeaders := prepareRetryHeaders(headers, i > 0)
 		code, b, hdr, err := c.RequestFull(ctx, method, path, retryHeaders, body)
 
 		lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
-		if err == nil && code != httpRetryStatusTooManyRequests && code != httpRetryStatusBadGateway && code != httpRetryStatusServiceUnavail && code != httpRetryStatusGatewayTimeout {
+		if err == nil && !isRetryableStatus(code) {
 			return code, b, hdr, nil
 		}
-		// back off only if another retry will be attempted
+
 		if i < attempts-1 {
 			time.Sleep(time.Duration(1<<i) * baseBackoff)
 		}
