@@ -299,7 +299,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
 //	@Param			id				path		string			true	"Asset ID in UUID format"
-//	@Success		204				{object}	nil				"Asset successfully deleted"
+//	@Success		204				"Asset successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"

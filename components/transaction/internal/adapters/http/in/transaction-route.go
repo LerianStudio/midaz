@@ -204,7 +204,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //	@Param			organization_id			path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string			true	"Ledger ID in UUID format"
 //	@Param			transaction_route_id	path		string			true	"Transaction Route ID in UUID format"
-//	@Success		204						{object}	nil				"Successfully deleted transaction route"
+//	@Success		204						"Successfully deleted transaction route"
 //	@Failure		400						{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401						{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403						{object}	mmodel.Error	"Forbidden access"
