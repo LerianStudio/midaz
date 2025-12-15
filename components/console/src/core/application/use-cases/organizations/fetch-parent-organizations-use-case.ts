@@ -9,9 +9,7 @@ export interface FetchParentOrganizations {
 }
 
 @injectable()
-export class FetchParentOrganizationsUseCase
-  implements FetchParentOrganizations
-{
+export class FetchParentOrganizationsUseCase implements FetchParentOrganizations {
   constructor(
     @inject(OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository

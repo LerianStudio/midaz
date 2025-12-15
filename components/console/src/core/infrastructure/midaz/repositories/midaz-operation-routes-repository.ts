@@ -13,9 +13,7 @@ import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
 
 @injectable()
-export class MidazOperationRoutesRepository
-  implements OperationRoutesRepository
-{
+export class MidazOperationRoutesRepository implements OperationRoutesRepository {
   private baseUrl: string = process.env.MIDAZ_TRANSACTION_BASE_PATH as string
 
   constructor(

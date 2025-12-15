@@ -7,12 +7,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -421,7 +422,7 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]libTransction.FromTo)
+	arrField := fl.Field().Interface().([]pkgTransaction.FromTo)
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {
@@ -704,6 +705,12 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 				}
 			}
 
+			if marshaledStr, ok := marshaledValue.(string); ok {
+				if areDatesEqual(originalValue, marshaledStr) {
+					continue
+				}
+			}
+
 			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
@@ -756,6 +763,43 @@ func isDecimalEqual(a, b any) bool {
 func isStringNumeric(s string) bool {
 	_, err := decimal.NewFromString(s)
 	return err == nil
+}
+
+var dateFormats = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05.000Z",
+	"2006-01-02T15:04:05.00Z",
+	"2006-01-02T15:04:05.0Z",
+	"2006-01-02T15:04:05Z",
+	"2006-01-02T15:04:05",
+	"2006-01-02",
+}
+
+func areDatesEqual(a, b string) bool {
+	var timeA, timeB time.Time
+
+	var errA, errB error
+
+	for _, format := range dateFormats {
+		if timeA.IsZero() {
+			timeA, errA = time.Parse(format, a)
+		}
+
+		if timeB.IsZero() {
+			timeB, errB = time.Parse(format, b)
+		}
+
+		if !timeA.IsZero() && !timeB.IsZero() {
+			break
+		}
+	}
+
+	if errA != nil || errB != nil || timeA.IsZero() || timeB.IsZero() {
+		return false
+	}
+
+	return timeA.Equal(timeB)
 }
 
 // compareSlices compares two slices and returns differences.
@@ -896,7 +940,7 @@ func validateCPF(fl validator.FieldLevel) bool {
 
 	// Validate second check digit
 	sum = 0
-	
+
 	for i := 0; i < 10; i++ {
 		digit := int(cpf[i] - '0')
 		sum += digit * (11 - i)

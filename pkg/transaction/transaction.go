@@ -172,7 +172,7 @@ type Transaction struct {
 	Pending                  bool           `json:"pending,omitempty" example:"false"`
 	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	Route                    string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionDate          time.Time      `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
+	TransactionDate          *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send                     Send           `json:"send" validate:"required"`
 } // @name Transaction
 
