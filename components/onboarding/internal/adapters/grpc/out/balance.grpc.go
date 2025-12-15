@@ -169,6 +169,7 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
+		RequestId:      input.RequestID,
 	}
 
 	// Extract authorization token from context metadata
@@ -204,11 +205,12 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 
 // DeleteAllBalancesByAccountID implements mbootstrap.BalancePort by converting
 // native types to proto and delegating to the gRPC repository.
-func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
 	req := &proto.DeleteAllBalancesByAccountIDRequest{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
 		AccountId:      accountID.String(),
+		RequestId:      requestID,
 	}
 
 	// Extract authorization token from context metadata

@@ -20,7 +20,7 @@ import (
 // It first deletes all balances associated with the account via the BalancePort interface,
 // which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
@@ -43,7 +43,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	// Inject authorization token into context metadata for downstream gRPC calls
 	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
-	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, uuid.MustParse(accFound.ID))
+	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, uuid.MustParse(accFound.ID), requestID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
 
