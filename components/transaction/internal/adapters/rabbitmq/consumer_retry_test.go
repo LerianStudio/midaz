@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"testing"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -662,5 +663,70 @@ func TestRetryLogic_PanicVsBusinessError(t *testing.T) {
 
 		_, exists := original["new-key"]
 		assert.False(t, exists, "Original should not be modified by copy changes")
+	})
+}
+
+// =============================================================================
+// Retry Backoff Calculation Tests
+// =============================================================================
+
+func TestRetryBackoffCalculation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		retryCount    int
+		expectedDelay time.Duration
+	}{
+		{
+			name:          "first retry (attempt 2) - immediate",
+			retryCount:    1,
+			expectedDelay: 0,
+		},
+		{
+			name:          "second retry (attempt 3) - 5s delay",
+			retryCount:    2,
+			expectedDelay: 5 * time.Second,
+		},
+		{
+			name:          "third retry (attempt 4) - 15s delay",
+			retryCount:    3,
+			expectedDelay: 15 * time.Second,
+		},
+		{
+			name:          "fourth retry (attempt 5) - 30s delay",
+			retryCount:    4,
+			expectedDelay: 30 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			delay := calculateRetryBackoff(tt.retryCount)
+			assert.Equal(t, tt.expectedDelay, delay,
+				"Retry backoff for count %d should be %v", tt.retryCount, tt.expectedDelay)
+		})
+	}
+}
+
+func TestRetryBackoffConstants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("retry delays should span ~50 seconds total", func(t *testing.T) {
+		t.Parallel()
+
+		// 0 + 5 + 15 + 30 = 50 seconds total retry window
+		// This should cover most PostgreSQL restart times (10-30s)
+		totalDelay := time.Duration(0)
+		for i := 1; i <= maxRetries; i++ {
+			totalDelay += calculateRetryBackoff(i)
+		}
+
+		assert.GreaterOrEqual(t, totalDelay, 45*time.Second,
+			"Total retry window should be at least 45 seconds")
+		assert.LessOrEqual(t, totalDelay, 60*time.Second,
+			"Total retry window should be at most 60 seconds")
 	})
 }

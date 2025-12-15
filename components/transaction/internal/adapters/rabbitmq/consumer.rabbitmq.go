@@ -45,6 +45,28 @@ func buildDLQName(queueName string) string {
 	return queueName + dlqSuffix
 }
 
+// Retry backoff delays - designed to span ~50 seconds total
+// to cover typical PostgreSQL restart times (10-30s)
+var retryBackoffDelays = []time.Duration{
+	0,                // Retry 1 (attempt 2): immediate
+	5 * time.Second,  // Retry 2 (attempt 3): 5s delay
+	15 * time.Second, // Retry 3 (attempt 4): 15s delay
+	30 * time.Second, // Retry 4 (attempt 5): 30s delay
+}
+
+// calculateRetryBackoff returns the delay to wait before the given retry attempt.
+// retryCount is 1-based (1 = first retry, which is attempt 2 overall).
+// Returns 0 for first retry (immediate), then 5s, 15s, 30s.
+func calculateRetryBackoff(retryCount int) time.Duration {
+	if retryCount <= 0 {
+		return 0
+	}
+	if retryCount > len(retryBackoffDelays) {
+		return retryBackoffDelays[len(retryBackoffDelays)-1]
+	}
+	return retryBackoffDelays[retryCount-1]
+}
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
