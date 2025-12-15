@@ -105,7 +105,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
 			libOpentelemetry.HandleSpanEvent(&spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
-			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry): %v", err)
+			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry)")
 
 			return nil, err
 		}
