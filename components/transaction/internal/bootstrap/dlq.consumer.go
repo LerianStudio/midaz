@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -50,6 +51,27 @@ const (
 
 	// dlqPrefetchCount is the RabbitMQ prefetch for DLQ consumer
 	dlqPrefetchCount = 10
+
+	// dlqBackoffTier2 is the backoff delay for the second DLQ replay attempt.
+	dlqBackoffTier2 = 5 * time.Minute
+
+	// dlqBackoffTier3 is the backoff delay for the third DLQ replay attempt.
+	dlqBackoffTier3 = 15 * time.Minute
+
+	// Time calculation constants
+	secondsPerMinute = 60
+	minutesPerHour   = 60
+	hoursPerDay      = 24
+
+	// staleMessageThresholdDays is the number of days after which a DLQ message is considered stale.
+	staleMessageThresholdDays = 30
+
+	// clockSkewAllowanceSeconds is the maximum allowed clock skew for timestamp validation (1 hour).
+	clockSkewAllowanceSeconds = 3600
+
+	// DLQ backoff tier identifiers for switch cases
+	dlqBackoffTier2Level = 2
+	dlqBackoffTier3Level = 3
 )
 
 // DLQ header constants
@@ -58,6 +80,14 @@ const (
 	dlqOriginalQueueHeader = "x-dlq-original-queue"
 	dlqReasonHeader        = "x-dlq-reason"
 	dlqTimestampHeader     = "x-dlq-timestamp"
+)
+
+// Static errors for DLQ operations (lint requirement: avoid dynamic errors)
+var (
+	ErrMaxDLQRetriesExceeded   = errors.New("max DLQ retries exceeded")
+	ErrConfirmChannelClosed    = errors.New("confirmation channel closed during DLQ replay")
+	ErrBrokerNackDLQReplay     = errors.New("broker NACK'd DLQ replay message")
+	ErrDLQReplayConfirmTimeout = errors.New("DLQ replay confirmation timed out")
 )
 
 // dlqSafeHeadersAllowlist defines headers safe to replay (M7: Security - header sanitization)
@@ -214,13 +244,148 @@ func calculateDLQBackoff(attempt int) time.Duration {
 	switch attempt {
 	case 1:
 		return 1 * time.Minute
-	case 2:
-		return 5 * time.Minute
-	case 3:
-		return 15 * time.Minute
+	case dlqBackoffTier2Level:
+		return dlqBackoffTier2
+	case dlqBackoffTier3Level:
+		return dlqBackoffTier3
 	default:
 		return dlqMaxBackoff
 	}
+}
+
+// dlqChannelSetup encapsulates the channel and consumer setup for DLQ processing.
+type dlqChannelSetup struct {
+	ch       *amqp.Channel
+	msgs     <-chan amqp.Delivery
+	cleanup  func()
+	consumer string
+}
+
+// setupDLQChannel creates and configures a RabbitMQ channel for DLQ processing.
+// Returns the channel setup or an error.
+func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dlqChannelSetup, error) {
+	// H7: Create dedicated channel for this goroutine (fixes race condition)
+	ch, err := d.RabbitMQConn.Connection.Channel()
+	if err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to get channel for %s: %v", dlqName, err)
+		return nil, fmt.Errorf("failed to get channel: %w", err)
+	}
+
+	// Declare DLQ if it doesn't exist (idempotent)
+	_, err = ch.QueueDeclare(
+		dlqName,
+		true,  // durable
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		ch.Close()
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to declare %s: %v", dlqName, err)
+
+		return nil, fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	// Set QoS for controlled processing
+	if err := ch.Qos(dlqPrefetchCount, 0, false); err != nil {
+		ch.Close()
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to set QoS for %s: %v", dlqName, err)
+
+		return nil, fmt.Errorf("failed to set QoS: %w", err)
+	}
+
+	// Get messages from DLQ (non-blocking check)
+	consumerTag := "dlq-consumer-" + dlqName
+
+	msgs, err := ch.Consume(
+		dlqName,
+		consumerTag, // consumer tag
+		false,       // autoAck
+		false,       // exclusive
+		false,       // noLocal
+		false,       // noWait
+		nil,         // args
+	)
+	if err != nil {
+		ch.Close()
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to consume from %s: %v", dlqName, err)
+
+		return nil, fmt.Errorf("failed to start consumer: %w", err)
+	}
+
+	// H2: Cleanup function to cancel consumer and close channel
+	cleanup := func() {
+		if err := ch.Cancel(consumerTag, false); err != nil {
+			logger.Warnf("DLQ_PROCESS_QUEUE: Failed to cancel consumer: %v", err)
+		}
+
+		ch.Close()
+	}
+
+	return &dlqChannelSetup{
+		ch:       ch,
+		msgs:     msgs,
+		cleanup:  cleanup,
+		consumer: consumerTag,
+	}, nil
+}
+
+// handleDLQMessage processes a single DLQ message: validates, checks backoff, and replays.
+// Returns true if message was successfully processed, false otherwise.
+func (d *DLQConsumer) handleDLQMessage(
+	ctx context.Context,
+	msg *amqp.Delivery,
+	originalQueue string,
+	dlqName string,
+	logger libLog.Logger,
+) bool {
+	// Get original queue from headers, fallback to derived name
+	origQueue := getOriginalQueue(msg.Headers)
+	if origQueue == "" {
+		origQueue = originalQueue
+	}
+
+	// H8: SECURITY - Validate queue name against allowlist to prevent injection
+	if !d.validOriginalQueues[origQueue] {
+		logger.Errorf("DLQ_SECURITY_VIOLATION: Invalid original queue in header: %s (expected one of: %v)",
+			origQueue, d.QueueNames)
+		// Ack to remove malicious message from DLQ
+		if err := msg.Ack(false); err != nil {
+			logger.Warnf("Failed to ack invalid DLQ message: %v", err)
+		}
+
+		return false
+	}
+
+	dlqRetryCount := getDLQRetryCount(msg.Headers)
+
+	// Check if we should wait (backoff) before replaying
+	backoffDuration := calculateDLQBackoff(dlqRetryCount)
+	logger.Infof("DLQ_REPLAY_ATTEMPT: queue=%s, dlq_retry=%d, backoff=%v",
+		dlqName, dlqRetryCount, backoffDuration)
+
+	// M4: Use helper function for backoff check (reduces complexity)
+	if d.shouldDeferReplay(msg, dlqRetryCount, backoffDuration, logger, dlqName) {
+		if err := msg.Nack(false, true); err != nil {
+			logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
+		}
+
+		return false
+	}
+
+	// Replay the message
+	if err := d.replayMessageToOriginalQueue(ctx, msg, origQueue, dlqRetryCount); err != nil {
+		logger.Errorf("DLQ_REPLAY_ERROR: Failed to replay message from %s: %v", dlqName, err)
+		// Nack with requeue so we retry later
+		if nackErr := msg.Nack(false, true); nackErr != nil {
+			logger.Warnf("DLQ_REPLAY_ERROR: Failed to nack message: %v", nackErr)
+		}
+
+		return false
+	}
+
+	return true
 }
 
 // processQueue processes messages from a single DLQ with backoff between retries.
@@ -247,55 +412,12 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 		attribute.String("dlq.original_queue", originalQueue),
 	)
 
-	// H7: Create dedicated channel for this goroutine (fixes race condition)
-	ch, err := d.RabbitMQConn.Connection.Channel()
+	// Setup DLQ channel and consumer
+	setup, err := d.setupDLQChannel(dlqName, logger)
 	if err != nil {
-		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to get channel for %s: %v", dlqName, err)
 		return
 	}
-	defer ch.Close()
-
-	// Declare DLQ if it doesn't exist (idempotent)
-	_, err = ch.QueueDeclare(
-		dlqName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
-	)
-	if err != nil {
-		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to declare %s: %v", dlqName, err)
-		return
-	}
-
-	// Set QoS for controlled processing
-	if err := ch.Qos(dlqPrefetchCount, 0, false); err != nil {
-		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to set QoS for %s: %v", dlqName, err)
-		return
-	}
-
-	// Get messages from DLQ (non-blocking check)
-	msgs, err := ch.Consume(
-		dlqName,
-		"dlq-consumer-"+dlqName, // consumer tag
-		false,                   // autoAck
-		false,                   // exclusive
-		false,                   // noLocal
-		false,                   // noWait
-		nil,                     // args
-	)
-	if err != nil {
-		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to consume from %s: %v", dlqName, err)
-		return
-	}
-
-	// H2: Add defer to cancel consumer before returning (resource leak fix)
-	defer func() {
-		if err := ch.Cancel("dlq-consumer-"+dlqName, false); err != nil {
-			logger.Warnf("DLQ_PROCESS_QUEUE: Failed to cancel consumer: %v", err)
-		}
-	}()
+	defer setup.cleanup()
 
 	processed := 0
 
@@ -305,65 +427,19 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 			logger.Infof("DLQ_PROCESS_QUEUE: Context cancelled, processed %d messages from %s", processed, dlqName)
 			return
 
-		case msg, ok := <-msgs:
+		case msg, ok := <-setup.msgs:
 			if !ok {
 				logger.Infof("DLQ_PROCESS_QUEUE: Channel closed, processed %d messages from %s", processed, dlqName)
 				return
 			}
 
-			// Get original queue from headers, fallback to derived name
-			origQueue := getOriginalQueue(msg.Headers)
-			if origQueue == "" {
-				origQueue = originalQueue
-			}
-
-			// H8: SECURITY - Validate queue name against allowlist to prevent injection
-			if !d.validOriginalQueues[origQueue] {
-				logger.Errorf("DLQ_SECURITY_VIOLATION: Invalid original queue in header: %s (expected one of: %v)",
-					origQueue, d.QueueNames)
-				span.SetAttributes(
-					attribute.Bool("dlq.security_violation", true),
-					attribute.String("dlq.invalid_queue", origQueue),
-				)
-				// Ack to remove malicious message from DLQ
-				if err := msg.Ack(false); err != nil {
-					logger.Warnf("Failed to ack invalid DLQ message: %v", err)
+			// Process the message
+			if d.handleDLQMessage(ctx, &msg, originalQueue, dlqName, logger) {
+				processed++
+				if processed >= dlqBatchSize {
+					logger.Infof("DLQ_PROCESS_QUEUE: Batch complete, processed %d messages from %s", processed, dlqName)
+					return
 				}
-
-				continue
-			}
-
-			dlqRetryCount := getDLQRetryCount(msg.Headers)
-
-			// Check if we should wait (backoff) before replaying
-			backoffDuration := calculateDLQBackoff(dlqRetryCount)
-			logger.Infof("DLQ_REPLAY_ATTEMPT: queue=%s, dlq_retry=%d, backoff=%v",
-				dlqName, dlqRetryCount, backoffDuration)
-
-			// M4: Use helper function for backoff check (reduces complexity)
-			if d.shouldDeferReplay(&msg, dlqRetryCount, backoffDuration, logger, dlqName) {
-				if err := msg.Nack(false, true); err != nil {
-					logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
-				}
-
-				continue
-			}
-
-			// Replay the message
-			if err := d.replayMessageToOriginalQueue(ctx, &msg, origQueue, dlqRetryCount); err != nil {
-				logger.Errorf("DLQ_REPLAY_ERROR: Failed to replay message from %s: %v", dlqName, err)
-				// Nack with requeue so we retry later
-				if nackErr := msg.Nack(false, true); nackErr != nil {
-					logger.Warnf("DLQ_REPLAY_ERROR: Failed to nack message: %v", nackErr)
-				}
-
-				continue
-			}
-
-			processed++
-			if processed >= dlqBatchSize {
-				logger.Infof("DLQ_PROCESS_QUEUE: Batch complete, processed %d messages from %s", processed, dlqName)
-				return
 			}
 
 		default:
@@ -396,12 +472,12 @@ func getValidatedTimestamp(headers amqp.Table) int64 {
 	now := time.Now().Unix()
 
 	// Reject timestamps more than 1 hour in the future (clock skew allowance)
-	if timestamp > now+3600 {
+	if timestamp > now+clockSkewAllowanceSeconds {
 		return now // Use current time as fallback
 	}
 
 	// Reject timestamps older than 30 days (stale message protection)
-	thirtyDaysAgo := now - (30 * 24 * 60 * 60)
+	thirtyDaysAgo := now - (staleMessageThresholdDays * hoursPerDay * minutesPerHour * secondsPerMinute)
 	if timestamp < thirtyDaysAgo {
 		return thirtyDaysAgo // Cap at 30 days ago
 	}
@@ -462,7 +538,9 @@ func getOriginalQueue(headers map[string]any) string {
 func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amqp.Delivery, originalQueue string, dlqRetryCount int) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "dlq.consumer.replay_message")
+	spanCtx, span := tracer.Start(ctx, "dlq.consumer.replay_message")
+	_ = spanCtx // spanCtx used for tracing context but not for downstream calls
+
 	defer span.End()
 
 	span.SetAttributes(
@@ -489,35 +567,86 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 			logger.Warnf("DLQ_REPLAY_FAILED: Failed to ack expired DLQ message: %v", err)
 		}
 
-		return fmt.Errorf("max DLQ retries exceeded: %d/%d", dlqRetryCount, dlqMaxRetries)
+		return fmt.Errorf("max DLQ retries exceeded (%d/%d): %w", dlqRetryCount, dlqMaxRetries, ErrMaxDLQRetriesExceeded)
 	}
 
 	// M7: SECURITY - Prepare headers for replay with allowlist (only copy safe headers)
+	headers := prepareSafeHeaders(msg.Headers, dlqRetryCount, logger)
+
+	// Publish message and get confirmation channel
+	confirms, cleanup, err := publishDLQMessage(d.RabbitMQConn, originalQueue, headers, msg.Body, msg.ContentType, logger)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	// Wait for broker confirmation
+	if err := waitForPublishConfirmation(confirms, logger, originalQueue, dlqRetryCount); err != nil {
+		return err
+	}
+
+	// Ack the DLQ message since we successfully replayed it
+	if err := msg.Ack(false); err != nil {
+		logger.Warnf("DLQ_REPLAY_WARNING: Failed to ack DLQ message after successful replay: %v", err)
+	}
+
+	return nil
+}
+
+// getStringHeader extracts a string header value from amqp.Table.
+func getStringHeader(headers amqp.Table, key string) string {
+	if val, ok := headers[key].(string); ok {
+		return val
+	}
+
+	return ""
+}
+
+// prepareSafeHeaders creates a sanitized header map for DLQ replay.
+// Only allowlisted headers are copied to prevent security issues (M7: Security).
+func prepareSafeHeaders(sourceHeaders amqp.Table, dlqRetryCount int, logger libLog.Logger) amqp.Table {
 	headers := make(amqp.Table)
 
-	for k, v := range msg.Headers {
+	for k, v := range sourceHeaders {
 		// Only copy allowlisted headers
 		if dlqSafeHeadersAllowlist[k] {
 			headers[k] = v
 		}
 	}
 
-	// TODO(review): Add bounds check for int32 conversion to prevent overflow (gosec G115, Low severity)
-	headers[dlqRetryCountHeader] = int32(dlqRetryCount + 1)
+	// Bounds check for int32 conversion to prevent overflow (gosec G115)
+	if dlqRetryCount+1 > math.MaxInt32 {
+		logger.Warnf("DLQ_REPLAY_WARNING: Retry count overflow, capping at MaxInt32")
+
+		headers[dlqRetryCountHeader] = int32(math.MaxInt32)
+	} else {
+		headers[dlqRetryCountHeader] = int32(dlqRetryCount + 1) //#nosec G115 -- bounds check above ensures safe conversion
+	}
 	// Reset the regular retry count so message gets fresh retry attempts
 	delete(headers, "x-midaz-retry-count")
 
-	ch, err := d.RabbitMQConn.Connection.Channel()
+	return headers
+}
+
+// publishDLQMessage creates a channel, enables publisher confirms, and publishes a message.
+// Returns the confirmation channel or an error.
+func publishDLQMessage(conn *libRabbitmq.RabbitMQConnection, originalQueue string, headers amqp.Table, body []byte, contentType string, logger libLog.Logger) (<-chan amqp.Confirmation, func(), error) {
+	ch, err := conn.Connection.Channel()
 	if err != nil {
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to get channel: %v", err)
-		return fmt.Errorf("failed to get channel for DLQ replay: %w", err)
+		return nil, nil, fmt.Errorf("failed to get channel for DLQ replay: %w", err)
 	}
-	defer ch.Close()
+
+	cleanup := func() {
+		ch.Close()
+	}
 
 	// Enable publisher confirms for reliable replay
 	if err = ch.Confirm(false); err != nil {
+		cleanup()
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to enable confirm mode: %v", err)
-		return fmt.Errorf("failed to enable confirm mode for DLQ replay: %w", err)
+
+		return nil, nil, fmt.Errorf("failed to enable confirm mode for DLQ replay: %w", err)
 	}
 
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
@@ -529,51 +658,43 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 		false,         // immediate
 		amqp.Publishing{
 			Headers:      headers,
-			Body:         msg.Body,
-			ContentType:  msg.ContentType,
+			Body:         body,
+			ContentType:  contentType,
 			DeliveryMode: amqp.Persistent,
 		},
 	)
 	if err != nil {
+		cleanup()
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to publish to original queue: %v", err)
-		return fmt.Errorf("failed to publish DLQ message to %s: %w", originalQueue, err)
+
+		return nil, nil, fmt.Errorf("failed to publish DLQ message to %s: %w", originalQueue, err)
 	}
 
-	// Wait for broker confirmation
-	// TODO(review): Consider adding ctx.Done() case for faster shutdown response (Low severity - efficiency)
+	return confirms, cleanup, nil
+}
+
+// waitForPublishConfirmation waits for RabbitMQ broker confirmation after publishing.
+// Returns nil on success, error on timeout or NACK.
+func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog.Logger, originalQueue string, dlqRetryCount int) error {
 	select {
 	case confirmation, ok := <-confirms:
 		if !ok {
 			logger.Errorf("DLQ_REPLAY_FAILED: Confirmation channel closed")
-			return errors.New("confirmation channel closed during DLQ replay")
+			return ErrConfirmChannelClosed
 		}
 
-		if confirmation.Ack {
-			logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
-				originalQueue, dlqRetryCount+1, dlqMaxRetries)
-			// Ack the DLQ message since we successfully replayed it
-			if err := msg.Ack(false); err != nil {
-				logger.Warnf("DLQ_REPLAY_WARNING: Failed to ack DLQ message after successful replay: %v", err)
-			}
-
-			return nil
+		if !confirmation.Ack {
+			logger.Errorf("DLQ_REPLAY_FAILED: Broker NACK'd message")
+			return ErrBrokerNackDLQReplay
 		}
 
-		logger.Errorf("DLQ_REPLAY_FAILED: Broker NACK'd message")
+		logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
+			originalQueue, dlqRetryCount+1, dlqMaxRetries)
 
-		return errors.New("broker NACK'd DLQ replay message")
+		return nil
 
 	case <-time.After(publishConfirmTimeout):
 		logger.Errorf("DLQ_REPLAY_FAILED: Confirmation timeout")
-		return fmt.Errorf("DLQ replay confirmation timed out after %v", publishConfirmTimeout)
+		return fmt.Errorf("confirmation timed out after %v: %w", publishConfirmTimeout, ErrDLQReplayConfirmTimeout)
 	}
-}
-
-// getStringHeader extracts a string header value from amqp.Table.
-func getStringHeader(headers amqp.Table, key string) string {
-	if val, ok := headers[key].(string); ok {
-		return val
-	}
-
-	return ""
 }
