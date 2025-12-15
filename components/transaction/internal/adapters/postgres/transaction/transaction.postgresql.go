@@ -761,6 +761,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 }
 
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
+//
+//nolint:gocyclo // Complexity due to LEFT JOIN NULL handling for transactions without operations
 func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -844,15 +846,17 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		var body *string
 
 		// Nullable pointers for operation fields (LEFT JOIN may return NULL)
-		var opID, opTransactionID, opDescription, opType, opAssetCode *string
-		var opStatus, opStatusDescription, opAccountID, opAccountAlias *string
-		var opBalanceID, opChartOfAccounts, opOrganizationID, opLedgerID *string
-		var opRoute, opBalanceKey *string
-		var opAmount, opAvailableBalance, opOnHoldBalance *decimal.Decimal
-		var opAvailableBalanceAfter, opOnHoldBalanceAfter *decimal.Decimal
-		var opCreatedAt, opUpdatedAt *time.Time
-		var opDeletedAt sql.NullTime
-		var opBalanceAffected *bool
+		var (
+			opID, opTransactionID, opDescription, opType, opAssetCode    *string
+			opStatus, opStatusDescription, opAccountID, opAccountAlias   *string
+			opBalanceID, opChartOfAccounts, opOrganizationID, opLedgerID *string
+			opRoute, opBalanceKey                                        *string
+			opAmount, opAvailableBalance, opOnHoldBalance                *decimal.Decimal
+			opAvailableBalanceAfter, opOnHoldBalanceAfter                *decimal.Decimal
+			opCreatedAt, opUpdatedAt                                     *time.Time
+			opDeletedAt                                                  sql.NullTime
+			opBalanceAffected                                            *bool
+		)
 
 		if err := rows.Scan(
 			&tran.ID,
