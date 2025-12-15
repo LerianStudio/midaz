@@ -39,3 +39,61 @@ func TestDLQQueueNames(t *testing.T) {
 			"DLQ suffix should be '.dlq'")
 	})
 }
+
+func TestDLQConsumer_HealthCheckConstants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("health check timeout should be reasonable", func(t *testing.T) {
+		t.Parallel()
+
+		// Health check should timeout quickly to not block DLQ processing
+		assert.Equal(t, 5*time.Second, healthCheckTimeout,
+			"healthCheckTimeout should be 5 seconds")
+	})
+}
+
+func TestDLQRetryBackoffCalculation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		attempt       int
+		expectedDelay time.Duration
+	}{
+		{
+			name:          "first DLQ retry",
+			attempt:       1,
+			expectedDelay: 1 * time.Minute,
+		},
+		{
+			name:          "second DLQ retry",
+			attempt:       2,
+			expectedDelay: 5 * time.Minute,
+		},
+		{
+			name:          "third DLQ retry",
+			attempt:       3,
+			expectedDelay: 15 * time.Minute,
+		},
+		{
+			name:          "fourth and beyond should cap at max",
+			attempt:       4,
+			expectedDelay: 30 * time.Minute,
+		},
+		{
+			name:          "tenth retry should still be capped",
+			attempt:       10,
+			expectedDelay: 30 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			delay := calculateDLQBackoff(tt.attempt)
+			assert.Equal(t, tt.expectedDelay, delay,
+				"DLQ backoff for attempt %d should be %v", tt.attempt, tt.expectedDelay)
+		})
+	}
+}

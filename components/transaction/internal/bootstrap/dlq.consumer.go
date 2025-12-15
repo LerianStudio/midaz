@@ -31,6 +31,9 @@ const (
 	// healthCheckInterval is how often to poll infrastructure health before replaying.
 	healthCheckInterval = 30 * time.Second
 
+	// healthCheckTimeout is the maximum time to wait for health check responses.
+	healthCheckTimeout = 5 * time.Second
+
 	// dlqQueueSuffix is the suffix for Dead Letter Queue names.
 	dlqQueueSuffix = ".dlq"
 
@@ -144,6 +147,36 @@ func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 	}
 
 	return hasHealthyInfra
+}
+
+// calculateDLQBackoff returns the delay before the next DLQ replay attempt.
+// Uses exponential backoff: 1min, 5min, 15min, 30min (capped).
+// This is longer than regular retry backoff because DLQ processing
+// happens after infrastructure recovery.
+func calculateDLQBackoff(attempt int) time.Duration {
+	if attempt <= 0 {
+		return dlqInitialBackoff
+	}
+
+	// Exponential backoff: 1min * multiplier based on attempt
+	// Attempt 1: 1min, 2: 5min, 3: 15min, 4+: 30min (max)
+	var delay time.Duration
+	switch attempt {
+	case 1:
+		delay = 1 * time.Minute
+	case 2:
+		delay = 5 * time.Minute
+	case 3:
+		delay = 15 * time.Minute
+	default:
+		delay = dlqMaxBackoff
+	}
+
+	if delay > dlqMaxBackoff {
+		return dlqMaxBackoff
+	}
+
+	return delay
 }
 
 // processQueue processes messages from a single DLQ.
