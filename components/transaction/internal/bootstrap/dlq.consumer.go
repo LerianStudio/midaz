@@ -109,6 +109,8 @@ func (d *DLQConsumer) processDLQMessages(ctx context.Context) {
 
 // isInfrastructureHealthy checks if PostgreSQL and Redis are available.
 func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
+	hasHealthyInfra := false
+
 	// Check PostgreSQL
 	if d.PostgresConn != nil {
 		db, err := d.PostgresConn.GetDB()
@@ -120,6 +122,7 @@ func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: PostgreSQL unhealthy: %v", err)
 			return false
 		}
+		hasHealthyInfra = true
 	}
 
 	// Check Redis
@@ -133,13 +136,18 @@ func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: Redis unhealthy: %v", err)
 			return false
 		}
+		hasHealthyInfra = true
 	}
 
-	return true
+	if !hasHealthyInfra {
+		d.Logger.Warn("DLQ_HEALTH_CHECK: No infrastructure connections available")
+	}
+
+	return hasHealthyInfra
 }
 
 // processQueue processes messages from a single DLQ.
-func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue string) {
-	// Implementation in Task 1.3
+func (d *DLQConsumer) processQueue(_ context.Context, dlqName, originalQueue string) {
+	// TODO(task-1.3): Implement DLQ message replay logic
 	d.Logger.Debugf("DLQ_PROCESS_QUEUE: Processing %s for replay to %s", dlqName, originalQueue)
 }
