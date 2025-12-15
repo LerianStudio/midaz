@@ -153,9 +153,10 @@ func TestProperty_BalanceVersionMonotonicity_API(t *testing.T) {
 	}
 }
 
-// Property: Concurrent balance updates must not create version gaps.
-// If version N exists and version N+2 exists, version N+1 must also exist in history.
-func TestProperty_BalanceVersionNoGaps_API(t *testing.T) {
+// Property: Concurrent balance updates produce unique, increasing versions.
+// Due to eventual consistency, we verify that each observed version is unique
+// and that versions generally increase across concurrent updates.
+func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
@@ -246,19 +247,25 @@ func TestProperty_BalanceVersionNoGaps_API(t *testing.T) {
 			return true // Not enough data
 		}
 
-		// Sort and check for monotonicity (concurrent updates may arrive out of order)
+		// Sort and check for uniqueness (concurrent updates may arrive out of order)
 		// We can't guarantee sequential versions due to eventual consistency,
-		// but we can verify no version appears twice
+		// but we can verify no version appears twice (which would indicate corruption)
 		versionSet := make(map[int64]int)
 		for _, v := range allVersions {
 			versionSet[v]++
 		}
 
-		// Log version distribution for debugging
+		// Verify version uniqueness - each version should appear only once
+		hasDuplicates := false
 		for v, count := range versionSet {
 			if count > 1 {
-				t.Logf("Version %d observed %d times (expected once)", v, count)
+				t.Errorf("Version %d observed %d times (should be unique): alias=%s", v, count, alias)
+				hasDuplicates = true
 			}
+		}
+
+		if hasDuplicates {
+			return false
 		}
 
 		return true

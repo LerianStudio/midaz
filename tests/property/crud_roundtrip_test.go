@@ -130,6 +130,12 @@ func TestProperty_LedgerCRUDRoundtrip_API(t *testing.T) {
 			Name string `json:"name"`
 		}
 		if err := json.Unmarshal(body, &createResp); err != nil {
+			t.Logf("parse create response: %v", err)
+			return true
+		}
+
+		if createResp.ID == "" {
+			t.Logf("created ledger without ID")
 			return true
 		}
 
@@ -146,6 +152,7 @@ func TestProperty_LedgerCRUDRoundtrip_API(t *testing.T) {
 			Name string `json:"name"`
 		}
 		if err := json.Unmarshal(body, &readResp); err != nil {
+			t.Errorf("parse read response: %v", err)
 			return false
 		}
 
@@ -215,6 +222,12 @@ func TestProperty_AccountCRUDRoundtrip_API(t *testing.T) {
 			AssetCode string `json:"assetCode"`
 		}
 		if err := json.Unmarshal(body, &createResp); err != nil {
+			t.Logf("parse create response: %v", err)
+			return true
+		}
+
+		if createResp.ID == "" {
+			t.Logf("created account without ID")
 			return true
 		}
 
@@ -234,12 +247,17 @@ func TestProperty_AccountCRUDRoundtrip_API(t *testing.T) {
 			AssetCode string `json:"assetCode"`
 		}
 		if err := json.Unmarshal(body, &readResp); err != nil {
+			t.Errorf("parse read response: %v", err)
 			return false
 		}
 
 		// VERIFY
 		if readResp.ID != createResp.ID {
 			t.Errorf("Account ID mismatch: created=%s read=%s", createResp.ID, readResp.ID)
+			return false
+		}
+		if readResp.Name != createResp.Name {
+			t.Errorf("Account Name mismatch: created=%s read=%s", createResp.Name, readResp.Name)
 			return false
 		}
 		if readResp.Alias != createResp.Alias {

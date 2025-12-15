@@ -65,6 +65,7 @@ func TestProperty_TransactionRouteComposition_API(t *testing.T) {
 
 func testValidRouteCreation(t *testing.T, ctx context.Context, trans *h.HTTPClient,
 	orgID, ledgerID string, headers map[string]string, sources, dests int, rng *rand.Rand) bool {
+	t.Helper()
 
 	// Create operation routes first
 	var operationRouteIDs []string
@@ -168,6 +169,7 @@ func testValidRouteCreation(t *testing.T, ctx context.Context, trans *h.HTTPClie
 
 func testInvalidRouteRejection(t *testing.T, ctx context.Context, trans *h.HTTPClient,
 	orgID, ledgerID string, headers map[string]string, sources, dests int) bool {
+	t.Helper()
 
 	// Attempt to create a route with missing source or destination
 	// This SHOULD be rejected by the API
