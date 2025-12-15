@@ -1,3 +1,31 @@
+## [v3.5.0-beta.21] - 2025-12-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.20...v3.5.0-beta.21)
+Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
+
+### ⚠️ Breaking Changes
+- **API Authentication Update**: The Authorization header has been removed and replaced with Bearer token support. This change requires updates to client applications to ensure they authenticate correctly with the API. Please update your authentication process to use Bearer tokens.
+- **API Response Format**: Success responses for onboarding and transaction endpoints no longer include schema definitions. Client applications must adjust their parsing logic to handle the new response format.
+
+### ✨ Features
+- **Unified Ledger Mode**: A new comprehensive ledger component has been introduced, enhancing financial operations management by integrating onboarding and transaction modules. This feature streamlines processes, offering a more cohesive user experience.
+- **Balance Sync Worker Options**: New configuration options for the Balance Sync Worker provide enhanced synchronization capabilities and greater control over balance management, allowing for more flexible financial operations.
+
+### 🐛 Bug Fixes
+- **Secure gRPC Communication**: Fixed authorization token handling in gRPC calls, ensuring secure and reliable communication for account and asset management.
+- **Onboarding Initialization**: Improved error handling for missing configurations during onboarding service startup, preventing failures and enhancing reliability.
+
+### ⚡ Performance
+- **Service Initialization Improvements**: Enhanced error handling and logger support during service initialization, particularly in onboarding and transaction modules, increases system robustness and aids in troubleshooting.
+
+### 📚 Documentation
+- **API Documentation Update**: Added BearerAuth security annotations and clarified authorization token requirements across multiple endpoints, improving security clarity and API usage guidance.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated the Go toolchain and added testcontainers-go for integration testing, ensuring compatibility with the latest development tools and improving test coverage.
+- **Code Quality Enhancements**: Refactored MongoDB connection pool size handling and service initialization functions for improved clarity and consistency.
+
+
 ## [v3.5.0-beta.20] - 2025-12-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.19...v3.5.0-beta.20)
