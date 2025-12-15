@@ -62,14 +62,14 @@ const (
 
 // dlqSafeHeadersAllowlist defines headers safe to replay (M7: Security - header sanitization)
 var dlqSafeHeadersAllowlist = map[string]bool{
-	"x-correlation-id":      true,
-	"x-midaz-header-id":     true,
-	"content-type":          true,
-	"x-dlq-retry-count":     true,
-	"x-dlq-original-queue":  true,
-	"x-dlq-timestamp":       true,
-	"x-dlq-reason":          true,
-	"x-dlq-error-type":      true,
+	"x-correlation-id":     true,
+	"x-midaz-header-id":    true,
+	"content-type":         true,
+	"x-dlq-retry-count":    true,
+	"x-dlq-original-queue": true,
+	"x-dlq-timestamp":      true,
+	"x-dlq-reason":         true,
+	"x-dlq-error-type":     true,
 }
 
 // DLQConsumer processes messages from Dead Letter Queues after infrastructure recovery.
@@ -80,7 +80,7 @@ type DLQConsumer struct {
 	RabbitMQConn        *libRabbitmq.RabbitMQConnection
 	PostgresConn        *libPostgres.PostgresConnection
 	RedisConn           *libRedis.RedisConnection
-	QueueNames          []string          // Original queue names (DLQ names derived by adding suffix)
+	QueueNames          []string        // Original queue names (DLQ names derived by adding suffix)
 	validOriginalQueues map[string]bool // H8: Allowlist for security - prevent queue name injection
 }
 
@@ -237,7 +237,6 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 		log,
 	)
 
-	//nolint:dogsled
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "dlq.consumer.process_queue")
@@ -330,6 +329,7 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 				if err := msg.Ack(false); err != nil {
 					logger.Warnf("Failed to ack invalid DLQ message: %v", err)
 				}
+
 				continue
 			}
 
@@ -345,6 +345,7 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 				if err := msg.Nack(false, true); err != nil {
 					logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
 				}
+
 				continue
 			}
 
@@ -423,6 +424,7 @@ func (d *DLQConsumer) shouldDeferReplay(msg *amqp.Delivery, dlqRetryCount int, b
 	if elapsed < backoffDuration {
 		logger.Debugf("DLQ_REPLAY_DEFERRED: queue=%s, dlq_retry=%d, elapsed=%v, required=%v",
 			dlqName, dlqRetryCount, elapsed, backoffDuration)
+
 		return true
 	}
 
@@ -492,6 +494,7 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 
 	// M7: SECURITY - Prepare headers for replay with allowlist (only copy safe headers)
 	headers := make(amqp.Table)
+
 	for k, v := range msg.Headers {
 		// Only copy allowlisted headers
 		if dlqSafeHeadersAllowlist[k] {

@@ -86,6 +86,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 // and reduces Lock:tuple contention when multiple workers process the same balance.
 func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, logger libLog.Logger) []*mmodel.Balance {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	_, span := tracer.Start(ctx, "command.filter_stale_balances")
 	defer span.End()
 
@@ -109,6 +110,7 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 		if cachedBalance != nil && cachedBalance.Version > balance.Version {
 			// Cache has a newer version, skip this update
 			skippedCount++
+
 			logger.Warnf("STALE_BALANCE_SKIP: balance_id=%s, alias=%s, key=%s, msg_version=%d, cache_version=%d, gap=%d",
 				balance.ID, balance.Alias, balanceKey, balance.Version, cachedBalance.Version, cachedBalance.Version-balance.Version)
 
