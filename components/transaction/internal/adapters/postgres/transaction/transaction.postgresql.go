@@ -102,9 +102,9 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction query", err)
+			libOpentelemetry.HandleSpanEvent(&spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
-			logger.Errorf("Failed to execute insert transaction query: %v", err)
+			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry): %v", err)
 
 			return nil, err
 		}
