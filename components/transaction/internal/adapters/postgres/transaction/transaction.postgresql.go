@@ -918,6 +918,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		t, exists := transactionsMap[transactionUUID]
 		if !exists {
 			t = tran.ToEntity()
+			t.Operations = make([]*operation.Operation, 0)
 			transactionsMap[transactionUUID] = t
 
 			transactionOrder = append(transactionOrder, transactionUUID)
