@@ -22,8 +22,7 @@ func TestDLQConsumerConstants(t *testing.T) {
 			"dlqMaxBackoff should be 30 minutes for DLQ max retry interval")
 		assert.Equal(t, 10, dlqMaxRetries,
 			"dlqMaxRetries should be 10 (higher than regular retries since infrastructure should be stable)")
-		assert.Equal(t, 30*time.Second, healthCheckInterval,
-			"healthCheckInterval should be 30 seconds between health polls")
+		// M2: healthCheckInterval constant was removed as unused (dlqPollInterval serves the same purpose)
 	})
 }
 

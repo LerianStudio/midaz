@@ -3,6 +3,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
@@ -30,9 +32,6 @@ const (
 	// dlqMaxRetries is the maximum number of DLQ replay attempts per message.
 	// Higher than regular maxRetries (4) because infrastructure should be stable.
 	dlqMaxRetries = 10
-
-	// healthCheckInterval is how often to poll infrastructure health before replaying.
-	healthCheckInterval = 30 * time.Second
 
 	// healthCheckTimeout is the maximum time to wait for health check responses.
 	healthCheckTimeout = 5 * time.Second
@@ -61,16 +60,28 @@ const (
 	dlqTimestampHeader     = "x-dlq-timestamp"
 )
 
+// dlqSafeHeadersAllowlist defines headers safe to replay (M7: Security - header sanitization)
+var dlqSafeHeadersAllowlist = map[string]bool{
+	"x-correlation-id":      true,
+	"x-midaz-header-id":     true,
+	"content-type":          true,
+	"x-dlq-retry-count":     true,
+	"x-dlq-original-queue":  true,
+	"x-dlq-timestamp":       true,
+	"x-dlq-reason":          true,
+	"x-dlq-error-type":      true,
+}
+
 // DLQConsumer processes messages from Dead Letter Queues after infrastructure recovery.
 // It monitors DLQ queues, checks infrastructure health, and replays messages
 // to their original queues for reprocessing.
 type DLQConsumer struct {
-	Logger           libLog.Logger
-	RabbitMQConn     *libRabbitmq.RabbitMQConnection
-	PostgresConn     *libPostgres.PostgresConnection
-	RedisConn        *libRedis.RedisConnection
-	QueueNames       []string // Original queue names (DLQ names derived by adding suffix)
-	originalHandlers map[string]func(ctx context.Context, body []byte) error
+	Logger              libLog.Logger
+	RabbitMQConn        *libRabbitmq.RabbitMQConnection
+	PostgresConn        *libPostgres.PostgresConnection
+	RedisConn           *libRedis.RedisConnection
+	QueueNames          []string          // Original queue names (DLQ names derived by adding suffix)
+	validOriginalQueues map[string]bool // H8: Allowlist for security - prevent queue name injection
 }
 
 // NewDLQConsumer creates a new DLQ consumer instance.
@@ -81,13 +92,24 @@ func NewDLQConsumer(
 	redisConn *libRedis.RedisConnection,
 	queueNames []string,
 ) *DLQConsumer {
+	// M6: Validate empty QueueNames array
+	if len(queueNames) == 0 {
+		logger.Warn("DLQ_CONSUMER_INIT: No queue names provided, DLQ consumer will not process any queues")
+	}
+
+	// H8: Initialize allowlist for queue name validation (security)
+	validQueues := make(map[string]bool, len(queueNames))
+	for _, q := range queueNames {
+		validQueues[q] = true
+	}
+
 	return &DLQConsumer{
-		Logger:           logger,
-		RabbitMQConn:     rabbitMQConn,
-		PostgresConn:     postgresConn,
-		RedisConn:        redisConn,
-		QueueNames:       queueNames,
-		originalHandlers: make(map[string]func(ctx context.Context, body []byte) error),
+		Logger:              logger,
+		RabbitMQConn:        rabbitMQConn,
+		PostgresConn:        postgresConn,
+		RedisConn:           redisConn,
+		QueueNames:          queueNames,
+		validOriginalQueues: validQueues,
 	}
 }
 
@@ -134,6 +156,10 @@ func (d *DLQConsumer) processDLQMessages(ctx context.Context) {
 func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 	hasHealthyInfra := false
 
+	// H3: Apply timeout to health checks
+	healthCtx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
+	defer cancel()
+
 	// Check PostgreSQL
 	if d.PostgresConn != nil {
 		db, err := d.PostgresConn.GetDB()
@@ -141,24 +167,28 @@ func (d *DLQConsumer) isInfrastructureHealthy(ctx context.Context) bool {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: PostgreSQL connection failed: %v", err)
 			return false
 		}
-		if err := db.PingContext(ctx); err != nil {
+
+		if err := db.PingContext(healthCtx); err != nil {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: PostgreSQL unhealthy: %v", err)
 			return false
 		}
+
 		hasHealthyInfra = true
 	}
 
 	// Check Redis
 	if d.RedisConn != nil {
-		rds, err := d.RedisConn.GetClient(ctx)
+		rds, err := d.RedisConn.GetClient(healthCtx)
 		if err != nil {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: Redis connection failed: %v", err)
 			return false
 		}
-		if err := rds.Ping(ctx).Err(); err != nil {
+
+		if err := rds.Ping(healthCtx).Err(); err != nil {
 			d.Logger.Warnf("DLQ_HEALTH_CHECK: Redis unhealthy: %v", err)
 			return false
 		}
+
 		hasHealthyInfra = true
 	}
 
@@ -194,6 +224,19 @@ func calculateDLQBackoff(attempt int) time.Duration {
 
 // processQueue processes messages from a single DLQ with backoff between retries.
 func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue string) {
+	// H6: Set up proper context with header ID before calling NewTrackingFromContext
+	correlationID := libCommons.GenerateUUIDv7().String()
+
+	log := d.Logger.WithFields(
+		libConstants.HeaderID, correlationID,
+	).WithDefaultMessageTemplate(correlationID + " | ")
+
+	ctx = libCommons.ContextWithLogger(
+		libCommons.ContextWithHeaderID(ctx, correlationID),
+		log,
+	)
+
+	//nolint:dogsled
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "dlq.consumer.process_queue")
@@ -204,14 +247,16 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 		attribute.String("dlq.original_queue", originalQueue),
 	)
 
-	// Ensure channel is available
-	if err := d.RabbitMQConn.EnsureChannel(); err != nil {
-		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to ensure channel for %s: %v", dlqName, err)
+	// H7: Create dedicated channel for this goroutine (fixes race condition)
+	ch, err := d.RabbitMQConn.Connection.Channel()
+	if err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to get channel for %s: %v", dlqName, err)
 		return
 	}
+	defer ch.Close()
 
 	// Declare DLQ if it doesn't exist (idempotent)
-	_, err := d.RabbitMQConn.Channel.QueueDeclare(
+	_, err = ch.QueueDeclare(
 		dlqName,
 		true,  // durable
 		false, // autoDelete
@@ -225,13 +270,13 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 	}
 
 	// Set QoS for controlled processing
-	if err := d.RabbitMQConn.Channel.Qos(dlqPrefetchCount, 0, false); err != nil {
+	if err := ch.Qos(dlqPrefetchCount, 0, false); err != nil {
 		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to set QoS for %s: %v", dlqName, err)
 		return
 	}
 
 	// Get messages from DLQ (non-blocking check)
-	msgs, err := d.RabbitMQConn.Channel.Consume(
+	msgs, err := ch.Consume(
 		dlqName,
 		"dlq-consumer-"+dlqName, // consumer tag
 		false,                   // autoAck
@@ -245,7 +290,15 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 		return
 	}
 
+	// H2: Add defer to cancel consumer before returning (resource leak fix)
+	defer func() {
+		if err := ch.Cancel("dlq-consumer-"+dlqName, false); err != nil {
+			logger.Warnf("DLQ_PROCESS_QUEUE: Failed to cancel consumer: %v", err)
+		}
+	}()
+
 	processed := 0
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -264,6 +317,21 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 				origQueue = originalQueue
 			}
 
+			// H8: SECURITY - Validate queue name against allowlist to prevent injection
+			if !d.validOriginalQueues[origQueue] {
+				logger.Errorf("DLQ_SECURITY_VIOLATION: Invalid original queue in header: %s (expected one of: %v)",
+					origQueue, d.QueueNames)
+				span.SetAttributes(
+					attribute.Bool("dlq.security_violation", true),
+					attribute.String("dlq.invalid_queue", origQueue),
+				)
+				// Ack to remove malicious message from DLQ
+				if err := msg.Ack(false); err != nil {
+					logger.Warnf("Failed to ack invalid DLQ message: %v", err)
+				}
+				continue
+			}
+
 			dlqRetryCount := getDLQRetryCount(msg.Headers)
 
 			// Check if we should wait (backoff) before replaying
@@ -271,23 +339,12 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 			logger.Infof("DLQ_REPLAY_ATTEMPT: queue=%s, dlq_retry=%d, backoff=%v",
 				dlqName, dlqRetryCount, backoffDuration)
 
-			// For first attempt, replay immediately. Otherwise apply backoff.
-			if dlqRetryCount > 0 {
-				// Check timestamp to see if enough time has passed
-				timestamp := getTimestampHeader(msg.Headers)
-				if timestamp > 0 {
-					elapsed := time.Since(time.Unix(timestamp, 0))
-					if elapsed < backoffDuration {
-						// Not ready yet - nack without requeue to avoid infinite loop
-						// Message will stay in DLQ for next poll cycle
-						logger.Debugf("DLQ_REPLAY_DEFERRED: queue=%s, dlq_retry=%d, elapsed=%v, required=%v",
-							dlqName, dlqRetryCount, elapsed, backoffDuration)
-						if err := msg.Nack(false, true); err != nil {
-							logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
-						}
-						continue
-					}
+			// M4: Use helper function for backoff check (reduces complexity)
+			if d.shouldDeferReplay(&msg, dlqRetryCount, backoffDuration, logger, dlqName) {
+				if err := msg.Nack(false, true); err != nil {
+					logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
 				}
+				continue
 			}
 
 			// Replay the message
@@ -297,6 +354,7 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 				if nackErr := msg.Nack(false, true); nackErr != nil {
 					logger.Warnf("DLQ_REPLAY_ERROR: Failed to nack message: %v", nackErr)
 				}
+
 				continue
 			}
 
@@ -311,6 +369,7 @@ func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue s
 			if processed > 0 {
 				logger.Infof("DLQ_PROCESS_QUEUE: Completed, processed %d messages from %s", processed, dlqName)
 			}
+
 			return
 		}
 	}
@@ -321,27 +380,77 @@ func getTimestampHeader(headers amqp.Table) int64 {
 	if val, ok := headers[dlqTimestampHeader].(int64); ok {
 		return val
 	}
+
 	return 0
+}
+
+// M8: getValidatedTimestamp validates timestamp from headers to prevent manipulation (security)
+func getValidatedTimestamp(headers amqp.Table) int64 {
+	timestamp := getTimestampHeader(headers)
+	if timestamp <= 0 {
+		return 0 // Treat as unset
+	}
+
+	now := time.Now().Unix()
+
+	// Reject timestamps more than 1 hour in the future (clock skew allowance)
+	if timestamp > now+3600 {
+		return now // Use current time as fallback
+	}
+
+	// Reject timestamps older than 30 days (stale message protection)
+	thirtyDaysAgo := now - (30 * 24 * 60 * 60)
+	if timestamp < thirtyDaysAgo {
+		return thirtyDaysAgo // Cap at 30 days ago
+	}
+
+	return timestamp
+}
+
+// M4: shouldDeferReplay extracts complex backoff check into helper function
+func (d *DLQConsumer) shouldDeferReplay(msg *amqp.Delivery, dlqRetryCount int, backoffDuration time.Duration, logger libLog.Logger, dlqName string) bool {
+	if dlqRetryCount == 0 {
+		return false // First attempt, replay immediately
+	}
+
+	timestamp := getValidatedTimestamp(msg.Headers)
+	if timestamp == 0 {
+		return false // No timestamp, can't determine elapsed time
+	}
+
+	elapsed := time.Since(time.Unix(timestamp, 0))
+	if elapsed < backoffDuration {
+		logger.Debugf("DLQ_REPLAY_DEFERRED: queue=%s, dlq_retry=%d, elapsed=%v, required=%v",
+			dlqName, dlqRetryCount, elapsed, backoffDuration)
+		return true
+	}
+
+	return false
 }
 
 // getDLQRetryCount extracts the DLQ retry count from message headers.
 // Returns 0 if header is missing or invalid.
-func getDLQRetryCount(headers map[string]interface{}) int {
+// M3: Use `any` instead of `interface{}`
+func getDLQRetryCount(headers map[string]any) int {
 	if val, ok := headers[dlqRetryCountHeader].(int32); ok {
 		return int(val)
 	}
+
 	if val, ok := headers[dlqRetryCountHeader].(int64); ok {
 		return int(val)
 	}
+
 	return 0
 }
 
 // getOriginalQueue extracts the original queue name from DLQ message headers.
 // Returns empty string if header is missing.
-func getOriginalQueue(headers map[string]interface{}) string {
+// M3: Use `any` instead of `interface{}`
+func getOriginalQueue(headers map[string]any) string {
 	if val, ok := headers[dlqOriginalQueueHeader].(string); ok {
 		return val
 	}
+
 	return ""
 }
 
@@ -363,18 +472,32 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 	if dlqRetryCount >= dlqMaxRetries {
 		logger.Errorf("DLQ_REPLAY_FAILED: Max DLQ retries exceeded (%d/%d) - message will be permanently lost - queue=%s",
 			dlqRetryCount, dlqMaxRetries, originalQueue)
+
+		// H4: Add span attributes for alerting on permanent message loss
+		span.SetAttributes(
+			attribute.Bool("dlq.message_lost", true),
+			attribute.String("dlq.loss_reason", "max_retries_exceeded"),
+			attribute.Int("dlq.retry_count", dlqRetryCount),
+			attribute.String("dlq.original_queue", originalQueue),
+		)
+
 		// Ack to remove from DLQ - message is lost but we prevent infinite loops
 		if err := msg.Ack(false); err != nil {
 			logger.Warnf("DLQ_REPLAY_FAILED: Failed to ack expired DLQ message: %v", err)
 		}
+
 		return fmt.Errorf("max DLQ retries exceeded: %d/%d", dlqRetryCount, dlqMaxRetries)
 	}
 
-	// Prepare headers for replay - reset regular retry count, increment DLQ retry count
+	// M7: SECURITY - Prepare headers for replay with allowlist (only copy safe headers)
 	headers := make(amqp.Table)
 	for k, v := range msg.Headers {
-		headers[k] = v
+		// Only copy allowlisted headers
+		if dlqSafeHeadersAllowlist[k] {
+			headers[k] = v
+		}
 	}
+
 	headers[dlqRetryCountHeader] = int32(dlqRetryCount + 1)
 	// Reset the regular retry count so message gets fresh retry attempts
 	delete(headers, "x-midaz-retry-count")
@@ -416,8 +539,9 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 	case confirmation, ok := <-confirms:
 		if !ok {
 			logger.Errorf("DLQ_REPLAY_FAILED: Confirmation channel closed")
-			return fmt.Errorf("confirmation channel closed during DLQ replay")
+			return errors.New("confirmation channel closed during DLQ replay")
 		}
+
 		if confirmation.Ack {
 			logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
 				originalQueue, dlqRetryCount+1, dlqMaxRetries)
@@ -425,10 +549,13 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 			if err := msg.Ack(false); err != nil {
 				logger.Warnf("DLQ_REPLAY_WARNING: Failed to ack DLQ message after successful replay: %v", err)
 			}
+
 			return nil
 		}
+
 		logger.Errorf("DLQ_REPLAY_FAILED: Broker NACK'd message")
-		return fmt.Errorf("broker NACK'd DLQ replay message")
+
+		return errors.New("broker NACK'd DLQ replay message")
 
 	case <-time.After(publishConfirmTimeout):
 		logger.Errorf("DLQ_REPLAY_FAILED: Confirmation timeout")
@@ -441,5 +568,6 @@ func getStringHeader(headers amqp.Table, key string) string {
 	if val, ok := headers[key].(string); ok {
 		return val
 	}
+
 	return ""
 }
