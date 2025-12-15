@@ -1,6 +1,7 @@
 package fuzzy
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -9,75 +10,74 @@ import (
 )
 
 // FuzzGoldDSLParser fuzzes the Gold DSL parser with malformed and edge-case inputs.
+// Uses correct s-expression syntax as defined in pkg/gold/Transaction.g4
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzGoldDSLParser -run=^$ -fuzztime=60s
 func FuzzGoldDSLParser(f *testing.F) {
-	// Seed corpus: valid DSL examples
-	f.Add(`transaction {
-		chartOfAccountsGroupName @external-id
-		send USD 10000 2
-		source {
-			from @source-account amount USD 10000 2
-		}
-		distribute {
-			to @dest-account amount USD 10000 2
-		}
-	}`)
+	// Seed corpus: valid DSL examples using correct s-expression syntax
+	f.Add(`(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 10000|2 (source (from @source-account :amount USD 10000|2)) (distribute (to @dest-account :amount USD 10000|2))))`)
 
 	// Seed: minimal valid transaction
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100 0 source { from @a amount USD 100 0 } distribute { to @b amount USD 100 0 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|0 (source (from @a :amount USD 100|0)) (distribute (to @b :amount USD 100|0))))`)
 
 	// Seed: with metadata
-	f.Add(`transaction { chartOfAccountsGroupName @id metadata { key1 value1 } send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (metadata (key1 value1)) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Seed: with description
-	f.Add(`transaction { chartOfAccountsGroupName @id description "test transaction" send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (description "test transaction") (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Seed: with code
-	f.Add(`transaction { chartOfAccountsGroupName @id code @tx-001 send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (code tx-001) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Seed: with pending flag
-	f.Add(`transaction { chartOfAccountsGroupName @id pending true send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (pending true) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Seed: share-based distribution
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100 2 source { from @a share 100 } distribute { to @b share 100 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|2 (source (from @a :share 100)) (distribute (to @b :share 100))))`)
 
 	// Seed: remaining distribution
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100 2 source { from @a remaining: } distribute { to @b remaining: } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|2 (source (from @a :remaining)) (distribute (to @b :remaining))))`)
 
-	// Seed: with rate
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100 2 source { from @a amount USD 100 2 rate @rate-id USD BRL 500 2 } distribute { to @b amount BRL 500 2 } }`)
+	// Seed: share int of int
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|2 (source (from @a :share 50 :of 100)) (distribute (to @b :share 50 :of 100))))`)
+
+	// Seed: transaction-template variant
+	f.Add(`(transaction-template V1 (chart-of-accounts-group-name @id) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Edge case seeds: potential overflow/underflow
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 9223372036854775807 0 source { from @a amount USD 9223372036854775807 0 } distribute { to @b amount USD 9223372036854775807 0 } }`)
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 9223372036854775808 0 source { from @a amount USD 9223372036854775808 0 } distribute { to @b amount USD 9223372036854775808 0 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 9223372036854775807|0 (source (from @a :amount USD 9223372036854775807|0)) (distribute (to @b :amount USD 9223372036854775807|0))))`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 9223372036854775808|0 (source (from @a :amount USD 9223372036854775808|0)) (distribute (to @b :amount USD 9223372036854775808|0))))`)
 
 	// Edge case: huge scale values
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 1 2147483647 source { from @a amount USD 1 2147483647 } distribute { to @b amount USD 1 2147483647 } }`)
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 1 99 source { from @a amount USD 1 99 } distribute { to @b amount USD 1 99 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 1|2147483647 (source (from @a :amount USD 1|2147483647)) (distribute (to @b :amount USD 1|2147483647))))`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 1|99 (source (from @a :amount USD 1|99)) (distribute (to @b :amount USD 1|99))))`)
 
-	// Edge case: negative scale (if parser doesn't validate)
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100 -1 source { from @a amount USD 100 -1 } distribute { to @b amount USD 100 -1 } }`)
+	// Edge case: negative values (should fail gracefully)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD -100|2 (source (from @a :amount USD -100|2)) (distribute (to @b :amount USD -100|2))))`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|-1 (source (from @a :amount USD 100|-1)) (distribute (to @b :amount USD 100|-1))))`)
 
 	// Edge case: zero values
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 0 0 source { from @a amount USD 0 0 } distribute { to @b amount USD 0 0 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 0|0 (source (from @a :amount USD 0|0)) (distribute (to @b :amount USD 0|0))))`)
 
 	// Edge case: escape sequences in strings
-	f.Add(`transaction { chartOfAccountsGroupName @id description "test\nwith\nnewlines" send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
-	f.Add(`transaction { chartOfAccountsGroupName @id description "test\"with\"quotes" send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (description "test\nwith\nnewlines") (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (description "test\"with\"quotes") (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Edge case: unicode in identifiers
-	f.Add(`transaction { chartOfAccountsGroupName @id-with-unicode-\u00e9 send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id-with-é) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+
+	// Edge case: variable syntax
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100|2 (source (from $account-var :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Malformed: incomplete structure
-	f.Add(`transaction {`)
-	f.Add(`transaction { chartOfAccountsGroupName`)
-	f.Add(`transaction { chartOfAccountsGroupName @id send`)
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD`)
-	f.Add(`transaction { chartOfAccountsGroupName @id send USD 100`)
+	f.Add(`(transaction V1`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (send USD 100`)
 
 	// Malformed: missing required parts
-	f.Add(`transaction { send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
-	f.Add(`transaction { chartOfAccountsGroupName @id source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2)))`)
 
 	// Malformed: empty strings
 	f.Add("")
@@ -85,14 +85,23 @@ func FuzzGoldDSLParser(f *testing.F) {
 	f.Add("\t\n")
 
 	// Malformed: binary/null bytes
-	f.Add("transaction\x00{}")
-	f.Add("transaction { chartOfAccountsGroupName @id\x00 }")
+	f.Add("(transaction\x00V1)")
+	f.Add("(transaction V1 (chart-of-accounts-group-name @id\x00))")
 
 	// Malformed: extremely long identifiers
-	f.Add(`transaction { chartOfAccountsGroupName @` + strings.Repeat("a", 10000) + ` send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @` + strings.Repeat("a", 10000) + `) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
 
 	// Malformed: deeply nested (if parser has recursion limits)
-	f.Add(`transaction { metadata { ` + strings.Repeat("key value ", 1000) + `} chartOfAccountsGroupName @id send USD 100 2 source { from @a amount USD 100 2 } distribute { to @b amount USD 100 2 } }`)
+	f.Add(`(transaction V1 (metadata (` + strings.Repeat("k v ", 1000) + `)) (chart-of-accounts-group-name @id) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+
+	// Security: Path traversal patterns
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @../../../etc/passwd) (send USD 100|2 (source (from @../admin :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+
+	// Security: SQL injection patterns in metadata
+	f.Add(`(transaction V1 (chart-of-accounts-group-name @id) (metadata (key1 "'; DROP TABLE--")) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))`)
+
+	// Security: Unicode zero-width space
+	f.Add("(transaction V1 (chart-of-accounts-group-name @id\u200B) (send USD 100|2 (source (from @a :amount USD 100|2)) (distribute (to @b :amount USD 100|2))))")
 
 	f.Fuzz(func(t *testing.T, dsl string) {
 		// Skip completely invalid UTF-8 early (reduces noise)
@@ -104,7 +113,7 @@ func FuzzGoldDSLParser(f *testing.F) {
 		defer func() {
 			if r := recover(); r != nil {
 				t.Errorf("Parser panicked on input (len=%d): %v\nInput snippet: %q",
-					len(dsl), r, truncateString(dsl, 200))
+					len(dsl), r, truncateStringRune(dsl, 200))
 			}
 		}()
 
@@ -113,20 +122,10 @@ func FuzzGoldDSLParser(f *testing.F) {
 	})
 }
 
-// truncateString safely truncates a string to maxLen characters
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
-
 // FuzzGoldDSLNumericBounds specifically targets numeric parsing edge cases.
+// Uses correct s-expression syntax with value|scale format.
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzGoldDSLNumericBounds -run=^$ -fuzztime=60s
 func FuzzGoldDSLNumericBounds(f *testing.F) {
-	// Template for numeric fuzzing
-	template := `transaction { chartOfAccountsGroupName @id send USD %s %s source { from @a amount USD %s %s } distribute { to @b amount USD %s %s } }`
-
 	// Seed: normal values
 	f.Add("100", "2")
 	f.Add("1000000", "0")
@@ -175,25 +174,30 @@ func FuzzGoldDSLNumericBounds(f *testing.F) {
 	f.Add("--100", "2")
 
 	f.Fuzz(func(t *testing.T, value string, scale string) {
-		// Build DSL string with fuzzed numeric values
-		dsl := strings.ReplaceAll(template, "%s", value)
-		// Replace scale placeholders (simplified)
-		parts := strings.Split(dsl, " ")
-		for i, p := range parts {
-			if p == value && i+1 < len(parts) {
-				parts[i+1] = scale
-			}
-		}
-		dsl = strings.Join(parts, " ")
+		// Build DSL string with fuzzed numeric values using correct syntax
+		dsl := fmt.Sprintf(
+			`(transaction V1 (chart-of-accounts-group-name @id) (send USD %s|%s (source (from @a :amount USD %s|%s)) (distribute (to @b :amount USD %s|%s))))`,
+			value, scale, value, scale, value, scale,
+		)
 
 		// The parser should NEVER panic
 		defer func() {
 			if r := recover(); r != nil {
 				t.Errorf("Parser panicked on numeric input: value=%q scale=%q panic=%v",
-					truncateString(value, 50), truncateString(scale, 20), r)
+					truncateStringRune(value, 50), truncateStringRune(scale, 20), r)
 			}
 		}()
 
 		_ = transaction.Parse(dsl)
 	})
+}
+
+// truncateStringRune safely truncates a string to maxLen runes (not bytes)
+// This properly handles multi-byte UTF-8 characters.
+func truncateStringRune(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
 }
