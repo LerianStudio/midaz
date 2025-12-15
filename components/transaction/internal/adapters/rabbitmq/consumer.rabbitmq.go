@@ -92,20 +92,6 @@ func getRetryCount(headers amqp.Table) int {
 	return 0
 }
 
-// copyHeaders creates a deep copy of amqp.Table for safe header modification
-func copyHeaders(src amqp.Table) amqp.Table {
-	if src == nil {
-		return amqp.Table{}
-	}
-
-	dst := make(amqp.Table, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-
-	return dst
-}
-
 // safeHeadersAllowlist defines headers safe to propagate to DLQ and retry messages.
 // Only these headers are copied to prevent sensitive data leakage (CWE-200).
 // Headers NOT in this list (auth tokens, PII, internal paths) are filtered out.
@@ -135,21 +121,9 @@ func copyHeadersSafe(src amqp.Table) amqp.Table {
 	return dst
 }
 
-// sanitizeErrorForDLQ returns a safe error description for DLQ headers without sensitive details.
-// This prevents information disclosure (CWE-209) by mapping errors to generic categories
-// instead of exposing SQL queries, internal paths, user IDs, or stack traces.
-func sanitizeErrorForDLQ(err error) string {
-	if err == nil {
-		return "unknown_error"
-	}
-
-	// For typed business errors, use generic descriptions
-	if errors.Is(err, constant.ErrStaleBalanceUpdateSkipped) {
-		return "stale_balance_version_conflict"
-	}
-
-	// Check common error patterns and return generic categories
-	errorMsg := err.Error()
+// categorizeErrorMessage categorizes an error message into a generic category.
+// Helper function to reduce cyclomatic complexity of sanitizeErrorForDLQ.
+func categorizeErrorMessage(errorMsg string) string {
 	switch {
 	case strings.Contains(errorMsg, "connection"):
 		return "database_connection_error"
@@ -166,6 +140,23 @@ func sanitizeErrorForDLQ(err error) string {
 	default:
 		return "processing_error"
 	}
+}
+
+// sanitizeErrorForDLQ returns a safe error description for DLQ headers without sensitive details.
+// This prevents information disclosure (CWE-209) by mapping errors to generic categories
+// instead of exposing SQL queries, internal paths, user IDs, or stack traces.
+func sanitizeErrorForDLQ(err error) string {
+	if err == nil {
+		return "unknown_error"
+	}
+
+	// For typed business errors, use generic descriptions
+	if errors.Is(err, constant.ErrStaleBalanceUpdateSkipped) {
+		return "stale_balance_version_conflict"
+	}
+
+	// Check common error patterns and return generic categories
+	return categorizeErrorMessage(err.Error())
 }
 
 // sanitizePanicForDLQ returns a safe panic description for DLQ headers.

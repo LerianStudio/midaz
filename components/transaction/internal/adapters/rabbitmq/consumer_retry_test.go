@@ -57,29 +57,33 @@ func TestMaxRetries_IsAtLeast4(t *testing.T) {
 	assert.GreaterOrEqual(t, maxRetries, 4, "maxRetries should be at least 4")
 }
 
-func TestCopyHeaders_ReturnsEmptyTableForNilInput(t *testing.T) {
+func TestCopyHeadersSafe_ReturnsEmptyTableForNilInput(t *testing.T) {
 	t.Parallel()
 
-	result := copyHeaders(nil)
+	result := copyHeadersSafe(nil)
 	assert.NotNil(t, result, "Should return non-nil table")
 	assert.Len(t, result, 0, "Should return empty table")
 }
 
-func TestCopyHeaders_CopiesAllHeaders(t *testing.T) {
+func TestCopyHeadersSafe_CopiesOnlyAllowlistedHeaders(t *testing.T) {
 	t.Parallel()
 
 	original := amqp.Table{
-		"key1": "value1",
-		"key2": int32(42),
+		"x-correlation-id":  "value1",
+		"x-midaz-header-id": "value2",
+		"content-type":      "application/json",
+		"sensitive-token":   "should-be-filtered",
 	}
-	result := copyHeaders(original)
+	result := copyHeadersSafe(original)
 
-	assert.Equal(t, original["key1"], result["key1"], "Should copy string values")
-	assert.Equal(t, original["key2"], result["key2"], "Should copy int32 values")
+	assert.Equal(t, original["x-correlation-id"], result["x-correlation-id"], "Should copy allowlisted headers")
+	assert.Equal(t, original["x-midaz-header-id"], result["x-midaz-header-id"], "Should copy allowlisted headers")
+	assert.Equal(t, original["content-type"], result["content-type"], "Should copy allowlisted headers")
+	assert.NotContains(t, result, "sensitive-token", "Should filter non-allowlisted headers")
 
 	// Verify it's a copy, not a reference
-	result["key3"] = "new"
-	_, exists := original["key3"]
+	result["x-new-header"] = "new"
+	_, exists := original["x-new-header"]
 	assert.False(t, exists, "Modifying copy should not affect original")
 }
 
@@ -96,18 +100,18 @@ func TestBusinessErrorContext_Exists(t *testing.T) {
 	// This test verifies the businessErrorContext struct exists
 	// and has the expected fields
 	bec := &businessErrorContext{
-		logger:     nil,
-		msg:        nil,
 		queue:      "test-queue",
 		workerID:   1,
 		retryCount: 2,
-		conn:       nil,
-		err:        nil,
 	}
 
 	assert.Equal(t, "test-queue", bec.queue)
 	assert.Equal(t, 1, bec.workerID)
 	assert.Equal(t, 2, bec.retryCount)
+	assert.Nil(t, bec.logger)
+	assert.Nil(t, bec.msg)
+	assert.Nil(t, bec.conn)
+	assert.Nil(t, bec.err)
 }
 
 // =============================================================================
@@ -475,7 +479,7 @@ func TestRepublishWithRetry_HeaderUpdate(t *testing.T) {
 
 		// Simulate republishWithRetry header preparation for first delivery
 		originalHeaders := amqp.Table{}
-		newHeaders := copyHeaders(originalHeaders)
+		newHeaders := copyHeadersSafe(originalHeaders)
 		newHeaders[retryCountHeader] = safeIncrementRetryCount(0)
 
 		// Verify the header was added
@@ -494,10 +498,10 @@ func TestRepublishWithRetry_HeaderUpdate(t *testing.T) {
 
 		// Simulate republishWithRetry header preparation for subsequent delivery
 		originalHeaders := amqp.Table{
-			retryCountHeader: int32(2),
-			"other-header":   "preserved",
+			retryCountHeader:   int32(2),
+			"x-correlation-id": "preserved",
 		}
-		newHeaders := copyHeaders(originalHeaders)
+		newHeaders := copyHeadersSafe(originalHeaders)
 		currentRetryCount := getRetryCount(originalHeaders)
 		newHeaders[retryCountHeader] = safeIncrementRetryCount(currentRetryCount)
 
@@ -506,8 +510,8 @@ func TestRepublishWithRetry_HeaderUpdate(t *testing.T) {
 			"Retry count should be incremented from 2 to 3")
 
 		// Verify other headers are preserved
-		assert.Equal(t, "preserved", newHeaders["other-header"],
-			"Other headers should be preserved during republish")
+		assert.Equal(t, "preserved", newHeaders["x-correlation-id"],
+			"Allowlisted headers should be preserved during republish")
 
 		// Verify original was not modified
 		assert.Equal(t, int32(2), originalHeaders[retryCountHeader],
@@ -653,16 +657,24 @@ func TestRetryLogic_PanicVsBusinessError(t *testing.T) {
 		assert.Equal(t, int32(4), safeIncrementRetryCount(3))
 	})
 
-	t.Run("both handlers use copyHeaders for safe modification", func(t *testing.T) {
+	t.Run("both handlers use copyHeadersSafe for safe modification", func(t *testing.T) {
 		t.Parallel()
 
-		// Verify copyHeaders creates independent copy
-		original := amqp.Table{"key": "value"}
-		copied := copyHeaders(original)
+		// Verify copyHeadersSafe creates independent copy and filters headers
+		original := amqp.Table{
+			"x-correlation-id": "value",
+			"sensitive-data":   "filtered",
+		}
+		copied := copyHeadersSafe(original)
 
-		copied["new-key"] = "new-value"
+		// Verify allowlisted header is copied
+		assert.Equal(t, "value", copied["x-correlation-id"], "Allowlisted headers should be copied")
+		// Verify non-allowlisted header is filtered
+		assert.NotContains(t, copied, "sensitive-data", "Non-allowlisted headers should be filtered")
 
-		_, exists := original["new-key"]
+		// Verify it's a copy, not a reference
+		copied["x-new-header"] = "new-value"
+		_, exists := original["x-new-header"]
 		assert.False(t, exists, "Original should not be modified by copy changes")
 	})
 }
