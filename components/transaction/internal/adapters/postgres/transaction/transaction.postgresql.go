@@ -843,6 +843,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		op := operation.OperationPostgreSQLModel{}
 
 		var body *string
+		var opID *string
 
 		if err := rows.Scan(
 			&tran.ID,
@@ -860,7 +861,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.UpdatedAt,
 			&tran.DeletedAt,
 			&tran.Route,
-			&op.ID,
+			&opID,
 			&op.TransactionID,
 			&op.Description,
 			&op.Type,
@@ -913,7 +914,10 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			transactionOrder = append(transactionOrder, transactionUUID)
 		}
 
-		t.Operations = append(t.Operations, op.ToEntity())
+		if opID != nil {
+			op.ID = *opID
+			t.Operations = append(t.Operations, op.ToEntity())
+		}
 	}
 
 	if err = rows.Err(); err != nil {
