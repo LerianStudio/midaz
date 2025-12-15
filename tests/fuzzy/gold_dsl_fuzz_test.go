@@ -120,3 +120,80 @@ func truncateString(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
+
+// FuzzGoldDSLNumericBounds specifically targets numeric parsing edge cases.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzGoldDSLNumericBounds -run=^$ -fuzztime=60s
+func FuzzGoldDSLNumericBounds(f *testing.F) {
+	// Template for numeric fuzzing
+	template := `transaction { chartOfAccountsGroupName @id send USD %s %s source { from @a amount USD %s %s } distribute { to @b amount USD %s %s } }`
+
+	// Seed: normal values
+	f.Add("100", "2")
+	f.Add("1000000", "0")
+	f.Add("999999999999", "6")
+
+	// Seed: int64 boundary
+	f.Add("9223372036854775807", "0")  // max int64
+	f.Add("9223372036854775808", "0")  // max int64 + 1 (overflow)
+	f.Add("-9223372036854775808", "0") // min int64
+	f.Add("-9223372036854775809", "0") // min int64 - 1 (underflow)
+
+	// Seed: int32 boundary (for scale)
+	f.Add("100", "2147483647")  // max int32 scale
+	f.Add("100", "2147483648")  // max int32 + 1
+	f.Add("100", "-2147483648") // min int32
+	f.Add("100", "-2147483649") // min int32 - 1
+
+	// Seed: extreme decimal precision
+	f.Add("1", "100")
+	f.Add("1", "1000")
+	f.Add("1"+strings.Repeat("0", 100), "0") // 100+ digits
+
+	// Seed: scientific notation (if parser supports)
+	f.Add("1e18", "0")
+	f.Add("1e-18", "0")
+	f.Add("1E308", "0")
+
+	// Seed: floating point edge cases
+	f.Add("0.1", "0")
+	f.Add("0.01", "0")
+	f.Add("0.001", "0")
+
+	// Seed: leading zeros
+	f.Add("000100", "2")
+	f.Add("0", "0")
+	f.Add("00000", "0")
+
+	// Seed: whitespace in numbers
+	f.Add(" 100", "2")
+	f.Add("100 ", "2")
+	f.Add("1 00", "2")
+
+	// Seed: special characters
+	f.Add("+100", "2")
+	f.Add("++100", "2")
+	f.Add("--100", "2")
+
+	f.Fuzz(func(t *testing.T, value string, scale string) {
+		// Build DSL string with fuzzed numeric values
+		dsl := strings.ReplaceAll(template, "%s", value)
+		// Replace scale placeholders (simplified)
+		parts := strings.Split(dsl, " ")
+		for i, p := range parts {
+			if p == value && i+1 < len(parts) {
+				parts[i+1] = scale
+			}
+		}
+		dsl = strings.Join(parts, " ")
+
+		// The parser should NEVER panic
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Parser panicked on numeric input: value=%q scale=%q panic=%v",
+					truncateString(value, 50), truncateString(scale, 20), r)
+			}
+		}()
+
+		_ = transaction.Parse(dsl)
+	})
+}
