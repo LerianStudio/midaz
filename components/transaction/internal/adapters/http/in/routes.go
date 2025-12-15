@@ -33,8 +33,27 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
-	// -- Routes --
+	// Register all routes
+	RegisterRoutesToApp(f, auth, th, oh, ah, bh, orh, trh)
 
+	// Health
+	f.Get("/health", libHTTP.Ping)
+
+	// Version
+	f.Get("/version", libHTTP.Version)
+
+	// Doc
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
+
+	f.Use(tlMid.EndTracingSpans)
+
+	return f
+}
+
+// RegisterRoutesToApp registers transaction routes to an existing Fiber app.
+// This is used by the unified ledger server to consolidate all routes in a single port.
+// The app should already have middleware configured (telemetry, cors, logging).
+func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) {
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters("transaction"), http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
@@ -84,17 +103,4 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "patch"), http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "delete"), http.ParseUUIDPathParameters("transaction_route"), trh.DeleteTransactionRouteByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
 }
