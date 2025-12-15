@@ -139,3 +139,22 @@ func TestDLQHeaderParsing(t *testing.T) {
 		assert.Equal(t, "balance_updates", queue, "Should extract original queue from headers")
 	})
 }
+
+func TestDLQProcessingConstants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DLQ batch size should be reasonable", func(t *testing.T) {
+		t.Parallel()
+
+		// Process messages in small batches to avoid overwhelming the system
+		assert.Equal(t, 10, dlqBatchSize,
+			"dlqBatchSize should be 10 to process in manageable chunks")
+	})
+
+	t.Run("DLQ prefetch count should match batch size", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, 10, dlqPrefetchCount,
+			"dlqPrefetchCount should match batch size for efficient processing")
+	})
+}

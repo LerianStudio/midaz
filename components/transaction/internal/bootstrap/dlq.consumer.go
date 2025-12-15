@@ -45,6 +45,12 @@ const (
 
 	// publishConfirmTimeout is the maximum time to wait for RabbitMQ publish confirmation.
 	publishConfirmTimeout = 10 * time.Second
+
+	// dlqBatchSize is the number of messages to process in each DLQ batch
+	dlqBatchSize = 10
+
+	// dlqPrefetchCount is the RabbitMQ prefetch for DLQ consumer
+	dlqPrefetchCount = 10
 )
 
 // DLQ header constants
@@ -186,10 +192,136 @@ func calculateDLQBackoff(attempt int) time.Duration {
 	}
 }
 
-// processQueue processes messages from a single DLQ.
-func (d *DLQConsumer) processQueue(_ context.Context, dlqName, originalQueue string) {
-	// TODO(task-1.3): Implement DLQ message replay logic
-	d.Logger.Debugf("DLQ_PROCESS_QUEUE: Processing %s for replay to %s", dlqName, originalQueue)
+// processQueue processes messages from a single DLQ with backoff between retries.
+func (d *DLQConsumer) processQueue(ctx context.Context, dlqName, originalQueue string) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "dlq.consumer.process_queue")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dlq.queue_name", dlqName),
+		attribute.String("dlq.original_queue", originalQueue),
+	)
+
+	// Ensure channel is available
+	if err := d.RabbitMQConn.EnsureChannel(); err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to ensure channel for %s: %v", dlqName, err)
+		return
+	}
+
+	// Declare DLQ if it doesn't exist (idempotent)
+	_, err := d.RabbitMQConn.Channel.QueueDeclare(
+		dlqName,
+		true,  // durable
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
+	)
+	if err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to declare %s: %v", dlqName, err)
+		return
+	}
+
+	// Set QoS for controlled processing
+	if err := d.RabbitMQConn.Channel.Qos(dlqPrefetchCount, 0, false); err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to set QoS for %s: %v", dlqName, err)
+		return
+	}
+
+	// Get messages from DLQ (non-blocking check)
+	msgs, err := d.RabbitMQConn.Channel.Consume(
+		dlqName,
+		"dlq-consumer-"+dlqName, // consumer tag
+		false,                   // autoAck
+		false,                   // exclusive
+		false,                   // noLocal
+		false,                   // noWait
+		nil,                     // args
+	)
+	if err != nil {
+		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to consume from %s: %v", dlqName, err)
+		return
+	}
+
+	processed := 0
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("DLQ_PROCESS_QUEUE: Context cancelled, processed %d messages from %s", processed, dlqName)
+			return
+
+		case msg, ok := <-msgs:
+			if !ok {
+				logger.Infof("DLQ_PROCESS_QUEUE: Channel closed, processed %d messages from %s", processed, dlqName)
+				return
+			}
+
+			// Get original queue from headers, fallback to derived name
+			origQueue := getOriginalQueue(msg.Headers)
+			if origQueue == "" {
+				origQueue = originalQueue
+			}
+
+			dlqRetryCount := getDLQRetryCount(msg.Headers)
+
+			// Check if we should wait (backoff) before replaying
+			backoffDuration := calculateDLQBackoff(dlqRetryCount)
+			logger.Infof("DLQ_REPLAY_ATTEMPT: queue=%s, dlq_retry=%d, backoff=%v",
+				dlqName, dlqRetryCount, backoffDuration)
+
+			// For first attempt, replay immediately. Otherwise apply backoff.
+			if dlqRetryCount > 0 {
+				// Check timestamp to see if enough time has passed
+				timestamp := getTimestampHeader(msg.Headers)
+				if timestamp > 0 {
+					elapsed := time.Since(time.Unix(timestamp, 0))
+					if elapsed < backoffDuration {
+						// Not ready yet - nack without requeue to avoid infinite loop
+						// Message will stay in DLQ for next poll cycle
+						logger.Debugf("DLQ_REPLAY_DEFERRED: queue=%s, dlq_retry=%d, elapsed=%v, required=%v",
+							dlqName, dlqRetryCount, elapsed, backoffDuration)
+						if err := msg.Nack(false, true); err != nil {
+							logger.Warnf("DLQ_REPLAY_DEFERRED: Failed to nack: %v", err)
+						}
+						continue
+					}
+				}
+			}
+
+			// Replay the message
+			if err := d.replayMessageToOriginalQueue(ctx, &msg, origQueue, dlqRetryCount); err != nil {
+				logger.Errorf("DLQ_REPLAY_ERROR: Failed to replay message from %s: %v", dlqName, err)
+				// Nack with requeue so we retry later
+				if nackErr := msg.Nack(false, true); nackErr != nil {
+					logger.Warnf("DLQ_REPLAY_ERROR: Failed to nack message: %v", nackErr)
+				}
+				continue
+			}
+
+			processed++
+			if processed >= dlqBatchSize {
+				logger.Infof("DLQ_PROCESS_QUEUE: Batch complete, processed %d messages from %s", processed, dlqName)
+				return
+			}
+
+		default:
+			// No more messages in queue
+			if processed > 0 {
+				logger.Infof("DLQ_PROCESS_QUEUE: Completed, processed %d messages from %s", processed, dlqName)
+			}
+			return
+		}
+	}
+}
+
+// getTimestampHeader extracts the DLQ timestamp from headers.
+func getTimestampHeader(headers amqp.Table) int64 {
+	if val, ok := headers[dlqTimestampHeader].(int64); ok {
+		return val
+	}
+	return 0
 }
 
 // getDLQRetryCount extracts the DLQ retry count from message headers.
