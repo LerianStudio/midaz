@@ -182,6 +182,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	}
 
 	// Log DLQ counts
+	// TODO(review): Consider using environment variables for RabbitMQ credentials instead of hardcoded "guest/guest" - code-reviewer on 2025-12-14
 	dlqCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "guest", "guest", queueNames)
 	if err != nil {
 		t.Logf("Warning: could not get DLQ counts: %v", err)
