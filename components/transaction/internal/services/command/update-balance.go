@@ -4,6 +4,7 @@ import (
 	"context"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -50,7 +51,16 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		spanBalance.End()
 	}
 
-	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
+	// Filter out stale balances by checking Redis cache version
+	balancesToUpdate := uc.filterStaleBalances(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
+
+	if len(balancesToUpdate) == 0 {
+		logger.Info("All balances are stale, skipping database update")
+
+		return nil
+	}
+
+	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
@@ -58,6 +68,39 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	return nil
+}
+
+// filterStaleBalances checks Redis cache and filters out balances where the cache version
+// is greater than the version being persisted. This prevents unnecessary database updates
+// and reduces Lock:tuple contention when multiple workers process the same balance.
+func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, logger libLog.Logger) []*mmodel.Balance {
+	result := make([]*mmodel.Balance, 0, len(balances))
+
+	for _, balance := range balances {
+		// Extract the balance key from alias format "0#@account1#default" -> "@account1#default"
+		balanceKey := libTransaction.SplitAliasWithKey(balance.Alias)
+
+		cachedBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, balanceKey)
+		if err != nil {
+			// If we can't get from cache, proceed with update (fail-open)
+			logger.Warnf("Failed to get balance from cache for key %s (alias: %s), proceeding with update: %v", balanceKey, balance.Alias, err)
+			result = append(result, balance)
+
+			continue
+		}
+
+		if cachedBalance != nil && cachedBalance.Version > balance.Version {
+			// Cache has a newer version, skip this update
+			logger.Infof("Skipping stale balance update: balance_id=%s, alias=%s, key=%s, update_version=%d, cache_version=%d",
+				balance.ID, balance.Alias, balanceKey, balance.Version, cachedBalance.Version)
+
+			continue
+		}
+
+		result = append(result, balance)
+	}
+
+	return result
 }
 
 // Update balance in the repository.

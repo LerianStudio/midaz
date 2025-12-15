@@ -7,19 +7,22 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
-// CreateAssetSync creates an asset and metadata synchronously and ensures an external
+// CreateAsset creates an asset and metadata synchronously and ensures an external
 // account exists for the asset. If a new external account is created, it also
-// creates the default balance for that account via gRPC.
+// creates the default balance for that account.
+// The balance is created via the BalancePort interface, which can be either local (in-process)
+// or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
@@ -145,11 +148,10 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
-		balanceReq := &balanceproto.BalanceRequest{
-			RequestId:      requestID,
-			OrganizationId: organizationID.String(),
-			LedgerId:       ledgerID.String(),
-			AccountId:      acc.ID,
+		balanceInput := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      uuid.MustParse(acc.ID),
 			Alias:          aAlias,
 			Key:            constant.DefaultBalanceKey,
 			AssetCode:      cii.Code,
@@ -158,11 +160,14 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			AllowReceiving: true,
 		}
 
-		_, err = uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance via gRPC", err)
+		// Inject authorization token into context metadata for downstream gRPC calls
+		ctxWithAuth := grpcMetadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
-			logger.Errorf("Failed to create default balance via gRPC: %v", err)
+		_, err = uc.BalancePort.CreateBalanceSync(ctxWithAuth, balanceInput)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance", err)
+
+			logger.Errorf("Failed to create default balance: %v", err)
 
 			var (
 				unauthorized pkg.UnauthorizedError
@@ -176,7 +181,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		logger.Infof("External account default balance created via gRPC")
+		logger.Infof("External account default balance created")
 	}
 
 	return inst, nil

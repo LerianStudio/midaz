@@ -2,7 +2,7 @@
     "swagger": "2.0",
     "info": {
         "description": "The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.",
-        "title": "Plugin CRM",
+        "title": "CRM API",
         "contact": {},
         "version": "1.0.0"
     },
@@ -143,19 +143,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -265,19 +265,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -328,19 +328,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -400,19 +400,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -473,19 +473,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -538,19 +538,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -615,19 +615,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -681,19 +681,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -739,19 +739,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -809,19 +809,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ErrorMessage"
+                            "$ref": "#/definitions/pkg.HTTPError"
                         }
                     }
                 }
@@ -829,44 +829,71 @@
         }
     },
     "definitions": {
+        "AddHolderLinkInput": {
+            "description": "AddHolderLinkInput payload",
+            "type": "object",
+            "required": [
+                "holderId",
+                "linkType"
+            ],
+            "properties": {
+                "holderId": {
+                    "description": "Unique identifier of the holder to be linked.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "linkType": {
+                    "description": "Type of relationship between the holder and the alias (TpVinc).",
+                    "type": "string",
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "LEGAL_REPRESENTATIVE"
+                }
+            }
+        },
         "Address": {
-            "description": "Address object",
+            "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",
             "properties": {
                 "city": {
-                    "description": "The city of the address.",
+                    "description": "City or locality name\nexample: New York\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "New York"
                 },
                 "country": {
-                    "description": "The two-letter code (ISO 3166-1 alpha2) that represents the country of the address.",
+                    "description": "Country code in ISO 3166-1 alpha-2 format (two-letter country code)\nexample: US\nminLength: 2\nmaxLength: 2",
                     "type": "string",
+                    "maxLength": 2,
+                    "minLength": 2,
                     "example": "US"
                 },
-                "description": {
-                    "description": "A description of the address.",
-                    "type": "string",
-                    "example": "Home address"
-                },
                 "line1": {
-                    "description": "The first line of the address. Usually used to inform the name of the street and the number of the building.",
+                    "description": "Primary address line (street address or PO Box)\nexample: 123 Financial Avenue\nmaxLength: 256",
                     "type": "string",
-                    "example": "Street 1"
+                    "maxLength": 256,
+                    "example": "123 Financial Avenue"
                 },
                 "line2": {
-                    "description": "The second line of the address. Usually used to inform about any complements such as the number of the apartment.",
+                    "description": "Secondary address information like apartment number, suite, or floor\nexample: Suite 1500\nmaxLength: 256",
                     "type": "string",
-                    "example": "Street 2"
+                    "maxLength": 256,
+                    "example": "Suite 1500"
                 },
                 "state": {
-                    "description": "The state or region of the address.",
+                    "description": "State, province, or region name or code\nexample: NY\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "NY"
                 },
                 "zipCode": {
-                    "description": "The postal code of the address.",
+                    "description": "Postal code or ZIP code\nexample: 10001\nmaxLength: 20",
                     "type": "string",
-                    "example": "00000-000"
+                    "maxLength": 20,
+                    "example": "10001"
                 }
             }
         },
@@ -896,6 +923,10 @@
                 "bankingDetails": {
                     "$ref": "#/definitions/BankingDetails"
                 },
+                "closingDate": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
                 "createdAt": {
                     "type": "string",
                     "example": "2025-01-01T00:00:00Z"
@@ -912,6 +943,12 @@
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "holderLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/HolderLinkResponse"
+                    }
+                },
                 "id": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
@@ -923,6 +960,10 @@
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "participantDocument": {
+                    "type": "string",
+                    "example": "12345678901234"
                 },
                 "type": {
                     "type": "string",
@@ -1006,7 +1047,8 @@
             "type": "object",
             "required": [
                 "accountId",
-                "ledgerId"
+                "ledgerId",
+                "participantDocument"
             ],
             "properties": {
                 "accountId": {
@@ -1027,10 +1069,25 @@
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "linkType": {
+                    "description": "Type of relationship between the holder and the alias (TpVinc). Optional - if not provided, no HolderLink will be created.",
+                    "type": "string",
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "PRIMARY_HOLDER"
+                },
                 "metadata": {
                     "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "participantDocument": {
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
+                    "type": "string",
+                    "example": "12345678912345"
                 }
             }
         },
@@ -1106,21 +1163,46 @@
                 }
             }
         },
-        "ErrorMessage": {
-            "description": "Response message error",
+        "HolderLinkResponse": {
+            "description": "HolderLinkResponse payload - represents the relationship (TpVinc) between a Holder and an Alias",
             "type": "object",
             "properties": {
-                "code": {
+                "aliasId": {
                     "type": "string",
-                    "example": "CRM-0000"
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "message": {
+                "createdAt": {
                     "type": "string",
-                    "example": "Error message"
+                    "example": "2025-01-01T00:00:00Z"
                 },
-                "title": {
+                "deletedAt": {
                     "type": "string",
-                    "example": "Error title"
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "holderId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "linkType": {
+                    "type": "string",
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "PRIMARY_HOLDER"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -1278,7 +1360,7 @@
             }
         },
         "Pagination": {
-            "description": "Pagination query params",
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
             "properties": {
                 "items": {},
@@ -1286,8 +1368,19 @@
                     "type": "integer",
                     "example": 10
                 },
+                "next_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                },
                 "page": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
                 }
             }
         },
@@ -1321,6 +1414,14 @@
             "description": "UpdateAliasRequest payload",
             "type": "object",
             "properties": {
+                "addHolderLink": {
+                    "description": "Add a new holder link to the alias (optional).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AddHolderLinkInput"
+                        }
+                    ]
+                },
                 "bankingDetails": {
                     "description": "Object with banking information of the related account.",
                     "allOf": [
@@ -1329,10 +1430,20 @@
                         }
                     ]
                 },
+                "closingDate": {
+                    "description": "The date the alias was closed.",
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
                 "metadata": {
                     "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "participantDocument": {
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
+                    "type": "string",
+                    "example": "12345678912345"
                 }
             }
         },
@@ -1388,6 +1499,32 @@
                     ]
                 }
             }
+        },
+        "pkg.HTTPError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "err": {},
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }

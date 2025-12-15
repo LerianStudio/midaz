@@ -67,7 +67,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	newAliases := make([]string, 0)
 
 	for _, alias := range aliases {
-		internalKey := utils.TransactionInternalKey(organizationID, ledgerID, alias)
+		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
 		if !libCommons.IsNilOrEmpty(&value) {

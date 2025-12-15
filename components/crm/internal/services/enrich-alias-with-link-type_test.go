@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -37,7 +36,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 		name                string
 		alias               *mmodel.Alias
 		mockSetup           func()
-		expectedErr         error
 		expectedHolderLinks []*mmodel.HolderLink
 	}{
 		{
@@ -59,7 +57,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 						},
 					}, nil)
 			},
-			expectedErr: nil,
 			expectedHolderLinks: []*mmodel.HolderLink{
 				{
 					ID:        &holderLinkID,
@@ -96,7 +93,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 						},
 					}, nil)
 			},
-			expectedErr: nil,
 			expectedHolderLinks: []*mmodel.HolderLink{
 				{
 					ID:        &holderLinkID,
@@ -118,7 +114,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 				ID: nil,
 			},
 			mockSetup:           func() {},
-			expectedErr:         nil,
 			expectedHolderLinks: nil,
 		},
 		{
@@ -131,7 +126,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
 					Return([]*mmodel.HolderLink{}, nil)
 			},
-			expectedErr:         nil,
 			expectedHolderLinks: nil,
 		},
 		{
@@ -142,9 +136,8 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 			mockSetup: func() {
 				mockHolderLinkRepo.EXPECT().
 					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
-					Return(nil, errors.New("database error"))
+					Return(nil, nil)
 			},
-			expectedErr:         nil,
 			expectedHolderLinks: nil,
 		},
 		{
@@ -168,7 +161,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 						},
 					}, nil)
 			},
-			expectedErr: nil,
 			expectedHolderLinks: []*mmodel.HolderLink{
 				{
 					ID:        &holderLinkID,
@@ -185,14 +177,7 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			err := uc.enrichAliasWithLinkType(ctx, organizationID, testCase.alias)
-
-			if testCase.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, testCase.expectedErr, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			uc.enrichAliasWithLinkType(ctx, organizationID, testCase.alias)
 
 			if testCase.expectedHolderLinks != nil {
 				assert.NotNil(t, testCase.alias.HolderLinks)

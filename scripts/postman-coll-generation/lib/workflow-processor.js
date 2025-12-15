@@ -276,14 +276,24 @@ class WorkflowProcessor {
 // Extract balance information for zero-out transaction
 if (pm.response.code === 200) {
     const responseJson = pm.response.json();
-    console.log("🏦 Balance response structure:", JSON.stringify(responseJson, null, 2));
-    
+    const debug = pm.environment.get("debug_logs") === "true";
+
+    // Log only item count to avoid leaking sensitive financial data in CI logs
+    console.log("🏦 Balance items found:", (responseJson.items || []).length);
+    if (debug) {
+        console.log("🔍 [DEBUG] Balance response keys:", Object.keys(responseJson));
+    }
+
     if (responseJson.items && responseJson.items.length > 0) {
         const balance = responseJson.items[0];
         if (balance.available !== undefined) {
             const balanceAmount = Math.abs(balance.available);
             pm.environment.set("currentBalanceAmount", balanceAmount);
-            console.log("💰 Extracted balance amount:", balanceAmount);
+            if (debug) {
+                console.log("💰 [DEBUG] Extracted balance amount:", balanceAmount);
+            } else {
+                console.log("💰 Extracted balance amount (redacted)");
+            }
             console.log("✅ Balance amount variable set for zero-out transaction");
         } else {
             console.warn("⚠️ No balance amount found in response");

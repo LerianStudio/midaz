@@ -90,22 +90,22 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string	false	"JSON string to filter accounts by metadata fields"
-//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
-//	@Param			start_date		query		string	false	"Filter accounts created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			Authorization	header		string																true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
+//	@Param			organization_id	path		string																true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string																false	"JSON string to filter accounts by metadata fields"
+//	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			start_date		query		string																false	"Filter accounts created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string																false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}	"Successfully retrieved accounts list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error														"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -193,11 +193,11 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Account ID in UUID format"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Account ID in UUID format"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -234,19 +234,19 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 // GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
 //
-//	@Summary		Retrieve an account by alias
-//	@Description	Returns detailed information about an account identified by its alias within the specified ledger
+//	@Summary		Retrieve an account by external code
+//	@Description	Returns detailed information about an account identified by its external code within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			code			path		string	true	"Account External Code (e.g. BRL)"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			code			path		string			true	"Account External Code (e.g. BRL)"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
+//	@Failure		404				{object}	mmodel.Error	"Account with the specified external code, ledger, or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code} [get]
 func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
@@ -285,11 +285,11 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			alias			path		string	true	"Account alias (e.g. @person1)"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			alias			path		string			true	"Account alias (e.g. @person1)"
 //	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -395,12 +395,12 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Summary		Delete an account
 //	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
 //	@Tags			Accounts
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Param			id				path	string	true	"Account ID in UUID format"
-//	@Success		204				{object}	nil	"Account successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Account ID in UUID format"
+//	@Success		204				"Account successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
@@ -444,7 +444,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	nil	"Successfully retrieved accounts count"
+//	@Success		204				"Successfully retrieved accounts count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"

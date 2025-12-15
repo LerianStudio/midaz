@@ -45,10 +45,10 @@ type TransactionHandler struct {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string										true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string										false	"Request ID"
+//	@Param			organization_id	path		string										true	"Organization ID"
+//	@Param			ledger_id		path		string										true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -94,7 +94,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			Authorization	header		string										true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string										false	"Request ID"
 //	@Param			organization_id	path		string										true	"Organization ID"
-//	@Param			ledger_id		path		string								        true	"Ledger ID"
+//	@Param			ledger_id		path		string										true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -127,10 +127,10 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string											true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string											false	"Request ID"
+//	@Param			organization_id	path		string											true	"Organization ID"
+//	@Param			ledger_id		path		string											true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -170,10 +170,10 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string												true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string												false	"Request ID"
+//	@Param			organization_id	path		string												true	"Organization ID"
+//	@Param			ledger_id		path		string												true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -291,6 +291,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Summary		Commit a Transaction
 //	@Description	Commit a previously created transaction
 //	@Tags			Transactions
+//	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
@@ -334,6 +335,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Summary		Cancel a pre transaction
 //	@Description	Cancel a previously created pre transaction
 //	@Tags			Transactions
+//	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
@@ -379,11 +381,11 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction_id	path		string								true	"Transaction ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -477,7 +479,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
@@ -540,7 +542,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
@@ -608,12 +610,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
@@ -1040,6 +1042,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	lockPendingTransactionKey := utils.GenericInternalKeyWithContext("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
+	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
 	ttl := time.Duration(300)
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
@@ -1060,15 +1063,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		logger.Errorf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error())
 
 		return http.WithError(c, err)
-	} else {
-		// only delete lock key if it was able to acquire the lock
-		defer func() {
-			if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+	}
 
-				logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
-			}
-		}()
+	// deleteLockOnError removes the lock only when an error occurs, allowing immediate retry.
+	// On success, the lock remains until TTL expires to prevent duplicate processing.
+	deleteLockOnError := func() {
+		if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+
+			logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
+		}
 	}
 
 	parserDSL := tran.Body
@@ -1092,6 +1096,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error())
 
+		deleteLockOnError()
+
 		return http.WithError(c, err)
 	}
 
@@ -1102,6 +1108,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		logger.Error("Failed to validate send source and distribute: %v", err.Error())
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1114,6 +1122,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 		spanGetBalances.End()
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
