@@ -107,3 +107,35 @@ func TestDLQRetryBackoffCalculation(t *testing.T) {
 		})
 	}
 }
+
+func TestDLQHeaderParsing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("getDLQRetryCount extracts retry count from headers", func(t *testing.T) {
+		t.Parallel()
+
+		headers := map[string]interface{}{
+			"x-dlq-retry-count": int32(3),
+		}
+		count := getDLQRetryCount(headers)
+		assert.Equal(t, 3, count, "Should extract retry count from x-dlq-retry-count header")
+	})
+
+	t.Run("getDLQRetryCount returns 0 for missing header", func(t *testing.T) {
+		t.Parallel()
+
+		headers := map[string]interface{}{}
+		count := getDLQRetryCount(headers)
+		assert.Equal(t, 0, count, "Should return 0 when header is missing")
+	})
+
+	t.Run("getOriginalQueue extracts original queue name", func(t *testing.T) {
+		t.Parallel()
+
+		headers := map[string]interface{}{
+			"x-dlq-original-queue": "balance_updates",
+		}
+		queue := getOriginalQueue(headers)
+		assert.Equal(t, "balance_updates", queue, "Should extract original queue from headers")
+	})
+}

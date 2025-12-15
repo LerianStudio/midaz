@@ -3,6 +3,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +15,8 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -39,6 +42,17 @@ const (
 
 	// dlqPollInterval is how often to check DLQ for new messages.
 	dlqPollInterval = 10 * time.Second
+
+	// publishConfirmTimeout is the maximum time to wait for RabbitMQ publish confirmation.
+	publishConfirmTimeout = 10 * time.Second
+)
+
+// DLQ header constants
+const (
+	dlqRetryCountHeader    = "x-dlq-retry-count"
+	dlqOriginalQueueHeader = "x-dlq-original-queue"
+	dlqReasonHeader        = "x-dlq-reason"
+	dlqTimestampHeader     = "x-dlq-timestamp"
 )
 
 // DLQConsumer processes messages from Dead Letter Queues after infrastructure recovery.
@@ -176,4 +190,124 @@ func calculateDLQBackoff(attempt int) time.Duration {
 func (d *DLQConsumer) processQueue(_ context.Context, dlqName, originalQueue string) {
 	// TODO(task-1.3): Implement DLQ message replay logic
 	d.Logger.Debugf("DLQ_PROCESS_QUEUE: Processing %s for replay to %s", dlqName, originalQueue)
+}
+
+// getDLQRetryCount extracts the DLQ retry count from message headers.
+// Returns 0 if header is missing or invalid.
+func getDLQRetryCount(headers map[string]interface{}) int {
+	if val, ok := headers[dlqRetryCountHeader].(int32); ok {
+		return int(val)
+	}
+	if val, ok := headers[dlqRetryCountHeader].(int64); ok {
+		return int(val)
+	}
+	return 0
+}
+
+// getOriginalQueue extracts the original queue name from DLQ message headers.
+// Returns empty string if header is missing.
+func getOriginalQueue(headers map[string]interface{}) string {
+	if val, ok := headers[dlqOriginalQueueHeader].(string); ok {
+		return val
+	}
+	return ""
+}
+
+// replayMessageToOriginalQueue republishes a DLQ message to its original queue.
+// Updates retry count header and logs the replay attempt.
+func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amqp.Delivery, originalQueue string, dlqRetryCount int) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "dlq.consumer.replay_message")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dlq.original_queue", originalQueue),
+		attribute.Int("dlq.retry_count", dlqRetryCount),
+		attribute.String("dlq.reason", getStringHeader(msg.Headers, dlqReasonHeader)),
+	)
+
+	// Check if max DLQ retries exceeded
+	if dlqRetryCount >= dlqMaxRetries {
+		logger.Errorf("DLQ_REPLAY_FAILED: Max DLQ retries exceeded (%d/%d) - message will be permanently lost - queue=%s",
+			dlqRetryCount, dlqMaxRetries, originalQueue)
+		// Ack to remove from DLQ - message is lost but we prevent infinite loops
+		if err := msg.Ack(false); err != nil {
+			logger.Warnf("DLQ_REPLAY_FAILED: Failed to ack expired DLQ message: %v", err)
+		}
+		return fmt.Errorf("max DLQ retries exceeded: %d/%d", dlqRetryCount, dlqMaxRetries)
+	}
+
+	// Prepare headers for replay - reset regular retry count, increment DLQ retry count
+	headers := make(amqp.Table)
+	for k, v := range msg.Headers {
+		headers[k] = v
+	}
+	headers[dlqRetryCountHeader] = int32(dlqRetryCount + 1)
+	// Reset the regular retry count so message gets fresh retry attempts
+	delete(headers, "x-midaz-retry-count")
+
+	ch, err := d.RabbitMQConn.Connection.Channel()
+	if err != nil {
+		logger.Errorf("DLQ_REPLAY_FAILED: Failed to get channel: %v", err)
+		return fmt.Errorf("failed to get channel for DLQ replay: %w", err)
+	}
+	defer ch.Close()
+
+	// Enable publisher confirms for reliable replay
+	if err = ch.Confirm(false); err != nil {
+		logger.Errorf("DLQ_REPLAY_FAILED: Failed to enable confirm mode: %v", err)
+		return fmt.Errorf("failed to enable confirm mode for DLQ replay: %w", err)
+	}
+
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	err = ch.Publish(
+		"",            // exchange (default)
+		originalQueue, // routing key (queue name)
+		false,         // mandatory
+		false,         // immediate
+		amqp.Publishing{
+			Headers:      headers,
+			Body:         msg.Body,
+			ContentType:  msg.ContentType,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		logger.Errorf("DLQ_REPLAY_FAILED: Failed to publish to original queue: %v", err)
+		return fmt.Errorf("failed to publish DLQ message to %s: %w", originalQueue, err)
+	}
+
+	// Wait for broker confirmation
+	select {
+	case confirmation, ok := <-confirms:
+		if !ok {
+			logger.Errorf("DLQ_REPLAY_FAILED: Confirmation channel closed")
+			return fmt.Errorf("confirmation channel closed during DLQ replay")
+		}
+		if confirmation.Ack {
+			logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
+				originalQueue, dlqRetryCount+1, dlqMaxRetries)
+			// Ack the DLQ message since we successfully replayed it
+			if err := msg.Ack(false); err != nil {
+				logger.Warnf("DLQ_REPLAY_WARNING: Failed to ack DLQ message after successful replay: %v", err)
+			}
+			return nil
+		}
+		logger.Errorf("DLQ_REPLAY_FAILED: Broker NACK'd message")
+		return fmt.Errorf("broker NACK'd DLQ replay message")
+
+	case <-time.After(publishConfirmTimeout):
+		logger.Errorf("DLQ_REPLAY_FAILED: Confirmation timeout")
+		return fmt.Errorf("DLQ replay confirmation timed out after %v", publishConfirmTimeout)
+	}
+}
+
+// getStringHeader extracts a string header value from amqp.Table.
+func getStringHeader(headers amqp.Table, key string) string {
+	if val, ok := headers[key].(string); ok {
+		return val
+	}
+	return ""
 }
