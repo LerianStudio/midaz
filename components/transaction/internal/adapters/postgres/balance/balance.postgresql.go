@@ -734,6 +734,8 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		}
 	}()
 
+	successCount := 0
+
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
@@ -787,7 +789,14 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			continue
 		}
 
+		successCount++
+
 		spanUpdate.End()
+	}
+
+	// Return error if no balances were successfully updated
+	if successCount == 0 && len(balances) > 0 {
+		return fmt.Errorf("no balances updated: %d attempted, 0 succeeded (all stale or missing rows)", len(balances))
 	}
 
 	return nil

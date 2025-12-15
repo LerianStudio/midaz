@@ -85,9 +85,10 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 // is greater than the version being persisted. This prevents unnecessary database updates
 // and reduces Lock:tuple contention when multiple workers process the same balance.
 func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, logger libLog.Logger) []*mmodel.Balance {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	loggerFromCtx, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = loggerFromCtx // not used, logger is passed as parameter
 
-	_, span := tracer.Start(ctx, "command.filter_stale_balances")
+	ctx, span := tracer.Start(ctx, "command.filter_stale_balances")
 	defer span.End()
 
 	result := make([]*mmodel.Balance, 0, len(balances))
