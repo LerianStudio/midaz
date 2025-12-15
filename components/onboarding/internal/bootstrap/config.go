@@ -179,8 +179,8 @@ func InitServers() (*Service, error) {
 }
 
 // InitServersWithOptions initiates http servers with optional dependency injection.
-// When opts is nil or opts.BalancePort is nil, uses gRPC for balance operations.
-// When opts.BalancePort is provided, uses direct in-process calls (unified ledger mode).
+// When opts is nil or opts.UnifiedMode is false, uses gRPC for balance operations.
+// When opts.UnifiedMode is true, uses direct in-process calls (unified ledger mode).
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
