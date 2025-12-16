@@ -49,6 +49,15 @@ func TestIntegration_Cache_Consistency_BalancesByAccountID(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &acct)
 
+	// Wait for default balance record to be created (async via gRPC after account creation)
+	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acct.ID, headers); err != nil {
+		t.Fatalf("ensure default balance record: %v", err)
+	}
+	// Enable the default balance for sending/receiving
+	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
+		t.Fatalf("enable default balance: %v", err)
+	}
+
 	// inflow 6.00, outflow 1.00 → expect 5.00
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "6.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "6.00"}}}}}})
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "1.00", "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "1.00"}}}}}})

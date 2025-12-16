@@ -49,6 +49,15 @@ func TestProperty_Live_Conservation_Small(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &account)
 
+	// Wait for default balance record to be created (async via gRPC after account creation)
+	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil {
+		t.Fatalf("ensure default balance record: %v", err)
+	}
+	// Enable the default balance for sending/receiving
+	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
+		t.Fatalf("enable default balance: %v", err)
+	}
+
 	expected := decimal.Zero
 	steps := []decimal.Decimal{decimal.NewFromInt(2), decimal.NewFromInt(1), decimal.NewFromInt(3)} // 2, 1, 3 units
 
