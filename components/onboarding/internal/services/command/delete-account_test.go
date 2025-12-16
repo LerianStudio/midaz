@@ -33,7 +33,7 @@ func TestDeleteAccountByID(t *testing.T) {
 	ledgerID := uuid.New()
 	portfolioID := uuid.New()
 	accountID := uuid.New()
-	requestID := libCommons.GenerateUUIDv7().String()
+
 	tests := []struct {
 		name        string
 		portfolioID *uuid.UUID
@@ -50,7 +50,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, requestID).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)
 
@@ -93,7 +93,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, requestID).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)
 

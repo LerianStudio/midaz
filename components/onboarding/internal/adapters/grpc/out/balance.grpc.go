@@ -87,7 +87,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	return resp, nil
 }
 
-// DeleteBalance deletes a balance via gRPC using the provided request.
+// DeleteAllBalancesByAccountID deletes all balances for a given account via gRPC using the provided request.
 func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context, token string, req *proto.DeleteAllBalancesByAccountIDRequest) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
