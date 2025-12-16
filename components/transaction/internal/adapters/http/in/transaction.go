@@ -17,6 +17,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -318,10 +319,12 @@ func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace
 
 	parsed := goldTransaction.Parse(dsl)
 
-	parserDSL, ok := parsed.(pkgTransaction.Transaction)
+	// The Gold parser returns lib-commons Transaction types, but the handler
+	// expects pkg Transaction types. Convert between the two type scopes.
+	libTran, ok := parsed.(libTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL: unexpected type", err)
 
 		if err := http.WithError(c, err); err != nil {
 			return pkgTransaction.Transaction{}, fmt.Errorf("failed to send error response: %w", err)
@@ -329,6 +332,8 @@ func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace
 
 		return pkgTransaction.Transaction{}, nil
 	}
+
+	parserDSL := goldTransaction.ConvertLibToPkgTransaction(libTran)
 
 	return parserDSL, nil
 }
@@ -866,7 +871,7 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 	now := time.Now()
 	transactionDate := now
 
-	if !parserDSL.TransactionDate.IsZero() {
+	if parserDSL.TransactionDate != nil && !parserDSL.TransactionDate.IsZero() {
 		switch {
 		case parserDSL.TransactionDate.After(now):
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
@@ -1055,6 +1060,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 }
 
 // validateTransactionInput validates the transaction input data.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, logger libLog.Logger, parserDSL pkgTransaction.Transaction) error {
 	err := libOpentelemetry.SetSpanAttributesFromStruct(span, "app.request.payload", parserDSL)
 	if err != nil {
@@ -1063,11 +1069,12 @@ func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, lo
 	}
 
 	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", businessErr)
 		logger.Warnf("Transaction value must be greater than zero")
 
-		return fmt.Errorf("invalid transaction with non-positive value: %w", err)
+		return businessErr
 	}
 
 	return nil
@@ -1118,15 +1125,18 @@ func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fib
 }
 
 // validateAndGetBalances validates transaction and retrieves balances.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL pkgTransaction.Transaction, transactionStatus string, transactionDate time.Time, key string) (*pkgTransaction.Responses, []*mmodel.Balance, error) {
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
-		err = pkg.HandleKnownBusinessValidationErrors(err)
+		// HandleKnownBusinessValidationErrors returns typed business errors
+		// Return directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		businessErr := pkg.HandleKnownBusinessValidationErrors(err)
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
-		return nil, nil, fmt.Errorf("failed to validate send source and distribute: %w", err)
+		return nil, nil, businessErr
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
@@ -1142,7 +1152,8 @@ func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, t
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 
-		return nil, nil, fmt.Errorf("failed to get balances: %w", err)
+		// Return error directly - may be typed business error that errors.As() needs to match
+		return nil, nil, err
 	}
 
 	return validate, balances, nil
