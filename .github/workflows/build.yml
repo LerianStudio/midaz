@@ -135,7 +135,7 @@ jobs:
         with:
           path: .gitops-tags
 
-      - name: Apply image tags to values.yaml (beta → dev, rc → stg, hotfix → stg)
+      - name: Apply image tags to values.yaml (beta → dev, rc → stg, hotfix → dev)
         shell: bash
         run: |
           set -euo pipefail
@@ -145,8 +145,8 @@ jobs:
             FILE="${{ env.GITOPS_FILE_RC }}"
             echo "Updating STAGE values file: $FILE"
           elif [[ "${GITHUB_REF}" == refs/heads/hotfix/* ]]; then
-            FILE="${{ env.GITOPS_FILE_RC }}"
-            echo "Updating STAGE values file (hotfix): $FILE"
+            FILE="${{ env.GITOPS_FILE_BETA }}"
+            echo "Updating DEV values file (hotfix): $FILE"
           else
             FILE="${{ env.GITOPS_FILE_BETA }}"
             echo "Updating DEV values file: $FILE"
@@ -177,7 +177,7 @@ jobs:
           if [[ "${{ github.ref }}" == *"-rc"* ]]; then
             COMMIT_MSG="ci(midaz): update image tags (rc/stage)"
           elif [[ "${{ github.ref }}" == refs/heads/hotfix/* ]]; then
-            COMMIT_MSG="ci(midaz): update image tags (hotfix/stage - ${{ github.ref_name }})"
+            COMMIT_MSG="ci(midaz): update image tags (hotfix/dev - ${{ github.ref_name }})"
           else
             COMMIT_MSG="ci(midaz): update image tags (beta/dev)"
           fi
