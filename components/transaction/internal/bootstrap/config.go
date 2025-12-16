@@ -142,10 +142,14 @@ func InitServers() *Service {
 		Logger:                    logger,
 	})
 
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+	// Add statement_timeout and lock_timeout to prevent row-level lock contention from causing 20s+ hangs.
+	// statement_timeout=5000ms: Cancel any query running longer than 5 seconds
+	// lock_timeout=3000ms: Fail immediately if waiting for a lock more than 3 seconds
+	// This ensures integration tests fail fast instead of hanging on hot rows (e.g., @external/USD)
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s statement_timeout=5000 lock_timeout=3000",
 		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort, cfg.PrimaryDBSSLMode)
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s statement_timeout=5000 lock_timeout=3000",
 		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
 
 	postgresConnection := &libPostgres.PostgresConnection{
