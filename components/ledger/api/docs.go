@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v1.48.0",
+	Version:          "v3.5.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v1.48.0"
+    "version": "v3.5.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
