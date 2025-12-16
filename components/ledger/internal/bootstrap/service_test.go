@@ -6,8 +6,10 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +24,7 @@ func (s *StubRunnable) Run(l *libCommons.Launcher) error {
 	return nil
 }
 
-// StubService is a stub implementation of mbootstrap.Service for testing.
+// StubService is a stub implementation of onboarding.OnboardingService for testing.
 // It returns pre-configured values without verifying interactions.
 type StubService struct {
 	runnables []mbootstrap.RunnableConfig
@@ -31,6 +33,13 @@ type StubService struct {
 func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
 	return s.runnables
 }
+
+func (s *StubService) GetRouteRegistrar() func(*fiber.App) {
+	return func(app *fiber.App) {}
+}
+
+// Ensure StubService implements onboarding.OnboardingService
+var _ onboarding.OnboardingService = (*StubService)(nil)
 
 // StubTransactionService is a stub implementation of transaction.TransactionService for testing.
 // It returns pre-configured values without verifying interactions.
@@ -46,6 +55,10 @@ func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
 
 func (s *StubTransactionService) GetBalancePort() mbootstrap.BalancePort {
 	return s.balancePort
+}
+
+func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
+	return func(app *fiber.App) {}
 }
 
 // Ensure StubTransactionService implements transaction.TransactionService
