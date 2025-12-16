@@ -215,6 +215,18 @@ local function rollback(rollbackBalances, ttl)
   end
 end
 
+local function validateTransactionExists(transactionBackupQueue, transactionKey)
+    local raw = redis.call("HGET", transactionBackupQueue, transactionKey)
+    if not raw then
+        return redis.error_reply("0127")
+    end
+
+    local ok, decoded = pcall(cjson.decode, raw)
+    if not ok or type(decoded) ~= "table" then
+        return redis.error_reply("0127")
+    end
+end
+
 local function main()
     local ttl = 3600
     local groupSize = 15
@@ -223,7 +235,12 @@ local function main()
 
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
-    
+
+    local validationErr = validateTransactionExists(transactionBackupQueue, transactionKey)
+    if validationErr then
+        return validationErr
+    end
+
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])

@@ -270,6 +270,12 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
 
 			return nil, err
+		} else if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
+			err := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
+
+			libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
@@ -284,6 +290,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
 
 	var balanceJSON []byte
+
 	switch v := result.(type) {
 	case string:
 		balanceJSON = []byte(v)
