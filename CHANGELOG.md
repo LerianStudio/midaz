@@ -1,3 +1,15 @@
+## [v3.5.0-beta.24] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.23...v3.5.0-beta.24)
+Contributors: Guilherme Moreira Rodrigues, lerian-studio
+
+### 📚 Documentation
+- **Updated Ledger Component Documentation**: The documentation for the ledger component has been thoroughly updated. This ensures that users have access to the latest information on how to effectively use and benefit from the component's features. Staying informed about these updates will help users maximize their productivity and efficiency when working with the ledger component.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect the latest changes, providing a clear and organized history of modifications. This helps users easily track the project's evolution and understand the context of new features and improvements.
+
+
 ## [v3.5.0-beta.23] - 2025-12-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.22...v3.5.0-beta.23)
