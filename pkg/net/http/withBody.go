@@ -11,8 +11,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/go-playground/locales/en"
@@ -215,31 +215,26 @@ func isStructType(s any) bool {
 	return k == reflect.Struct
 }
 
-// checkBusinessValidationErrors checks for business validation errors and returns appropriate error
+// checkBusinessValidationErrors checks for business validation errors and returns appropriate error.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func checkBusinessValidationErrors(errs validator.ValidationErrors, trans ut.Translator) error {
 	for _, fieldError := range errs {
 		switch fieldError.Tag() {
 		case "keymax":
-			return fmt.Errorf("metadata key length validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()))
+			// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+			return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 		case "valuemax":
-			return fmt.Errorf("metadata value length validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()))
+			return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 		case "nonested":
-			return fmt.Errorf("metadata nesting validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans)))
+			return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 		case "singletransactiontype":
-			return fmt.Errorf("transaction type validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans)))
+			return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
 		case "invalidstrings":
-			return fmt.Errorf("account type validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param()))
+			return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
 		case "invalidaliascharacters":
-			return fmt.Errorf("account alias validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param()))
+			return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
 		case "invalidaccounttype":
-			return fmt.Errorf("account type key value validation failed: %w",
-				pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans)))
+			return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
 		}
 	}
 
@@ -492,7 +487,7 @@ func convertFieldToString(field reflect.Value) string {
 
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]libTransction.FromTo)
+	arrField := fl.Field().Interface().([]pkgTransaction.FromTo)
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {

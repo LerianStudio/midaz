@@ -86,7 +86,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	if !libCommons.IsNilOrEmpty(&query.PortfolioID) {
 		_, err := uuid.Parse(query.PortfolioID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid portfolio_id: %w", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id"))
+			// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
 		}
 	}
 
@@ -219,11 +220,13 @@ func parseBankingDetailsParameter(key, value string, query *QueryHeader) {
 	}
 }
 
-// parseStartDate parses the start_date parameter
+// parseStartDate parses the start_date parameter.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func parseStartDate(value string, query *QueryHeader) error {
 	parsedDate, _, err := libCommons.ParseDateTime(value, false)
 	if err != nil {
-		return fmt.Errorf("parse start_date: %w", pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
 	}
 
 	query.StartDate = parsedDate
@@ -231,11 +234,13 @@ func parseStartDate(value string, query *QueryHeader) error {
 	return nil
 }
 
-// parseEndDate parses the end_date parameter
+// parseEndDate parses the end_date parameter.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func parseEndDate(value string, query *QueryHeader) error {
 	parsedDate, _, err := libCommons.ParseDateTime(value, true)
 	if err != nil {
-		return fmt.Errorf("parse end_date: %w", pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
 	}
 
 	query.EndDate = parsedDate
@@ -285,50 +290,58 @@ func setDefaultDateRange(startDate, endDate *time.Time) {
 	*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
 }
 
-// validateBothDatesProvided ensures both dates are provided or both are empty
+// validateBothDatesProvided ensures both dates are provided or both are empty.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validateBothDatesProvided(startDate, endDate *time.Time) error {
 	if (!startDate.IsZero() && endDate.IsZero()) || (startDate.IsZero() && !endDate.IsZero()) {
-		return fmt.Errorf("date validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidDateRange, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
 	}
 
 	return nil
 }
 
-// validateDateFormats validates that both dates have valid formats
+// validateDateFormats validates that both dates have valid formats.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validateDateFormats(startDate, endDate *time.Time) error {
 	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) ||
 		!libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
-		return fmt.Errorf("date format validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 	}
 
 	return nil
 }
 
-// validateDateOrder validates that start date is before end date
+// validateDateOrder validates that start date is before end date.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validateDateOrder(startDate, endDate *time.Time) error {
 	if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
-		return fmt.Errorf("date order validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 	}
 
 	return nil
 }
 
-// ValidatePagination validate pagination parameters
+// validatePagination validates pagination parameters.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validatePagination(cursor, sortOrder string, limit int) error {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", defaultMaxPaginationLimit))
 
 	if limit > maxPaginationLimit {
-		return fmt.Errorf("pagination limit validation: %w", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return fmt.Errorf("sort order validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, ""))
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
 	if !libCommons.IsNilOrEmpty(&cursor) {
 		_, err := libHTTP.DecodeCursor(cursor)
 		if err != nil {
-			return fmt.Errorf("cursor validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor"))
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
 		}
 	}
 
@@ -351,19 +364,21 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	return ikey, ttl
 }
 
-// GetFileFromHeader method that get file from header and give a string fom this dsl gold file
+// GetFileFromHeader method that get file from header and give a string fom this dsl gold file.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
 	if err != nil {
-		return "", fmt.Errorf("form file error: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
 	}
 
 	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
-		return "", fmt.Errorf("invalid file extension: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename))
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", fmt.Errorf("empty file: %w", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename))
+		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()
@@ -379,7 +394,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", fmt.Errorf("failed to read file: %w", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename))
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	fileString := buf.String()
@@ -417,10 +432,13 @@ func ValidateMetadataValue(value any) (any, error) {
 	return validateMetadataValueWithDepth(value, 0)
 }
 
+// validateMetadataValueWithDepth validates metadata with depth tracking.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 	const maxDepth = 10
 	if depth > maxDepth {
-		return nil, fmt.Errorf("metadata depth validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
 	}
 
 	switch v := value.(type) {
@@ -431,18 +449,20 @@ func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 	case nil:
 		return nil, nil
 	case map[string]any:
-		return nil, fmt.Errorf("metadata nesting validation: %w", pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, ""))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
 	case []any:
 		return validateMetadataArray(v, depth)
 	default:
-		return nil, fmt.Errorf("invalid metadata value type: %w", pkg.ValidateBusinessError(constant.ErrBadRequest, ""))
+		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
 	}
 }
 
-// validateMetadataString validates a metadata string value
+// validateMetadataString validates a metadata string value.
+// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func validateMetadataString(v string) (any, error) {
 	if len(v) > defaultMetadataMaxLength {
-		return nil, fmt.Errorf("metadata value length validation: %w", pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, ""))
+		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
+		return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
 	}
 
 	return v, nil
