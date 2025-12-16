@@ -249,7 +249,7 @@ local function main()
             ID = ARGV[i + 6],
             Available = ARGV[i + 7],
             OnHold = ARGV[i + 8],
-            Version = tonumber(ARGV[i + 9]),
+            Version = tonumber(ARGV[i + 9]) or 0,
             AccountType = ARGV[i + 10],
             AllowSending = tonumber(ARGV[i + 11]),
             AllowReceiving = tonumber(ARGV[i + 12]),
@@ -261,11 +261,21 @@ local function main()
         local redisBalance = cjson.encode(balance)
         local ok = redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl, "NX")
         if not ok then
+            -- Balance exists in cache - get current volatile fields only
             local currentBalance = redis.call("GET", redisBalanceKey)
             if not currentBalance then
                 return redis.error_reply("0061")
             end
-            balance = cjson.decode(currentBalance)
+            local cachedBalance = cjson.decode(currentBalance)
+
+            -- Preserve volatile fields from cache (these change with transactions)
+            balance.Available = cachedBalance.Available
+            balance.OnHold = cachedBalance.OnHold
+            balance.Version = cachedBalance.Version or 0
+
+            -- Keep identity fields from ARGV (source of truth from PostgreSQL):
+            -- ID, AccountID, AccountType, AllowSending, AllowReceiving, AssetCode, Key
+            -- These were already set from ARGV at lines 248-259
         end
 
         if not rollbackBalances[redisBalanceKey] then
@@ -311,12 +321,13 @@ local function main()
             return redis.error_reply("0018")
         end
 
+        balance.alias = nil  -- Clear lowercase version if it exists from cache
         balance.Alias = alias
         table.insert(returnBalances, cloneBalance(balance))
 
         balance.Available = result
         balance.OnHold = resultOnHold
-        balance.Version = balance.Version + 1
+        balance.Version = (balance.Version or 0) + 1
 
         redisBalance = cjson.encode(balance)
         redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)

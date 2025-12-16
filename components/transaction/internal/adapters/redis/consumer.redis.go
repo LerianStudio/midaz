@@ -99,7 +99,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return fmt.Errorf("failed to get redis client for set operation: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("value of ttl: %v", ttl)
@@ -108,7 +108,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
-		return fmt.Errorf("failed to set key %s on redis: %w", key, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	return nil
@@ -124,7 +124,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return false, fmt.Errorf("failed to get redis client for setnx operation: %w", err)
+		return false, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("value of ttl: %v", ttl)
@@ -133,7 +133,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
-		return false, fmt.Errorf("failed to setnx key %s on redis: %w", key, err)
+		return false, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	return isLocked, nil
@@ -151,7 +151,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 		logger.Errorf("Failed to connect on redis: %v", err)
 
-		return "", fmt.Errorf("failed to get redis client for get operation: %w", err)
+		return "", pkg.ValidateInternalError(err, "Redis")
 	}
 
 	val, err := rds.Get(ctx, key).Result()
@@ -160,7 +160,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 		logger.Errorf("Failed to get on redis: %v", err)
 
-		return "", fmt.Errorf("failed to get key %s from redis: %w", key, err)
+		return "", pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("value : %v", val)
@@ -187,7 +187,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 		logger.Errorf("Failed to get redis: %v", err)
 
-		return nil, fmt.Errorf("failed to get redis client for mget operation: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	res, err := rds.MGet(ctx, keys...).Result()
@@ -196,7 +196,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 		logger.Errorf("Failed to mget on redis: %v", err)
 
-		return nil, fmt.Errorf("failed to mget %d keys from redis: %w", len(keys), err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	out := make(map[string]string, len(keys))
@@ -231,14 +231,14 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis client", err)
 
-		return fmt.Errorf("failed to get redis client for del operation: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
 
-		return fmt.Errorf("failed to delete key %s from redis: %w", key, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("value : %v", val)
@@ -295,7 +295,7 @@ func (rr *RedisConsumerRepository) handleRedisClientError(span *trace.Span, logg
 	libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
 	logger.Errorf("Failed to get redis: %v", err)
 
-	return fmt.Errorf("failed to get redis client for add sum balances: %w", err)
+	return pkg.ValidateInternalError(err, "Redis")
 }
 
 // convertBoolToInt converts boolean to integer (1 or 0)
@@ -309,7 +309,10 @@ func (rr *RedisConsumerRepository) convertBoolToInt(b bool) int {
 
 // buildBalanceOperationArgs builds arguments for the Lua script from balance operations
 func (rr *RedisConsumerRepository) buildBalanceOperationArgs(balancesOperation []mmodel.BalanceOperation, isPending int, transactionStatus string) ([]any, map[string]*mmodel.Balance, []*mmodel.Balance) {
-	args := []any{}
+	// Prepend scheduleSync flag (1 = enabled) that Lua expects at ARGV[1]
+	// The Lua script at add_sub.lua:229 reads this as the first argument
+	// and starts processing balance groups from ARGV[2] (line 238)
+	args := []any{1}
 	mapBalances := make(map[string]*mmodel.Balance)
 	balances := make([]*mmodel.Balance, 0)
 
@@ -375,22 +378,22 @@ func (rr *RedisConsumerRepository) handleScriptExecutionError(span *trace.Span, 
 	logger.Errorf("Failed run lua script on redis: %v", err)
 
 	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-		err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", businessErr)
 
-		return fmt.Errorf("insufficient funds when running lua script: %w", err)
+		return businessErr
 	}
 
 	if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-		err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", businessErr)
 
-		return fmt.Errorf("on hold external account error when running lua script: %w", err)
+		return businessErr
 	}
 
 	libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", err)
 
-	return fmt.Errorf("failed to run add_sub lua script on redis: %w", err)
+	return pkg.ValidateInternalError(err, "Redis")
 }
 
 // convertResultToBytes converts Redis script result to bytes
@@ -404,7 +407,7 @@ func (rr *RedisConsumerRepository) convertResultToBytes(result any, logger libLo
 		err := fmt.Errorf("%w: %T", ErrUnexpectedRedisResultType, result)
 		logger.Warnf("Warning: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 }
 
@@ -416,7 +419,7 @@ func (rr *RedisConsumerRepository) unmarshalBalanceRedis(balanceJSON []byte, spa
 		libOpentelemetry.HandleSpanError(span, "Error to Deserialization json", err)
 		logger.Errorf("Error to Deserialization json: %v", err)
 
-		return nil, fmt.Errorf("failed to unmarshal balance json from redis: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	return blcsRedis, nil
@@ -480,7 +483,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return fmt.Errorf("failed to get redis client for setbytes operation: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Setting binary data with TTL: %v", ttl)
@@ -489,7 +492,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
 
-		return fmt.Errorf("failed to set bytes for key %s on redis: %w", key, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	return nil
@@ -505,14 +508,14 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return nil, fmt.Errorf("failed to get redis client for getbytes operation: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	val, err := rds.Get(ctx, key).Bytes()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get bytes on redis", err)
 
-		return nil, fmt.Errorf("failed to get bytes for key %s from redis: %w", key, err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
@@ -531,13 +534,13 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return fmt.Errorf("failed to get redis client for add message to queue: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	if err := rds.HSet(ctx, TransactionBackupQueue, key, msg).Err(); err != nil {
 		logger.Warnf("Failed to hset message: %v", err)
 
-		return fmt.Errorf("failed to hset message with key %s to queue: %w", key, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Mensagem save on redis queue with ID: %s", key)
@@ -556,14 +559,14 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, fmt.Errorf("failed to get redis client for read message from queue: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	data, err := rds.HGet(ctx, TransactionBackupQueue, key).Bytes()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
-		return nil, fmt.Errorf("failed to hget message with key %s from queue: %w", key, err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Message read on redis queue with ID: %s", key)
@@ -582,14 +585,14 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, fmt.Errorf("failed to get redis client for read all messages from queue: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	data, err := rds.HGetAll(ctx, TransactionBackupQueue).Result()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
-		return nil, fmt.Errorf("failed to hgetall from transaction backup queue: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Info("Messages read on redis queue successfully")
@@ -608,13 +611,13 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return fmt.Errorf("failed to get redis client for remove message from queue: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	if err := rds.HDel(ctx, TransactionBackupQueue, key).Err(); err != nil {
 		logger.Warnf("Failed to hdel: %v", err)
 
-		return fmt.Errorf("failed to hdel message with key %s from queue: %w", key, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Message with ID %s is removed from redis queue", key)
@@ -633,7 +636,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, fmt.Errorf("failed to get redis client for get balance sync keys: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	script := redis.NewScript(getBalancesNearExpirationLua)
@@ -642,7 +645,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	if err != nil {
 		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
 
-		return nil, fmt.Errorf("failed to run get_balances_near_expiration lua script: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	var out []string
@@ -667,7 +670,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 		logger.Warnf("Warning: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("fetch_due returned %d keys", len(out))
@@ -686,7 +689,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return fmt.Errorf("failed to get redis client for remove balance sync key: %w", err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	script := redis.NewScript(unscheduleSyncedBalanceLua)
@@ -695,7 +698,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	if err != nil {
 		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
 
-		return fmt.Errorf("failed to run unschedule_synced_balance lua script for member %s: %w", member, err)
+		return pkg.ValidateInternalError(err, "Redis")
 	}
 
 	logger.Infof("Unscheduled synced balance: %s", member)
@@ -715,7 +718,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to connect on redis: %v", err)
 
-		return nil, fmt.Errorf("failed to get redis client for list balance by key: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
@@ -726,7 +729,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get balance on redis: %v", err)
 
-		return nil, fmt.Errorf("failed to get balance with key %s from redis: %w", key, err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	var balanceRedis mmodel.BalanceRedis
@@ -736,7 +739,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
 
-		return nil, fmt.Errorf("failed to unmarshal balance with key %s from redis: %w", key, err)
+		return nil, pkg.ValidateInternalError(err, "Redis")
 	}
 
 	balance := &mmodel.Balance{
