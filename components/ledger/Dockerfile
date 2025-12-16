@@ -24,9 +24,6 @@ COPY --from=builder /app /app
 COPY --from=builder /ledger-app/components/onboarding/migrations /components/onboarding/migrations
 COPY --from=builder /ledger-app/components/transaction/migrations /components/transaction/migrations
 
-# Expose ports for both onboarding (3000) and transaction (3001) HTTP servers
-EXPOSE 3000
-EXPOSE 3001
 EXPOSE 3002
 
 ENTRYPOINT ["/app"]

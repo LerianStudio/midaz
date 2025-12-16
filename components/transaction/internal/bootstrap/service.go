@@ -1,9 +1,12 @@
 package bootstrap
 
 import (
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/gofiber/fiber/v2"
 )
 
 // Service is the application glue where we put all top level components to be used.
@@ -20,9 +23,14 @@ type Service struct {
 	// This is the transaction UseCase which implements BalancePort directly.
 	balancePort mbootstrap.BalancePort
 
-	// metadataIndexPort holds the reference for use in unified ledger mode.
-	// This is the transaction UseCase which implements MetadataIndexPort directly.
-	metadataIndexPort mbootstrap.MetadataIndexPort
+	// Route registration dependencies (for unified ledger mode)
+	auth                    *middleware.AuthClient
+	transactionHandler      *httpin.TransactionHandler
+	operationHandler        *httpin.OperationHandler
+	assetRateHandler        *httpin.AssetRateHandler
+	balanceHandler          *httpin.BalanceHandler
+	operationRouteHandler   *httpin.OperationRouteHandler
+	transactionRouteHandler *httpin.TransactionRouteHandler
 }
 
 // Run starts the application.
@@ -82,12 +90,21 @@ func (app *Service) GetBalancePort() mbootstrap.BalancePort {
 	return app.balancePort
 }
 
-// GetMetadataIndexPort returns the metadata index port for use by ledger in unified mode.
-// This allows the ledger to manage metadata indexes using the transaction's MongoDB connection.
-// The returned MetadataIndexPort is the transaction UseCase itself, which implements
-// the interface directly - no intermediate adapters needed.
-func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
-	return app.metadataIndexPort
+// GetRouteRegistrar returns a function that registers transaction routes to an existing Fiber app.
+// This is used by the unified ledger server to consolidate all routes in a single port.
+func (app *Service) GetRouteRegistrar() func(*fiber.App) {
+	return func(fiberApp *fiber.App) {
+		httpin.RegisterRoutesToApp(
+			fiberApp,
+			app.auth,
+			app.transactionHandler,
+			app.operationHandler,
+			app.assetRateHandler,
+			app.balanceHandler,
+			app.operationRouteHandler,
+			app.transactionRouteHandler,
+		)
+	}
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

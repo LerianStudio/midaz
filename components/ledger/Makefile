@@ -258,13 +258,14 @@ run:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger API documentation - Ledger")
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
+	$(call title1,"Generating Swagger API documentation - Ledger (Unified)")
+	@if ! command -v jq >/dev/null 2>&1; then \
+		echo "$(RED)Error: jq is required. Install with: brew install jq$(NC)"; \
+		exit 1; \
 	fi
-	@cd $(MIDAZ_ROOT)/components/ledger && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
+	@chmod +x $(MIDAZ_ROOT)/components/ledger/scripts/merge-swagger.sh
+	@$(MIDAZ_ROOT)/components/ledger/scripts/merge-swagger.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Unified Swagger documentation generated$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Developer Helper Commands

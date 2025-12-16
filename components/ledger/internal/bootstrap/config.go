@@ -3,12 +3,10 @@ package bootstrap
 import (
 	"fmt"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/google/uuid"
@@ -22,12 +20,8 @@ type Config struct {
 	LogLevel string `env:"LOG_LEVEL"`
 	Version  string `env:"VERSION"`
 
-	// Server configuration
-	ServerAddress string `env:"SERVER_ADDRESS_LEDGER"`
-
-	// Auth configuration
-	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
+	// Server configuration - unified port for all APIs
+	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
 
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -130,32 +124,27 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Onboarding module initialized")
 
-	// Get the MetadataIndexPort from transaction for metadata index management
-	metadataIndexPort := transactionService.GetMetadataIndexPort()
+	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
 
-	ledgerLogger.Info("MetadataIndexPort available for metadata index management")
-
-	// Create metadata index handler
-	metadataIndexHandler := &in.MetadataIndexHandler{
-		MetadataIndexPort: metadataIndexPort,
-	}
-
-	// Create auth client
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
-
-	// Create router and server
-	app := in.NewRouter(ledgerLogger, telemetry, auth, metadataIndexHandler)
-	server := NewServer(cfg, app, ledgerLogger, telemetry)
+	// Create the unified server that consolidates all routes on a single port
+	unifiedServer := NewUnifiedServer(
+		cfg.ServerAddress,
+		ledgerLogger,
+		telemetry,
+		onboardingService.GetRouteRegistrar(),
+		transactionService.GetRouteRegistrar(),
+	)
 
 	ledgerLogger.WithFields(
 		"version", cfg.Version,
 		"env", cfg.EnvName,
-	).Info("Unified ledger component started successfully")
+		"server_address", cfg.ServerAddress,
+	).Info("Unified ledger component started successfully with single-port mode")
 
 	return &Service{
 		OnboardingService:  onboardingService,
 		TransactionService: transactionService,
-		Server:             server,
+		UnifiedServer:      unifiedServer,
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil

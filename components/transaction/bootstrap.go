@@ -9,10 +9,12 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/gofiber/fiber/v2"
 )
 
 // TransactionService extends mbootstrap.Service with transaction-specific functionality.
-// This interface provides access to the BalancePort and MetadataIndexPort for in-process communication.
+// This interface provides access to the BalancePort for in-process communication
+// and route registration for unified ledger mode.
 type TransactionService interface {
 	mbootstrap.Service
 	// GetBalancePort returns the balance port for use by other modules.
@@ -20,10 +22,9 @@ type TransactionService interface {
 	// The returned BalancePort is the transaction UseCase itself.
 	GetBalancePort() mbootstrap.BalancePort
 
-	// GetMetadataIndexPort returns the metadata index port for use by the ledger module.
-	// This allows the ledger to manage metadata indexes using the transaction's MongoDB connection.
-	// The returned MetadataIndexPort is the transaction UseCase itself.
-	GetMetadataIndexPort() mbootstrap.MetadataIndexPort
+	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
+	// This is used by the unified ledger server to consolidate all routes on a single port.
+	GetRouteRegistrar() func(*fiber.App)
 }
 
 // Options configures the transaction service initialization behavior.

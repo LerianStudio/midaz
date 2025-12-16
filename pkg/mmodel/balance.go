@@ -165,6 +165,11 @@ type UpdateBalance struct {
 // It centralizes all properties required to perform validations and persist the new balance,
 // keeping call sites simple and reducing the chance of inconsistent argument ordering.
 type CreateBalanceInput struct {
+	// Request ID for tracing
+	// example: 123e4567-e89b-12d3-a456-426614174000
+	// format: string uuid
+	RequestID string
+
 	// Organization that owns this balance
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid

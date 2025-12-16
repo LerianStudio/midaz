@@ -50,7 +50,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)
 
@@ -93,7 +93,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)
 

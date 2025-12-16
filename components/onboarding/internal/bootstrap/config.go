@@ -422,7 +422,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
 	return &Service{
-		Server: serverAPI,
-		Logger: logger,
+		Server:              serverAPI,
+		Logger:              logger,
+		auth:                auth,
+		accountHandler:      accountHandler,
+		portfolioHandler:    portfolioHandler,
+		ledgerHandler:       ledgerHandler,
+		assetHandler:        assetHandler,
+		organizationHandler: organizationHandler,
+		segmentHandler:      segmentHandler,
+		accountTypeHandler:  accountTypeHandler,
 	}, nil
 }

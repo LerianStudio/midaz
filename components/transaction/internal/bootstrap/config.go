@@ -452,8 +452,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Info("BalanceSyncWorker disabled.")
 	}
 
-	metadataIndexAdapter := NewMetadataIndexAdapter(useCase, queryUseCase)
-
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
@@ -463,6 +461,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
-		metadataIndexPort:        metadataIndexAdapter,
+		auth:                     auth,
+		transactionHandler:       transactionHandler,
+		operationHandler:         operationHandler,
+		assetRateHandler:         assetRateHandler,
+		balanceHandler:           balanceHandler,
+		operationRouteHandler:    operationRouteHandler,
+		transactionRouteHandler:  transactionRouteHandler,
 	}, nil
 }

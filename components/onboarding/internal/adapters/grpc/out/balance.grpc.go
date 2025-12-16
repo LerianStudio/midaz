@@ -87,7 +87,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	return resp, nil
 }
 
-// DeleteBalance deletes a balance via gRPC using the provided request.
+// DeleteAllBalancesByAccountID deletes all balances for a given account via gRPC using the provided request.
 func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context, token string, req *proto.DeleteAllBalancesByAccountIDRequest) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -169,6 +169,7 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
+		RequestId:      input.RequestID,
 	}
 
 	// Extract authorization token from context metadata
@@ -204,11 +205,12 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 
 // DeleteAllBalancesByAccountID implements mbootstrap.BalancePort by converting
 // native types to proto and delegating to the gRPC repository.
-func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
 	req := &proto.DeleteAllBalancesByAccountIDRequest{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
 		AccountId:      accountID.String(),
+		RequestId:      requestID,
 	}
 
 	// Extract authorization token from context metadata

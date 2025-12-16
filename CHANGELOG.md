@@ -1,3 +1,62 @@
+## [v3.5.0-beta.24] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.23...v3.5.0-beta.24)
+Contributors: Guilherme Moreira Rodrigues, lerian-studio
+
+### 📚 Documentation
+- **Updated Ledger Component Documentation**: The documentation for the ledger component has been thoroughly updated. This ensures that users have access to the latest information on how to effectively use and benefit from the component's features. Staying informed about these updates will help users maximize their productivity and efficiency when working with the ledger component.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect the latest changes, providing a clear and organized history of modifications. This helps users easily track the project's evolution and understand the context of new features and improvements.
+
+
+## [v3.5.0-beta.23] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.22...v3.5.0-beta.23)
+Contributors: Clara Tersi, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Comprehensive API Documentation**: We've introduced detailed Swagger documentation for the Midaz Ledger API. This makes it easier for developers to understand and integrate with our system, providing clear endpoint specifications and response models.
+- **Unified Ledger Server**: Onboarding and transaction APIs are now consolidated onto a single port, simplifying deployment and reducing configuration complexity for users managing multiple services.
+
+### 🐛 Bug Fixes
+- **Configuration Stability**: Resolved a thread-safety issue in Swagger configuration initialization from environment variables, enhancing the stability and reliability of the configuration process.
+- **Documentation Clarity**: Improved example account alias in Swagger models, making it easier for developers to understand the intended use of API fields.
+
+### 🔄 Changes
+- **API Consistency**: Enhanced Swagger documentation generation to ensure consistent API behavior and documentation across different environments, improving the developer experience.
+- **Request Tracking**: Added RequestID to balance gRPC operations, facilitating better tracking and debugging of requests, which enhances reliability and supportability.
+
+### 📚 Documentation
+- **Version Management**: Updated Swagger to version v3.5.0 and improved the merge-swagger script to read version information from the .env file, ensuring consistency across environments.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed exposed ports for onboarding and transaction servers from the Dockerfile, reducing unnecessary exposure and enhancing security.
+- **Test Suite Improvements**: Updated StubService to implement onboarding.OnboardingService and added a GetRouteRegistrar method for route registration, improving test coverage and accuracy.
+
+
+## [v3.5.0-beta.22] - 2025-12-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.21...v3.5.0-beta.22)
+Contributors: Caio Alexandre Troti Caetano, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Timelines**: The frontend now includes a new date comparison utility and improved JSON serialization for `TransactionDate`. This ensures consistent and accurate display of transaction timelines, making it easier for users to track and compare dates.
+
+### 🐛 Bug Fixes
+- **Improved Code Quality**: Resolved various lint issues across backend and frontend components. This fix enhances system stability and reduces potential runtime errors, providing a smoother user experience.
+
+### ⚡ Performance
+- **Efficient Balance Updates**: The backend `UpdateBalances` method has been refactored for better performance and accuracy. Users will benefit from faster and more reliable balance operations, ensuring up-to-date financial information.
+
+### 🔄 Changes
+- **Consistent Date Management**: Both the database and frontend now handle `TransactionDate` with a custom type, leading to better JSON serialization and more reliable date management across the application.
+
+### 🔧 Maintenance
+- **Updated Dependencies**: The Next.js package has been updated to the latest version, ensuring compatibility with modern web standards and improving overall application performance.
+- **Streamlined Codebase**: Deprecated `lib-commons v2.6.0-beta.4` references have been removed and updated to `v2.6.0`, utilizing the latest utility functions for validation and reducing code redundancy.
+
+
 ## [v3.5.0-beta.21] - 2025-12-15
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.20...v3.5.0-beta.21)
