@@ -451,9 +451,9 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
+	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
-	Validate          *libTransaction.Responses  `json:"validate"`
+	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 }

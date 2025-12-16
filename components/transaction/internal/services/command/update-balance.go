@@ -10,6 +10,7 @@ import (
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -23,11 +24,21 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	fromTo := make(map[string]libTransaction.Amount, len(validate.From)+len(validate.To))
 	for k, v := range validate.From {
-		fromTo[k] = v
+		fromTo[k] = libTransaction.Amount{
+			Asset:           v.Asset,
+			Value:           v.Value,
+			Operation:       v.Operation,
+			TransactionType: v.TransactionType,
+		}
 	}
 
 	for k, v := range validate.To {
-		fromTo[k] = v
+		fromTo[k] = libTransaction.Amount{
+			Asset:           v.Asset,
+			Value:           v.Value,
+			Operation:       v.Operation,
+			TransactionType: v.TransactionType,
+		}
 	}
 
 	newBalances := make([]*mmodel.Balance, 0, len(balances))

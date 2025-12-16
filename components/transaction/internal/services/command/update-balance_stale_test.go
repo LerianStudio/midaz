@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -37,7 +37,7 @@ func TestUpdateBalances_AllStale_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	validate := libTransaction.Responses{}
+	validate := pkgTransaction.Responses{}
 
 	// Create balances with version 1 (simulating message payload)
 	balanceID1 := uuid.New().String()
@@ -100,7 +100,7 @@ func TestUpdateBalances_PartialStale_SucceedsWithFreshBalances(t *testing.T) {
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	validate := libTransaction.Responses{}
+	validate := pkgTransaction.Responses{}
 
 	balanceID1 := uuid.New().String()
 	balanceID2 := uuid.New().String()

@@ -17,9 +17,9 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -303,31 +303,31 @@ func (handler *TransactionHandler) getDSLFile(c *fiber.Ctx, span *trace.Span, lo
 }
 
 // validateAndParseDSL validates and parses the DSL content.
-func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace.Span, dsl string) (libTransaction.Transaction, error) {
+func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace.Span, dsl string) (pkgTransaction.Transaction, error) {
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
 
 		if err := http.WithError(c, err); err != nil {
-			return libTransaction.Transaction{}, fmt.Errorf("failed to send error response: %w", err)
+			return pkgTransaction.Transaction{}, fmt.Errorf("failed to send error response: %w", err)
 		}
 
-		return libTransaction.Transaction{}, nil
+		return pkgTransaction.Transaction{}, nil
 	}
 
 	parsed := goldTransaction.Parse(dsl)
 
-	parserDSL, ok := parsed.(libTransaction.Transaction)
+	parserDSL, ok := parsed.(pkgTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL", err)
 
 		if err := http.WithError(c, err); err != nil {
-			return libTransaction.Transaction{}, fmt.Errorf("failed to send error response: %w", err)
+			return pkgTransaction.Transaction{}, fmt.Errorf("failed to send error response: %w", err)
 		}
 
-		return libTransaction.Transaction{}, nil
+		return pkgTransaction.Transaction{}, nil
 	}
 
 	return parserDSL, nil
@@ -843,8 +843,8 @@ func (handler *TransactionHandler) getTransactionsWithoutMetadata(ctx context.Co
 
 // HandleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) HandleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
-	result := make([]libTransaction.FromTo, 0, len(entries))
+func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
+	result := make([]pkgTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
 		var newAlias string
@@ -862,7 +862,7 @@ func (handler *TransactionHandler) HandleAccountFields(entries []libTransaction.
 	return result
 }
 
-func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
+func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
 	transactionDate := now
 
@@ -881,7 +881,7 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 
 			return time.Time{}, fmt.Errorf("invalid pending transaction with future date: %w", err)
 		default:
-			transactionDate = parserDSL.TransactionDate
+			transactionDate = parserDSL.TransactionDate.Time()
 		}
 	}
 
@@ -892,10 +892,10 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
-	fromTo []libTransaction.FromTo,
-	parserDSL libTransaction.Transaction,
+	fromTo []pkgTransaction.FromTo,
+	parserDSL pkgTransaction.Transaction,
 	tran transaction.Transaction,
-	validate *libTransaction.Responses,
+	validate *pkgTransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
@@ -915,7 +915,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
+				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
 				if err != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -972,7 +972,7 @@ func (handler *TransactionHandler) BuildOperations(
 					BalanceAfter:    balanceAfter,
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
-					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+					AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
 					BalanceKey:      blc.Key,
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
@@ -992,7 +992,7 @@ func (handler *TransactionHandler) BuildOperations(
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL libTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkgTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1055,7 +1055,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 }
 
 // validateTransactionInput validates the transaction input data.
-func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
+func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, logger libLog.Logger, parserDSL pkgTransaction.Transaction) error {
 	err := libOpentelemetry.SetSpanAttributesFromStruct(span, "app.request.payload", parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction to JSON string", err)
@@ -1074,8 +1074,8 @@ func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, lo
 }
 
 // buildFromToList builds the initial fromTo list based on transaction status.
-func (handler *TransactionHandler) buildFromToList(parserDSL libTransaction.Transaction, transactionStatus string) []libTransaction.FromTo {
-	var fromTo []libTransaction.FromTo
+func (handler *TransactionHandler) buildFromToList(parserDSL pkgTransaction.Transaction, transactionStatus string) []pkgTransaction.FromTo {
+	var fromTo []pkgTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
@@ -1118,8 +1118,8 @@ func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fib
 }
 
 // validateAndGetBalances validates transaction and retrieves balances.
-func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, transactionStatus string, transactionDate time.Time, key string) (*libTransaction.Responses, []*mmodel.Balance, error) {
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL pkgTransaction.Transaction, transactionStatus string, transactionDate time.Time, key string) (*pkgTransaction.Responses, []*mmodel.Balance, error) {
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
@@ -1182,7 +1182,7 @@ func (handler *TransactionHandler) handleIdempotencyResult(c *fiber.Ctx, existin
 }
 
 // appendAccountFields appends account fields to the fromTo list based on transaction status.
-func (handler *TransactionHandler) appendAccountFields(fromTo []libTransaction.FromTo, parserDSL libTransaction.Transaction, transactionStatus string) []libTransaction.FromTo {
+func (handler *TransactionHandler) appendAccountFields(fromTo []pkgTransaction.FromTo, parserDSL pkgTransaction.Transaction, transactionStatus string) []pkgTransaction.FromTo {
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
@@ -1206,7 +1206,7 @@ func (handler *TransactionHandler) handleBuildOperationsError(c *fiber.Ctx, span
 }
 
 // executeAndRespondTransaction executes the transaction and sends the response.
-func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration, tran *transaction.Transaction, operations []*operation.Operation, validate *libTransaction.Responses, balances []*mmodel.Balance, parserDSL libTransaction.Transaction) error {
+func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration, tran *transaction.Transaction, operations []*operation.Operation, validate *pkgTransaction.Responses, balances []*mmodel.Balance, parserDSL pkgTransaction.Transaction) error {
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
@@ -1240,7 +1240,7 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 }
 
 // buildTransaction creates a transaction object with the provided data.
-func (handler *TransactionHandler) buildTransaction(transactionID, parentID, organizationID, ledgerID uuid.UUID, parserDSL libTransaction.Transaction, transactionStatus string, transactionDate time.Time) *transaction.Transaction {
+func (handler *TransactionHandler) buildTransaction(transactionID, parentID, organizationID, ledgerID uuid.UUID, parserDSL pkgTransaction.Transaction, transactionStatus string, transactionDate time.Time) *transaction.Transaction {
 	var parentTransactionID *string
 
 	if parentID != uuid.Nil {
@@ -1322,7 +1322,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 }
 
 // executeCommitOrCancel builds operations and executes the commit or cancel transaction.
-func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, balances []*mmodel.Balance, fromTo []libTransaction.FromTo, transactionStatus string) error {
+func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, fromTo []pkgTransaction.FromTo, transactionStatus string) error {
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
@@ -1423,8 +1423,8 @@ func (handler *TransactionHandler) validatePendingTransaction(span *trace.Span, 
 }
 
 // buildCommitFromToList builds the initial fromTo list for commit/cancel operations.
-func (handler *TransactionHandler) buildCommitFromToList(parserDSL libTransaction.Transaction, transactionStatus string) []libTransaction.FromTo {
-	var fromTo []libTransaction.FromTo
+func (handler *TransactionHandler) buildCommitFromToList(parserDSL pkgTransaction.Transaction, transactionStatus string) []pkgTransaction.FromTo {
+	var fromTo []pkgTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
@@ -1437,8 +1437,8 @@ func (handler *TransactionHandler) buildCommitFromToList(parserDSL libTransactio
 }
 
 // validateAndGetBalancesForCommit validates transaction and retrieves balances for commit/cancel.
-func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL libTransaction.Transaction, transactionStatus string, deleteLockOnError func()) (*libTransaction.Responses, []*mmodel.Balance, error) {
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction, transactionStatus string, deleteLockOnError func()) (*pkgTransaction.Responses, []*mmodel.Balance, error) {
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Error("Failed to validate send source and distribute: %v", err.Error())
@@ -1475,7 +1475,7 @@ func (handler *TransactionHandler) updateTransactionStatusIfAsync(ctx context.Co
 }
 
 // ApplyDefaultBalanceKeys sets the BalanceKey to "default" for any entries where the BalanceKey is empty.
-func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []libTransaction.FromTo) {
+func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
 	for i := range entries {
 		if entries[i].BalanceKey == "" {
 			entries[i].BalanceKey = constant.DefaultBalanceKey

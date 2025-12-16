@@ -8,6 +8,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -395,4 +396,34 @@ func InitServers() *Service {
 		operationRouteHandler:    operationRouteHandler,
 		transactionRouteHandler:  transactionRouteHandler,
 	}, nil
+}
+
+// Options configures the transaction service initialization behavior.
+type Options struct {
+	// Logger allows callers to provide a pre-configured logger.
+	Logger libLog.Logger
+}
+
+// InitServersWithOptions initializes servers with custom options.
+// This function provides explicit error handling.
+// It recovers from panics (e.g., from assert.NoError in constructors) and converts them to errors.
+func InitServersWithOptions(opts *Options) (service *Service, err error) {
+	// Panic recovery to convert assertion panics from constructors to errors.
+	// Per CLAUDE.md: "Only initialization-time panics allowed (repository constructors)"
+	// This allows constructors to keep their assertions while InitServiceOrError returns errors.
+	defer func() {
+		if r := recover(); r != nil {
+			service = nil
+			err = fmt.Errorf("initialization failed: %v", r)
+		}
+	}()
+
+	if opts == nil {
+		return InitServers(), nil
+	}
+
+	// If options are provided, use InitServers but with the provided logger
+	// For now, this just delegates to InitServers since it already initializes
+	// everything. In the future, this could be refactored to use opts.Logger.
+	return InitServers(), nil
 }

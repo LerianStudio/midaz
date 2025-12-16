@@ -4,6 +4,7 @@
 package onboarding
 
 import (
+	"errors"
 	"fmt"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -75,7 +76,7 @@ func InitService() mbootstrap.Service {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (mbootstrap.Service, error) {
-	return bootstrap.InitServers()
+	return bootstrap.InitServersWithOptions(nil)
 }
 
 // InitServiceWithOptionsOrError initializes the onboarding service with custom options
@@ -87,7 +88,7 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {
-		return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+		return nil, errors.New("unified mode requires BalancePort to be provided")
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{

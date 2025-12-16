@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -106,11 +105,10 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 
 	logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
-	balanceReq := &balanceproto.BalanceRequest{
-		RequestId:      requestID,
-		OrganizationId: organizationID.String(),
-		LedgerId:       ledgerID.String(),
-		AccountId:      acc.ID,
+	balanceInput := mmodel.CreateBalanceInput{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AccountID:      uuid.MustParse(acc.ID),
 		Alias:          aAlias,
 		Key:            constant.DefaultBalanceKey,
 		AssetCode:      cii.Code,
@@ -119,11 +117,11 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 		AllowReceiving: true,
 	}
 
-	_, err = uc.BalancePort.CreateBalance(ctx, token, balanceReq)
+	_, err = uc.BalancePort.CreateBalanceSync(ctx, balanceInput)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance via gRPC", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 
-		logger.Errorf("Failed to create default balance via gRPC: %v", err)
+		logger.Errorf("Failed to create default balance: %v", err)
 
 		var (
 			unauthorized pkg.UnauthorizedError

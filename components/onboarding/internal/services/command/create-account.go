@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -82,18 +81,17 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 	return portfolioUUID, nil
 }
 
-// createAccountBalance creates the default balance for an account via gRPC
+// createAccountBalance creates the default balance for an account via BalancePort
 func (uc *UseCase) createAccountBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, acc *mmodel.Account, cai *mmodel.CreateAccountInput, requestID, token string, span *trace.Span) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	assert.NotNil(acc.Alias, "account alias must not be nil before balance creation",
 		"account_id", acc.ID)
 
-	balanceReq := &balanceproto.BalanceRequest{
-		RequestId:      requestID,
-		OrganizationId: organizationID.String(),
-		LedgerId:       ledgerID.String(),
-		AccountId:      acc.ID,
+	balanceInput := mmodel.CreateBalanceInput{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AccountID:      uuid.MustParse(acc.ID),
 		Alias:          *acc.Alias,
 		Key:            constant.DefaultBalanceKey,
 		AssetCode:      cai.AssetCode,
@@ -102,12 +100,12 @@ func (uc *UseCase) createAccountBalance(ctx context.Context, organizationID, led
 		AllowReceiving: true,
 	}
 
-	_, err := uc.BalancePort.CreateBalance(ctx, token, balanceReq)
+	_, err := uc.BalancePort.CreateBalanceSync(ctx, balanceInput)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance via gRPC", err)
-		logger.Errorf("Failed to create default balance via gRPC: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
+		logger.Errorf("Failed to create default balance: %v", err)
 
-		return fmt.Errorf("failed to create default balance via gRPC: %w", err)
+		return fmt.Errorf("failed to create default balance: %w", err)
 	}
 
 	return nil

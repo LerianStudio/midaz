@@ -51,7 +51,7 @@ func InitService() TransactionService {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (TransactionService, error) {
-	return bootstrap.InitServers()
+	return bootstrap.InitServersWithOptions(nil)
 }
 
 // InitServiceWithOptionsOrError initializes the transaction service with custom options
