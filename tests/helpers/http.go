@@ -27,11 +27,34 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient constructs a client with given base URL and timeout.
+// Configures a custom Transport optimized for high-concurrency test scenarios
+// to prevent connection pool starvation under parallel test load.
 func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
+	// Configure transport for high-concurrency test scenarios.
+	// Default MaxIdleConnsPerHost=2 causes connection pool starvation
+	// when running 30+ parallel tests with 40-110 concurrent requests each.
+	transport := &http.Transport{
+		// Connection pooling - critical for parallel tests
+		MaxIdleConns:        100, // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 50,  // Idle connections per host (default: 2!)
+		MaxConnsPerHost:     100, // Active connections per host (explicit limit)
+
+		// Timeouts for connection lifecycle
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+
+		// Performance settings
+		DisableKeepAlives:  false, // Keep connections alive for reuse
+		DisableCompression: false,
+		ForceAttemptHTTP2:  false, // Stay on HTTP/1.1 for simplicity
+	}
+
 	return &HTTPClient{
 		base: base,
 		client: &http.Client{
-			Timeout: timeout,
+			Transport: transport,
+			Timeout:   timeout,
 		},
 	}
 }
