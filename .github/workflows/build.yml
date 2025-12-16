@@ -101,7 +101,9 @@ jobs:
         if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || startsWith(github.ref, 'refs/heads/hotfix/') }}
         run: |
           mkdir -p gitops-tags
-          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}"
+          # Replace slashes with dashes in filename to avoid path issues
+          TAG_SAFE=$(echo "${{ steps.extract_tag.outputs.tag }}" | tr '/' '-')
+          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${TAG_SAFE}"
 
       - name: Upload GitOps tag artifact
         if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || startsWith(github.ref, 'refs/heads/hotfix/') }}
