@@ -557,6 +557,13 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
+	// Try to get transaction from idempotency cache first
+	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
+		c.Set("X-Cache-Hit", "true")
+
+		return http.OK(c, cachedTran)
+	}
+
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
