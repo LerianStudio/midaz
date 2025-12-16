@@ -12,13 +12,18 @@ import (
 )
 
 // TransactionService extends mbootstrap.Service with transaction-specific functionality.
-// This interface provides access to the BalancePort for in-process communication.
+// This interface provides access to the BalancePort and MetadataIndexPort for in-process communication.
 type TransactionService interface {
 	mbootstrap.Service
 	// GetBalancePort returns the balance port for use by other modules.
 	// This allows direct in-process calls instead of gRPC when running in unified mode.
 	// The returned BalancePort is the transaction UseCase itself.
 	GetBalancePort() mbootstrap.BalancePort
+
+	// GetMetadataIndexPort returns the metadata index port for use by the ledger module.
+	// This allows the ledger to manage metadata indexes using the transaction's MongoDB connection.
+	// The returned MetadataIndexPort is the transaction UseCase itself.
+	GetMetadataIndexPort() mbootstrap.MetadataIndexPort
 }
 
 // Options configures the transaction service initialization behavior.

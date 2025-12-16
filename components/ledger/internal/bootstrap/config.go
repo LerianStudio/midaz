@@ -3,10 +3,12 @@ package bootstrap
 import (
 	"fmt"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/google/uuid"
@@ -19,6 +21,13 @@ type Config struct {
 	EnvName  string `env:"ENV_NAME"`
 	LogLevel string `env:"LOG_LEVEL"`
 	Version  string `env:"VERSION"`
+
+	// Server configuration
+	ServerAddress string `env:"SERVER_ADDRESS_LEDGER"`
+
+	// Auth configuration
+	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -121,6 +130,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Onboarding module initialized")
 
+	// Get the MetadataIndexPort from transaction for metadata index management
+	metadataIndexPort := transactionService.GetMetadataIndexPort()
+
+	ledgerLogger.Info("MetadataIndexPort available for metadata index management")
+
+	// Create metadata index handler
+	metadataIndexHandler := &in.MetadataIndexHandler{
+		MetadataIndexPort: metadataIndexPort,
+	}
+
+	// Create auth client
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
+
+	// Create router and server
+	app := in.NewRouter(ledgerLogger, telemetry, auth, metadataIndexHandler)
+	server := NewServer(cfg, app, ledgerLogger, telemetry)
+
 	ledgerLogger.WithFields(
 		"version", cfg.Version,
 		"env", cfg.EnvName,
@@ -129,6 +155,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	return &Service{
 		OnboardingService:  onboardingService,
 		TransactionService: transactionService,
+		Server:             server,
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil

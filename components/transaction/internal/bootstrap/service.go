@@ -19,6 +19,10 @@ type Service struct {
 	// balancePort holds the reference for use in unified ledger mode.
 	// This is the transaction UseCase which implements BalancePort directly.
 	balancePort mbootstrap.BalancePort
+
+	// metadataIndexPort holds the reference for use in unified ledger mode.
+	// This is the transaction UseCase which implements MetadataIndexPort directly.
+	metadataIndexPort mbootstrap.MetadataIndexPort
 }
 
 // Run starts the application.
@@ -76,6 +80,14 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 // the interface directly - no intermediate adapters needed.
 func (app *Service) GetBalancePort() mbootstrap.BalancePort {
 	return app.balancePort
+}
+
+// GetMetadataIndexPort returns the metadata index port for use by ledger in unified mode.
+// This allows the ledger to manage metadata indexes using the transaction's MongoDB connection.
+// The returned MetadataIndexPort is the transaction UseCase itself, which implements
+// the interface directly - no intermediate adapters needed.
+func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
+	return app.metadataIndexPort
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

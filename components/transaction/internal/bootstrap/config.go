@@ -406,11 +406,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	metadataIndexHandler := &in.MetadataIndexHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
-
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -431,7 +426,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, metadataIndexHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
@@ -457,6 +452,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Info("BalanceSyncWorker disabled.")
 	}
 
+	metadataIndexAdapter := NewMetadataIndexAdapter(useCase, queryUseCase)
+
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
@@ -466,5 +463,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
+		metadataIndexPort:        metadataIndexAdapter,
 	}, nil
 }

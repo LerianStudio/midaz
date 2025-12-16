@@ -22,6 +22,7 @@ import (
 type MockBalancePort struct {
 	ctrl     *gomock.Controller
 	recorder *MockBalancePortMockRecorder
+	isgomock struct{}
 }
 
 // MockBalancePortMockRecorder is the mock recorder for MockBalancePort.
@@ -42,30 +43,30 @@ func (m *MockBalancePort) EXPECT() *MockBalancePortMockRecorder {
 }
 
 // CreateBalanceSync mocks base method.
-func (m *MockBalancePort) CreateBalanceSync(arg0 context.Context, arg1 mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+func (m *MockBalancePort) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBalanceSync", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateBalanceSync", ctx, input)
 	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateBalanceSync indicates an expected call of CreateBalanceSync.
-func (mr *MockBalancePortMockRecorder) CreateBalanceSync(arg0, arg1 any) *gomock.Call {
+func (mr *MockBalancePortMockRecorder) CreateBalanceSync(ctx, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalanceSync", reflect.TypeOf((*MockBalancePort)(nil).CreateBalanceSync), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalanceSync", reflect.TypeOf((*MockBalancePort)(nil).CreateBalanceSync), ctx, input)
 }
 
 // DeleteAllBalancesByAccountID mocks base method.
-func (m *MockBalancePort) DeleteAllBalancesByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) error {
+func (m *MockBalancePort) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", ctx, organizationID, ledgerID, accountID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAllBalancesByAccountID indicates an expected call of DeleteAllBalancesByAccountID.
-func (mr *MockBalancePortMockRecorder) DeleteAllBalancesByAccountID(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockBalancePortMockRecorder) DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockBalancePort)(nil).DeleteAllBalancesByAccountID), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockBalancePort)(nil).DeleteAllBalancesByAccountID), ctx, organizationID, ledgerID, accountID)
 }

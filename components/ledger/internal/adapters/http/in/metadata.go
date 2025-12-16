@@ -5,38 +5,37 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
+// MetadataIndexHandler handles HTTP requests for metadata index operations.
 type MetadataIndexHandler struct {
-	Command *command.UseCase
-	Query   *query.UseCase
+	MetadataIndexPort mbootstrap.MetadataIndexPort
 }
 
-// Create a metadata index.
+// CreateMetadataIndex creates a new metadata index.
 //
 //	@Summary		Create Metadata Index
 //	@Description	Create a metadata index with the input payload
 //	@Tags			Metadata Indexes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string							false	"Request ID"
+//	@Param			organization_id	path		string							true	"Organization ID"
+//	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			metadata-index	body		mmodel.CreateMetadataIndexInput	true	"Metadata Index Input"
-//	@Success		201				{object}	mmodel.MetadataIndex				"Successfully created metadata index"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		409				{object}	mmodel.Error						"Conflict: Metadata index already exists"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Success		201				{object}	mmodel.MetadataIndex			"Successfully created metadata index"
+//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
+//	@Failure		409				{object}	mmodel.Error					"Conflict: Metadata index already exists"
+//	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [post]
 func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -67,7 +66,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	payload := p.(*mmodel.CreateMetadataIndexInput)
 	logger.Infof("Request to create a metadata index with details: %#v", payload)
 
-	metadataIndex, err := handler.Command.CreateMetadataIndex(ctx, payload)
+	metadataIndex, err := handler.MetadataIndexPort.CreateMetadataIndex(ctx, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
 
@@ -81,27 +80,27 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	return http.Created(c, metadataIndex)
 }
 
-// Get all metadata indexes.
+// GetAllMetadataIndexes retrieves all metadata indexes.
 //
 //	@Summary		Get all Metadata Indexes
 //	@Description	Get all metadata indexes, optionally filtered by entity name
 //	@Tags			Metadata Indexes
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			entity_name		query		string	false	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	postgres.Pagination{items=[]mmodel.MetadataIndex,next_cursor=string,prev_cursor=string,limit=int}
-//	@Failure		400				{object}	mmodel.Error						"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Success		200				{object}	[]mmodel.MetadataIndex			"Successfully retrieved metadata indexes"
+//	@Failure		400				{object}	mmodel.Error					"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [get]
 func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -129,7 +128,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	metadataIndexes, err := handler.Query.GetAllMetadataIndexes(ctx, *headerParams)
+	metadataIndexes, err := handler.MetadataIndexPort.GetAllMetadataIndexes(ctx, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all metadata indexes", err)
 
@@ -143,24 +142,24 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	return http.OK(c, metadataIndexes)
 }
 
-// Delete a metadata index.
+// DeleteMetadataIndex deletes a metadata index.
 //
 //	@Summary		Delete Metadata Index
 //	@Description	Delete a metadata index with the input payload
 //	@Tags			Metadata Indexes
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			index_name		path		string					true	"Index Name"
-//	@Param			entity_name		query		string					true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
-//	@Success		204				{string}	string					"Metadata index successfully deleted"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Metadata index not found"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header	string	false	"Request ID"
+//	@Param			organization_id	path	string	true	"Organization ID"
+//	@Param			ledger_id		path	string	true	"Ledger ID"
+//	@Param			index_name		path	string	true	"Index Name"
+//	@Param			entity_name		query	string	true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
+//	@Success		204				{string}	string			"Metadata index successfully deleted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Metadata index not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name} [delete]
 func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -203,7 +202,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err := handler.Command.DeleteMetadataIndex(ctx, entityName, indexName)
+	err := handler.MetadataIndexPort.DeleteMetadataIndex(ctx, entityName, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete metadata index", err)
 

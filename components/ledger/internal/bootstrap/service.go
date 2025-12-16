@@ -12,6 +12,7 @@ import (
 type Service struct {
 	OnboardingService  mbootstrap.Service
 	TransactionService transaction.TransactionService
+	Server             *Server
 	Logger             libLog.Logger
 	Telemetry          *libOpentelemetry.Telemetry
 }
@@ -41,6 +42,9 @@ func (s *Service) Run() {
 	for _, r := range transactionRunnables {
 		launcherOpts = append(launcherOpts, libCommons.RunApp(r.Name, r.Runnable))
 	}
+
+	// Add ledger HTTP server for metadata index management
+	launcherOpts = append(launcherOpts, libCommons.RunApp("Ledger HTTP Server", s.Server))
 
 	libCommons.NewLauncher(launcherOpts...).Run()
 }
