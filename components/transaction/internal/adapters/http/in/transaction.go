@@ -1001,6 +1001,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
+	handler.Command.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, tran.ID, key, 5)
+
 	return http.Created(c, tran)
 }
 
