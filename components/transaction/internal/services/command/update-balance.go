@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -82,12 +83,21 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			len(newBalances), constant.ErrStaleBalanceUpdateSkipped)
 	}
 
+	logger.Infof("DB_UPDATE_START: Updating %d balances in PostgreSQL (org=%s, ledger=%s)",
+		len(balancesToUpdate), organizationID, ledgerID)
+	updateStart := time.Now()
+
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
+		updateDuration := time.Since(updateStart)
+		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after %v: %v", updateDuration, err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return fmt.Errorf("operation failed: %w", err)
 	}
+
+	updateDuration := time.Since(updateStart)
+	logger.Infof("DB_UPDATE_SUCCESS: Balance update completed in %v for %d balances", updateDuration, len(balancesToUpdate))
 
 	return nil
 }

@@ -36,25 +36,40 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
+		logger.Infof("DB_QUERY_START: Querying PostgreSQL for %d aliases: %v", len(aliases), aliases)
+		queryStart := time.Now()
+
 		balancesByAliases, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, logger)
+
+		queryDuration := time.Since(queryStart)
 		if err != nil {
+			logger.Errorf("DB_QUERY_FAILED: PostgreSQL query failed after %v: %v", queryDuration, err)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
 			return nil, fmt.Errorf("failed to list balances by aliases with keys: %w", err)
 		}
 
+		logger.Infof("DB_QUERY_SUCCESS: PostgreSQL returned %d balances in %v", len(balancesByAliases), queryDuration)
 		balances = append(balances, balancesByAliases...)
 	}
 
+	logger.Infof("REDIS_LOCK_START: Acquiring Redis locks for %d balance operations", len(balances))
+	lockStart := time.Now()
+
 	newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, balances, transactionStatus)
+
+	lockDuration := time.Since(lockStart)
 	if err != nil {
+		logger.Errorf("REDIS_LOCK_FAILED: Failed to acquire locks after %v: %v", lockDuration, err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
 
 		logger.Error("Failed to get balances and update on redis", err.Error())
 
 		return nil, fmt.Errorf("failed to get account and lock: %w", err)
 	}
+
+	logger.Infof("REDIS_LOCK_SUCCESS: Successfully acquired locks for %d balances in %v", len(newBalances), lockDuration)
 
 	return newBalances, nil
 }
