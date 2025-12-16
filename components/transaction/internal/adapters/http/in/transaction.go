@@ -3,6 +3,7 @@ package in
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"reflect"
 	"strings"
@@ -927,9 +928,28 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		return http.WithError(c, err)
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	handler.Command.SendTransactionToRedisQueue(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
+
+		logger.Errorf("Failed to send transaction to backup cache: %v", err.Error())
+
+		// Only delete idempotency key if marshal failed
+		// If Redis is down, Del would also fail
+		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
+			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, key)
+		}
+
+		spanSendTransactionToRedisQueue.End()
+
+		return http.WithError(c, pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name()))
+	}
+
+	spanSendTransactionToRedisQueue.End()
+
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {

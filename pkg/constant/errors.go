@@ -132,4 +132,7 @@ var (
 	ErrInvalidPendingFutureTransactionDate      = errors.New("0122")
 	ErrDuplicatedAliasKeyValue                  = errors.New("0123")
 	ErrAdditionalBalanceNotAllowed              = errors.New("0124")
+	ErrTransactionBackupCacheFailed             = errors.New("0125")
+	ErrTransactionBackupCacheMarshalFailed      = errors.New("0126")
+	ErrTransactionBackupCacheRetrievalFailed    = errors.New("0127")
 )

@@ -1026,6 +1026,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Additional Balance Creation Not Allowed",
 			Message:    "Additional balances are not allowed for external account type.",
 		},
+		constant.ErrTransactionBackupCacheFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheFailed.Error(),
+			Title:      "Transaction Backup Cache Failed",
+			Message:    "The server encountered an unexpected error while adding the transaction to the backup cache. Please try again later or contact support.",
+		},
+		constant.ErrTransactionBackupCacheMarshalFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheMarshalFailed.Error(),
+			Title:      "Transaction Backup Cache Marshal Failed",
+			Message:    "The server encountered an unexpected error while serializing the transaction for the backup cache. This uses the same backup mechanism. Please try again later or contact support.",
+		},
+		constant.ErrTransactionBackupCacheRetrievalFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheRetrievalFailed.Error(),
+			Title:      "Transaction Backup Cache Retrieval Failed",
+			Message:    "The transaction could not be retrieved from the backup cache internal function. Please ensure the transaction exists in the cache before processing balances.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
