@@ -23,7 +23,7 @@ import (
 // The balance is created via the BalancePort interface, which can be either local (in-process)
 // or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
@@ -150,6 +150,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
 		balanceInput := mmodel.CreateBalanceInput{
+			RequestID:      requestID,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			AccountID:      uuid.MustParse(acc.ID),

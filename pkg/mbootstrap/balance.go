@@ -28,5 +28,5 @@ type BalancePort interface {
 	CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error)
 
 	// DeleteAllBalancesByAccountID deletes all balances for a given account.
-	DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error
+	DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error
 }

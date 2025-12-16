@@ -23,7 +23,7 @@ import (
 // The balance is created via the BalancePort interface, which can be either local (in-process)
 // or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
@@ -126,6 +126,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	balanceInput := mmodel.CreateBalanceInput{
+		RequestID:      requestID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		AccountID:      uuid.MustParse(acc.ID),

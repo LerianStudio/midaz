@@ -75,6 +75,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		AccountType:    req.GetAccountType(),
 		AllowSending:   req.GetAllowSending(),
 		AllowReceiving: req.GetAllowReceiving(),
+		RequestID:      req.GetRequestId(),
 	}
 
 	created, err := b.Command.CreateBalanceSync(ctx, input)
@@ -144,7 +145,7 @@ func (b *BalanceProto) DeleteAllBalancesByAccountID(ctx context.Context, req *ba
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "accountId")
 	}
 
-	err = b.Command.DeleteAllBalancesByAccountID(ctx, orgID, ledgerID, accountID)
+	err = b.Command.DeleteAllBalancesByAccountID(ctx, orgID, ledgerID, accountID, req.GetRequestId())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
 
