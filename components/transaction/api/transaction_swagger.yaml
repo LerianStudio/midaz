@@ -312,7 +312,7 @@ definitions:
                     accountAlias:
                       description: |-
                         Account identifier or alias
-                        example: {{accountAlias}}
+                        example: @myAccount
                         required: true
                       type: string
                     amount:
@@ -428,7 +428,7 @@ definitions:
                     accountAlias:
                       description: |-
                         Account identifier or alias
-                        example: {{accountAlias}}
+                        example: @myAccount
                         required: true
                       type: string
                     amount:
@@ -1321,7 +1321,7 @@ definitions:
                     accountAlias:
                       description: |-
                         Account identifier or alias
-                        example: {{accountAlias}}
+                        example: @myAccount
                         required: true
                       type: string
                     amount:

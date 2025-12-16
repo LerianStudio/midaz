@@ -3768,7 +3768,7 @@ const docTemplatetransaction = `{
                                         "type": "object",
                                         "properties": {
                                             "accountAlias": {
-                                                "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
+                                                "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
                                                 "type": "string"
                                             },
                                             "amount": {
@@ -3861,7 +3861,7 @@ const docTemplatetransaction = `{
                                         "type": "object",
                                         "properties": {
                                             "accountAlias": {
-                                                "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
+                                                "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
                                                 "type": "string"
                                             },
                                             "amount": {
@@ -4692,7 +4692,7 @@ const docTemplatetransaction = `{
                                         "type": "object",
                                         "properties": {
                                             "accountAlias": {
-                                                "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
+                                                "description": "Account identifier or alias\nexample: @myAccount\nrequired: true",
                                                 "type": "string"
                                             },
                                             "amount": {

@@ -9,7 +9,18 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/gofiber/fiber/v2"
 )
+
+// OnboardingService extends mbootstrap.Service with onboarding-specific methods.
+// Use this interface when you need access to route registration for unified ledger mode.
+type OnboardingService interface {
+	mbootstrap.Service
+
+	// GetRouteRegistrar returns a function that registers onboarding routes to a Fiber app.
+	// This is used by the unified ledger server to consolidate all routes on a single port.
+	GetRouteRegistrar() func(*fiber.App)
+}
 
 // Options configures the onboarding service initialization behavior.
 // It controls whether the service runs in unified mode (part of the ledger monolith)
@@ -69,9 +80,10 @@ func InitServiceOrError() (mbootstrap.Service, error) {
 
 // InitServiceWithOptionsOrError initializes the onboarding service with custom options
 // and explicit error handling. Use this when running in unified ledger mode.
-func InitServiceWithOptionsOrError(opts *Options) (mbootstrap.Service, error) {
+// Returns OnboardingService which provides access to route registration.
+func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	if opts == nil {
-		return InitServiceOrError()
+		return bootstrap.InitServersWithOptions(nil)
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {

@@ -461,5 +461,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
+		auth:                     auth,
+		transactionHandler:       transactionHandler,
+		operationHandler:         operationHandler,
+		assetRateHandler:         assetRateHandler,
+		balanceHandler:           balanceHandler,
+		operationRouteHandler:    operationRouteHandler,
+		transactionRouteHandler:  transactionRouteHandler,
 	}, nil
 }

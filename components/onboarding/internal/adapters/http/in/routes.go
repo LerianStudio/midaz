@@ -31,6 +31,29 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
+	// Register all routes
+	RegisterRoutesToApp(f, auth, ah, ph, lh, ih, oh, sh, ath)
+
+	// Health
+	f.Get("/health", libHTTP.Ping)
+
+	// Version
+	f.Get("/version", libHTTP.Version)
+
+	// Doc
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+		fiberSwagger.InstanceName("onboarding"),
+	))
+
+	f.Use(tlMid.EndTracingSpans)
+
+	return f
+}
+
+// RegisterRoutesToApp registers onboarding routes to an existing Fiber app.
+// This is used by the unified ledger server to consolidate all routes in a single port.
+// The app should already have middleware configured (telemetry, cors, logging).
+func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) {
 	// Organizations
 	f.Post("/v1/organizations", auth.Authorize(midazName, "organizations", "post"), http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
 	f.Patch("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "patch"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))
@@ -87,17 +110,4 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(routingName, "account-types", "get"), http.ParseUUIDPathParameters("account_type"), ath.GetAccountTypeByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(routingName, "account-types", "get"), http.ParseUUIDPathParameters("account_type"), ath.GetAllAccountTypes)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(routingName, "account-types", "delete"), http.ParseUUIDPathParameters("account_type"), ath.DeleteAccountTypeByID)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
 }
