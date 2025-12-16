@@ -1,3 +1,28 @@
+## [v3.5.0-beta.23] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.22...v3.5.0-beta.23)
+Contributors: Clara Tersi, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Comprehensive API Documentation**: We've introduced detailed Swagger documentation for the Midaz Ledger API. This makes it easier for developers to understand and integrate with our system, providing clear endpoint specifications and response models.
+- **Unified Ledger Server**: Onboarding and transaction APIs are now consolidated onto a single port, simplifying deployment and reducing configuration complexity for users managing multiple services.
+
+### 🐛 Bug Fixes
+- **Configuration Stability**: Resolved a thread-safety issue in Swagger configuration initialization from environment variables, enhancing the stability and reliability of the configuration process.
+- **Documentation Clarity**: Improved example account alias in Swagger models, making it easier for developers to understand the intended use of API fields.
+
+### 🔄 Changes
+- **API Consistency**: Enhanced Swagger documentation generation to ensure consistent API behavior and documentation across different environments, improving the developer experience.
+- **Request Tracking**: Added RequestID to balance gRPC operations, facilitating better tracking and debugging of requests, which enhances reliability and supportability.
+
+### 📚 Documentation
+- **Version Management**: Updated Swagger to version v3.5.0 and improved the merge-swagger script to read version information from the .env file, ensuring consistency across environments.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed exposed ports for onboarding and transaction servers from the Dockerfile, reducing unnecessary exposure and enhancing security.
+- **Test Suite Improvements**: Updated StubService to implement onboarding.OnboardingService and added a GetRouteRegistrar method for route registration, improving test coverage and accuracy.
+
+
 ## [v3.5.0-beta.22] - 2025-12-15
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.21...v3.5.0-beta.22)
