@@ -15,7 +15,7 @@ import (
 )
 
 // UpdateBalances func that is responsible to update balances without select for update.
-func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
+func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")

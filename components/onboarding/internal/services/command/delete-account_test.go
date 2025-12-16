@@ -21,11 +21,11 @@ func TestDeleteAccountByID(t *testing.T) {
 
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPCRepo := mbootstrap.NewMockBalancePort(ctrl)
+	mockBalancePort := mbootstrap.NewMockBalancePort(ctrl)
 
 	uc := &UseCase{
-		AccountRepo:     mockAccountRepo,
-		BalancePort: mockBalanceGRPCRepo,
+		AccountRepo: mockAccountRepo,
+		BalancePort: mockBalancePort,
 	}
 
 	ctx := context.Background()
@@ -49,7 +49,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
-				mockBalanceGRPCRepo.EXPECT().
+				mockBalancePort.EXPECT().
 					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)
@@ -92,7 +92,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
-				mockBalanceGRPCRepo.EXPECT().
+				mockBalancePort.EXPECT().
 					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
 					Return(nil).
 					Times(1)

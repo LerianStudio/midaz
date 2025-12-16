@@ -102,7 +102,7 @@ func (uc *UseCase) createAccountBalance(ctx context.Context, organizationID, led
 		AllowReceiving: true,
 	}
 
-	_, err := uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
+	_, err := uc.BalancePort.CreateBalance(ctx, token, balanceReq)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance via gRPC", err)
 		logger.Errorf("Failed to create default balance via gRPC: %v", err)

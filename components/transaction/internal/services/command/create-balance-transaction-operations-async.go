@@ -106,7 +106,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
-	tran.Body = libTransaction.Transaction{}
+	tran.Body = pkgTransaction.Transaction{}
 
 	switch tran.Status.Code {
 	case constant.CREATED:

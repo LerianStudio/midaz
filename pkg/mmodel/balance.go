@@ -10,6 +10,7 @@ import (
 
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -321,6 +322,29 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 	}
 }
 
+// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
+func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
+	return &pkgTransaction.Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   b.AllowSending,
+		AllowReceiving: b.AllowReceiving,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+		DeletedAt:      b.DeletedAt,
+		Metadata:       b.Metadata,
+	}
+}
+
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
@@ -416,7 +440,7 @@ type BalanceErrorResponse struct {
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
-	Amount      libTransaction.Amount
+	Amount      pkgTransaction.Amount
 	InternalKey string
 }
 
