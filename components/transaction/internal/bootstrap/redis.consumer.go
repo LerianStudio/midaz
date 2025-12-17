@@ -19,8 +19,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-const CronTimeToRun = 30 * time.Minute
-const MessageTimeOfLife = 30
+const CronTimeToRun = 5 * time.Minute
+const MessageTimeOfLife = 5
 const MaxWorkers = 100
 
 type RedisQueueConsumer struct {
