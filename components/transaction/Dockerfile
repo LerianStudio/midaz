@@ -1,7 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
 WORKDIR /transaction-app
-
 COPY go.mod go.sum ./
 RUN go mod download
 
