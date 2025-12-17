@@ -8,6 +8,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -23,19 +24,24 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn *libRabbitmq.RabbitMQConnection
+	conn   *libRabbitmq.RabbitMQConnection
+	logger libLog.Logger
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection, logger libLog.Logger) *ProducerRabbitMQRepository {
 	prmq := &ProducerRabbitMQRepository{
-		conn: c,
+		conn:   c,
+		logger: logger,
 	}
 
 	_, err := c.GetNewConnect()
 	if err != nil {
 		panic("Failed to connect rabbitmq")
 	}
+
+	// Start goroutine to handle returned (unroutable) messages
+	go prmq.handleReturns()
 
 	return prmq
 }
@@ -47,6 +53,26 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	}
 
 	return prmq.conn.HealthCheck()
+}
+
+// handleReturns listens for messages that could not be routed to any queue.
+// This happens when mandatory=true and the message cannot be delivered.
+func (prmq *ProducerRabbitMQRepository) handleReturns() {
+	for {
+		if prmq.conn.Channel == nil {
+			time.Sleep(time.Second)
+			continue
+		}
+
+		returns := prmq.conn.Channel.NotifyReturn(make(chan amqp.Return, 10))
+		for ret := range returns {
+			prmq.logger.Errorf("RabbitMQ message returned (unroutable): exchange=%s, routingKey=%s, replyCode=%d, replyText=%s",
+				ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
+		}
+
+		// Channel was closed, wait for reconnection
+		prmq.logger.Warnf("RabbitMQ NotifyReturn channel closed, waiting for reconnection...")
+	}
 }
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
@@ -84,8 +110,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		err = prmq.conn.Channel.Publish(
 			exchange,
 			key,
-			false,
-			false,
+			true,  // mandatory: return message if it cannot be routed to a queue
+			false, // immediate: deprecated in RabbitMQ 3.0+
 			amqp.Publishing{
 				// ContentType set to octet-stream because the payload is msgpack binary.
 				ContentType:  "application/octet-stream",
