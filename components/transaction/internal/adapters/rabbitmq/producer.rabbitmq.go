@@ -87,7 +87,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			false,
 			false,
 			amqp.Publishing{
-				ContentType:  "application/json",
+				// ContentType set to octet-stream because the payload is msgpack binary.
+				ContentType:  "application/octet-stream",
 				DeliveryMode: amqp.Persistent,
 				Headers:      headers,
 				Body:         message,
