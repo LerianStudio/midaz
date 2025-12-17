@@ -1,3 +1,13 @@
+## [v3.5.0-beta.25] - 2025-12-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.24...v3.5.0-beta.25)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Dependency Update**: We've updated the `lib-commons` dependency to its latest version. This ensures that the application remains compatible with the newest features and security patches, enhancing the overall stability and security of your experience. Regular updates like this help prevent potential vulnerabilities and improve system reliability.
+- **Changelog Update**: The CHANGELOG has been refreshed to accurately reflect recent changes and improvements. This ensures that you can easily track the evolution of the project, understand the latest updates, and plan for any necessary adjustments in your usage or integration of the software.
+
+
 ## [v3.5.0-beta.24] - 2025-12-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.23...v3.5.0-beta.24)
