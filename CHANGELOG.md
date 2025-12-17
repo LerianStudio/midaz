@@ -1,3 +1,15 @@
+## [v3.5.0-beta.26] - 2025-12-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.25...v3.5.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: The changelog has been refreshed to accurately reflect recent updates and improvements. This ensures users can easily track the project's evolution and access the latest information about updates.
+
+### 🔧 Maintenance
+- **Docker Configuration Cleanup**: An unnecessary newline in the Dockerfile has been removed. This minor adjustment enhances the readability and maintainability of the Docker configuration, contributing to a cleaner setup process for developers working with the project.
+
+
 ## [v3.5.0-beta.25] - 2025-12-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.24...v3.5.0-beta.25)
