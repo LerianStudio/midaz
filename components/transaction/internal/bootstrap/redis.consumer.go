@@ -148,6 +148,7 @@ Outer:
 					Alias:          balance.Alias,
 					ID:             balance.ID,
 					AccountID:      balance.AccountID,
+					Key:            balance.Key,
 					Available:      balance.Available,
 					OnHold:         balance.OnHold,
 					Version:        balance.Version,

@@ -175,6 +175,11 @@ type BalanceRedis struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance (defaults to "default" if not provided)
+	// example: default
+	// maxLength: 100
+	Key string `json:"key" example:"default" maxLength:"100"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -322,6 +327,11 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		}
 
 		b.OnHold = decimal.NewFromFloat(f)
+	}
+
+	// Set default value for Key if not provided (backwards compatibility)
+	if b.Key == "" {
+		b.Key = "default"
 	}
 
 	return nil
