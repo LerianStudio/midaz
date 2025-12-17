@@ -17,11 +17,13 @@ import (
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 const CronTimeToRun = 5 * time.Minute
 const MessageTimeOfLife = 5
 const MaxWorkers = 100
+const ConsumerLockTTL = 240 // 4 minutes in seconds
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
@@ -135,6 +137,20 @@ Outer:
 				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
 				return
 			default:
+			}
+
+			// Acquire distributed lock to prevent duplicate processing across pods
+			lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
+
+			success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
+			if err != nil {
+				logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
+				return
+			}
+
+			if !success {
+				logger.Infof("Message %s already being processed by another pod, skipping", key)
+				return
 			}
 
 			if m.Validate == nil {
