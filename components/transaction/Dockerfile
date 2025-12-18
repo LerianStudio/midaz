@@ -16,5 +16,4 @@ COPY --from=builder /app /app
 COPY --from=builder /transaction-app/components/transaction/migrations /components/transaction/migrations
 
 EXPOSE 3001
-
 ENTRYPOINT ["/app"]
