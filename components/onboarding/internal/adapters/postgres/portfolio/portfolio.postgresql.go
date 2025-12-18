@@ -24,6 +24,19 @@ import (
 	"github.com/lib/pq"
 )
 
+var portfolioColumnList = []string{
+	"id",
+	"name",
+	"entity_id",
+	"ledger_id",
+	"organization_id",
+	"status",
+	"status_description",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to portfolio entities.
 // It defines methods for creating, finding, updating, and deleting portfolios in the database.
 type Repository interface {
@@ -154,8 +167,26 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id_entity.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND entity_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, entityID)
+	query, args, err := squirrel.Select(portfolioColumnList...).
+		From("portfolio").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"entity_id": entityID}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -202,7 +233,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	var portfolios []*mmodel.Portfolio
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(portfolioColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -289,8 +320,26 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, id)
+	query, args, err := squirrel.Select(portfolioColumnList...).
+		From("portfolio").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -339,8 +388,26 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_portfolios_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, pq.Array(ids))
+	query, args, err := squirrel.Select(portfolioColumnList...).
+		From("portfolio").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		spanQuery.End()
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 

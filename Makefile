@@ -153,6 +153,11 @@ help:
 	@echo "  make newman-env-check            - Verify environment file exists"
 	@echo ""
 	@echo ""
+	@echo "Migration Commands:"
+	@echo "  make migrate-lint                - Lint all migrations for dangerous patterns"
+	@echo "  make migrate-create              - Create new migration files (requires COMPONENT, NAME)"
+	@echo ""
+	@echo ""
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run Go integration tests (requires Docker stack)"
@@ -687,3 +692,41 @@ dev-setup:
 .PHONY: grpc-gen
 grpc-gen:
 	@protoc --proto_path=./pkg/mgrpc --go-grpc_out=./pkg/mgrpc --go_out=./pkg/mgrpc ./pkg/mgrpc/balance/balance.proto
+
+#-------------------------------------------------------
+# Migration Commands
+#-------------------------------------------------------
+
+.PHONY: migrate-lint migrate-create
+
+migrate-lint:
+	$(call print_title,"Linting database migrations")
+	@go build -o ./bin/migration-lint ./scripts/migration_linter
+	@echo "Checking onboarding migrations..."
+	@./bin/migration-lint ./components/onboarding/migrations
+	@echo ""
+	@echo "Checking transaction migrations..."
+	@./bin/migration-lint ./components/transaction/migrations
+	@echo "[ok] All migrations passed validation"
+
+migrate-create:
+	$(call print_title,"Creating new migration")
+	@if [ -z "$(COMPONENT)" ]; then \
+		echo "Error: COMPONENT not specified."; \
+		echo "Usage: make migrate-create COMPONENT=<onboarding|transaction> NAME=<migration_name>"; \
+		exit 1; \
+	fi
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified."; \
+		echo "Usage: make migrate-create COMPONENT=<onboarding|transaction> NAME=<migration_name>"; \
+		exit 1; \
+	fi
+	$(call check_command,migrate,"Install from https://github.com/golang-migrate/migrate")
+	@migrate create -ext sql -dir ./components/$(COMPONENT)/migrations -seq $(NAME)
+	@echo "[ok] Migration files created"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Edit the .up.sql file with your changes"
+	@echo "  2. Edit the .down.sql file with the rollback"
+	@echo "  3. Run 'make migrate-lint' to validate"
+	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"

@@ -22,6 +22,26 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+var accountColumnList = []string{
+	"id",
+	"name",
+	"parent_account_id",
+	"entity_id",
+	"asset_code",
+	"organization_id",
+	"ledger_id",
+	"portfolio_id",
+	"segment_id",
+	"status",
+	"status_description",
+	"alias",
+	"type",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+	"blocked",
+}
+
 // Repository provides an interface for operations related to account entities.
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
 type Repository interface {
@@ -194,7 +214,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var accounts []*mmodel.Account
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
@@ -291,7 +311,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -377,7 +397,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -462,7 +482,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -614,7 +634,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -710,7 +730,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -972,7 +992,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -1064,7 +1084,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	builder := squirrel.Select(accountColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).

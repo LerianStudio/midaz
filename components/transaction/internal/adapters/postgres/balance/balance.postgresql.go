@@ -23,6 +23,25 @@ import (
 	"github.com/lib/pq"
 )
 
+var balanceColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"account_id",
+	"alias",
+	"asset_code",
+	"available",
+	"on_hold",
+	"version",
+	"account_type",
+	"allow_sending",
+	"allow_receiving",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+	"key",
+}
+
 // Repository provides an interface for operations related to balance template entities.
 // It defines methods for creating, finding, listing, updating, and deleting balance templates.
 //
@@ -157,13 +176,25 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 
-	rows, err := db.QueryContext(
-		ctx,
-		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND account_id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID,
-		ledgerID,
-		pq.Array(accountIds),
-	)
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("account_id = ANY(?)", pq.Array(accountIds))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -246,7 +277,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -370,7 +401,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -483,13 +514,25 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases.query")
 
-	rows, err := db.QueryContext(
-		ctx,
-		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID,
-		ledgerID,
-		pq.Array(aliases),
-	)
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(aliases))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -583,7 +626,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 		})
 	}
 
-	findQuery := squirrel.Select("*").
+	findQuery := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -773,8 +816,24 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
-		organizationID, ledgerID, id)
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, sqlQuery, args...)
 
 	spanQuery.End()
 
@@ -1314,13 +1373,24 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_account_id.query")
 
-	rows, err := db.QueryContext(
-		ctx,
-		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID,
-		ledgerID,
-		accountID,
-	)
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"account_id": accountID}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 		logger.Errorf("Failed to execute query: %v", err)

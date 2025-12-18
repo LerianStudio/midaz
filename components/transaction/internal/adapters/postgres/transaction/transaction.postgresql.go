@@ -25,6 +25,42 @@ import (
 	"github.com/lib/pq"
 )
 
+var transactionColumnList = []string{
+	"id",
+	"parent_transaction_id",
+	"description",
+	"status",
+	"status_description",
+	"amount",
+	"asset_code",
+	"chart_of_accounts_group_name",
+	"ledger_id",
+	"organization_id",
+	"body",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+	"route",
+}
+
+var transactionColumnListPrefixed = []string{
+	"t.id",
+	"t.parent_transaction_id",
+	"t.description",
+	"t.status",
+	"t.status_description",
+	"t.amount",
+	"t.asset_code",
+	"t.chart_of_accounts_group_name",
+	"t.ledger_id",
+	"t.organization_id",
+	"t.body",
+	"t.created_at",
+	"t.updated_at",
+	"t.deleted_at",
+	"t.route",
+}
+
 // Repository provides an interface for operations related to transaction template entities.
 // It defines methods for creating, retrieving, updating, and deleting transactions.
 type Repository interface {
@@ -170,7 +206,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(transactionColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -295,8 +331,25 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 	defer spanQuery.End()
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, pq.Array(ids))
+	listByIDs := squirrel.Select(transactionColumnList...).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := listByIDs.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -383,8 +436,24 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
-		organizationID, ledgerID, id)
+	find := squirrel.Select(transactionColumnList...).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := find.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	if err := row.Scan(
 		&transaction.ID,
@@ -457,8 +526,24 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3 AND deleted_at IS NULL",
-		organizationID, ledgerID, parentID)
+	findByParent := squirrel.Select(transactionColumnList...).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("parent_transaction_id = ?", parentID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findByParent.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	row := db.QueryRowContext(ctx, query, args...)
 
 	if err := row.Scan(
 		&transaction.ID,
@@ -663,8 +748,36 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
-		organizationID, ledgerID, id)
+	operationColumnListPrefixed := []string{
+		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
+		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
+		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
+		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
+		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
+		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+	}
+
+	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
+
+	findWithOps := squirrel.Select(selectColumns...).
+		From(r.tableName + " t").
+		InnerJoin("operation o ON t.id = o.transaction_id").
+		Where(squirrel.Expr("t.organization_id = ?", organizationID)).
+		Where(squirrel.Expr("t.ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("t.id = ?", id)).
+		Where(squirrel.Eq{"t.deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findWithOps.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -791,7 +904,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		}
 	}
 
-	subQuery := squirrel.Select("*").
+	subQuery := squirrel.Select(transactionColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -806,8 +919,19 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	subQuery, orderDirection = libHTTP.ApplyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)
 
+	operationColumnListPrefixed := []string{
+		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
+		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
+		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
+		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
+		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
+		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+	}
+
+	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
+
 	findAll := squirrel.
-		Select("*").
+		Select(selectColumns...).
 		FromSelect(subQuery, "t").
 		LeftJoin("operation o ON t.id = o.transaction_id").
 		PlaceholderFormat(squirrel.Dollar).
