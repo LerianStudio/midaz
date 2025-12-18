@@ -1,63 +1,68 @@
-name: "💡 Feature Request"
-description: Create a new ticket for a new feature request
-title: "💡 [REQUEST] - <title>"
-labels: [
-  "feature"
-]
+name: "Feature Request"
+description: Suggest a new feature or enhancement
+title: "[FEATURE] - <title>"
+labels: ["enhancement"]
 body:
-  - type: input
-    id: start_date
+  - type: markdown
     attributes:
-      label: "Start Date"
-      description: Start of development
-      placeholder: "month/day/year"
-    validations:
-      required: false
+      value: |
+        Thanks for suggesting a feature! Please fill out the information below.
+
   - type: textarea
-    id: implementation_pr
+    id: problem
     attributes:
-      label: "Implementation PR"
-      description: Pull request used
-      placeholder: "#Pull Request ID"
-    validations:
-      required: false
-  - type: textarea
-    id: reference_issues
-    attributes:
-      label: "Reference Issues"
-      description: Common issues
-      placeholder: "#Issues IDs"
-    validations:
-      required: false
-  - type: textarea
-    id: summary
-    attributes:
-      label: "Summary"
-      description: Provide a brief explanation of the feature
-      placeholder: Describe in a few lines your feature request
+      label: "Problem Statement"
+      description: What problem does this feature solve? What is the use case?
+      placeholder: "I need this feature because..."
     validations:
       required: true
+
   - type: textarea
-    id: basic_example
+    id: solution
     attributes:
-      label: "Basic Example"
-      description: Indicate here some basic examples of your feature.
-      placeholder: A few specific words about your feature request.
+      label: "Proposed Solution"
+      description: Describe the solution you'd like
+      placeholder: "The feature should..."
     validations:
       required: true
+
   - type: textarea
-    id: drawbacks
+    id: alternatives
     attributes:
-      label: "Drawbacks"
-      description: What are the drawbacks/impacts of your feature request ?
-      placeholder: Identify the drawbacks and impacts while being neutral on your feature request
+      label: "Alternatives Considered"
+      description: Any alternative solutions or features you've considered?
+      placeholder: "I've also considered..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Acceptance Criteria"
+      description: How do we know when this feature is complete?
+      value: |
+        - [ ] Criteria 1
+        - [ ] Criteria 2
+        - [ ] Criteria 3
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Important
+        - Critical - blocking my work
     validations:
       required: true
+
   - type: textarea
-    id: unresolved_question
+    id: additional
     attributes:
-      label: "Unresolved questions"
-      description: What questions still remain unresolved ?
-      placeholder: Identify any unresolved issues.
+      label: "Additional Context"
+      description: Any other context, mockups, or examples
     validations:
       required: false

@@ -1,0 +1,75 @@
+# Auto-label PRs based on changed files
+# Monorepo structure with multiple components
+
+# Component-specific labels
+'area: onboarding':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/onboarding/**/*'
+
+'area: transaction':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/transaction/**/*'
+
+'area: console':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/console/**/*'
+
+'area: mdz':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/mdz/**/*'
+
+'area: infra':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/infra/**/*'
+
+# Cross-cutting concerns
+'area: documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+
+'area: ci/cd':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
+          - '.golangci.yml'
+          - '.releaserc.yml'
+
+'area: dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'go.mod'
+          - 'go.sum'
+          - '**/package.json'
+          - '**/package-lock.json'
+
+'area: build':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Makefile'
+          - '**/Dockerfile'
+          - 'mk/**/*'
+
+'area: tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*_test.go'
+          - 'tests/**/*'
+          - '**/*.test.ts'
+          - '**/*.test.tsx'
+
+'area: pkg':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pkg/**/*'
+
+'area: scripts':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**/*'
