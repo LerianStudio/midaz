@@ -236,10 +236,10 @@ local function main()
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
 
-    local validationErr = validateTransactionExists(transactionBackupQueue, transactionKey)
-    if validationErr then
-        return validationErr
-    end
+    -- local validationErr = validateTransactionExists(transactionBackupQueue, transactionKey)
+    -- if validationErr then
+    --     return validationErr
+    -- end
 
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
