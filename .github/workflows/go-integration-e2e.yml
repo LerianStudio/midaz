@@ -12,7 +12,7 @@ permissions:
 jobs:
   integration-e2e:
     if: ${{ false }}
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

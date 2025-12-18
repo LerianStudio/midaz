@@ -7,7 +7,7 @@ on:
 jobs:
   github-release-notification:
     name: Notify Discord and Slack of New Release
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       # Create a GitHub App token for authentication with higher rate limits
       - uses: actions/create-github-app-token@v1

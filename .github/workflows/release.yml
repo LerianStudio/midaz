@@ -18,7 +18,7 @@ jobs:
   # =========================
   integration_tests_go:
     name: Go Integration Tests
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
   # =========================
   integration_tests_console:
     name: Console Integration Tests
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     defaults:
       run:
         working-directory: components/console
@@ -76,7 +76,7 @@ jobs:
     needs: [integration_tests_go, integration_tests_console]
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.3.3
     with:
-      runner_type: "firmino-lxc-runners"
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
     secrets: inherit
 
   # =========================
@@ -84,7 +84,7 @@ jobs:
   # =========================
   generate_changelog:
     name: Generate AI-powered Changelog
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: release
     steps:
       - uses: actions/create-github-app-token@v1

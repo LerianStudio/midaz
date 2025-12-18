@@ -9,7 +9,7 @@ on:
 
 jobs:
   notify_devops:
-    runs-on: firmino-lxc-runners
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       # Checkout the repository with full history to compare changes
       - name: Checkout repository

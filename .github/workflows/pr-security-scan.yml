@@ -29,7 +29,7 @@ jobs:
   security-scan:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.3.3
     with:
-      runner_type: "firmino-lxc-runners"
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
         components/onboarding
         components/transaction

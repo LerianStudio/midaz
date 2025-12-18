@@ -17,7 +17,7 @@ jobs:
   build:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.3.3
     with:
-      runner_type: "firmino-lxc-runners"
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
       # Monorepo configuration
       filter_paths: |-
         components/onboarding
@@ -43,7 +43,7 @@ jobs:
     if: (contains(github.ref, '-beta') || contains(github.ref, '-rc')) && needs.build.result == 'success'
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.3.3
     with:
-      runner_type: "firmino-lxc-runners"
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"
       gitops_server: "firmino"
       app_name: "midaz"
@@ -63,7 +63,7 @@ jobs:
     if: (contains(github.ref, '-beta') || contains(github.ref, '-rc')) && needs.update_gitops.result == 'success'
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.3.3
     with:
-      runner_type: "firmino-lxc-runners"
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
       auto_detect_environment: true
     secrets:
       test_scenario_id: ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }}
