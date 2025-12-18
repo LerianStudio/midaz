@@ -34,6 +34,7 @@ type MetadataIndexHandler struct {
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error					"Organization or ledger not found"
 //	@Failure		409				{object}	mmodel.Error					"Conflict: Metadata index already exists"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [post]
@@ -162,7 +163,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			index_name		path	string	true	"Index Name"
 //	@Param			entity_name		query	string	true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
-//	@Success		204				{string}	string			"Metadata index successfully deleted"
+//	@Success		204				"Metadata index successfully deleted"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

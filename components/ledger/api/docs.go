@@ -7596,6 +7596,12 @@ const docTemplate = `
               "$ref": "#/definitions/Error"
             }
           },
+          "404": {
+            "description": "Organization or ledger not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
           "409": {
             "description": "Conflict: Metadata index already exists",
             "schema": {
@@ -7672,10 +7678,7 @@ const docTemplate = `
         ],
         "responses": {
           "204": {
-            "description": "Metadata index successfully deleted",
-            "schema": {
-              "type": "string"
-            }
+            "description": "Metadata index successfully deleted"
           },
           "400": {
             "description": "Invalid input, validation errors",

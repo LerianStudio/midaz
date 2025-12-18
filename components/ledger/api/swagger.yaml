@@ -5134,6 +5134,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        '404':
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
         '409':
           description: 'Conflict: Metadata index already exists'
           schema:
