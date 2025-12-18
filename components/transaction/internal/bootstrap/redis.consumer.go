@@ -172,11 +172,16 @@ Outer:
 
 			balances := make([]*mmodel.Balance, 0, len(m.Balances))
 			for _, balance := range m.Balances {
+				balanceKey := balance.Key
+				if balanceKey == "" {
+					balanceKey = constant.DefaultBalanceKey
+				}
+
 				balances = append(balances, &mmodel.Balance{
 					Alias:          balance.Alias,
 					ID:             balance.ID,
 					AccountID:      balance.AccountID,
-					Key:            balance.Key,
+					Key:            balanceKey,
 					Available:      balance.Available,
 					OnHold:         balance.OnHold,
 					Version:        balance.Version,
