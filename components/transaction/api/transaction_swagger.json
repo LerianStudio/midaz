@@ -1697,10 +1697,7 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "Metadata index successfully deleted",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Metadata index successfully deleted"
                     },
                     "400": {
                         "description": "Invalid input, validation errors",

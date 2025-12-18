@@ -2628,8 +2628,6 @@ paths:
       responses:
         "204":
           description: Metadata index successfully deleted
-          schema:
-            type: string
         "400":
           description: Invalid input, validation errors
           schema:
