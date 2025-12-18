@@ -64,7 +64,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	}
 
 	payload := p.(*mmodel.CreateMetadataIndexInput)
-	logger.Infof("Request to create a metadata index with details: %#v", payload)
+	logger.Infof("Request to create a metadata index: entityName=%s, metadataKey=%s", payload.EntityName, payload.MetadataKey)
 
 	metadataIndex, err := handler.MetadataIndexPort.CreateMetadataIndex(ctx, payload)
 	if err != nil {
@@ -126,6 +126,18 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		logger.Errorf("Failed to set span attributes, Error: %s", err.Error())
 
 		return http.WithError(c, err)
+	}
+
+	if headerParams.EntityName != nil && *headerParams.EntityName != "" {
+		if !mmodel.IsValidMetadataIndexEntity(*headerParams.EntityName) {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
+
+			logger.Errorf("Invalid entity name, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
 	}
 
 	metadataIndexes, err := handler.MetadataIndexPort.GetAllMetadataIndexes(ctx, *headerParams)

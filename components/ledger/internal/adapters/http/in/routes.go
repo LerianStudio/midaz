@@ -28,6 +28,23 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
+	// Register metadata index routes
+	RegisterRoutesToApp(f, auth, mdi)
+
+	// Health
+	f.Get("/health", libHTTP.Ping)
+
+	// Version
+	f.Get("/version", libHTTP.Version)
+
+	f.Use(tlMid.EndTracingSpans)
+
+	return f
+}
+
+// RegisterRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
+// This is used by the unified ledger server to consolidate all routes in a single port.
+func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *MetadataIndexHandler) {
 	// Metadata Indexes
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes",
 		auth.Authorize(midazName, "metadata-indexes", "post"),
@@ -43,14 +60,12 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		auth.Authorize(midazName, "metadata-indexes", "delete"),
 		http.ParseUUIDPathParameters("metadata_index"),
 		mdi.DeleteMetadataIndex)
+}
 
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
+// CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
+// This is used by the unified ledger server to consolidate all routes in a single port.
+func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler) func(*fiber.App) {
+	return func(fiberApp *fiber.App) {
+		RegisterRoutesToApp(fiberApp, auth, mdi)
+	}
 }

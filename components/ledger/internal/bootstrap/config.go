@@ -3,10 +3,12 @@ package bootstrap
 import (
 	"fmt"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/google/uuid"
@@ -30,6 +32,10 @@ type Config struct {
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
+
+	// Auth configuration
+	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -107,7 +113,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// This is the transaction.UseCase itself which implements BalancePort directly
 	balancePort := transactionService.GetBalancePort()
 
-	ledgerLogger.Info("Transaction module initialized, BalancePort available for in-process calls")
+	// Get the MetadataIndexPort from transaction for metadata index operations
+	metadataIndexPort := transactionService.GetMetadataIndexPort()
+	if metadataIndexPort == nil {
+		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
+	}
+
+	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
 
 	ledgerLogger.Info("Initializing onboarding module in UNIFIED MODE...")
 
@@ -124,6 +136,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Onboarding module initialized")
 
+	// Create auth client for metadata index routes
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
+
+	// Create metadata index handler
+	metadataIndexHandler := &httpin.MetadataIndexHandler{
+		MetadataIndexPort: metadataIndexPort,
+	}
+
+	// Create route registrar for ledger-specific routes (metadata indexes)
+	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler)
+
 	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
 
 	// Create the unified server that consolidates all routes on a single port
@@ -133,6 +156,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		telemetry,
 		onboardingService.GetRouteRegistrar(),
 		transactionService.GetRouteRegistrar(),
+		ledgerRouteRegistrar,
 	)
 
 	ledgerLogger.WithFields(

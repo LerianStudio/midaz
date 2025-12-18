@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "Midaz Ledger API (Unified)",
-    "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates) in a single service.",
+    "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
     "termsOfService": "http://swagger.io/terms/",
     "contact": {
       "name": "Discord community",
@@ -7403,6 +7403,310 @@
           }
         }
       }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes": {
+      "get": {
+        "description": "Get all metadata indexes, optionally filtered by entity name",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Metadata Indexes"
+        ],
+        "summary": "Get all Metadata Indexes",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "enum": [
+              "transaction",
+              "operation",
+              "operation_route",
+              "transaction_route"
+            ],
+            "type": "string",
+            "description": "Entity Name",
+            "name": "entity_name",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 10,
+            "description": "Limit",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start Date",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End Date",
+            "name": "end_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort Order",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Cursor",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved metadata indexes",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/MetadataIndex"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Create a metadata index with the input payload",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Metadata Indexes"
+        ],
+        "summary": "Create Metadata Index",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Metadata Index Input",
+            "name": "metadata-index",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateMetadataIndexInput"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successfully created metadata index",
+            "schema": {
+              "$ref": "#/definitions/MetadataIndex"
+            }
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "409": {
+            "description": "Conflict: Metadata index already exists",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}": {
+      "delete": {
+        "description": "Delete a metadata index with the input payload",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Metadata Indexes"
+        ],
+        "summary": "Delete Metadata Index",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Index Name",
+            "name": "index_name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "enum": [
+              "transaction",
+              "operation",
+              "operation_route",
+              "transaction_route"
+            ],
+            "type": "string",
+            "description": "Entity Name",
+            "name": "entity_name",
+            "in": "query",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Metadata index successfully deleted"
+          },
+          "400": {
+            "description": "Invalid input, validation errors",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Metadata index not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -7859,6 +8163,43 @@
         }
       }
     },
+    "CreateMetadataIndexInput": {
+      "description": "CreateMetadataIndexInput payload",
+      "type": "object",
+      "required": [
+        "entityName",
+        "metadataKey"
+      ],
+      "properties": {
+        "entityName": {
+          "description": "The entity/collection name to create the index on",
+          "type": "string",
+          "enum": [
+            "transaction",
+            "operation",
+            "operation_route",
+            "transaction_route"
+          ],
+          "example": "transaction"
+        },
+        "metadataKey": {
+          "description": "The metadata key to index (without \"metadata.\" prefix)",
+          "type": "string",
+          "maxLength": 100,
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index should be sparse (only include documents with the field)",
+          "type": "boolean",
+          "example": true
+        },
+        "unique": {
+          "description": "Whether the index should enforce uniqueness",
+          "type": "boolean",
+          "example": false
+        }
+      }
+    },
     "CreateOrganizationInput": {
       "description": "Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.",
       "type": "object",
@@ -8064,6 +8405,43 @@
           "type": "string",
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
+        }
+      }
+    },
+    "MetadataIndex": {
+      "description": "Represents a custom MongoDB index on a metadata field",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "description": "When the index was created",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "entityName": {
+          "description": "The entity/collection name where the index exists",
+          "type": "string",
+          "example": "transaction"
+        },
+        "indexName": {
+          "description": "The name of the index in MongoDB",
+          "type": "string",
+          "example": "metadata.tier_1"
+        },
+        "metadataKey": {
+          "description": "The metadata key that is indexed",
+          "type": "string",
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index is sparse",
+          "type": "boolean",
+          "example": true
+        },
+        "unique": {
+          "description": "Whether the index enforces uniqueness",
+          "type": "boolean",
+          "example": false
         }
       }
     },
