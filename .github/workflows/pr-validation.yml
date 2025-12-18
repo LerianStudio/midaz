@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@feature/go-workflows
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.3.3
     with:
       runner_type: "firmino-lxc-runners"
       pr_title_types: |

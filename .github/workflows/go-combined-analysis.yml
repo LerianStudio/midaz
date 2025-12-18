@@ -25,7 +25,7 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@feature/go-workflows
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.3.3
     with:
       runner_type: "firmino-lxc-runners"
       filter_paths: '["components/onboarding", "components/transaction"]'
