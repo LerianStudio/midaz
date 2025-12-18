@@ -5148,12 +5148,12 @@ paths:
             $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}:
     delete:
-      description: Delete a metadata index by its name
+      description: Delete a metadata index for the given entity_name and index_name combination. The entity_name query parameter is required and must be one of transaction, operation, operation_route, or transaction_route.
       produces:
         - application/json
       tags:
         - Metadata Indexes
-      summary: Delete Metadata Index
+      summary: Delete Metadata Index (requires entity_name query param)
       parameters:
         - type: string
           description: Authorization Bearer Token
