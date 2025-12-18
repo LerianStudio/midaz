@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -22,6 +23,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	accountID := uuid.New()
+	requestID := libCommons.GenerateUUIDv7()
 
 	t.Run("list balances error", func(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
@@ -31,7 +33,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return(nil, expectedErr)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
@@ -42,7 +44,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 			Return([]*mmodel.Balance{}, nil)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
 	})
 
@@ -58,7 +60,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, expectedErr)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
@@ -73,7 +75,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(&mmodel.Balance{}, nil)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
 		var validationErr midazpkg.ValidationError
 		assert.Error(t, err)
@@ -92,7 +94,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
 			Return(nil, nil)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
 		var validationErr midazpkg.ValidationError
 		assert.Error(t, err)
@@ -132,7 +134,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			})
 		gomock.InOrder(firstCall, secondCall)
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
@@ -166,7 +168,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				return nil
 			})
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.ErrorIs(t, err, expectedErr)
 	})
 
@@ -196,7 +198,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				return nil
 			})
 
-		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID)
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
 	})
 }

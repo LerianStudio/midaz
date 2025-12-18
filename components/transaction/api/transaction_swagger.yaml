@@ -312,7 +312,7 @@ definitions:
                     accountAlias:
                       description: |-
                         Account identifier or alias
-                        example: {{accountAlias}}
+                        example: @myAccount
                         required: true
                       type: string
                     amount:
@@ -428,7 +428,7 @@ definitions:
                     accountAlias:
                       description: |-
                         Account identifier or alias
-                        example: {{accountAlias}}
+                        example: @myAccount
                         required: true
                       type: string
                     amount:
@@ -538,8 +538,6 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
-        example:
-          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
@@ -1119,176 +1117,6 @@ definitions:
         maxLength: 50
         type: string
     type: object
-  github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
-    description: Schema for creating transaction with the complete Send operation
-      structure defined inline
-    properties:
-      chartOfAccountsGroupName:
-        description: |-
-          Chart of accounts group name for accounting purposes
-          example: FUNDING
-          maxLength: 256
-        type: string
-      code:
-        description: |-
-          Transaction code for reference
-          example: TR12345
-          maxLength: 100
-        type: string
-      description:
-        description: |-
-          Human-readable description of the transaction
-          example: New Transaction
-          maxLength: 256
-        type: string
-      metadata:
-        additionalProperties: {}
-        description: |-
-          Additional custom attributes
-          example: {"reference": "TRANSACTION-001", "source": "api"}
-        type: object
-      pending:
-        default: false
-        description: |-
-          Whether the transaction should be created in pending state
-          example: true
-          swagger: type boolean
-        example: true
-        type: boolean
-      send:
-        description: |-
-          Send operation details including source and distribution
-          required: true
-        properties:
-          asset:
-            description: |-
-              Asset code for the transaction
-              example: USD
-              required: true
-            type: string
-          distribute:
-            description: |-
-              Destination accounts and amounts for the transaction
-              required: true
-            properties:
-              to:
-                description: |-
-                  List of destination operations
-                  required: true
-                items:
-                  properties:
-                    accountAlias:
-                      description: |-
-                        Account identifier or alias
-                        example: {{accountAlias}}
-                        required: true
-                      type: string
-                    amount:
-                      description: |-
-                        Amount details for the operation
-                        required: true
-                      properties:
-                        asset:
-                          description: |-
-                            Asset code
-                            example: USD
-                            required: true
-                          type: string
-                        value:
-                          description: |-
-                            Amount value in smallest unit
-                            example: "100.00"
-                            required: true
-                          type: string
-                      type: object
-                    chartOfAccounts:
-                      description: |-
-                        Chart of accounts code
-                        example: FUNDING_CREDIT
-                      type: string
-                    description:
-                      description: |-
-                        Operation description
-                        example: Credit Operation
-                      type: string
-                    metadata:
-                      additionalProperties: {}
-                      description: |-
-                        Additional metadata
-                        example: {"operation": "funding", "type": "account"}
-                      type: object
-                  type: object
-                type: array
-            type: object
-          source:
-            description: |-
-              Source accounts and amounts for the transaction
-              required: true
-            properties:
-              from:
-                description: |-
-                  List of source operations
-                  required: true
-                items:
-                  properties:
-                    accountAlias:
-                      description: |-
-                        Account identifier or alias
-                        example: @external/USD
-                        required: true
-                      type: string
-                    amount:
-                      description: |-
-                        Amount details for the operation
-                        required: true
-                      properties:
-                        asset:
-                          description: |-
-                            Asset code
-                            example: USD
-                            required: true
-                          type: string
-                        value:
-                          description: |-
-                            Amount value in smallest unit
-                            example: "100.00"
-                            required: true
-                          type: string
-                      type: object
-                    chartOfAccounts:
-                      description: |-
-                        Chart of accounts code
-                        example: FUNDING_DEBIT
-                      type: string
-                    description:
-                      description: |-
-                        Operation description
-                        example: Debit Operation
-                      type: string
-                    metadata:
-                      additionalProperties: {}
-                      description: |-
-                        Additional metadata
-                        example: {"operation": "funding", "type": "external"}
-                      type: object
-                  type: object
-                type: array
-            type: object
-          value:
-            description: |-
-              Transaction amount value in the smallest unit of the asset
-              example: "100.00"
-              required: true
-            type: string
-        type: object
-      transactionDate:
-        description: |-
-          TransactionDate Period from transaction creation date until now
-          Example "2021-01-01T00:00:00Z"
-          swagger: type string
-          required: false
-        type: string
-    type: object
   mmodel.AccountRule:
     type: object
   mmodel.Balance:
@@ -1432,6 +1260,176 @@ definitions:
     type: object
   mmodel.CreateOperationRouteInput:
     type: object
+  transaction.CreateTransactionSwaggerModel:
+    description: Schema for creating transaction with the complete Send operation
+      structure defined inline
+    properties:
+      chartOfAccountsGroupName:
+        description: |-
+          Chart of accounts group name for accounting purposes
+          example: FUNDING
+          maxLength: 256
+        type: string
+      code:
+        description: |-
+          Transaction code for reference
+          example: TR12345
+          maxLength: 100
+        type: string
+      description:
+        description: |-
+          Human-readable description of the transaction
+          example: New Transaction
+          maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Additional custom attributes
+          example: {"reference": "TRANSACTION-001", "source": "api"}
+        type: object
+      pending:
+        default: false
+        description: |-
+          Whether the transaction should be created in pending state
+          example: true
+          swagger: type boolean
+        example: true
+        type: boolean
+      send:
+        description: |-
+          Send operation details including source and distribution
+          required: true
+        properties:
+          asset:
+            description: |-
+              Asset code for the transaction
+              example: USD
+              required: true
+            type: string
+          distribute:
+            description: |-
+              Destination accounts and amounts for the transaction
+              required: true
+            properties:
+              to:
+                description: |-
+                  List of destination operations
+                  required: true
+                items:
+                  properties:
+                    accountAlias:
+                      description: |-
+                        Account identifier or alias
+                        example: @myAccount
+                        required: true
+                      type: string
+                    amount:
+                      description: |-
+                        Amount details for the operation
+                        required: true
+                      properties:
+                        asset:
+                          description: |-
+                            Asset code
+                            example: USD
+                            required: true
+                          type: string
+                        value:
+                          description: |-
+                            Amount value in smallest unit
+                            example: "100.00"
+                            required: true
+                          type: string
+                      type: object
+                    chartOfAccounts:
+                      description: |-
+                        Chart of accounts code
+                        example: FUNDING_CREDIT
+                      type: string
+                    description:
+                      description: |-
+                        Operation description
+                        example: Credit Operation
+                      type: string
+                    metadata:
+                      additionalProperties: {}
+                      description: |-
+                        Additional metadata
+                        example: {"operation": "funding", "type": "account"}
+                      type: object
+                  type: object
+                type: array
+            type: object
+          source:
+            description: |-
+              Source accounts and amounts for the transaction
+              required: true
+            properties:
+              from:
+                description: |-
+                  List of source operations
+                  required: true
+                items:
+                  properties:
+                    accountAlias:
+                      description: |-
+                        Account identifier or alias
+                        example: @external/USD
+                        required: true
+                      type: string
+                    amount:
+                      description: |-
+                        Amount details for the operation
+                        required: true
+                      properties:
+                        asset:
+                          description: |-
+                            Asset code
+                            example: USD
+                            required: true
+                          type: string
+                        value:
+                          description: |-
+                            Amount value in smallest unit
+                            example: "100.00"
+                            required: true
+                          type: string
+                      type: object
+                    chartOfAccounts:
+                      description: |-
+                        Chart of accounts code
+                        example: FUNDING_DEBIT
+                      type: string
+                    description:
+                      description: |-
+                        Operation description
+                        example: Debit Operation
+                      type: string
+                    metadata:
+                      additionalProperties: {}
+                      description: |-
+                        Additional metadata
+                        example: {"operation": "funding", "type": "external"}
+                      type: object
+                  type: object
+                type: array
+            type: object
+          value:
+            description: |-
+              Transaction amount value in the smallest unit of the asset
+              example: "100.00"
+              required: true
+            type: string
+        type: object
+      transactionDate:
+        description: |-
+          TransactionDate Period from transaction creation date until now
+          Example "2021-01-01T00:00:00Z"
+          swagger: type string
+          required: false
+        type: string
+    type: object
 host: localhost:3001
 info:
   contact:
@@ -1503,16 +1501,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1664,16 +1662,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1794,16 +1792,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -1861,16 +1859,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2161,16 +2159,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
                 limit:
                   type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2224,8 +2222,6 @@ paths:
       responses:
         "204":
           description: Balance successfully deleted
-          schema:
-            type: string
         "401":
           description: Unauthorized access
           schema:
@@ -3215,6 +3211,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
+      consumes:
+      - application/json
       description: Cancel a previously created pre transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3277,6 +3275,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
+      consumes:
+      - application/json
       description: Commit a previously created transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3506,7 +3506,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:
@@ -3688,7 +3688,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:
@@ -3780,4 +3780,11 @@ paths:
       summary: Create a Transaction without passing to distribution
       tags:
       - Transactions
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+      Only required when auth plugin is enabled.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

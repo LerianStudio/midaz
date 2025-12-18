@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -23,15 +24,15 @@ type RedisConsumerRepository struct {
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
+func NewConsumerRedis(rc *libRedis.RedisConnection) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
-		panic("Failed to connect on redis")
+		return nil, fmt.Errorf("failed to connect on redis: %w", err)
 	}
 
-	return r
+	return r, nil
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {

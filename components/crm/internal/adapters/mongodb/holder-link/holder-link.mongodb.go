@@ -480,12 +480,12 @@ func (hlm *MongoDBRepository) Delete(ctx context.Context, organizationID string,
 	}
 
 	if hardDelete {
-		ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_holder_link.hard_delete")
+		ctxDelete, spanDelete := tracer.Start(ctx, "mongodb.delete_holder_link.hard_delete")
 		defer spanDelete.End()
 
 		spanDelete.SetAttributes(attributes...)
 
-		result, err := coll.DeleteOne(ctx, filter)
+		result, err := coll.DeleteOne(ctxDelete, filter)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to hard delete holder link", err)
 			return err

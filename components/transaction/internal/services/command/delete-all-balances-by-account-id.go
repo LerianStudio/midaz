@@ -13,14 +13,19 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
-func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID uuid.UUID, accountID uuid.UUID) error {
+func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_all_balances_by_account_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", requestID),
+	)
 
 	logger.Infof("Trying to delete all balances by account id: %s", accountID.String())
 

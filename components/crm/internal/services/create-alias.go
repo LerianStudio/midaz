@@ -134,10 +134,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			return nil, err
 		}
 
-		err = uc.enrichAliasWithLinkType(ctx, organizationID, updatedAccount)
-		if err != nil {
-			logger.Warnf("Failed to enrich alias with holder links: %v", err)
-		}
+		uc.enrichAliasWithLinkType(ctx, organizationID, updatedAccount)
 
 		return updatedAccount, nil
 	}

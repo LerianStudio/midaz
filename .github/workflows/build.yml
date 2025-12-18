@@ -23,6 +23,8 @@ jobs:
         components/onboarding
         components/transaction
         components/console
+        components/crm
+        components/ledger
       path_level: 2
       app_name_prefix: "midaz"
       # Registry configuration
@@ -46,7 +48,7 @@ jobs:
       gitops_server: "firmino"
       app_name: "midaz"
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "console.tag": ".console.image.tag"}'
+      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "console.tag": ".console.image.tag", "crm.tag": ".crm.image.tag", "ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       argocd_app_name: "firmino-midaz"

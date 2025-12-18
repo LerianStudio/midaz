@@ -7,17 +7,21 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
-// CreateAssetSync creates an asset and metadata synchronously and ensures an external
+// CreateAsset creates an asset and metadata synchronously and ensures an external
 // account exists for the asset. If a new external account is created, it also
-// creates the default balance for that account via gRPC.
+// creates the default balance for that account.
+// The balance is created via the BalancePort interface, which can be either local (in-process)
+// or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -37,7 +41,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	status.Description = cii.Status.Description
 
-	if err := libCommons.ValidateType(cii.Type); err != nil {
+	if err := utils.ValidateType(cii.Type); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset type", err)
@@ -50,7 +54,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if cii.Type == "currency" {
-		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
+		if err := utils.ValidateCurrency(cii.Code); err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset currency", err)
@@ -145,11 +149,11 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
-		balanceReq := &balanceproto.BalanceRequest{
-			RequestId:      requestID,
-			OrganizationId: organizationID.String(),
-			LedgerId:       ledgerID.String(),
-			AccountId:      acc.ID,
+		balanceInput := mmodel.CreateBalanceInput{
+			RequestID:      requestID,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      uuid.MustParse(acc.ID),
 			Alias:          aAlias,
 			Key:            constant.DefaultBalanceKey,
 			AssetCode:      cii.Code,
@@ -158,11 +162,14 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			AllowReceiving: true,
 		}
 
-		_, err = uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance via gRPC", err)
+		// Inject authorization token into context metadata for downstream gRPC calls
+		ctxWithAuth := grpcMetadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
-			logger.Errorf("Failed to create default balance via gRPC: %v", err)
+		_, err = uc.BalancePort.CreateBalanceSync(ctxWithAuth, balanceInput)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance", err)
+
+			logger.Errorf("Failed to create default balance: %v", err)
 
 			var (
 				unauthorized pkg.UnauthorizedError
@@ -176,7 +183,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		logger.Infof("External account default balance created via gRPC")
+		logger.Infof("External account default balance created")
 	}
 
 	return inst, nil
@@ -191,7 +198,7 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 
 	logger.Infof("Validating asset code: %s", code)
 
-	if err := libCommons.ValidateCode(code); err != nil {
+	if err := utils.ValidateCode(code); err != nil {
 		switch err.Error() {
 		case constant.ErrInvalidCodeFormat.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())

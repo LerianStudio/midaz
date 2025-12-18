@@ -20,9 +20,9 @@ import { DBConfig } from '../mongo-config'
  * for persisting and retrieving organization avatar data.
  */
 @injectable()
-export class MongoOrganizationAvatarRepository
-  implements OrganizationAvatarRepository<typeof OrganizationAvatar>
-{
+export class MongoOrganizationAvatarRepository implements OrganizationAvatarRepository<
+  typeof OrganizationAvatar
+> {
   /**
    * Creates a new instance of the MongoOrganizationAvatarRepository.
    * @param logger - The logger instance for logging errors and other events.

@@ -28,8 +28,8 @@ type AliasHandler struct {
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
-//	@Param			alias				body		model.CreateAliasInput	true	"Alias Input"
-//	@Success		201					{object}	model.Alias
+//	@Param			alias				body		mmodel.CreateAliasInput	true	"Alias Input"
+//	@Success		201					{object}	mmodel.Alias
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -80,7 +80,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 //	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
 //	@Param			alias_id			path		string	true	"The unique identifier of the Alias account."
 //	@Param			include_deleted		query		string	false	"Returns the alias even if it was logically deleted."
-//	@Success		200					{object}	model.Alias
+//	@Success		200					{object}	mmodel.Alias
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -131,8 +131,8 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 //	@Param			X-Organization-Id	header		string					true	"The unique identifier of the Organization associated with the Ledger."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			alias_id			path		string					true	"The unique identifier of the Alias account."
-//	@Param			alias				body		model.UpdateAliasInput	true	"Alias Input"
-//	@Success		200					{object}	model.Alias
+//	@Param			alias				body		mmodel.UpdateAliasInput	true	"Alias Input"
+//	@Success		200					{object}	mmodel.Alias
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -260,7 +260,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Param			banking_details_branch	query		string	false	"Filter alias by banking details branch"
 //	@Param			banking_details_account	query		string	false	"Filter alias by banking details account"
 //	@Param			banking_details_iban	query		string	false	"Filter alias by banking details iban"
-//	@Success		200						{object}	model.Pagination{items=[]model.Alias,page=int,limit=int}
+//	@Success		200						{object}	libPostgres.Pagination{items=[]mmodel.Alias,page=int,limit=int}
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError

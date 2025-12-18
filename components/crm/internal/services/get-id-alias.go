@@ -35,11 +35,7 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 		return nil, err
 	}
 
-	err = uc.enrichAliasWithLinkType(ctx, organizationID, alias)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to enrich alias with link type", err)
-		logger.Warnf("Failed to enrich alias with link type: %v", err)
-	}
+	uc.enrichAliasWithLinkType(ctx, organizationID, alias)
 
 	return alias, nil
 }

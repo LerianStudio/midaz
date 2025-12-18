@@ -280,7 +280,7 @@ generate-docs:
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
-	@cd $(MIDAZ_ROOT)/components/onboarding && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+	@cd $(MIDAZ_ROOT)/components/onboarding && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName onboarding
 	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi

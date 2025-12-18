@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
@@ -100,6 +100,29 @@ type Balance struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
+func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
+	return &pkgTransaction.Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   b.AllowSending,
+		AllowReceiving: b.AllowReceiving,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+		DeletedAt:      b.DeletedAt,
+		Metadata:       b.Metadata,
+	}
+}
+
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
 //
 // swagger:model CreateAdditionalBalance
@@ -142,6 +165,11 @@ type UpdateBalance struct {
 // It centralizes all properties required to perform validations and persist the new balance,
 // keeping call sites simple and reducing the chance of inconsistent argument ordering.
 type CreateBalanceInput struct {
+	// Request ID for tracing
+	// example: 123e4567-e89b-12d3-a456-426614174000
+	// format: string uuid
+	RequestID string
+
 	// Organization that owns this balance
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
@@ -253,52 +281,6 @@ type BalanceRedis struct {
 	Key string `json:"key"`
 }
 
-// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
-func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(balances))
-
-	for _, b := range balances {
-		if b != nil {
-			out = append(out, b.ConvertToLibBalance())
-		}
-	}
-
-	return out
-}
-
-// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
-func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(operations))
-	for _, op := range operations {
-		out = append(out, op.Balance.ConvertToLibBalance())
-	}
-
-	return out
-}
-
-// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
-func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
-	return &libTransaction.Balance{
-		ID:             b.ID,
-		OrganizationID: b.OrganizationID,
-		LedgerID:       b.LedgerID,
-		AccountID:      b.AccountID,
-		Alias:          b.Alias,
-		Key:            b.Key,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Version:        b.Version,
-		AccountType:    b.AccountType,
-		AllowSending:   b.AllowSending,
-		AllowReceiving: b.AllowReceiving,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-		DeletedAt:      b.DeletedAt,
-		Metadata:       b.Metadata,
-	}
-}
-
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
@@ -405,7 +387,7 @@ type BalanceErrorResponse struct {
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
-	Amount      libTransaction.Amount
+	Amount      pkgTransaction.Amount
 	InternalKey string
 }
 
@@ -416,9 +398,9 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
+	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
-	Validate          *libTransaction.Responses  `json:"validate"`
+	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 }

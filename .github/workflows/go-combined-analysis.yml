@@ -28,7 +28,7 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.3.3
     with:
       runner_type: "firmino-lxc-runners"
-      filter_paths: '["components/onboarding", "components/transaction"]'
+      filter_paths: '["components/onboarding", "components/transaction", "components/crm", "components/ledger"]'
       path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.25"

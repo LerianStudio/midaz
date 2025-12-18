@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -184,7 +184,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 			},
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			TransactionRoute: transactionRouteID.String(),
 		}
 
@@ -214,7 +214,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 			},
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			TransactionRoute: "",
 		}
 
@@ -244,7 +244,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 			},
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			TransactionRoute: "invalid-uuid-format",
 		}
 
@@ -274,7 +274,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 			},
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			TransactionRoute: transactionRouteID.String(),
 		}
 

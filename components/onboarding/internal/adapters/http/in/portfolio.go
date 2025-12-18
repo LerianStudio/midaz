@@ -82,22 +82,22 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Portfolios
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string	false	"JSON string to filter portfolios by metadata fields"
-//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
-//	@Param			start_date		query		string	false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter portfolios created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Param			Authorization	header		string																true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
+//	@Param			organization_id	path		string																true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string																false	"JSON string to filter portfolios by metadata fields"
+//	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			start_date		query		string																false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string																false	"Filter portfolios created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}	"Successfully retrieved portfolios list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error														"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error														"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -179,11 +179,11 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about a portfolio identified by its UUID within the specified ledger
 //	@Tags			Portfolios
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Portfolio ID in UUID format"
+//	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
+//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
+//	@Param			id				path		string				true	"Portfolio ID in UUID format"
 //	@Success		200				{object}	mmodel.Portfolio	"Successfully retrieved portfolio"
 //	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error		"Forbidden access"
@@ -289,12 +289,12 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 //	@Summary		Delete a portfolio
 //	@Description	Permanently removes a portfolio from the specified ledger. This operation cannot be undone.
 //	@Tags			Portfolios
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Param			id				path	string	true	"Portfolio ID in UUID format"
-//	@Success		204				{object}	nil	"Portfolio successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			id				path		string			true	"Portfolio ID in UUID format"
+//	@Success		204				"Portfolio successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Portfolio, ledger, or organization not found"
@@ -333,11 +333,11 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 //	@Summary		Count total portfolios
 //	@Description	Returns the total count of portfolios for a specific organization and ledger as a header without a response body
 //	@Tags			Portfolios
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Success		204				{object}	nil		"Successfully counted portfolios, total count available in X-Total-Count header"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Success		204				"Successfully counted portfolios, total count available in X-Total-Count header"
 //	@Failure		400				{object}	mmodel.Error	"Invalid UUID format"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

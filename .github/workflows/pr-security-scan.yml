@@ -35,6 +35,7 @@ jobs:
         components/transaction
         components/console
         components/crm
+        components/ledger
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets: inherit

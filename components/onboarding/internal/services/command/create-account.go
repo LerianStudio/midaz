@@ -9,16 +9,19 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	balanceproto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
 )
 
-// CreateAccountSync creates an account and metadata, then synchronously creates the default balance via gRPC.
+// CreateAccount creates an account and metadata, then synchronously creates the default balance.
+// The balance is created via the BalancePort interface, which can be either local (in-process)
+// or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -122,11 +125,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	balanceReq := &balanceproto.BalanceRequest{
-		RequestId:      requestID,
-		OrganizationId: organizationID.String(),
-		LedgerId:       ledgerID.String(),
-		AccountId:      acc.ID,
+	balanceInput := mmodel.CreateBalanceInput{
+		RequestID:      requestID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AccountID:      uuid.MustParse(acc.ID),
 		Alias:          *alias,
 		Key:            constant.DefaultBalanceKey,
 		AssetCode:      cai.AssetCode,
@@ -135,10 +138,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		AllowReceiving: true,
 	}
 
-	_, err = uc.BalanceGRPCRepo.CreateBalance(ctx, token, balanceReq)
+	// Inject authorization token into context metadata for downstream gRPC calls
+	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
+
+	_, err = uc.BalancePort.CreateBalanceSync(ctx, balanceInput)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance via gRPC", err)
-		logger.Errorf("Failed to create default balance via gRPC: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create default balance", err)
+		logger.Errorf("Failed to create default balance: %v", err)
 
 		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(acc.ID))
 		if delErr != nil {

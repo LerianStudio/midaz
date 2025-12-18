@@ -877,6 +877,8 @@ function addParameters(requestItem, operation, path) {
           }
         } else if (p.name === 'X-Request-Id') {
           value = '{{$guid}}';
+        } else if (p.name === 'X-Organization-Id') {
+          value = '{{organizationId}}';
         }
         
         return {

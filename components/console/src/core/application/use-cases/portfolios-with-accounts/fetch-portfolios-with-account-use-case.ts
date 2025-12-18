@@ -16,9 +16,7 @@ export interface FetchPortfoliosWithAccounts {
 }
 
 @injectable()
-export class FetchPortfoliosWithAccountsUseCase
-  implements FetchPortfoliosWithAccounts
-{
+export class FetchPortfoliosWithAccountsUseCase implements FetchPortfoliosWithAccounts {
   constructor(
     @inject(PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository,
