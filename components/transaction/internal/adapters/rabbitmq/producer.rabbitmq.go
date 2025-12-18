@@ -40,9 +40,6 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection, logger libLog.Logger
 		panic("Failed to connect rabbitmq")
 	}
 
-	// Start goroutine to handle returned (unroutable) messages
-	go prmq.handleReturns()
-
 	return prmq
 }
 
@@ -53,26 +50,6 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	}
 
 	return prmq.conn.HealthCheck()
-}
-
-// handleReturns listens for messages that could not be routed to any queue.
-// This happens when mandatory=true and the message cannot be delivered.
-func (prmq *ProducerRabbitMQRepository) handleReturns() {
-	for {
-		if prmq.conn.Channel == nil {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		returns := prmq.conn.Channel.NotifyReturn(make(chan amqp.Return, 10))
-		for ret := range returns {
-			prmq.logger.Errorf("RabbitMQ message returned (unroutable): exchange=%s, routingKey=%s, replyCode=%d, replyText=%s",
-				ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
-		}
-
-		// Channel was closed, wait for reconnection
-		prmq.logger.Warnf("RabbitMQ NotifyReturn channel closed, waiting for reconnection...")
-	}
 }
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
@@ -110,11 +87,10 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		err = prmq.conn.Channel.Publish(
 			exchange,
 			key,
-			true,  // mandatory: return message if it cannot be routed to a queue
-			false, // immediate: deprecated in RabbitMQ 3.0+
+			false, // mandatory
+			false, // immediate
 			amqp.Publishing{
-				// ContentType set to octet-stream because the payload is msgpack binary.
-				ContentType:  "application/octet-stream",
+				ContentType:  "application/json",
 				DeliveryMode: amqp.Persistent,
 				Headers:      headers,
 				Body:         message,
