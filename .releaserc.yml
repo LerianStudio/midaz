@@ -7,7 +7,7 @@ plugins:
         - "BREAKING CHANGES"
     releaseRules:
       - type: feat
-        release: minor
+        release: patch
       - type: perf
         release: minor
       - type: build
