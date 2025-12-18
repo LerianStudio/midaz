@@ -10,7 +10,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Midaz Ledger API (Unified)",
-	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates),  and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
@@ -7477,37 +7477,6 @@ const docTemplate = `
             "description": "Entity Name",
             "name": "entity_name",
             "in": "query"
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Start Date",
-            "name": "start_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "End Date",
-            "name": "end_date",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Sort Order",
-            "name": "sort_order",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
           }
         ],
         "responses": {
@@ -7534,6 +7503,12 @@ const docTemplate = `
           },
           "403": {
             "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Organization or ledger not found",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -7638,7 +7613,7 @@ const docTemplate = `
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}": {
       "delete": {
-        "description": "Delete a metadata index with the input payload",
+        "description": "Delete a metadata index by its name",
         "produces": [
           "application/json"
         ],
@@ -7697,7 +7672,10 @@ const docTemplate = `
         ],
         "responses": {
           "204": {
-            "description": "Metadata index successfully deleted"
+            "description": "Metadata index successfully deleted",
+            "schema": {
+              "type": "string"
+            }
           },
           "400": {
             "description": "Invalid input, validation errors",
@@ -8187,43 +8165,6 @@ const docTemplate = `
         }
       }
     },
-    "CreateMetadataIndexInput": {
-      "description": "CreateMetadataIndexInput payload",
-      "type": "object",
-      "required": [
-        "entityName",
-        "metadataKey"
-      ],
-      "properties": {
-        "entityName": {
-          "description": "The entity/collection name to create the index on",
-          "type": "string",
-          "enum": [
-            "transaction",
-            "operation",
-            "operation_route",
-            "transaction_route"
-          ],
-          "example": "transaction"
-        },
-        "metadataKey": {
-          "description": "The metadata key to index (without \"metadata.\" prefix)",
-          "type": "string",
-          "maxLength": 100,
-          "example": "tier"
-        },
-        "sparse": {
-          "description": "Whether the index should be sparse (only include documents with the field)",
-          "type": "boolean",
-          "example": true
-        },
-        "unique": {
-          "description": "Whether the index should enforce uniqueness",
-          "type": "boolean",
-          "example": false
-        }
-      }
-    },
     "CreateOrganizationInput": {
       "description": "Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.",
       "type": "object",
@@ -8429,43 +8370,6 @@ const docTemplate = `
           "type": "string",
           "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
-        }
-      }
-    },
-    "MetadataIndex": {
-      "description": "Represents a custom MongoDB index on a metadata field",
-      "type": "object",
-      "properties": {
-        "createdAt": {
-          "description": "When the index was created",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "entityName": {
-          "description": "The entity/collection name where the index exists",
-          "type": "string",
-          "example": "transaction"
-        },
-        "indexName": {
-          "description": "The name of the index in MongoDB",
-          "type": "string",
-          "example": "metadata.tier_1"
-        },
-        "metadataKey": {
-          "description": "The metadata key that is indexed",
-          "type": "string",
-          "example": "tier"
-        },
-        "sparse": {
-          "description": "Whether the index is sparse",
-          "type": "boolean",
-          "example": true
-        },
-        "unique": {
-          "description": "Whether the index enforces uniqueness",
-          "type": "boolean",
-          "example": false
         }
       }
     },
@@ -10112,6 +10016,80 @@ const docTemplate = `
           "type": "string"
         }
       }
+    },
+    "CreateMetadataIndexInput": {
+      "description": "CreateMetadataIndexInput payload",
+      "type": "object",
+      "required": [
+        "entityName",
+        "metadataKey"
+      ],
+      "properties": {
+        "entityName": {
+          "description": "The entity/collection name to create the index on\nrequired: true\nenum: transaction,operation,operation_route,transaction_route",
+          "type": "string",
+          "enum": [
+            "transaction",
+            "operation",
+            "operation_route",
+            "transaction_route"
+          ],
+          "example": "transaction"
+        },
+        "metadataKey": {
+          "description": "The metadata key to index (without \"metadata.\" prefix)\nrequired: true\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index should be sparse (only include documents with the field)\nrequired: false\ndefault: true",
+          "type": "boolean",
+          "example": true
+        },
+        "unique": {
+          "description": "Whether the index should enforce uniqueness\nrequired: false\ndefault: false",
+          "type": "boolean",
+          "example": false
+        }
+      }
+    },
+    "MetadataIndex": {
+      "description": "Represents a custom MongoDB index on a metadata field",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "description": "When the index was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "entityName": {
+          "description": "The entity/collection name where the index exists",
+          "type": "string",
+          "example": "transaction"
+        },
+        "indexName": {
+          "description": "The name of the index in MongoDB",
+          "type": "string",
+          "example": "metadata.tier_1"
+        },
+        "metadataKey": {
+          "description": "The metadata key that is indexed",
+          "type": "string",
+          "example": "tier"
+        },
+        "sparse": {
+          "description": "Whether the index is sparse",
+          "type": "boolean",
+          "example": true
+        },
+        "unique": {
+          "description": "Whether the index enforces uniqueness",
+          "type": "boolean",
+          "example": false
+        }
+      }
     }
   },
   "securityDefinitions": {
@@ -10122,6 +10100,6 @@ const docTemplate = `
       "description": "Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled."
     }
   },
-  "tags": null
+  "tags": []
 }
 `

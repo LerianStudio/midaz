@@ -91,15 +91,11 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			entity_name		query		string	false	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	[]mmodel.MetadataIndex			"Successfully retrieved metadata indexes"
 //	@Failure		400				{object}	mmodel.Error					"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error					"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [get]
 func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
@@ -157,7 +153,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 // DeleteMetadataIndex deletes a metadata index.
 //
 //	@Summary		Delete Metadata Index
-//	@Description	Delete a metadata index with the input payload
+//	@Description	Delete a metadata index by its name
 //	@Tags			Metadata Indexes
 //	@Produce		json
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"

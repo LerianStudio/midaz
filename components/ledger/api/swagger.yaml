@@ -5055,27 +5055,6 @@ paths:
           description: Entity Name
           name: entity_name
           in: query
-        - type: integer
-          default: 10
-          description: Limit
-          name: limit
-          in: query
-        - type: string
-          description: Start Date
-          name: start_date
-          in: query
-        - type: string
-          description: End Date
-          name: end_date
-          in: query
-        - type: string
-          description: Sort Order
-          name: sort_order
-          in: query
-        - type: string
-          description: Cursor
-          name: cursor
-          in: query
       responses:
         '200':
           description: Successfully retrieved metadata indexes
@@ -5093,6 +5072,10 @@ paths:
             $ref: '#/definitions/Error'
         '403':
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Organization or ledger not found
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -5161,7 +5144,7 @@ paths:
             $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}:
     delete:
-      description: Delete a metadata index with the input payload
+      description: Delete a metadata index by its name
       produces:
         - application/json
       tags:
