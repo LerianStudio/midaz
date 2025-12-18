@@ -6031,6 +6031,11 @@ definitions:
       entityName:
         description: The entity/collection name where the index exists
         type: string
+        enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
         example: transaction
       indexName:
         description: The name of the index in MongoDB
