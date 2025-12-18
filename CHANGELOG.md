@@ -1,3 +1,26 @@
+## [v3.5.0-beta.27] - 2025-12-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.26...v3.5.0-beta.27)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Comprehensive Migration Linter Tool**: Enhance your database migration process with our new linter tool. It supports ignoring specific files and improves pattern matching, reducing errors and streamlining your workflow. Check out the updated guidelines for seamless integration into your projects.
+
+### 🐛 Bug Fixes
+- **Database Lint Error Resolution**: We've cleaned up various lint errors, resulting in more maintainable and stable database code. This fix ensures a smoother and more reliable development experience.
+
+### 🔄 Changes
+- **Migration Command Enhancements**: New migration commands have been added to the Makefile, simplifying database management and ensuring consistent practices.
+- **Updated Migration Guidelines**: Deployment commands are now included in our migration templates, providing clearer instructions and minimizing deployment errors.
+
+### 📚 Documentation
+- **Guideline Updates**: Our migration guidelines have been refreshed to incorporate new commands and best practices, helping you avoid common pitfalls and improve deployment success.
+
+### 🔧 Maintenance
+- **Legacy Code Management**: We've added lint ignore comments to legacy migration files, allowing you to focus on relevant code issues without unnecessary warnings.
+- **Query Optimization**: Refactored PostgreSQL queries now use explicit column lists instead of wildcards, enhancing performance and security by retrieving only necessary data.
+
+
 ## [v3.5.0-beta.26] - 2025-12-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.25...v3.5.0-beta.26)
