@@ -18,7 +18,7 @@ type CreateAliasInput struct {
 	// Type of relationship between the holder and the alias (TpVinc). Optional - if not provided, no HolderLink will be created.
 	LinkType *string `json:"linkType,omitempty" validate:"omitempty,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"PRIMARY_HOLDER"`
 	// Document of the participant (identifies which financial-group entity owns the relationship)
-	ParticipantDocument *string `json:"participantDocument" example:"12345678912345"`
+	ParticipantDocument *string `json:"participantDocument,omitempty" example:"12345678912345"`
 	// An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	// Object with banking information of the related account.
