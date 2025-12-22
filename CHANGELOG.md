@@ -1,3 +1,18 @@
+## [v3.5.0-beta.28] - 2025-12-22
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.27...v3.5.0-beta.28)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Alias Management Flexibility**: The `CreateAliasInput` and `UpdateAliasInput` structures now allow the `ParticipantDocument` field to be optional. This change simplifies the process of creating and updating aliases by reducing the need for unnecessary input, minimizing user errors, and streamlining workflows.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been updated to include the latest improvements and fixes, providing users with accurate and current information. This enhancement aids in troubleshooting and helps users discover new features more efficiently.
+
+### 🔧 Maintenance
+- **Build Process Improvements**: Behind-the-scenes updates to the build process ensure smoother operations and maintain the reliability of the software, indirectly benefiting users by supporting a stable and consistent development environment.
+
+
 ## [v3.5.0-beta.27] - 2025-12-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.26...v3.5.0-beta.27)
