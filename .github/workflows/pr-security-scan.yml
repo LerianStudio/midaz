@@ -27,7 +27,7 @@ on:
 
 jobs:
   security-scan:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.3.3
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.3.5
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
