@@ -235,6 +235,8 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
+	utils.SanitizeAccountAliases(&parserDSL)
+
 	queue := mmodel.TransactionRedisQueue{
 		HeaderID:          reqId,
 		OrganizationID:    organizationID,

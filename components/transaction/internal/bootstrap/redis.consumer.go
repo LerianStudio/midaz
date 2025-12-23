@@ -13,6 +13,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -215,7 +216,14 @@ Outer:
 				},
 			}
 
-			fromTo := append(m.ParserDSL.Send.Source.From, m.ParserDSL.Send.Distribute.To...)
+			var fromTo []libTransaction.FromTo
+
+			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Source.From, true)...)
+			to := r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Distribute.To, true)
+
+			if m.TransactionStatus != constant.PENDING {
+				fromTo = append(fromTo, to...)
+			}
 
 			operations, _, err := r.TransactionHandler.BuildOperations(
 				msgCtxWithSpan, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
@@ -231,6 +239,8 @@ Outer:
 			tran.Source = m.Validate.Sources
 			tran.Destination = m.Validate.Destinations
 			tran.Operations = operations
+
+			utils.SanitizeAccountAliases(&m.ParserDSL)
 
 			if err := r.TransactionHandler.Command.SendBTOExecuteAsync(
 				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
