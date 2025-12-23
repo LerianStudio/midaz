@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - '**'  # Trigger on any tag push (e.g., v1.2.3, v2.0.0-beta.7, v2.0.0-rc.1, etc.)
-    branches:
-      - 'hotfix/**'  # Trigger on hotfix branches
 
 permissions:
   id-token: write       # Required for OIDC authentication (used by some actions)
@@ -59,21 +57,15 @@ jobs:
           username: "${{ secrets.DOCKER_USERNAME }}"
           password: "${{ secrets.DOCKER_PASSWORD }}"
 
-      - name: Generate UUID for branch builds
-        if: startsWith(github.ref, 'refs/heads/')
-        id: uuid
-        run: echo "uuid=$(uuidgen | cut -c1-8 | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}
           tags: |
-            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/') }}   # Semantic version tags (e.g. 1.2.3)
-            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/') }}   # 1.2
-            type=semver,pattern={{major}},enable=${{ startsWith(github.ref, 'refs/tags/') }}            # 1
-            type=raw,value=${{ github.ref_name }}-${{ steps.uuid.outputs.uuid }},enable=${{ startsWith(github.ref, 'refs/heads/hotfix/') }}   # Branch name + UUID for hotfix branches
+            type=semver,pattern={{version}}   # Semantic version tags (e.g. 1.2.3)
+            type=semver,pattern={{major}}.{{minor}}   # 1.2
+            type=semver,pattern={{major}}            # 1
 
       # ----------------- Push final multi-arch image -----------------
 
@@ -86,27 +78,20 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
-      - name: Extract tag name (strip leading 'v' for tags, use branch-uuid for branches)
+      - name: Extract tag name (strip leading 'v')
         id: extract_tag
         shell: bash
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/hotfix/* ]]; then
-            echo "tag=${{ github.ref_name }}-${{ steps.uuid.outputs.uuid }}" >> $GITHUB_OUTPUT
-          fi
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      # Write GitOps artifact for beta, rc, and hotfix branches
-      - name: Write tag to file for GitOps (beta/rc/hotfix)
-        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || startsWith(github.ref, 'refs/heads/hotfix/') }}
+      # Write GitOps artifact for beta and rc
+      - name: Write tag to file for GitOps (beta/rc)
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         run: |
           mkdir -p gitops-tags
-          # Replace slashes with dashes in filename to avoid path issues
-          TAG_SAFE=$(echo "${{ steps.extract_tag.outputs.tag }}" | tr '/' '-')
-          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${TAG_SAFE}"
+          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}"
 
       - name: Upload GitOps tag artifact
-        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || startsWith(github.ref, 'refs/heads/hotfix/') }}
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         uses: actions/upload-artifact@v4
         with:
           name: gitops-tags-${{ matrix.app.name }}
@@ -114,7 +99,7 @@ jobs:
 
   update_gitops:
     needs: [build_and_publish]
-    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') || startsWith(github.ref, 'refs/heads/hotfix/') }}   # Run for beta/rc tags and hotfix branches
+    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -135,18 +120,15 @@ jobs:
         with:
           path: .gitops-tags
 
-      - name: Apply image tags to values.yaml (beta → dev, rc → stg, hotfix → dev)
+      - name: Apply image tags to values.yaml (beta → dev, rc → stg)
         shell: bash
         run: |
           set -euo pipefail
 
-          # Select GitOps values.yaml file depending on tag type or branch
+          # Select GitOps values.yaml file depending on tag type
           if [[ "${GITHUB_REF}" == *"-rc"* ]]; then
             FILE="${{ env.GITOPS_FILE_RC }}"
             echo "Updating STAGE values file: $FILE"
-          elif [[ "${GITHUB_REF}" == refs/heads/hotfix/* ]]; then
-            FILE="${{ env.GITOPS_FILE_BETA }}"
-            echo "Updating DEV values file (hotfix): $FILE"
           else
             FILE="${{ env.GITOPS_FILE_BETA }}"
             echo "Updating DEV values file: $FILE"
@@ -172,15 +154,5 @@ jobs:
           git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
           git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
           git add -A
-          
-          # Determine commit message based on ref type
-          if [[ "${{ github.ref }}" == *"-rc"* ]]; then
-            COMMIT_MSG="ci(midaz): update image tags (rc/stage)"
-          elif [[ "${{ github.ref }}" == refs/heads/hotfix/* ]]; then
-            COMMIT_MSG="ci(midaz): update image tags (hotfix/dev - ${{ github.ref_name }})"
-          else
-            COMMIT_MSG="ci(midaz): update image tags (beta/dev)"
-          fi
-          
-          git commit -m "$COMMIT_MSG" || echo "No changes to commit"
+          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
           git push origin main
