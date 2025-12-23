@@ -1,5 +1,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
+# v3.3.13
+
 WORKDIR /transaction-app
 
 COPY go.mod go.sum ./
@@ -16,4 +18,5 @@ COPY --from=builder /app /app
 COPY --from=builder /transaction-app/components/transaction/migrations /components/transaction/migrations
 
 EXPOSE 3001
+
 ENTRYPOINT ["/app"]
