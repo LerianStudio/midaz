@@ -20,7 +20,6 @@ import (
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -30,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -321,6 +321,7 @@ func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace
 
 	// The Gold parser returns lib-commons Transaction types, but the handler
 	// expects pkg Transaction types. Convert between the two type scopes.
+	//nolint:staticcheck // SA1019: libTransaction.Transaction is required here as goldTransaction.Parse returns this type
 	libTran, ok := parsed.(libTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
@@ -1069,12 +1070,11 @@ func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, lo
 	}
 
 	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
-		// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
-		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", businessErr)
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
 		logger.Warnf("Transaction value must be greater than zero")
 
-		return businessErr
+		return fmt.Errorf("transaction value must be greater than zero: %w", err)
 	}
 
 	return nil
@@ -1136,6 +1136,7 @@ func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, t
 		businessErr := pkg.HandleKnownBusinessValidationErrors(err)
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
+		//nolint:wrapcheck // Returning typed business error directly to preserve error type for errors.As() matching
 		return nil, nil, businessErr
 	}
 
@@ -1153,6 +1154,7 @@ func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, t
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 
 		// Return error directly - may be typed business error that errors.As() needs to match
+		//nolint:wrapcheck // Returning error directly to preserve error type for errors.As() matching
 		return nil, nil, err
 	}
 

@@ -25,6 +25,15 @@ import (
 const (
 	midazName   = "midaz"
 	routingName = "routing"
+
+	// HTTP server timeout configuration
+	defaultReadTimeout  = 30 * time.Second // Time to read full request
+	defaultWriteTimeout = 30 * time.Second // Time to write full response
+	defaultIdleTimeout  = 60 * time.Second // Connection idle before close
+
+	// Request body limits
+	defaultBodyLimitMB  = 10
+	bodyLimitMultiplier = 1024 * 1024
 )
 
 // NewRouter register NewRouter routes to the Server.
@@ -34,12 +43,12 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		ErrorHandler:          libHTTP.HandleFiberError,
 
 		// Server timeouts to prevent hanging connections under high load
-		ReadTimeout:  30 * time.Second, // Time to read full request
-		WriteTimeout: 30 * time.Second, // Time to write full response
-		IdleTimeout:  60 * time.Second, // Connection idle before close
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		IdleTimeout:  defaultIdleTimeout,
 
 		// Request limits to prevent resource exhaustion
-		BodyLimit: 10 * 1024 * 1024, // 10MB max request body
+		BodyLimit: defaultBodyLimitMB * bodyLimitMultiplier, // 10MB max request body
 	})
 
 	// Panic recovery middleware - MUST be first to catch panics from all other middleware.
