@@ -9,6 +9,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
 )
@@ -86,7 +87,7 @@ func InitService() mbootstrap.Service {
 func InitServiceOrError() (mbootstrap.Service, error) {
 	service, err := bootstrap.InitServersWithOptions(nil)
 	if err != nil {
-		return nil, fmt.Errorf("initializing onboarding servers: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Onboarding")
 	}
 
 	return service, nil
@@ -101,7 +102,7 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {
-		return nil, ErrUnifiedModeRequiresBalancePort
+		return nil, pkg.ValidateInternalError(ErrUnifiedModeRequiresBalancePort, "Onboarding")
 	}
 
 	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
@@ -110,7 +111,7 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 		BalancePort: opts.BalancePort,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("initializing onboarding servers with options: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Onboarding")
 	}
 
 	return service, nil

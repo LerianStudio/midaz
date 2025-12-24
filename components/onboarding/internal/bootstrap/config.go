@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
@@ -358,7 +359,7 @@ func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mboot
 	}
 
 	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-		return nil, ErrGRPCConfigRequired
+		return nil, pkg.ValidateInternalError(ErrGRPCConfigRequired, "BalancePort")
 	}
 
 	grpcConnection := &mgrpc.GRPCConnection{
@@ -391,7 +392,7 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 
 	err = libCommons.SetConfigFromEnvVars(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Config")
 	}
 
 	// Use provided logger or initialize a new one
