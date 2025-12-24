@@ -8,7 +8,6 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -23,7 +22,38 @@ var (
 	ErrConvertOnHoldToDecimal = errors.New("failed to convert onHold field to decimal")
 	// ErrUnsupportedOnHoldType is returned when onHold field type is unsupported
 	ErrUnsupportedOnHoldType = errors.New("unsupported type for onHold field")
+	// ErrUnmarshalBalanceRedis is returned when unmarshaling balance redis data fails
+	ErrUnmarshalBalanceRedis = errors.New("failed to unmarshal balance redis")
 )
+
+// BalanceError wraps a sentinel error with an underlying cause
+type BalanceError struct {
+	Sentinel error
+	Cause    error
+	Context  string
+}
+
+// Error returns the error message
+func (e BalanceError) Error() string {
+	if e.Context != "" && e.Cause != nil {
+		return fmt.Sprintf("%s %s: %v", e.Sentinel.Error(), e.Context, e.Cause)
+	}
+
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %v", e.Sentinel.Error(), e.Cause)
+	}
+
+	return e.Sentinel.Error()
+}
+
+// Unwrap returns the underlying errors for errors.Is/As
+func (e BalanceError) Unwrap() []error {
+	if e.Cause != nil {
+		return []error{e.Sentinel, e.Cause}
+	}
+
+	return []error{e.Sentinel}
+}
 
 // Balance is a struct designed to encapsulate response payload data.
 //
@@ -276,50 +306,27 @@ type BalanceRedis struct {
 	Key string `json:"key"`
 }
 
-// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
-func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(balances))
+// ConvertBalancesToTransactionBalances converts []*Balance to []*pkgTransaction.Balance
+func ConvertBalancesToTransactionBalances(balances []*Balance) []*pkgTransaction.Balance {
+	out := make([]*pkgTransaction.Balance, 0, len(balances))
 
 	for _, b := range balances {
 		if b != nil {
-			out = append(out, b.ConvertToLibBalance())
+			out = append(out, b.ToTransactionBalance())
 		}
 	}
 
 	return out
 }
 
-// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
-func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
-	out := make([]*libTransaction.Balance, 0, len(operations))
+// ConvertBalanceOperationsToTransactionBalances converts []*BalanceOperation to []*pkgTransaction.Balance
+func ConvertBalanceOperationsToTransactionBalances(operations []BalanceOperation) []*pkgTransaction.Balance {
+	out := make([]*pkgTransaction.Balance, 0, len(operations))
 	for _, op := range operations {
-		out = append(out, op.Balance.ConvertToLibBalance())
+		out = append(out, op.Balance.ToTransactionBalance())
 	}
 
 	return out
-}
-
-// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
-func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
-	return &libTransaction.Balance{
-		ID:             b.ID,
-		OrganizationID: b.OrganizationID,
-		LedgerID:       b.LedgerID,
-		AccountID:      b.AccountID,
-		Alias:          b.Alias,
-		Key:            b.Key,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Version:        b.Version,
-		AccountType:    b.AccountType,
-		AllowSending:   b.AllowSending,
-		AllowReceiving: b.AllowReceiving,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-		DeletedAt:      b.DeletedAt,
-		Metadata:       b.Metadata,
-	}
 }
 
 // ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
@@ -358,7 +365,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return fmt.Errorf("failed to unmarshal balance redis: %w", err)
+		return BalanceError{Sentinel: ErrUnmarshalBalanceRedis, Cause: err}
 	}
 
 	var err error
@@ -384,7 +391,7 @@ func convertToDecimal(value any, conversionErr, unsupportedErr error) (decimal.D
 	case string:
 		d, err := decimal.NewFromString(v)
 		if err != nil {
-			return decimal.Decimal{}, fmt.Errorf("%w from string: %w", conversionErr, err)
+			return decimal.Decimal{}, BalanceError{Sentinel: conversionErr, Cause: err, Context: "from string"}
 		}
 
 		return d, nil
@@ -393,7 +400,7 @@ func convertToDecimal(value any, conversionErr, unsupportedErr error) (decimal.D
 	default:
 		f, ok := v.(float64)
 		if !ok {
-			return decimal.Decimal{}, fmt.Errorf("%w: %T", unsupportedErr, v)
+			return decimal.Decimal{}, BalanceError{Sentinel: unsupportedErr, Context: fmt.Sprintf("%T", v)}
 		}
 
 		return decimal.NewFromFloat(f), nil
@@ -406,7 +413,7 @@ func convertJSONNumberToDecimal(num json.Number, conversionErr error) (decimal.D
 	if err != nil {
 		f, err := num.Float64()
 		if err != nil {
-			return decimal.Decimal{}, fmt.Errorf("%w from json.Number: %w", conversionErr, err)
+			return decimal.Decimal{}, BalanceError{Sentinel: conversionErr, Cause: err, Context: "from json.Number"}
 		}
 
 		return decimal.NewFromFloat(f), nil

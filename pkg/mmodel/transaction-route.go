@@ -8,6 +8,26 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+// MsgpackError wraps a msgpack-related error with context
+type MsgpackError struct {
+	Message string
+	Cause   error
+}
+
+// Error implements the error interface
+func (e MsgpackError) Error() string {
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
+	}
+
+	return e.Message
+}
+
+// Unwrap returns the underlying error
+func (e MsgpackError) Unwrap() error {
+	return e.Cause
+}
+
 // TransactionRoute is a struct designed to store TransactionRoute data.
 //
 // swagger:model TransactionRoute
@@ -117,7 +137,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 // FromMsgpack parses msgpack binary data into TransactionRouteCache
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
 	if err := msgpack.Unmarshal(data, trcd); err != nil {
-		return fmt.Errorf("failed to unmarshal msgpack data: %w", err)
+		return MsgpackError{Message: "failed to unmarshal msgpack data", Cause: err}
 	}
 
 	return nil
@@ -127,7 +147,7 @@ func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
 func (trcd TransactionRouteCache) ToMsgpack() ([]byte, error) {
 	data, err := msgpack.Marshal(trcd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal to msgpack: %w", err)
+		return nil, MsgpackError{Message: "failed to marshal to msgpack", Cause: err}
 	}
 
 	return data, nil

@@ -9,8 +9,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
-// ErrEmptyValidationFields is returned when all validation field maps are empty
-var ErrEmptyValidationFields = errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
+// EmptyValidationFieldsError is returned when all validation field maps are empty
+type EmptyValidationFieldsError struct{}
+
+// Error implements the error interface
+func (e EmptyValidationFieldsError) Error() string {
+	return "expected knownInvalidFields, unknownFields and requiredFields to be non-empty"
+}
+
+// ErrEmptyValidationFields is the singleton instance of EmptyValidationFieldsError
+var ErrEmptyValidationFields = EmptyValidationFieldsError{}
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
 // You can use it to represent a Database not found, cache not found or any other repository.
@@ -280,7 +288,7 @@ func ValidateUnmarshallingError(err error) error {
 // - An error indicating the validation result, which could be a ValidationUnknownFieldsError or a ValidationKnownFieldsError.
 func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
 	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 && len(requiredFields) == 0 {
-		return fmt.Errorf("validation error: %w", ErrEmptyValidationFields)
+		return ErrEmptyValidationFields
 	}
 
 	if len(unknownFields) > 0 {
