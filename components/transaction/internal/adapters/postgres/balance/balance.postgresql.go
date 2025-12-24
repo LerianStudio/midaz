@@ -124,7 +124,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	record := &BalancePostgreSQLModel{}
@@ -155,7 +155,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	spanExec.End()
@@ -166,7 +166,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if rowsAffected == 0 {
@@ -176,7 +176,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 		logger.Warnf("Failed to create balance. Rows affected is 0: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -195,7 +195,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	var balances []*mmodel.Balance
@@ -224,7 +224,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -254,7 +254,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Balance")
 		}
 
 		balances = append(balances, balance.ToEntity())
@@ -265,7 +265,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, nil
@@ -295,14 +295,14 @@ func scanBalanceRows(rows *sql.Rows) ([]*mmodel.Balance, error) {
 			&balance.DeletedAt,
 			&balance.Key,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Balance")
 		}
 
 		balances = append(balances, balance.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate rows: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, nil
@@ -319,7 +319,7 @@ func calculateBalancePagination(balances []*mmodel.Balance, filter http.Paginati
 
 	cursor, err := libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, balances[0].ID, balances[len(balances)-1].ID)
 	if err != nil {
-		return libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
+		return libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return cursor, nil
@@ -337,7 +337,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	decodedCursor := libHTTP.Cursor{PointsNext: true}
@@ -349,7 +349,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 			logger.Errorf("Failed to decode cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 		}
 	}
 
@@ -369,7 +369,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all.query")
@@ -379,7 +379,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
 		logger.Errorf("Failed to get operations on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -402,7 +402,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, cur, nil
@@ -420,7 +420,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	decodedCursor := libHTTP.Cursor{PointsNext: true}
@@ -432,7 +432,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 			logger.Errorf("Failed to decode cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 		}
 	}
 
@@ -453,7 +453,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_account_id.query")
@@ -463,7 +463,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
 		logger.Errorf("Failed to get operations on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -486,7 +486,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 		logger.Errorf("Failed to calculate cursor: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, cur, nil
@@ -505,7 +505,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	var balances []*mmodel.Balance
@@ -536,7 +536,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -566,7 +566,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Balance")
 		}
 
 		balances = append(balances, balance.ToEntity())
@@ -577,7 +577,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, nil
@@ -596,7 +596,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if len(aliasesWithKeys) == 0 {
@@ -612,7 +612,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 			logger.Errorf("Invalid alias#key format: %s", aliasWithKey)
 
-			return nil, fmt.Errorf("parsing failed: %w", ErrInvalidAliasKeyFormat)
+			return nil, pkg.ValidateInternalError(ErrInvalidAliasKeyFormat, "Balance")
 		}
 
 		alias := parts[0]
@@ -639,7 +639,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	var balances []*mmodel.Balance
@@ -652,7 +652,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -682,7 +682,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Balance")
 		}
 
 		balances = append(balances, balance.ToEntity())
@@ -693,7 +693,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, nil
@@ -736,12 +736,12 @@ func (r *BalancePostgreSQLRepository) executeBalanceUpdate(ctx context.Context, 
 
 	result, err := tx.ExecContext(ctx, queryUpdate, args...)
 	if err != nil {
-		return balanceUpdateResult{false, fmt.Errorf("failed: %w", err)}
+		return balanceUpdateResult{false, pkg.ValidateInternalError(err, "Balance")}
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return balanceUpdateResult{false, fmt.Errorf("failed: %w", err)}
+		return balanceUpdateResult{false, pkg.ValidateInternalError(err, "Balance")}
 	}
 
 	return balanceUpdateResult{rowsAffected > 0, nil}
@@ -786,13 +786,13 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	committed := false
@@ -815,7 +815,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	}
 
 	if successCount == 0 && len(balances) > 0 {
-		return fmt.Errorf("%w: %d attempted, 0 succeeded", ErrNoBalancesUpdated, len(balances))
+		return pkg.ValidateInternalError(ErrNoBalancesUpdated, "Balance")
 	}
 
 	commitErr := tx.Commit()
@@ -823,7 +823,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		libOpentelemetry.HandleSpanError(&span, "Failed to commit balances update", commitErr)
 		logger.Errorf("err on commit: %v", commitErr)
 
-		return fmt.Errorf("failed: %w", commitErr)
+		return pkg.ValidateInternalError(commitErr, "Balance")
 	}
 
 	committed = true
@@ -844,7 +844,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	balance := &BalancePostgreSQLModel{}
@@ -897,14 +897,14 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balance.ToEntity(), nil
@@ -923,14 +923,14 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	balance := &BalancePostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	query := `SELECT 
+	query := `SELECT
 			   id,
 			   organization_id,
 			   ledger_id,
@@ -947,11 +947,11 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 			   created_at,
 			   updated_at,
 			   deleted_at
-			FROM balance 
-			WHERE organization_id = $1 
-			   AND ledger_id = $2 
-			   AND account_id = $3 
-			   AND key = $4 
+			FROM balance
+			WHERE organization_id = $1
+			   AND ledger_id = $2
+			   AND account_id = $3
+			   AND key = $4
 			   AND deleted_at IS NULL`
 
 	row := db.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
@@ -983,14 +983,14 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balance.ToEntity(), nil
@@ -1009,7 +1009,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.exists.query")
@@ -1031,7 +1031,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -1044,7 +1044,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return exists, nil
@@ -1063,13 +1063,13 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `
-		UPDATE balance 
+		UPDATE balance
 		SET deleted_at = NOW()
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id,
@@ -1079,7 +1079,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("failed to execute delete query: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	spanQuery.End()
@@ -1090,7 +1090,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if rowsAffected == 0 {
@@ -1100,7 +1100,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to delete balance. Rows affected is 0: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -1123,7 +1123,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -1132,7 +1132,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Errorf("failed to begin transaction for bulk delete: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	committed := false
@@ -1166,7 +1166,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Errorf("failed to execute bulk delete query: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -1175,7 +1175,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Errorf("Failed to get rows affected on bulk delete: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if rowsAffected != int64(len(ids)) {
@@ -1185,7 +1185,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Warnf("Failed to delete balances. Rows affected mismatch: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return err
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -1193,7 +1193,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 
 		logger.Errorf("failed to commit transaction for bulk delete: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	committed = true
@@ -1214,7 +1214,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.update.exec")
@@ -1249,7 +1249,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Err on result exec content: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -1262,7 +1262,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to update balance. Rows affected is 0: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return nil
@@ -1280,7 +1280,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 
 		logger.Errorf("invalid balance ID: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	db, err := r.connection.GetDB()
@@ -1289,7 +1289,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	res, err := db.ExecContext(ctx, `
@@ -1302,7 +1302,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to update balance from redis: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	affected, err := res.RowsAffected()
@@ -1311,7 +1311,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to read rows affected: %v", err)
 
-		return false, fmt.Errorf("failed: %w", err)
+		return false, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if affected == 0 {
@@ -1334,7 +1334,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update_all_by_account_id.exec")
@@ -1345,7 +1345,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Errorf("allow_sending value is required: %v", ErrAllowSendingRequired)
 
-		return fmt.Errorf("validation failed: %w", ErrAllowSendingRequired)
+		return pkg.ValidateInternalError(ErrAllowSendingRequired, "Balance")
 	}
 
 	if balance.AllowReceiving == nil {
@@ -1353,7 +1353,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Errorf("allow_receiving value is required: %v", ErrAllowReceivingRequired)
 
-		return fmt.Errorf("validation failed: %w", ErrAllowReceivingRequired)
+		return pkg.ValidateInternalError(ErrAllowReceivingRequired, "Balance")
 	}
 
 	query := `UPDATE balance SET allow_sending = $1, allow_receiving = $2, updated_at = NOW() WHERE organization_id = $3 AND ledger_id = $4 AND account_id = $5 AND deleted_at IS NULL`
@@ -1364,7 +1364,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -1373,7 +1373,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if rowsAffected == 0 {
@@ -1383,7 +1383,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		logger.Warnf("Failed to update all balances by account id. Rows affected is 0: %v", err)
 
-		return fmt.Errorf("failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -1402,7 +1402,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	var balances []*mmodel.Balance
@@ -1431,7 +1431,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 	defer rows.Close()
 
@@ -1460,7 +1460,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Balance")
 		}
 
 		balances = append(balances, balance.ToEntity())
@@ -1470,7 +1470,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, fmt.Errorf("failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return balances, nil
