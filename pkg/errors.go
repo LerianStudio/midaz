@@ -178,6 +178,11 @@ func (e InternalServerError) Error() string {
 	return e.Message
 }
 
+// Unwrap implements the error interface introduced in Go 1.13 to unwrap the internal error.
+func (e InternalServerError) Unwrap() error {
+	return e.Err
+}
+
 // ResponseError is a struct used to return errors to the client.
 type ResponseError struct {
 	EntityType string `json:"entityType,omitempty"`
