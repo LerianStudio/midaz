@@ -1,7 +1,6 @@
 package in
 
 import (
-	"fmt"
 	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -70,7 +69,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -83,7 +82,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Account on command", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -94,7 +93,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	logger.Infof("Successfully created Account")
 
 	if err := http.Created(c, account); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -128,7 +127,7 @@ func (handler *AccountHandler) handleAccountsError(c *fiber.Ctx, span *trace.Spa
 	logger.Errorf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -139,7 +138,7 @@ func (handler *AccountHandler) respondWithAccounts(c *fiber.Ctx, pagination *lib
 	pagination.SetItems(accounts)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -248,7 +247,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -257,7 +256,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
 	if err := http.OK(c, account); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -303,7 +302,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -312,7 +311,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
 	if err := http.OK(c, account); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -356,7 +355,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -365,7 +364,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
 	if err := http.OK(c, account); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -421,7 +420,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -434,7 +433,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -443,7 +442,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Account with ID: %s", id.String())
 
 	if err := http.OK(c, account); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -487,7 +486,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -496,7 +495,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Account with ID: %s", id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -537,7 +536,7 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 		logger.Errorf("Error counting accounts: %v", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -549,7 +548,7 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil

@@ -66,7 +66,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -75,7 +75,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 	logger.Infof("Successfully created account type")
 
 	if err := http.Created(c, accountType); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -119,7 +119,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -128,7 +128,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Account Type with ID: %s", id.String())
 
 	if err := http.OK(c, accountType); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -182,7 +182,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 		logger.Errorf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -195,7 +195,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -204,7 +204,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	logger.Infof("Successfully updated account type with ID: %s", id)
 
 	if err := http.OK(c, accountType); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -246,7 +246,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -255,7 +255,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (handler *AccountTypeHandler) handleAccountTypeError(c *fiber.Ctx, span *tr
 	logger.Errorf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -302,7 +302,7 @@ func (handler *AccountTypeHandler) respondWithAccountTypes(c *fiber.Ctx, paginat
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil

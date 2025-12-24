@@ -1,7 +1,6 @@
 package in
 
 import (
-	"fmt"
 	"os"
 	"reflect"
 	"strconv"
@@ -64,7 +63,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on command", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -73,7 +72,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	logger.Infof("Successfully created organization: %s", organization)
 
 	if err := http.Created(c, organization); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -123,7 +122,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -136,7 +135,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -145,7 +144,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	logger.Infof("Successfully updated Organization with ID: %s", id.String())
 
 	if err := http.OK(c, organizations); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -184,7 +183,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -193,7 +192,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Organization with ID: %s", id.String())
 
 	if err := http.OK(c, organizations); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -224,7 +223,7 @@ func (handler *OrganizationHandler) handleOrganizationError(c *fiber.Ctx, span *
 	logger.Warnf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -235,7 +234,7 @@ func (handler *OrganizationHandler) respondWithOrganizations(c *fiber.Ctx, pagin
 	pagination.SetItems(organizations)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -276,7 +275,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
 			if httpErr := http.WithError(c, err); httpErr != nil {
-				return fmt.Errorf("http response error: %w", httpErr)
+				return httpErr
 			}
 
 			return nil
@@ -295,7 +294,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -339,7 +338,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 		logger.Warnf("Failed to remove Organization with ID: %s in ", id.String())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -351,7 +350,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -360,7 +359,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Organization with ID: %s", id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -396,7 +395,7 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -408,7 +407,7 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil

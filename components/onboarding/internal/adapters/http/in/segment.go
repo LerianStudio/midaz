@@ -1,7 +1,6 @@
 package in
 
 import (
-	"fmt"
 	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -70,7 +69,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Segment on command", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -79,7 +78,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	logger.Infof("Successfully created Segment")
 
 	if err := http.Created(c, segment); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -113,7 +112,7 @@ func (handler *SegmentHandler) handleSegmentError(c *fiber.Ctx, span *trace.Span
 	logger.Errorf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -124,7 +123,7 @@ func (handler *SegmentHandler) respondWithSegments(c *fiber.Ctx, pagination *lib
 	pagination.SetItems(segments)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -222,7 +221,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -231,7 +230,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := http.OK(c, segment); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -287,7 +286,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -300,7 +299,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -309,7 +308,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := http.OK(c, segment); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -352,7 +351,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -361,7 +360,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -402,7 +401,7 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 		logger.Errorf("Error counting segments: %v", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -414,7 +413,7 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil

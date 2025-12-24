@@ -1,7 +1,6 @@
 package in
 
 import (
-	"fmt"
 	"os"
 	"reflect"
 	"strconv"
@@ -68,7 +67,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger on command", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -77,7 +76,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	logger.Infof("Successfully created ledger")
 
 	if err := http.Created(c, ledger); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -119,7 +118,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -128,7 +127,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Ledger with ID: %s", id.String())
 
 	if err := http.OK(c, ledger); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -161,7 +160,7 @@ func (handler *LedgerHandler) handleLedgerError(c *fiber.Ctx, span *trace.Span, 
 	logger.Errorf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -172,7 +171,7 @@ func (handler *LedgerHandler) respondWithLedgers(c *fiber.Ctx, pagination *libPo
 	pagination.SetItems(ledgers)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -276,7 +275,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -289,7 +288,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -298,7 +297,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 
 	if err := http.OK(c, ledger); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -341,7 +340,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 		logger.Warnf("Failed to remove Ledger with ID: %s in ", id.String())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -353,7 +352,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -362,7 +361,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Ledeger with ID: %s", id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -401,7 +400,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 		logger.Errorf("Failed to count ledgers, Error: %s", err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -413,7 +412,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil

@@ -1,7 +1,6 @@
 package in
 
 import (
-	"fmt"
 	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -75,7 +74,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 		logger.Infof("Error to created Asset: %s", err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -84,7 +83,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	logger.Infof("Successfully created Asset")
 
 	if err := http.Created(c, asset); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -118,7 +117,7 @@ func (handler *AssetHandler) handleAssetError(c *fiber.Ctx, span *trace.Span, lo
 	logger.Errorf("%s, Error: %s", message, err.Error())
 
 	if httpErr := http.WithError(c, err); httpErr != nil {
-		return fmt.Errorf("http response error: %w", httpErr)
+		return httpErr
 	}
 
 	return nil
@@ -129,7 +128,7 @@ func (handler *AssetHandler) respondWithAssets(c *fiber.Ctx, pagination *libPost
 	pagination.SetItems(assets)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -228,7 +227,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -237,7 +236,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	if err := http.OK(c, asset); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -293,7 +292,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -306,7 +305,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -315,7 +314,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	if err := http.OK(c, asset); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -358,7 +357,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -367,7 +366,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
@@ -408,7 +407,7 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 		logger.Errorf("Failed to count assets, Error: %s", err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return fmt.Errorf("http response error: %w", httpErr)
+			return httpErr
 		}
 
 		return nil
@@ -420,7 +419,7 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("http response error: %w", err)
+		return err
 	}
 
 	return nil
