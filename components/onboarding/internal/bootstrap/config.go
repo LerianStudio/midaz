@@ -42,6 +42,15 @@ const (
 	indexCreationTimeout = 60 * time.Second
 )
 
+// Sentinel errors for bootstrap initialization.
+var (
+	// ErrInitializationFailed indicates a panic occurred during initialization.
+	ErrInitializationFailed = errors.New("initialization failed")
+
+	// ErrGRPCConfigRequired indicates that gRPC configuration is missing in standalone mode.
+	ErrGRPCConfigRequired = errors.New("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured in standalone mode")
+)
+
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                      string `env:"ENV_NAME"`
@@ -104,6 +113,8 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
+//
+//nolint:panicguardwarn // Legacy function used internally; panics are caught by InitServersWithOptions.
 func InitServers() *Service {
 	cfg := &Config{}
 
@@ -316,6 +327,48 @@ type Options struct {
 	BalancePort mbootstrap.BalancePort
 }
 
+// buildMongoSource builds the MongoDB connection string from configuration.
+func buildMongoSource(cfg *Config) string {
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+
+	if cfg.MongoDBParameters != "" {
+		mongoSource += "?" + cfg.MongoDBParameters
+	}
+
+	return mongoSource
+}
+
+// defaultMongoMaxPoolSize is the default MongoDB connection pool size.
+const defaultMongoMaxPoolSize = 100
+
+// getMongoMaxPoolSize returns the max pool size, defaulting to defaultMongoMaxPoolSize if not set or invalid.
+func getMongoMaxPoolSize(cfg *Config) uint64 {
+	if cfg.MaxPoolSize <= 0 {
+		return defaultMongoMaxPoolSize
+	}
+
+	return uint64(cfg.MaxPoolSize)
+}
+
+// resolveBalancePort determines the balance port based on mode and configuration.
+func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {
+	if opts.UnifiedMode && opts.BalancePort != nil {
+		return opts.BalancePort, nil
+	}
+
+	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
+		return nil, ErrGRPCConfigRequired
+	}
+
+	grpcConnection := &mgrpc.GRPCConnection{
+		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+		Logger: logger,
+	}
+
+	return out.NewBalanceAdapter(grpcConnection), nil
+}
+
 // InitServersWithOptions initializes servers with custom options.
 // This function provides explicit error handling and supports unified mode.
 // It recovers from panics (e.g., from assert.NoError in constructors) and converts them to errors.
@@ -326,7 +379,7 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			service = nil
-			err = fmt.Errorf("initialization failed: %v", r)
+			err = fmt.Errorf("%w: %v", ErrInitializationFailed, r)
 		}
 	}()
 
@@ -374,22 +427,11 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
-
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
-	}
-
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
-	}
-
 	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
+		ConnectionStringSource: buildMongoSource(cfg),
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            getMongoMaxPoolSize(cfg),
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -447,20 +489,9 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	}
 
 	// Determine balance port: use provided port (unified mode) or gRPC adapter (standalone mode)
-	var balancePort mbootstrap.BalancePort
-	if opts.UnifiedMode && opts.BalancePort != nil {
-		balancePort = opts.BalancePort
-	} else {
-		if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-			return nil, errors.New("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured in standalone mode")
-		}
-
-		grpcConnection := &mgrpc.GRPCConnection{
-			Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
-			Logger: logger,
-		}
-
-		balancePort = out.NewBalanceAdapter(grpcConnection)
+	balancePort, err := resolveBalancePort(opts, cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	commandUseCase := &command.UseCase{

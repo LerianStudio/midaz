@@ -23,6 +23,12 @@ type OnboardingService interface {
 	GetRouteRegistrar() func(*fiber.App)
 }
 
+// Sentinel errors for onboarding initialization.
+var (
+	// ErrUnifiedModeRequiresBalancePort indicates that BalancePort must be provided when running in unified mode.
+	ErrUnifiedModeRequiresBalancePort = errors.New("unified mode requires BalancePort to be provided")
+)
+
 // Options configures the onboarding service initialization behavior.
 // It controls whether the service runs in unified mode (part of the ledger monolith)
 // or standalone mode (separate microservice).
@@ -63,6 +69,8 @@ type Options struct {
 //
 // Deprecated: Use InitServiceOrError for proper error handling.
 // This function panics on initialization errors.
+//
+//nolint:panicguardwarn // Deprecated function maintains backward compatibility; panic is intentional.
 func InitService() mbootstrap.Service {
 	service, err := InitServiceOrError()
 	if err != nil {
@@ -76,7 +84,12 @@ func InitService() mbootstrap.Service {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (mbootstrap.Service, error) {
-	return bootstrap.InitServersWithOptions(nil)
+	service, err := bootstrap.InitServersWithOptions(nil)
+	if err != nil {
+		return nil, fmt.Errorf("initializing onboarding servers: %w", err)
+	}
+
+	return service, nil
 }
 
 // InitServiceWithOptionsOrError initializes the onboarding service with custom options
@@ -88,12 +101,17 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {
-		return nil, errors.New("unified mode requires BalancePort to be provided")
+		return nil, ErrUnifiedModeRequiresBalancePort
 	}
 
-	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger:      opts.Logger,
 		UnifiedMode: opts.UnifiedMode,
 		BalancePort: opts.BalancePort,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("initializing onboarding servers with options: %w", err)
+	}
+
+	return service, nil
 }
