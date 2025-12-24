@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -87,7 +86,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	record := &LedgerPostgreSQLModel{}
@@ -114,14 +113,14 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	spanExec.End()
@@ -132,7 +131,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -140,7 +139,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -159,7 +158,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ledger := &LedgerPostgreSQLModel{}
@@ -194,14 +193,14 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return ledger.ToEntity(), nil
@@ -220,7 +219,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	var ledgers []*mmodel.Ledger
@@ -242,7 +241,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -251,7 +250,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 	defer rows.Close()
 
@@ -265,7 +264,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		ledgers = append(ledgers, ledger.ToEntity())
@@ -274,7 +273,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return ledgers, nil
@@ -293,7 +292,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, fmt.Errorf("failed to get database connection: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_name.query")
@@ -317,7 +316,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 
-		return false, fmt.Errorf("failed to query ledger by name: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 	defer rows.Close()
 
@@ -328,13 +327,13 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger name conflict", err)
 
-		return true, fmt.Errorf("business validation error: %w", err)
+		return true, err
 	}
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Row iteration error", err)
 
-		return false, fmt.Errorf("row iteration error: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return false, nil
@@ -353,7 +352,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	var ledgers []*mmodel.Ledger
@@ -380,7 +379,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 	defer rows.Close()
 
@@ -394,7 +393,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		ledgers = append(ledgers, ledger.ToEntity())
@@ -403,7 +402,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return ledgers, nil
@@ -429,7 +428,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	record := &LedgerPostgreSQLModel{}
@@ -480,14 +479,14 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	spanExec.End()
@@ -498,7 +497,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -506,7 +505,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -525,7 +524,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -534,7 +533,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute database query", err)
 
-		return fmt.Errorf("failed to execute delete ledger query: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	spanExec.End()
@@ -545,7 +544,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -553,7 +552,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger. Rows affected is 0", err)
 
-		return fmt.Errorf("ledger not found for deletion: %w", err)
+		return err
 	}
 
 	return nil
@@ -574,7 +573,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, fmt.Errorf("failed to get database connection: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -584,7 +583,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 
-		return count, fmt.Errorf("failed to count ledgers: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return count, nil

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -99,7 +98,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	record := &AccountTypePostgreSQLModel{}
@@ -125,12 +124,12 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
 
-		return nil, fmt.Errorf("failed to execute insert account type query: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -139,7 +138,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -147,7 +146,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("failed to create account type: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	spanExec.End()
@@ -169,7 +168,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	var record AccountTypePostgreSQLModel
@@ -212,7 +211,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 			return nil, services.ErrDatabaseItemNotFound
 		}
 
-		return nil, fmt.Errorf("failed to scan account type record: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	spanQuery.End()
@@ -234,7 +233,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	var record AccountTypePostgreSQLModel
@@ -277,7 +276,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 			return nil, services.ErrDatabaseItemNotFound
 		}
 
-		return nil, fmt.Errorf("failed to scan account type record: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	spanQuery.End()
@@ -299,7 +298,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	record := &AccountTypePostgreSQLModel{}
@@ -341,14 +340,14 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("failed to execute update query: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -357,7 +356,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -382,7 +381,7 @@ func (r *AccountTypePostgreSQLRepository) prepareCursorPagination(filter http.Pa
 
 		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
 		if err != nil {
-			return libHTTP.Cursor{}, false, "", fmt.Errorf("failed to decode cursor: %w", err)
+			return libHTTP.Cursor{}, false, "", pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 		}
 	}
 
@@ -404,7 +403,7 @@ func (r *AccountTypePostgreSQLRepository) buildAccountTypeFindAllQuery(organizat
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		return "", nil, "", fmt.Errorf("failed to build SQL query: %w", err)
+		return "", nil, "", pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	return query, args, orderDirection, nil
@@ -424,14 +423,14 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	decodedCursor, isFirstPage, orderDirection, err := r.prepareCursorPagination(filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to decode cursor: %w", err)
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	query, args, orderDirection, err := r.buildAccountTypeFindAllQuery(organizationID, ledgerID, filter, decodedCursor, orderDirection)
@@ -440,7 +439,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to build query: %w", err)
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	var accountTypes []*mmodel.AccountType
@@ -454,7 +453,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to execute query: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 	defer rows.Close()
 
@@ -473,7 +472,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to scan account type record: %w", err)
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 		}
 
 		accountTypes = append(accountTypes, record.ToEntity())
@@ -482,7 +481,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to iterate rows: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	hasPagination := len(accountTypes) > filter.Limit
@@ -495,7 +494,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 		}
 	}
 
@@ -516,7 +515,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	var accountTypes []*mmodel.AccountType
@@ -546,7 +545,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("failed to execute query: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 	defer rows.Close()
 
@@ -567,7 +566,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
 
-			return nil, fmt.Errorf("failed to scan account type record: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 		}
 
 		accountTypes = append(accountTypes, record.ToEntity())
@@ -576,7 +575,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
-		return nil, fmt.Errorf("failed to iterate rows: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	return accountTypes, nil
@@ -596,7 +595,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	query := "UPDATE account_type SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
@@ -610,7 +609,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return fmt.Errorf("failed to execute delete query: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	spanExec.End()
@@ -621,7 +620,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	if rowsAffected == 0 {

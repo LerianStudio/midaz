@@ -3,11 +3,11 @@ package out
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -54,7 +54,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
 
-		return nil, fmt.Errorf("failed to get gRPC client for create balance: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	client := proto.NewBalanceProtoClient(conn)
@@ -63,7 +63,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
 		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
 
-		return nil, fmt.Errorf("failed to set span attributes for create balance request: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	// Inject trace context and propagate request_id and authorization (if provided)
@@ -76,13 +76,13 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountCreationFailed.Error(), "Account Creation Failed", "Account could not be created")
 		if !errors.Is(mapped, err) {
-			return nil, fmt.Errorf("gRPC create balance authentication error: %w", mapped)
+			return nil, mapped
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to create balance", err)
 		logger.Errorf("gRPC CreateBalance error: %v", err)
 
-		return nil, fmt.Errorf("gRPC create balance request failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return resp, nil
@@ -98,7 +98,8 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	conn, err := b.conn.GetNewClient()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
-		return fmt.Errorf("failed to get gRPC client for delete balances: %w", err)
+
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	client := proto.NewBalanceProtoClient(conn)
@@ -106,7 +107,8 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id.client_request")
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
 		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
-		return fmt.Errorf("failed to set span attributes for delete balances request: %w", err)
+
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
@@ -118,13 +120,13 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "All Balances Deletion Failed", "All balances could not be deleted")
 		if !errors.Is(mapped, err) {
-			return fmt.Errorf("gRPC delete balances authentication error: %w", mapped)
+			return mapped
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete all balances by account id", err)
 		logger.Errorf("gRPC DeleteAllBalancesByAccountID error: %v", err)
 
-		return fmt.Errorf("gRPC delete balances request failed: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return nil
@@ -184,12 +186,12 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 	// Convert proto response to native model
 	available, err := decimal.NewFromString(resp.Available)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse Available for balance %s: %w", resp.Id, err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	onHold, err := decimal.NewFromString(resp.OnHold)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse OnHold for balance %s: %w", resp.Id, err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return &mmodel.Balance{

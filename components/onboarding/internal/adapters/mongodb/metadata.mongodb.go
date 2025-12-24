@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -62,7 +61,7 @@ func buildMongoFilter(filter http.QueryHeader) (bson.M, error) {
 		for key, value := range *filter.Metadata {
 			safeValue, err := http.ValidateMetadataValue(value)
 			if err != nil {
-				return nil, fmt.Errorf("invalid metadata value for key %s: %w", key, err)
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "Metadata")
 			}
 
 			mongoFilter[key] = safeValue
@@ -89,7 +88,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 		logger.Errorf("Failed to get database: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -100,7 +99,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 		logger.Errorf("Failed to convert metadata to model: %v", err)
 
-		return fmt.Errorf("failed to convert metadata to model: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_metadata.insert")
@@ -111,7 +110,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 		logger.Errorf("Failed to insert metadata: %v", err)
 
-		return fmt.Errorf("failed to insert metadata into collection: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	spanInsert.End()
@@ -132,7 +131,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 		logger.Errorf("Failed to get database: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -161,7 +160,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 		logger.Errorf("Failed to find metadata: %v", err)
 
-		return nil, fmt.Errorf("failed to find metadata in collection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	spanFind.End()
@@ -175,7 +174,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 			logger.Errorf("Failed to decode metadata: %v", err)
 
-			return nil, fmt.Errorf("failed to decode metadata record: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Metadata")
 		}
 
 		meta = append(meta, &record)
@@ -186,7 +185,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 		logger.Errorf("Failed to iterate metadata: %v", err)
 
-		return nil, fmt.Errorf("cursor iteration error: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	if err := cur.Close(ctx); err != nil {
@@ -194,7 +193,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 		logger.Errorf("Failed to close cursor: %v", err)
 
-		return nil, fmt.Errorf("failed to close cursor: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	metadata := make([]*Metadata, 0, len(meta))
@@ -218,7 +217,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 		logger.Errorf("Failed to get database: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -236,7 +235,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 		logger.Errorf("Failed to find metadata by entity: %v", err)
 
-		return nil, fmt.Errorf("failed to find metadata by entity: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	spanFindOne.End()
@@ -261,7 +260,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -277,7 +276,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 		logger.Errorf("Failed to find metadata: %v", err)
 
-		return nil, fmt.Errorf("failed to find metadata by entity IDs: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 	defer cur.Close(ctx)
 
@@ -290,7 +289,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 			logger.Errorf("Failed to decode metadata: %v", err)
 
-			return nil, fmt.Errorf("failed to decode metadata record: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Metadata")
 		}
 
 		meta = append(meta, &record)
@@ -301,7 +300,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 		logger.Errorf("Failed to iterate metadata: %v", err)
 
-		return nil, fmt.Errorf("cursor iteration error: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	if err := cur.Close(ctx); err != nil {
@@ -309,7 +308,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 		logger.Errorf("Failed to close cursor: %v", err)
 
-		return nil, fmt.Errorf("failed to close cursor: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	metadata := make([]*Metadata, 0, len(meta))
@@ -333,7 +332,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 		logger.Errorf("Failed to get database: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -352,14 +351,14 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 			logger.Warnf("Failed to update metadata: %v", err)
 
-			return fmt.Errorf("entity not found: %w", err)
+			return err
 		}
 
 		libOpentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
 		logger.Errorf("Failed to update metadata: %v", err)
 
-		return fmt.Errorf("failed to update metadata: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	spanUpdate.End()
@@ -382,7 +381,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	opts := options.Delete()
@@ -395,7 +394,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanDelete, "Failed to delete metadata", err)
 
-		return fmt.Errorf("failed to delete metadata: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	spanDelete.End()

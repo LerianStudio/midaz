@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -91,7 +90,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	record := &OrganizationPostgreSQLModel{}
@@ -101,7 +100,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal address", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -127,14 +126,14 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanExec.End()
@@ -145,7 +144,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -153,7 +152,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -185,7 +184,7 @@ func (r *OrganizationPostgreSQLRepository) buildOrganizationUpdateQuery(organiza
 		address, err := json.Marshal(record.Address)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to marshal address", err)
-			return "", nil, fmt.Errorf("failed to marshal address: %w", err)
+			return "", nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		updates = append(updates, "address = $"+strconv.Itoa(len(args)+1))
@@ -231,7 +230,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	record := &OrganizationPostgreSQLModel{}
@@ -239,7 +238,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 	query, args, err := r.buildOrganizationUpdateQuery(organization, record, id, &span)
 	if err != nil {
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
@@ -254,14 +253,14 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 			logger.Warnf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanExec.End()
@@ -272,7 +271,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -280,7 +279,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization. Rows affected is 0", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -299,7 +298,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	organization := &OrganizationPostgreSQLModel{}
@@ -337,21 +336,21 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	err = json.Unmarshal([]byte(address), &organization.Address)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	return organization.ToEntity(), nil
@@ -370,7 +369,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	var organizations []*mmodel.Organization
@@ -391,7 +390,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -402,7 +401,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanQuery.End()
@@ -421,14 +420,14 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		organizations = append(organizations, organization.ToEntity())
@@ -437,7 +436,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	return organizations, nil
@@ -456,7 +455,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	var organizations []*mmodel.Organization
@@ -487,7 +486,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 	defer rows.Close()
 
@@ -505,14 +504,14 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		organizations = append(organizations, organization.ToEntity())
@@ -521,7 +520,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	return organizations, nil
@@ -540,7 +539,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -551,7 +550,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return fmt.Errorf("failed to execute delete organization query: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanExec.End()
@@ -562,7 +561,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -570,7 +569,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization. Rows affected is 0", err)
 
-		return fmt.Errorf("organization not found for deletion: %w", err)
+		return err
 	}
 
 	return nil
@@ -591,7 +590,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, fmt.Errorf("failed to get database connection: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -603,7 +602,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, fmt.Errorf("failed to count organizations: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	return count, nil

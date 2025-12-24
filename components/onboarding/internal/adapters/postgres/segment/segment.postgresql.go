@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -93,7 +92,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	record := &SegmentPostgreSQLModel{}
@@ -121,14 +120,14 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 			logger.Errorf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	spanExec.End()
@@ -139,7 +138,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -149,7 +148,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Warnf("Failed to create segment. Rows affected is 0: %v", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -168,7 +167,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, fmt.Errorf("failed to get database connection: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_segment_by_name.query")
@@ -198,7 +197,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return false, fmt.Errorf("failed to query segment by name: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 	defer rows.Close()
 
@@ -211,7 +210,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Warnf("Failed to find segment by name: %v", err)
 
-		return true, fmt.Errorf("business validation error: %w", err)
+		return true, err
 	}
 
 	if err := rows.Err(); err != nil {
@@ -219,7 +218,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Errorf("Row iteration error: %v", err)
 
-		return false, fmt.Errorf("row iteration error: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	return false, nil
@@ -238,7 +237,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	var segments []*mmodel.Segment
@@ -261,7 +260,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -272,7 +271,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("failed to query segments: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name()))
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 	defer rows.Close()
 
@@ -284,7 +283,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 		}
 
 		segments = append(segments, segment.ToEntity())
@@ -293,7 +292,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	return segments, nil
@@ -310,7 +309,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	var segments []*mmodel.Segment
@@ -342,7 +341,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 	defer rows.Close()
 
@@ -354,7 +353,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 		}
 
 		segments = append(segments, segment.ToEntity())
@@ -363,7 +362,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	return segments, nil
@@ -380,7 +379,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	segment := &SegmentPostgreSQLModel{}
@@ -417,12 +416,12 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, fmt.Errorf("database constraint violation: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 		}
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	return segment.ToEntity(), nil
@@ -447,7 +446,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	record := &SegmentPostgreSQLModel{}
@@ -494,14 +493,14 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 			logger.Errorf("Failed to execute update query: %v", validatedErr)
 
-			return nil, fmt.Errorf("database constraint violation: %w", validatedErr)
+			return nil, validatedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	spanExec.End()
@@ -512,7 +511,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, fmt.Errorf("database constraint violation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -522,7 +521,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to update segment. Rows affected is 0: %v", notFoundErr)
 
-		return nil, fmt.Errorf("database constraint violation: %w", notFoundErr)
+		return nil, notFoundErr
 	}
 
 	return record.ToEntity(), nil
@@ -541,7 +540,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -553,7 +552,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return fmt.Errorf("failed to execute delete segment query: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	spanExec.End()
@@ -564,7 +563,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	if rowsAffected == 0 {
@@ -574,7 +573,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to delete segment. Rows affected is 0: %v", err)
 
-		return fmt.Errorf("segment not found for deletion: %w", err)
+		return err
 	}
 
 	return nil
@@ -595,7 +594,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, fmt.Errorf("failed to get database connection: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -607,7 +606,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, fmt.Errorf("failed to count segments: %w", err)
+		return count, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	return count, nil
