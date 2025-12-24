@@ -12,6 +12,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// balanceVerifyTimeout must exceed max RabbitMQ retry backoff (50s = 0s+5s+15s+30s) plus processing time.
+// When stale balance is detected, messages retry with exponential backoff before eventual consistency.
+const balanceVerifyTimeout = 60 * time.Second
+
+// balanceVerifyTimeoutExtended is used for tests with multiple accounts or higher contention,
+// allowing additional time for cross-account balance reconciliation after retries complete.
+const balanceVerifyTimeoutExtended = 90 * time.Second
+
 // Parallel inflow/outflow contention on same account without negative balances.
 func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 	t.Parallel()
@@ -152,8 +160,8 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 		Sub(decimal.NewFromInt(int64(outSucc)).Mul(decimal.NewFromInt(5))).
 		Add(decimal.NewFromInt(int64(inSucc)).Mul(decimal.NewFromInt(3)))
 
-	// Verify balance changed by expected delta
-	got, err := tracker.VerifyDelta(ctx, expectedDelta, 15*time.Second)
+	// Verify balance changed by expected delta (timeout accounts for RabbitMQ retry backoffs)
+	got, err := tracker.VerifyDelta(ctx, expectedDelta, balanceVerifyTimeout)
 	if err != nil {
 		actualDelta, _ := tracker.GetCurrentDelta(ctx)
 		t.Fatalf("final balance delta mismatch: actual_delta=%s expected_delta=%s err=%v (inSucc=%d outSucc=%d)",
@@ -349,8 +357,8 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 	// Delta B = transfers received
 	expDeltaB := decimal.NewFromInt(int64(trSucc))
 
-	// Verify A's balance changed by expected delta
-	gotA, err := trackerA.VerifyDelta(ctx, expDeltaA, 40*time.Second)
+	// Verify A's balance changed by expected delta (extended timeout for multi-account reconciliation after retries)
+	gotA, err := trackerA.VerifyDelta(ctx, expDeltaA, balanceVerifyTimeoutExtended)
 	if err != nil {
 		actualDeltaA, _ := trackerA.GetCurrentDelta(ctx)
 		t.Fatalf("A delta mismatch: actual_delta=%s expected_delta=%s err=%v (tr=%d out=%d in=%d)",
@@ -360,8 +368,8 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
 		t.Fatalf("A negative final balance: %s", gotA.String())
 	}
 
-	// Verify B's balance changed by expected delta
-	gotB, err := trackerB.VerifyDelta(ctx, expDeltaB, 40*time.Second)
+	// Verify B's balance changed by expected delta (extended timeout for multi-account reconciliation after retries)
+	gotB, err := trackerB.VerifyDelta(ctx, expDeltaB, balanceVerifyTimeoutExtended)
 	if err != nil {
 		actualDeltaB, _ := trackerB.GetCurrentDelta(ctx)
 		t.Fatalf("B delta mismatch: actual_delta=%s expected_delta=%s err=%v (tr=%d)",

@@ -139,10 +139,11 @@ func TestIntegration_Transactions_MixedBurstFinalBalanceConsistent(t *testing.T)
 
 	exp := decimal.RequireFromString("100").Sub(decimal.NewFromInt(int64(outSucc * 5))).Add(decimal.NewFromInt(int64(inSucc * 2)))
 
-	// Eventually read final balance (cache-aware) and verify
-	deadline := time.Now().Add(5 * time.Second)
+	// Eventually read final balance (cache-aware) and verify.
+	// Timeout must exceed max RabbitMQ retry backoff (50s = 0s+5s+15s+30s) plus processing time.
+	deadline := time.Now().Add(60 * time.Second)
 	if dl, ok := t.Deadline(); ok {
-		if d := time.Until(dl) / 2; d < 5*time.Second {
+		if d := time.Until(dl) / 2; d < 60*time.Second {
 			deadline = time.Now().Add(d)
 		}
 	}
