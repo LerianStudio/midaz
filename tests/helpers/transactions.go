@@ -172,15 +172,18 @@ func FetchTransactionByID(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to fetch transaction %s: %w", txnID, err)
 	}
 
 	if code != transactionHTTPStatusOK {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("%w: transaction %s status %d: %s", ErrFetchTransactionsFailed, txnID, code, string(body))
 	}
 
 	var txn TransactionRecord
 	if err := json.Unmarshal(body, &txn); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to unmarshal transaction %s: %w", txnID, err)
 	}
 
@@ -372,12 +375,14 @@ func VerifyBalanceConsistency(ctx context.Context, trans *HTTPClient, orgID, led
 	// 1. Fetch actual balance
 	actualBalance, err := GetAvailableSumByAlias(ctx, trans, orgID, ledgerID, accountAlias, assetCode, headers)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("failed to get actual balance for %s: %w", accountAlias, err)
 	}
 
 	// 2. Fetch all transactions for the ledger
 	allTransactions, err := FetchAllTransactionsForLedger(ctx, trans, orgID, ledgerID, headers)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 
@@ -392,6 +397,7 @@ func VerifyBalanceConsistency(ctx context.Context, trans *HTTPClient, orgID, led
 
 	// 6. Compare
 	if !actualBalance.Equal(expectedBalance) {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("%w: account=%s actual=%s expected_from_history=%s (diff=%s, txn_count=%d, inflows=%d, outflows=%d, transfers_in=%d, transfers_out=%d, net_impact=%s)",
 			ErrBalanceInconsistency,
 			accountAlias,

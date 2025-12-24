@@ -29,6 +29,7 @@ func GetBalanceSnapshot(ctx context.Context, client *HTTPClient, orgID, ledgerID
 	// Get current balance
 	available, err := GetAvailableSumByAlias(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get balance snapshot: %w", err)
 	}
 
@@ -52,6 +53,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 	for time.Now().Before(deadline) {
 		current, err := GetAvailableSumByAlias(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
 		if err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return lastSeen, fmt.Errorf("failed to get current balance: %w", err)
 		}
 
@@ -79,6 +81,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 
 	actualDelta := lastSeen.Sub(snapshot.Available)
 
+	//nolint:wrapcheck // Error already wrapped with context for test helpers
 	return lastSeen, fmt.Errorf("%w; initial=%s expected_delta=%s actual_delta=%s last=%s expected_final=%s",
 		ErrBalanceChangeTimeout, snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
 }
@@ -98,6 +101,7 @@ type OperationTracker struct {
 func NewOperationTracker(ctx context.Context, client *HTTPClient, orgID, ledgerID, accountAlias, assetCode string, headers map[string]string) (*OperationTracker, error) {
 	snapshot, err := GetBalanceSnapshot(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to create operation tracker: %w", err)
 	}
 

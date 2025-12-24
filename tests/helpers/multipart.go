@@ -46,15 +46,18 @@ func buildMultipartBody(fields map[string]string, files map[string]struct {
 	for _, f := range files {
 		fw, err := mw.CreateFormFile(f.Field, f.Filename)
 		if err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return nil, "", fmt.Errorf("failed to create form file: %w", err)
 		}
 
 		if _, err = io.Copy(fw, bytes.NewReader(f.Content)); err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return nil, "", fmt.Errorf("failed to copy file content: %w", err)
 		}
 	}
 
 	if err := mw.Close(); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, "", fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
@@ -65,6 +68,7 @@ func buildMultipartBody(fields map[string]string, files map[string]struct {
 func (c *HTTPClient) sendMultipartRequest(ctx context.Context, method, path string, headers map[string]string, buf *bytes.Buffer) (int, []byte, http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, buf)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create multipart request: %w", err)
 	}
 
@@ -74,12 +78,14 @@ func (c *HTTPClient) sendMultipartRequest(ctx context.Context, method, path stri
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute multipart request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read multipart response body: %w", err)
 	}
 

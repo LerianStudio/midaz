@@ -18,6 +18,14 @@ const (
 	httpDefaultRetryAttempts       = 1
 	httpDefaultBackoff             = 200 * time.Millisecond
 	randHexRequestIDLength         = 16
+
+	// HTTP transport connection pool configuration
+	transportMaxIdleConns        = 100              // Total idle connections across all hosts
+	transportMaxIdleConnsPerHost = 50               // Idle connections per host (default: 2)
+	transportMaxConnsPerHost     = 100              // Active connections per host
+	transportIdleConnTimeout     = 90 * time.Second // Idle connection timeout
+	transportTLSHandshakeTimeout = 10 * time.Second // TLS handshake timeout
+	transportExpectContinue      = 1 * time.Second  // Expect continue timeout
 )
 
 // HTTPClient wraps a standard http.Client with base URL handling.
@@ -35,14 +43,14 @@ func NewHTTPClient(base string, timeout time.Duration) *HTTPClient {
 	// when running 30+ parallel tests with 40-110 concurrent requests each.
 	transport := &http.Transport{
 		// Connection pooling - critical for parallel tests
-		MaxIdleConns:        100, // Total idle connections across all hosts
-		MaxIdleConnsPerHost: 50,  // Idle connections per host (default: 2!)
-		MaxConnsPerHost:     100, // Active connections per host (explicit limit)
+		MaxIdleConns:        transportMaxIdleConns,
+		MaxIdleConnsPerHost: transportMaxIdleConnsPerHost,
+		MaxConnsPerHost:     transportMaxConnsPerHost,
 
 		// Timeouts for connection lifecycle
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       transportIdleConnTimeout,
+		TLSHandshakeTimeout:   transportTLSHandshakeTimeout,
+		ExpectContinueTimeout: transportExpectContinue,
 
 		// Performance settings
 		DisableKeepAlives:  false, // Keep connections alive for reuse
@@ -66,6 +74,7 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return 0, nil, nil, fmt.Errorf("marshal body: %w", err)
 		}
 
@@ -82,6 +91,7 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -91,12 +101,14 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body: %w", err)
 	}
 
@@ -121,6 +133,7 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(raw))
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create raw request: %w", err)
 	}
 
@@ -130,12 +143,14 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute raw request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read raw response body: %w", err)
 	}
 
@@ -150,6 +165,7 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return 0, nil, nil, fmt.Errorf("marshal body: %w", err)
 		}
 
@@ -158,6 +174,7 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create request with header values: %w", err)
 	}
 
@@ -169,12 +186,14 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute request with header values: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body with header values: %w", err)
 	}
 

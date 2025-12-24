@@ -55,6 +55,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -64,6 +65,7 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 	resp, err := client.Do(req)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to query RabbitMQ management API: %w", err)
 	}
 	defer resp.Body.Close()
@@ -74,11 +76,13 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("%w: %d", ErrUnexpectedStatusCode, resp.StatusCode)
 	}
 
 	var queueInfo RabbitMQQueueInfo
 	if err := json.NewDecoder(resp.Body).Decode(&queueInfo); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to decode queue info: %w", err)
 	}
 
@@ -99,6 +103,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
 		default:
 		}
@@ -122,6 +127,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	// Get final count for error message
 	finalCount, _ := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 
+	//nolint:wrapcheck // Error already wrapped with context for test helpers
 	return fmt.Errorf("%w: %s still has %d messages after %v", ErrDLQNotEmpty, BuildDLQName(queueName), finalCount, timeout)
 }
 
@@ -140,6 +146,7 @@ func GetAllDLQCounts(ctx context.Context, mgmtURL, user, pass string, queueNames
 	for _, queueName := range queueNames {
 		count, err := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 		if err != nil {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return nil, fmt.Errorf("failed to get DLQ count for %s: %w", queueName, err)
 		}
 

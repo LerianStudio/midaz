@@ -85,6 +85,7 @@ func WaitForTCP(hostPort string, timeout time.Duration) error {
 		}
 
 		if time.Now().After(deadline) {
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("timeout waiting for %s: %w", hostPort, err)
 		}
 
@@ -97,10 +98,12 @@ func WaitForTCP(hostPort string, timeout time.Duration) error {
 func URLHostPort(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("failed to parse URL: %w", err)
 	}
 
 	if u.Host == "" {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("%w: %s", ErrURLMissingHost, raw)
 	}
 
@@ -132,6 +135,7 @@ func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 		if err != nil {
 			cancel()
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("failed to create HTTP request: %w", err)
 		}
 
@@ -148,9 +152,11 @@ func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 
 		if time.Now().After(deadline) {
 			if err != nil {
+				//nolint:wrapcheck // Error already wrapped with context for test helpers
 				return fmt.Errorf("timeout waiting for %s: %w", fullURL, err)
 			}
 
+			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("%w: %s (status != 200)", ErrWaitForHTTPTimeout, fullURL)
 		}
 
