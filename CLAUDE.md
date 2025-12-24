@@ -2,6 +2,19 @@
 
 Enterprise-grade open-source ledger system for financial infrastructure implementing double-entry accounting with complex n:n transactions.
 
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking.
+Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
+
+**Quick reference:**
+- `bd ready` - Find unblocked work
+- `bd create "Title" --type task --priority 2` - Create issue
+- `bd close <id>` - Complete work
+- `bd sync` - Sync with git (run at session end)
+
+For full workflow details: `bd prime`
+
 ## Project Overview (WHY)
 
 - **Purpose**: Core banking ledger infrastructure for fintech and banking solutions with double-entry accounting, multi-currency/multi-asset support
