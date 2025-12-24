@@ -2,7 +2,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -65,8 +64,8 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -83,7 +82,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	metricFactory.RecordTransactionRouteCreated(ctx, organizationID.String(), ledgerID.String())
 
 	if err := http.Created(c, transactionRoute); err != nil {
-		return fmt.Errorf("failed to send created transaction route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -126,8 +125,8 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -136,7 +135,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	logger.Infof("Successfully retrieved transaction route with ID: %s", id.String())
 
 	if err := http.OK(c, transactionRoute); err != nil {
-		return fmt.Errorf("failed to send transaction route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -190,8 +189,8 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 		logger.Errorf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -203,8 +202,8 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 		logger.Errorf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -219,7 +218,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	}
 
 	if err := http.OK(c, transactionRoute); err != nil {
-		return fmt.Errorf("failed to send transaction route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -262,8 +261,8 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -278,7 +277,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	}
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("failed to send no content response: %w", err)
+		return err
 	}
 
 	return nil
@@ -323,8 +322,8 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -359,8 +358,8 @@ func (handler *TransactionRouteHandler) retrieveTransactionRoutesByMetadata(ctx 
 
 		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -372,7 +371,7 @@ func (handler *TransactionRouteHandler) retrieveTransactionRoutesByMetadata(ctx 
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send transaction routes pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -395,8 +394,8 @@ func (handler *TransactionRouteHandler) retrieveAllTransactionRoutes(ctx context
 
 		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -408,7 +407,7 @@ func (handler *TransactionRouteHandler) retrieveAllTransactionRoutes(ctx context
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send transaction routes pagination response: %w", err)
+		return err
 	}
 
 	return nil

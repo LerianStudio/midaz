@@ -14,6 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
@@ -222,7 +223,7 @@ type dlqPublishParams struct {
 func publishToDLQShared(params *dlqPublishParams) error {
 	ch, err := params.conn.Connection.Channel()
 	if err != nil {
-		return fmt.Errorf("failed to get channel for DLQ: %w", err)
+		return pkg.ValidateInternalError(err, "Consumer")
 	}
 	defer ch.Close()
 
@@ -236,12 +237,12 @@ func publishToDLQShared(params *dlqPublishParams) error {
 		nil,   // arguments
 	)
 	if err != nil {
-		return fmt.Errorf("failed to declare DLQ: %w", err)
+		return pkg.ValidateInternalError(err, "Consumer")
 	}
 
 	// Enable publisher confirm mode to ensure message persistence
 	if err = ch.Confirm(false); err != nil {
-		return fmt.Errorf("failed to enable confirm mode for DLQ: %w", err)
+		return pkg.ValidateInternalError(err, "Consumer")
 	}
 
 	// Create channel to receive publish confirmation (buffer size 1 is sufficient)
@@ -260,7 +261,7 @@ func publishToDLQShared(params *dlqPublishParams) error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to publish to DLQ: %w", err)
+		return pkg.ValidateInternalError(err, "Consumer")
 	}
 
 	// Wait for broker confirmation with timeout
@@ -268,7 +269,7 @@ func publishToDLQShared(params *dlqPublishParams) error {
 	select {
 	case confirmation, ok := <-confirms:
 		if !ok {
-			return fmt.Errorf("failed to publish to DLQ: %w", ErrConfirmChannelClosed)
+			return pkg.ValidateInternalError(ErrConfirmChannelClosed, "Consumer")
 		}
 
 		if confirmation.Ack {
@@ -278,10 +279,10 @@ func publishToDLQShared(params *dlqPublishParams) error {
 			return nil
 		}
 
-		return fmt.Errorf("failed to publish to DLQ: %w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
+		return pkg.ValidateInternalError(ErrBrokerNack, "Consumer")
 
 	case <-time.After(publishConfirmTimeout):
-		return fmt.Errorf("failed to publish to DLQ: %w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
+		return pkg.ValidateInternalError(ErrConfirmTimeout, "Consumer")
 	}
 }
 

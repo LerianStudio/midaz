@@ -68,8 +68,8 @@ func TestProducerDefaultWithConfirms_ChannelSetup(t *testing.T) {
 
 		// The producer should return an error, not panic
 		assert.Error(t, err, "ProducerDefault should return error when connection is nil")
-		assert.Contains(t, err.Error(), "failed to publish", "error should indicate publish failure")
-		assert.Contains(t, err.Error(), "connection is nil", "error should indicate nil connection")
+		// Check that the error chain contains the nil connection error
+		assert.ErrorIs(t, err, ErrNilConnection, "error should indicate nil connection")
 	})
 
 	t.Run("respects context cancellation during publish with nil connection", func(t *testing.T) {
@@ -109,7 +109,8 @@ func TestProducerDefaultWithConfirms_ChannelSetup(t *testing.T) {
 
 		// Should return an error - either context cancelled or connection failure
 		assert.Error(t, err, "ProducerDefault should return error")
-		assert.Contains(t, err.Error(), "context cancelled", "error should indicate context cancellation")
+		// Check that the error chain contains the context cancellation error
+		assert.ErrorIs(t, err, context.Canceled, "error should indicate context cancellation")
 	})
 }
 

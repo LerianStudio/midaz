@@ -2,7 +2,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -67,8 +66,8 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Infof("Request to create an operation route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -78,8 +77,8 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -90,7 +89,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Infof("Successfully created operation route")
 
 	if err := http.Created(c, operationRoute); err != nil {
-		return fmt.Errorf("failed to send created operation route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -130,8 +129,8 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to retrieve Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -140,7 +139,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 	logger.Infof("Successfully retrieved Operation Route with Operation Route ID: %s", id.String())
 
 	if err := http.OK(c, operationRoute); err != nil {
-		return fmt.Errorf("failed to send operation route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -185,8 +184,8 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Infof("Request to update an Operation Route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -205,8 +204,8 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation Route on query", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -223,7 +222,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	}
 
 	if err := http.OK(c, operationRoute); err != nil {
-		return fmt.Errorf("failed to send operation route response: %w", err)
+		return err
 	}
 
 	return nil
@@ -235,8 +234,8 @@ func (handler *OperationRouteHandler) performOperationRouteUpdate(ctx context.Co
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -280,8 +279,8 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 
 		logger.Errorf("Failed to delete Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -290,7 +289,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	logger.Infof("Successfully deleted Operation Route with Operation Route ID: %s", id.String())
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("failed to send no content response: %w", err)
+		return err
 	}
 
 	return nil
@@ -335,8 +334,8 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -368,8 +367,8 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -381,7 +380,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send operation routes pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -397,8 +396,8 @@ func (handler *OperationRouteHandler) retrieveOperationRoutesByMetadata(ctx cont
 
 		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -410,7 +409,7 @@ func (handler *OperationRouteHandler) retrieveOperationRoutesByMetadata(ctx cont
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send operation routes pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -451,7 +450,7 @@ func (handler *OperationRouteHandler) validateAccountRuleFields(logger libLog.Lo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
 		logger.Warnf("Account rule type provided but validIf is missing, Error: %s", err.Error())
 
-		return fmt.Errorf("account rule type validation failed: %w", err)
+		return err
 	}
 
 	if account.RuleType == "" && account.ValidIf != nil {
@@ -459,7 +458,7 @@ func (handler *OperationRouteHandler) validateAccountRuleFields(logger libLog.Lo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
 		logger.Warnf("Account validIf provided but rule type is missing, Error: %s", err.Error())
 
-		return fmt.Errorf("account validIf validation failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -477,7 +476,7 @@ func (handler *OperationRouteHandler) validateAccountRuleType(logger libLog.Logg
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
 		logger.Warnf("Invalid account rule type, Error: %s", err.Error())
 
-		return fmt.Errorf("invalid account rule type: %w", err)
+		return err
 	}
 }
 
@@ -488,7 +487,7 @@ func (handler *OperationRouteHandler) validateAliasRule(logger libLog.Logger, sp
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
 		logger.Warnf("Invalid ValidIf type for alias rule, Error: %s", err.Error())
 
-		return fmt.Errorf("invalid validIf type for alias rule: %w", err)
+		return err
 	}
 
 	return nil
@@ -506,7 +505,7 @@ func (handler *OperationRouteHandler) validateAccountTypeRule(logger libLog.Logg
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
 		logger.Warnf("Invalid ValidIf type for account_type rule, Error: %s", err.Error())
 
-		return fmt.Errorf("invalid validIf type for account_type rule: %w", err)
+		return err
 	}
 }
 
@@ -518,7 +517,7 @@ func (handler *OperationRouteHandler) validateAccountTypeArray(logger libLog.Log
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
 			logger.Warnf("Invalid ValidIf array element type, Error: %s", err.Error())
 
-			return fmt.Errorf("account type array validation failed: %w", err)
+			return err
 		}
 	}
 

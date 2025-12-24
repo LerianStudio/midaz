@@ -1,8 +1,6 @@
 package in
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -63,8 +61,8 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -92,8 +90,8 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Balances, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -105,7 +103,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send balances pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -152,8 +150,8 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -181,8 +179,8 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Balances by account id, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -194,7 +192,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send balances pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -237,8 +235,8 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve balance by id, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -247,7 +245,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved balance by id")
 
 	if err := http.OK(c, op); err != nil {
-		return fmt.Errorf("failed to send balance response: %w", err)
+		return err
 	}
 
 	return nil
@@ -291,8 +289,8 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete balance by id, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -301,7 +299,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully delete balance by id")
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("failed to send no content response: %w", err)
+		return err
 	}
 
 	return nil
@@ -355,8 +353,8 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Balance with ID: %s, Error: %s", balanceID, err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -368,8 +366,8 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Balance with ID: %s, Error: %s", balanceID, err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -378,7 +376,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID)
 
 	if err := http.OK(c, op); err != nil {
-		return fmt.Errorf("failed to send balance response: %w", err)
+		return err
 	}
 
 	return nil
@@ -421,8 +419,8 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve balances by alias, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -438,7 +436,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 		Limit: defaultPaginationLimit,
 		Items: balances,
 	}); err != nil {
-		return fmt.Errorf("failed to send balances pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -482,8 +480,8 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve balances by code, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -499,7 +497,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 		Limit: defaultPaginationLimit,
 		Items: balances,
 	}); err != nil {
-		return fmt.Errorf("failed to send balances pagination response: %w", err)
+		return err
 	}
 
 	return nil
@@ -544,8 +542,8 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -557,8 +555,8 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 
 		logger.Errorf("Failed to create additional balance, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -567,7 +565,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	logger.Infof("Successfully created additional balance")
 
 	if err := http.Created(c, balance); err != nil {
-		return fmt.Errorf("failed to send created balance response: %w", err)
+		return err
 	}
 
 	return nil

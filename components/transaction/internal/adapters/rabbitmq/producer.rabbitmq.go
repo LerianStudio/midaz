@@ -3,7 +3,6 @@ package rabbitmq
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -44,6 +44,9 @@ var (
 
 	// ErrConfirmTimeout indicates the publish confirmation timed out.
 	ErrConfirmTimeout = errors.New("publish confirmation timed out")
+
+	// ErrDeliveryTagReceived indicates a delivery tag was received with a broker NACK.
+	ErrDeliveryTagReceived = errors.New("delivery tag received")
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
@@ -86,6 +89,21 @@ func isLastAttempt(attempt int) bool {
 	return attempt == utils.MaxRetries
 }
 
+// isChannelError checks if the error indicates a broken channel that needs recreation.
+// This is used to avoid recreating channels on every retry attempt, which can overwhelm
+// RabbitMQ under burst load (channel thrashing prevention).
+func isChannelError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	return strings.Contains(errStr, "channel") ||
+		strings.Contains(errStr, "closed") ||
+		strings.Contains(errStr, "not open")
+}
+
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
 // It uses publisher confirms to guarantee the message was persisted by the broker
 // before returning success. This ensures HTTP 201 responses are only sent after
@@ -99,7 +117,7 @@ func isLastAttempt(attempt int) bool {
 // channel setup, confirm mode, publish, and confirmation handling (Ack/Nack/Timeout/Context).
 // Each path requires distinct handling for proper observability and graceful degradation.
 //
-//nolint:gocognit,cyclop // Complexity is inherent to retry logic with multiple error scenarios:
+//nolint:gocognit,cyclop,gocyclo // Complexity is inherent to retry logic with multiple error scenarios:
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	// TODO(review): Consider validating exchange/key length for defensive logging (reported by security-reviewer on 2025-12-14, severity: Low)
 	// TODO(review): The *string return value is always nil - consider deprecating in future cleanup (reported by code-reviewer on 2025-12-14, severity: Low)
@@ -116,7 +134,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		libOpentelemetry.HandleSpanError(&spanProducer, "RabbitMQ connection is nil", ErrNilConnection)
 		logger.Errorf("Cannot publish message: %v", ErrNilConnection)
 
-		return nil, fmt.Errorf("failed to publish message to exchange %s with key %s: %w", exchange, key, ErrNilConnection)
+		return nil, pkg.ValidateInternalError(ErrNilConnection, "Producer")
 	}
 
 	var err error
@@ -129,6 +147,28 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
+	// Check context cancellation before attempting channel setup
+	select {
+	case <-ctx.Done():
+		err := ctx.Err()
+		libOpentelemetry.HandleSpanError(&spanProducer, "Context cancelled before channel setup", err)
+		logger.Warnf("Publish cancelled by context before channel setup: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Producer")
+	default:
+		// Continue with channel setup
+	}
+
+	// Ensure channel is available ONCE before retry loop.
+	// This prevents channel thrashing under burst load where 110+ goroutines
+	// × 5 retries = 550 potential channel operations can overwhelm RabbitMQ.
+	if err = prmq.conn.EnsureChannel(); err != nil {
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to establish initial channel", err)
+		logger.Errorf("Cannot publish message: failed to establish initial channel: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Producer")
+	}
+
 	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
 		// Check context cancellation before each attempt
 		select {
@@ -137,29 +177,33 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			libOpentelemetry.HandleSpanError(&spanProducer, "Context cancelled during publish", err)
 			logger.Warnf("Publish cancelled by context: %v", err)
 
-			return nil, fmt.Errorf("failed to publish message to exchange %s with key %s: context cancelled: %w", exchange, key, err)
+			return nil, pkg.ValidateInternalError(err, "Producer")
 		default:
 			// Continue with publish attempt
 		}
 
-		if err = prmq.conn.EnsureChannel(); err != nil {
-			logger.Errorf("Failed to reopen channel, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, err)
+		// Only recreate channel if previous attempt had a channel-specific error.
+		// This prevents channel thrashing - we only recreate when actually needed.
+		if attempt > 0 && isChannelError(err) {
+			if channelErr := prmq.conn.EnsureChannel(); channelErr != nil {
+				logger.Errorf("Failed to recreate channel, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, channelErr)
 
-			if isLastAttempt(attempt) {
-				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to establish channel after retries", err)
-				logger.Errorf("Giving up after %d attempts: failed to establish channel", utils.MaxRetries+1)
+				if isLastAttempt(attempt) {
+					libOpentelemetry.HandleSpanError(&spanProducer, "Failed to establish channel after retries", channelErr)
+					logger.Errorf("Giving up after %d attempts: failed to establish channel", utils.MaxRetries+1)
 
-				return nil, fmt.Errorf("failed to establish channel for exchange %s with key %s after %d retries: %w",
-					exchange, key, utils.MaxRetries+1, err)
+					return nil, pkg.ValidateInternalError(channelErr, "Producer")
+				}
+
+				err = channelErr
+				sleepDuration := utils.FullJitter(backoff)
+				logger.Infof("Retrying to reconnect in %v...", sleepDuration)
+				time.Sleep(sleepDuration)
+
+				backoff = utils.NextBackoff(backoff)
+
+				continue
 			}
-
-			sleepDuration := utils.FullJitter(backoff)
-			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
-			time.Sleep(sleepDuration)
-
-			backoff = utils.NextBackoff(backoff)
-
-			continue
 		}
 
 		// Enable publisher confirm mode on the channel.
@@ -172,8 +216,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to enable confirm mode after retries", err)
 				logger.Errorf("Giving up after %d attempts: failed to enable confirm mode", utils.MaxRetries+1)
 
-				return nil, fmt.Errorf("failed to enable confirm mode for exchange %s with key %s after %d retries: %w",
-					exchange, key, utils.MaxRetries+1, err)
+				return nil, pkg.ValidateInternalError(err, "Producer")
 			}
 
 			sleepDuration := utils.FullJitter(backoff)
@@ -210,8 +253,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
 				logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
 
-				return nil, fmt.Errorf("failed to publish message to exchange %s with key %s after %d retries: %w",
-					exchange, key, utils.MaxRetries+1, err)
+				return nil, pkg.ValidateInternalError(err, "Producer")
 			}
 
 			sleepDuration := utils.FullJitter(backoff)
@@ -237,8 +279,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 					libOpentelemetry.HandleSpanError(&spanProducer, "Confirmation channel closed after retries", err)
 					logger.Errorf("Giving up after %d attempts: confirmation channel closed", utils.MaxRetries+1)
 
-					return nil, fmt.Errorf("failed to publish message to exchange %s with key %s after %d retries: %w",
-						exchange, key, utils.MaxRetries+1, err)
+					return nil, pkg.ValidateInternalError(err, "Producer")
 				}
 
 				sleepDuration := utils.FullJitter(backoff)
@@ -262,15 +303,14 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			}
 
 			// NACK: Broker rejected the message
-			err = fmt.Errorf("%w: delivery tag %d", ErrBrokerNack, confirmation.DeliveryTag)
+			err = errors.Join(ErrBrokerNack, ErrDeliveryTagReceived)
 			logger.Warnf("Broker NACK received, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, err)
 
 			if isLastAttempt(attempt) {
 				libOpentelemetry.HandleSpanError(&spanProducer, "Broker NACK after retries", err)
 				logger.Errorf("Giving up after %d attempts: broker NACK", utils.MaxRetries+1)
 
-				return nil, fmt.Errorf("failed to publish message to exchange %s with key %s after %d retries: %w",
-					exchange, key, utils.MaxRetries+1, err)
+				return nil, pkg.ValidateInternalError(err, "Producer")
 			}
 
 			sleepDuration := utils.FullJitter(backoff)
@@ -283,15 +323,14 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 		case <-time.After(publishConfirmTimeout):
 			// TIMEOUT: No confirmation received within timeout
-			err = fmt.Errorf("%w: after %v", ErrConfirmTimeout, publishConfirmTimeout)
+			err = ErrConfirmTimeout
 			logger.Warnf("Confirmation timeout, attempt %d/%d: %v", attempt+1, utils.MaxRetries+1, err)
 
 			if isLastAttempt(attempt) {
 				libOpentelemetry.HandleSpanError(&spanProducer, "Publish confirmation timeout after retries", err)
 				logger.Errorf("Giving up after %d attempts: confirmation timeout", utils.MaxRetries+1)
 
-				return nil, fmt.Errorf("failed to publish message to exchange %s with key %s after %d retries: %w",
-					exchange, key, utils.MaxRetries+1, err)
+				return nil, pkg.ValidateInternalError(err, "Producer")
 			}
 
 			sleepDuration := utils.FullJitter(backoff)
@@ -308,10 +347,9 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			libOpentelemetry.HandleSpanError(&spanProducer, "Context cancelled while waiting for confirmation", err)
 			logger.Warnf("Confirmation wait cancelled by context: %v", err)
 
-			return nil, fmt.Errorf("failed to publish message to exchange %s with key %s: context cancelled: %w",
-				exchange, key, err)
+			return nil, pkg.ValidateInternalError(err, "Producer")
 		}
 	}
 
-	return nil, fmt.Errorf("failed to publish message to exchange %s with key %s: %w", exchange, key, err)
+	return nil, pkg.ValidateInternalError(err, "Producer")
 }

@@ -2,7 +2,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -66,8 +65,8 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -101,8 +100,8 @@ func (handler *OperationHandler) getOperationsWithMetadata(ctx context.Context, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account and metadata", err)
 		logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -114,7 +113,7 @@ func (handler *OperationHandler) getOperationsWithMetadata(ctx context.Context, 
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return err
 	}
 
 	return nil
@@ -131,8 +130,8 @@ func (handler *OperationHandler) getOperationsWithoutMetadata(ctx context.Contex
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account", err)
 		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -144,7 +143,7 @@ func (handler *OperationHandler) getOperationsWithoutMetadata(ctx context.Contex
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return err
 	}
 
 	return nil
@@ -189,8 +188,8 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -199,7 +198,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Operation by account")
 
 	if err := http.OK(c, op); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return err
 	}
 
 	return nil
@@ -255,8 +254,8 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -268,8 +267,8 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
 
-		if err := http.WithError(c, err); err != nil {
-			return fmt.Errorf("failed to send error response: %w", err)
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
 		}
 
 		return nil
@@ -278,7 +277,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
 
 	if err := http.OK(c, op); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return err
 	}
 
 	return nil
