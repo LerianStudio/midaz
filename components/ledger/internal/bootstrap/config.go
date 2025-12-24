@@ -1,14 +1,13 @@
 package bootstrap
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 )
 
@@ -52,7 +51,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Config")
 	}
 
 	var baseLogger libLog.Logger
@@ -100,7 +99,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger: transactionLogger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
 	// Get the BalancePort from transaction for in-process communication
@@ -119,7 +118,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalancePort: balancePort,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Onboarding")
 	}
 
 	ledgerLogger.Info("Onboarding module initialized")
