@@ -3,6 +3,8 @@ package in
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -32,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -478,7 +481,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return nil
 	}
 
-	transactionReverted := tran.TransactionRevert()
+	transactionReverted := handler.buildRevertTransaction(logger, tran)
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction can't be reverted", err)
@@ -525,16 +528,65 @@ func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Conte
 
 // fetchAndValidateTransactionForRevert retrieves and validates a transaction before reverting it.
 func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve base transaction on query", err)
+		logger.Errorf("Failed to retrieve base Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
 			return nil, httpErr
 		}
 
 		return nil, nil
+	}
+
+	tranWithOps, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction operations on query", err)
+		logger.Errorf("Failed to retrieve Transaction operations with ID: %s, Error: %s", transactionID.String(), err.Error())
+
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return nil, httpErr
+		}
+
+		return nil, nil
+	}
+
+	if tran == nil || tran.ID == "" {
+		tran = tranWithOps
+	} else if tranWithOps != nil && tranWithOps.ID != "" {
+		tran.Operations = tranWithOps.Operations
+	}
+
+	needsOperations := tran != nil && tran.Body.IsEmpty()
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" && needsOperations && !operationsReadyForRevert(tran) {
+		waitDeadline := time.Now().Add(5 * time.Second)
+		if dl, ok := ctx.Deadline(); ok {
+			if remaining := time.Until(dl); remaining < 5*time.Second {
+				waitDeadline = time.Now().Add(remaining)
+			}
+		}
+
+		for time.Now().Before(waitDeadline) {
+			time.Sleep(75 * time.Millisecond)
+
+			refreshed, refreshErr := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+			if refreshErr != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh transaction operations", refreshErr)
+				logger.Errorf("Failed to refresh transaction operations for ID %s: %s", transactionID.String(), refreshErr.Error())
+
+				return nil, fmt.Errorf("refresh transaction operations: %w", refreshErr)
+			}
+
+			if operationsReadyForRevert(refreshed) {
+				if tran != nil {
+					tran.Operations = refreshed.Operations
+				} else {
+					tran = refreshed
+				}
+				break
+			}
+		}
 	}
 
 	if tran.ParentTransactionID != nil {
@@ -562,6 +614,84 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 	}
 
 	return tran, nil
+}
+
+func operationsReadyForRevert(tran *transaction.Transaction) bool {
+	if tran == nil || tran.Amount == nil || len(tran.Operations) == 0 {
+		return false
+	}
+
+	debitTotal := decimal.Zero
+	creditTotal := decimal.Zero
+
+	for _, op := range tran.Operations {
+		if op == nil || op.Amount.Value == nil {
+			return false
+		}
+
+		switch op.Type {
+		case constant.DEBIT:
+			debitTotal = debitTotal.Add(*op.Amount.Value)
+		case constant.CREDIT:
+			creditTotal = creditTotal.Add(*op.Amount.Value)
+		}
+	}
+
+	if debitTotal.IsZero() || creditTotal.IsZero() {
+		return false
+	}
+
+	return debitTotal.Equal(*tran.Amount) && creditTotal.Equal(*tran.Amount)
+}
+
+func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *transaction.Transaction) pkgTransaction.Transaction {
+	if operationsReadyForRevert(tran) {
+		return tran.TransactionRevert()
+	}
+
+	if tran == nil || tran.Body.IsEmpty() {
+		return pkgTransaction.Transaction{}
+	}
+
+	logger.Infof("Using transaction body to build revert for transaction %s due to incomplete operations", tran.ID)
+
+	return reverseTransactionBody(tran.Body)
+}
+
+func reverseTransactionBody(body pkgTransaction.Transaction) pkgTransaction.Transaction {
+	froms := make([]pkgTransaction.FromTo, 0, len(body.Send.Distribute.To))
+	for _, entry := range body.Send.Distribute.To {
+		reversed := entry
+		reversed.IsFrom = true
+		froms = append(froms, reversed)
+	}
+
+	tos := make([]pkgTransaction.FromTo, 0, len(body.Send.Source.From))
+	for _, entry := range body.Send.Source.From {
+		reversed := entry
+		reversed.IsFrom = false
+		tos = append(tos, reversed)
+	}
+
+	return pkgTransaction.Transaction{
+		ChartOfAccountsGroupName: body.ChartOfAccountsGroupName,
+		Description:              body.Description,
+		Pending:                  false,
+		Metadata:                 body.Metadata,
+		Route:                    body.Route,
+		Send: pkgTransaction.Send{
+			Asset: body.Send.Asset,
+			Value: body.Send.Value,
+			Source: pkgTransaction.Source{
+				Remaining: body.Send.Distribute.Remaining,
+				From:      froms,
+			},
+			Distribute: pkgTransaction.Distribute{
+				Remaining: body.Send.Source.Remaining,
+				To:        tos,
+			},
+		},
+	}
 }
 
 // UpdateTransaction method that patch transaction created before
@@ -1236,6 +1366,14 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 		return nil
 	}
 
+	if err := handler.ensureAsyncTransactionVisibility(ctx, span, logger, tran, parserDSL); err != nil {
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
+	}
+
 	// Idempotency key update MUST be synchronous to ensure subsequent requests
 	// can detect replays immediately. Previously async (via goroutine), which created
 	// a race condition where Request 2 could arrive before the cached response was stored.
@@ -1247,6 +1385,42 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 
 	if err := http.Created(c, tran); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// ensureAsyncTransactionVisibility persists the transaction record synchronously when async processing is enabled.
+// This keeps API semantics (e.g., immediate retrieval, commit on non-pending) consistent even when BTO runs async.
+func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction) error {
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) != "true" {
+		return nil
+	}
+
+	tranCopy := *tran
+
+	switch tranCopy.Status.Code {
+	case constant.CREATED:
+		approved := constant.APPROVED
+		tranCopy.Status = transaction.Status{
+			Code:        approved,
+			Description: &approved,
+		}
+	case constant.PENDING:
+		tranCopy.Body = parserDSL
+	}
+
+	if _, err := handler.Command.TransactionRepo.Create(ctx, &tranCopy); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+			logger.Warnf("Transaction already exists while ensuring async visibility: %s", tran.ID)
+			return nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to persist async transaction record", err)
+		logger.Errorf("Failed to persist async transaction record: %v", err)
+
+		return fmt.Errorf("persist async transaction record: %w", err)
 	}
 
 	return nil
