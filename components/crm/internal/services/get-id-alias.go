@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 
 		logger.Errorf("Failed to get alias by id %v", id)
 
-		return nil, fmt.Errorf("failed to find alias: %w", err)
+		return nil, pkg.ValidateInternalError(err, "CRM")
 	}
 
 	uc.enrichAliasWithLinkType(ctx, organizationID, alias)

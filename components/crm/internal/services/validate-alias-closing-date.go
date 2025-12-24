@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -35,7 +34,7 @@ func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID 
 	}
 
 	if closingDate.Before(alias.CreatedAt) {
-		return fmt.Errorf("alias closing date before creation date: %w", pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreationDate, reflect.TypeOf(mmodel.Alias{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreationDate, reflect.TypeOf(mmodel.Alias{}).Name())
 	}
 
 	return nil

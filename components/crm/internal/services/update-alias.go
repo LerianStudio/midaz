@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,7 +55,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID for new link", err)
 			logger.Errorf("Failed to parse holder ID for new link: %v", err)
 
-			return nil, fmt.Errorf("failed to parse UUID: %w", err)
+			return nil, pkg.ValidateInternalError(err, "CRM")
 		}
 
 		newHolderLink, err = uc.AddHolderLinkToAlias(ctx, organizationID, id, linkHolderID, uai.AddHolderLink.LinkType)
@@ -77,7 +77,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 		logger.Errorf("Failed to update alias: %v", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, pkg.ValidateInternalError(err, "CRM")
 	}
 
 	uc.enrichAliasWithLinkType(ctx, organizationID, updatedAlias)

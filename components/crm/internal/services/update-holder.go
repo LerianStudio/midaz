@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,7 +43,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to update holder: %v", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, pkg.ValidateInternalError(err, "CRM")
 	}
 
 	return updatedHolder, nil

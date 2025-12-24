@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -113,7 +113,7 @@ func (uc *UseCase) createAliasInRepo(ctx context.Context, span *trace.Span, logg
 		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return createdAccount, nil
@@ -176,7 +176,7 @@ func (uc *UseCase) createHolderLink(ctx context.Context, span *trace.Span, logge
 		libOpenTelemetry.HandleSpanError(span, "Failed to create holder link", err)
 		logger.Errorf("Failed to create holder link: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, "HolderLink")
 	}
 
 	return createdHolderLink, nil
@@ -191,7 +191,7 @@ func (uc *UseCase) updateAliasWithHolderLink(ctx context.Context, span *trace.Sp
 		libOpenTelemetry.HandleSpanError(span, "Failed to update alias with holder link", err)
 		logger.Errorf("Failed to update alias with holder link: %v", err)
 
-		return nil, fmt.Errorf("failed to update alias: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return updatedAccount, nil

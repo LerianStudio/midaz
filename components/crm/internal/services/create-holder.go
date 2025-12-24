@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -46,7 +46,7 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 
 		logger.Errorf("Failed to create holder: %v", err)
 
-		return nil, fmt.Errorf("failed to create holder: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return createdHolder, nil

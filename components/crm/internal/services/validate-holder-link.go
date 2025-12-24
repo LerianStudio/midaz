@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -36,28 +35,24 @@ func (uc *UseCase) ValidateHolderLinkConstraints(ctx context.Context, organizati
 		libOpenTelemetry.HandleSpanError(&span, "Failed to check for existing holder link", err)
 		logger.Errorf("Failed to check for existing holder link: %v", err)
 
-		return fmt.Errorf("failed to find by alias ID and link type: %w", err)
+		return pkg.ValidateInternalError(err, "CRM")
 	}
 
 	if existingLink != nil {
 		linkTypeEnum := mmodel.LinkType(linkType)
 		if linkTypeEnum == mmodel.LinkTypePrimaryHolder {
-			existingLinkErr := fmt.Errorf("primary holder already exists: %w", pkg.ValidateBusinessError(constant.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name()))
-
 			libOpenTelemetry.HandleSpanError(&span, "Primary holder already exists for this alias", constant.ErrPrimaryHolderAlreadyExists)
 
 			logger.Errorf("Primary holder already exists for alias %v", aliasID.String())
 
-			return existingLinkErr
+			return pkg.ValidateBusinessError(constant.ErrPrimaryHolderAlreadyExists, reflect.TypeOf(mmodel.HolderLink{}).Name())
 		}
-
-		err := fmt.Errorf("duplicate holder link: %w", pkg.ValidateBusinessError(constant.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name()))
 
 		libOpenTelemetry.HandleSpanError(&span, "Holder link already exists with same alias and link type", constant.ErrDuplicateHolderLink)
 
 		logger.Errorf("Holder link already exists for alias %v with link type %v", aliasID.String(), linkType)
 
-		return fmt.Errorf("business validation error: %w", err)
+		return pkg.ValidateBusinessError(constant.ErrDuplicateHolderLink, reflect.TypeOf(mmodel.HolderLink{}).Name())
 	}
 
 	return nil
