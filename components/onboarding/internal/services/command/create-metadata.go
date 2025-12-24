@@ -2,12 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 )
 
@@ -37,7 +37,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)
 			logger.Errorf("Error creating %s metadata: %v", entityName, err)
 
-			return nil, fmt.Errorf("failed to create: %w", err)
+			return nil, pkg.ValidateInternalError(err, entityName)
 		}
 
 		return metadata, nil

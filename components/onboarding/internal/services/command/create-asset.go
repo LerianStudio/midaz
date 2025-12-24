@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -13,31 +12,32 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // validateAssetInput validates the asset type and code
 func (uc *UseCase) validateAssetInput(ctx context.Context, cii *mmodel.CreateAssetInput, span *trace.Span) error {
-	if err := libCommons.ValidateType(cii.Type); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
+	if err := utils.ValidateType(cii.Type); err != nil {
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset type", businessErr)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return businessErr
 	}
 
 	if err := uc.validateAssetCode(ctx, cii.Code); err != nil {
-		return fmt.Errorf("validation failed: %w", err)
+		return err
 	}
 
 	if cii.Type == "currency" {
-		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
+		if err := utils.ValidateCurrency(cii.Code); err != nil {
+			businessErr := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset currency", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate asset currency", businessErr)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return businessErr
 		}
 	}
 
@@ -45,7 +45,7 @@ func (uc *UseCase) validateAssetInput(ctx context.Context, cii *mmodel.CreateAss
 }
 
 // createExternalAccountForAsset creates an external account and its default balance for an asset
-func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, requestID, token string, span *trace.Span) error {
+func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, _, _ string, span *trace.Span) error {
 	logger, _, _, spanCtx := libCommons.NewTrackingFromContext(ctx)
 	_ = spanCtx // spanCtx intentionally unused
 
@@ -58,7 +58,7 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if len(account) > 0 {
@@ -97,7 +97,7 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 
 		logger.Errorf("Error creating asset external account: %v", err)
 
-		return fmt.Errorf("failed to create: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	assert.NotNil(acc, "repository Create must return non-nil external account on success",
@@ -129,10 +129,10 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 		)
 
 		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
-			return fmt.Errorf("operation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
-		return fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	logger.Infof("External account default balance created via gRPC")
@@ -172,7 +172,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Errorf("Error finding existing asset by code: %v", err)
 
-		return nil, fmt.Errorf("failed to find: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	asset := &mmodel.Asset{
@@ -192,7 +192,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Errorf("Error creating asset: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	assert.NotNil(inst, "repository Create must return non-nil asset on success",
@@ -204,7 +204,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Errorf("Error creating asset metadata: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	inst.Metadata = metadata
@@ -225,20 +225,20 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 
 	logger.Infof("Validating asset code: %s", code)
 
-	if err := libCommons.ValidateCode(code); err != nil {
+	if err := utils.ValidateCode(code); err != nil {
 		switch err.Error() {
 		case constant.ErrInvalidCodeFormat.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
-			return fmt.Errorf("invalid asset code format: %w", mapped)
+			return mapped
 		case constant.ErrCodeUppercaseRequirement.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
-			return fmt.Errorf("asset code uppercase requirement: %w", mapped)
+			return mapped
 		}
 	}
 

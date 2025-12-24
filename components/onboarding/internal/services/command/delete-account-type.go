@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -29,18 +28,18 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
 			logger.Warnf("Account Type ID not found: %s", id.String())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", businessErr)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())

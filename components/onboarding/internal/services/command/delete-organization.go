@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,14 +31,14 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)
 
 		logger.Errorf("Error deleting organization: %v", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	return nil

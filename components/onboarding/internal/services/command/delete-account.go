@@ -35,7 +35,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Error finding account by id: %v", err)
 
-		return fmt.Errorf("failed to find: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	assert.NotNil(accFound, "account must exist after successful Find",
@@ -60,7 +60,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		)
 
 		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
-			return fmt.Errorf("operation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return fmt.Errorf("account balance deletion failed: %w", pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name()))
@@ -74,14 +74,14 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
 		logger.Errorf("Error deleting account: %v", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	return nil

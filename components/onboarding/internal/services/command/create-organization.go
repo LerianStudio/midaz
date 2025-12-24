@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -42,11 +41,11 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
 
 	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", businessErr)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, businessErr
 	}
 
 	spanAddressValidation.End()
@@ -68,7 +67,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		logger.Errorf("Error creating organization: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	assert.NotNil(org, "repository Create must return non-nil organization on success",
@@ -80,7 +79,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	org.Metadata = metadata

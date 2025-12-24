@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,14 +31,14 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
 		logger.Errorf("Error deleting portfolio: %v", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	return nil

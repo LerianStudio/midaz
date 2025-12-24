@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,14 +33,14 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
 		logger.Errorf("Error getting asset: %v", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
@@ -52,7 +51,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if len(acc) > 0 {
@@ -66,7 +65,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 			logger.Errorf("Error deleting asset external account: %v", err)
 
-			return fmt.Errorf("failed to delete: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 
@@ -78,14 +77,14 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset on repo by id", err)
 
-			return fmt.Errorf("validation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset on repo by id", err)
 
 		logger.Errorf("Error deleting asset: %v", err)
 
-		return fmt.Errorf("validation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	return nil

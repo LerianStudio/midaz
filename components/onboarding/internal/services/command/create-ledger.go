@@ -2,12 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -39,7 +39,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error finding existing ledger by name: %v", err)
 
-		return nil, fmt.Errorf("failed to find: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	ledger := &mmodel.Ledger{
@@ -56,7 +56,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	assert.NotNil(led, "repository Create must return non-nil ledger on success",
@@ -70,7 +70,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, takeName)
 	}
 
 	led.Metadata = metadata

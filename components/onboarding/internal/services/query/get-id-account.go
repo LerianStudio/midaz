@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,10 +29,10 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 		logger.Errorf("Error getting account on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name()))
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if account != nil {
@@ -43,7 +42,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, fmt.Errorf("failed to find: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if metadata != nil {
