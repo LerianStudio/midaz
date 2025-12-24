@@ -114,6 +114,21 @@ linters:
               desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
     gocyclo:
       min-complexity: 18
+    wrapcheck:
+      # Ignore internal error helper functions that already wrap errors with typed structs
+      ignore-sigs:
+        - "func github.com/LerianStudio/midaz/v3/pkg.ValidateInternalError(err error, entityType string) error"
+        - "func github.com/LerianStudio/midaz/v3/pkg.ValidateBusinessError(err error, entityType string, args ...any) error"
+        - "func github.com/LerianStudio/midaz/v3/pkg.ValidateBadRequestFieldsError(requiredFields map[string]string, knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error"
+        - "func github.com/LerianStudio/midaz/v3/components/onboarding/internal/services.ValidatePGError(pgErr *github.com/jackc/pgx/v5/pgconn.PgError, entityType string) error"
+        - "func github.com/LerianStudio/midaz/v3/components/transaction/internal/services.ValidatePGError(pgErr *github.com/jackc/pgx/v5/pgconn.PgError, entityType string) error"
+        # HTTP response functions - terminal operations in handlers, errors are internal to Fiber
+        - "func github.com/LerianStudio/midaz/v3/pkg/net/http.WithError(c *github.com/gofiber/fiber/v2.Ctx, err error) error"
+        - "func github.com/LerianStudio/midaz/v3/pkg/net/http.OK(c *github.com/gofiber/fiber/v2.Ctx, s any) error"
+        - "func github.com/LerianStudio/midaz/v3/pkg/net/http.Created(c *github.com/gofiber/fiber/v2.Ctx, s any) error"
+        - "func github.com/LerianStudio/midaz/v3/pkg/net/http.NoContent(c *github.com/gofiber/fiber/v2.Ctx) error"
+        # gRPC error mapping function - returns properly typed errors
+        - "func github.com/LerianStudio/midaz/v3/pkg/mgrpc.MapAuthGRPCError(ctx context.Context, err error, code string, title string, operation string) error"
     govet:
       enable:
         - shadow
