@@ -2,10 +2,11 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -24,7 +25,7 @@ func (uc *UseCase) SyncBalance(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Errorf("Failed to sync balance from redis: %v", err)
 
-		return false, fmt.Errorf("failed to sync balance from redis: %w", err)
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	if !synchedBalance {

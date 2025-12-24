@@ -2,12 +2,13 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -51,7 +52,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err.Error())
 
-			return fmt.Errorf("failed to update: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
 		newBalances = append(newBalances, &mmodel.Balance{
@@ -78,8 +79,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "All balances stale - data integrity risk", nil)
 
-		return fmt.Errorf("all %d balance updates skipped due to stale versions: %w",
-			len(newBalances), constant.ErrStaleBalanceUpdateSkipped)
+		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	logger.Infof("DB_UPDATE_START: Updating %d balances in PostgreSQL (org=%s, ledger=%s)",
@@ -93,7 +93,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	updateDuration := time.Since(updateStart)
@@ -173,7 +173,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
-		return fmt.Errorf("failed to update: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return nil

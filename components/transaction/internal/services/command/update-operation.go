@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -39,19 +38,19 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 			logger.Warnf("Error updating op on repo by id: %v", err)
 
-			return nil, fmt.Errorf("failed to update: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation on repo by id", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, err
 	}
 
 	operationUpdated.Metadata = metadataUpdated

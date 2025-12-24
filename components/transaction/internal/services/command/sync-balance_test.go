@@ -7,6 +7,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -81,5 +82,11 @@ func TestSyncBalance_Error(t *testing.T) {
 
 	assert.False(t, res)
 	assert.NotEmpty(t, err)
-	assert.Contains(t, err.Error(), errMSG)
+
+	var internalErr pkg.InternalServerError
+	if errors.As(err, &internalErr) {
+		assert.Contains(t, internalErr.Err.Error(), errMSG)
+	} else {
+		assert.Contains(t, err.Error(), errMSG)
+	}
 }

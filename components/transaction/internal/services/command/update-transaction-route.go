@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -42,7 +41,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 		toAdd, toRemove, err = uc.handleOperationRouteUpdates(ctx, organizationID, ledgerID, id, *input.OperationRoutes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update: %w", err)
+			return nil, err
 		}
 	}
 
@@ -57,12 +56,12 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 			logger.Warnf("Error updating transaction route on repo by id: %v", err)
 
-			return nil, fmt.Errorf("failed to update: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), id.String(), input.Metadata)
@@ -71,7 +70,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 		logger.Errorf("Error updating metadata on repo by id: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, err
 	}
 
 	transactionRouteUpdated.Metadata = metadataUpdated
@@ -88,25 +87,25 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	defer span.End()
 
 	if len(newOperationRouteIDs) < minOperationRoutesRequired {
-		return nil, nil, fmt.Errorf("missing operation routes: %w", pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name()))
+		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		logger.Errorf("Error fetching current transaction route: %v", err)
-		return nil, nil, fmt.Errorf("failed to find current transaction route: %w", err)
+		return nil, nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
 	if err != nil {
 		logger.Errorf("Error fetching operation routes: %v", err)
-		return nil, nil, fmt.Errorf("failed to find operation routes by ids: %w", err)
+		return nil, nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	// Validate that we have at least 1 debit and 1 credit operation route
 	err = validateOperationRouteTypes(operationRoutes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to validate operation route types: %w", err)
+		return nil, nil, err
 	}
 
 	// Compare existing vs new operation routes to determine what to add/remove

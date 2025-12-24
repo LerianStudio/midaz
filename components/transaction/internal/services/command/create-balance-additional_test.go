@@ -110,16 +110,18 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
 			Times(1)
 
+		expectedErr := errors.New("default balance not found")
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
-			Return(nil, errors.New("default balance not found")).
+			Return(nil, expectedErr).
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "default balance not found")
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("additional balance already exists", func(t *testing.T) {
@@ -169,16 +171,18 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			Return(defaultBalance, nil).
 			Times(1)
 
+		expectedErr := errors.New("database error")
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(errors.New("database error")).
+			Return(expectedErr).
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "database error")
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("key is converted to lowercase", func(t *testing.T) {

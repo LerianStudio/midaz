@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -12,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -81,14 +83,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1", "alias2"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 			To: map[string]pkgTransaction.Amount{
 				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
+					Asset:           "EUR",
+					Value:           decimal.NewFromInt(40),
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -233,14 +239,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1", "alias2"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 			To: map[string]pkgTransaction.Amount{
 				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
+					Asset:           "EUR",
+					Value:           decimal.NewFromInt(40),
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -309,7 +319,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update balances")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "failed to update balances")
+		} else {
+			assert.Contains(t, err.Error(), "failed to update balances")
+		}
 	})
 
 	t.Run("error_duplicate_transaction", func(t *testing.T) {
@@ -343,8 +358,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -470,14 +487,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1", "alias2"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 			To: map[string]pkgTransaction.Amount{
 				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
+					Asset:           "EUR",
+					Value:           decimal.NewFromInt(40),
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -688,14 +709,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1", "alias2"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 			To: map[string]pkgTransaction.Amount{
 				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
+					Asset:           "EUR",
+					Value:           decimal.NewFromInt(40),
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -815,7 +840,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create operation")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "failed to create operation")
+		} else {
+			assert.Contains(t, err.Error(), "failed to create operation")
+		}
 	})
 
 	t.Run("error_duplicate_operation", func(t *testing.T) {
@@ -849,14 +879,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1", "alias2"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 			To: map[string]pkgTransaction.Amount{
 				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
+					Asset:           "EUR",
+					Value:           decimal.NewFromInt(40),
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -1033,8 +1067,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Aliases: []string{"alias1"},
 			From: map[string]pkgTransaction.Amount{
 				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(50),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
 				},
 			},
 		}
@@ -1145,7 +1181,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create operation metadata")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "failed to create operation metadata")
+		} else {
+			assert.Contains(t, err.Error(), "failed to create operation metadata")
+		}
 	})
 }
 
@@ -1184,7 +1225,12 @@ func TestCreateMetadataAsync(t *testing.T) {
 
 		err := uc.CreateMetadataAsync(ctx, logger, metadata, ID, collection)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create metadata")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "failed to create metadata")
+		} else {
+			assert.Contains(t, err.Error(), "failed to create metadata")
+		}
 	})
 }
 
@@ -1223,8 +1269,10 @@ func TestCreateBTOAsync(t *testing.T) {
 		Aliases: []string{"alias1"},
 		From: map[string]pkgTransaction.Amount{
 			"alias1": {
-				Asset: "USD",
-				Value: decimal.NewFromInt(50),
+				Asset:           "USD",
+				Value:           decimal.NewFromInt(50),
+				Operation:       constant.DEBIT,
+				TransactionType: constant.CREATED,
 			},
 		},
 	}

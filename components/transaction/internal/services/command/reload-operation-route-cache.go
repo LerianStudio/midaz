@@ -2,10 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -25,7 +27,7 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to find transaction route IDs for operation route %s: %v", id, err)
 
-		return fmt.Errorf("failed to reload: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if len(transactionRouteIDs) == 0 {

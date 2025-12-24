@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -160,7 +161,12 @@ func TestCreateBalance(t *testing.T) {
 
 		// Assertions
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "database error")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "database error")
+		} else {
+			assert.Contains(t, err.Error(), "database error")
+		}
 	})
 
 	t.Run("unmarshal error", func(t *testing.T) {
@@ -184,6 +190,11 @@ func TestCreateBalance(t *testing.T) {
 
 		// Assertions
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid")
+		var internalErr pkg.InternalServerError
+		if errors.As(err, &internalErr) {
+			assert.Contains(t, internalErr.Err.Error(), "invalid")
+		} else {
+			assert.Contains(t, err.Error(), "invalid")
+		}
 	})
 }

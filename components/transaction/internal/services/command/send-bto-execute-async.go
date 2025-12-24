@@ -2,13 +2,14 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -46,7 +47,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
-		return fmt.Errorf("failed to send: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -66,7 +67,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Errorf("Failed to marshal exchange message struct")
 
-		return fmt.Errorf("failed to send: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 	}
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
@@ -85,7 +86,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 			logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
-			return fmt.Errorf("operation failed: %w", err)
+			return err
 		}
 
 		logger.Infof("transaction updated successfully directly to database: %s", tran.ID)
@@ -120,7 +121,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
-		return fmt.Errorf("failed to create: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -140,7 +141,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
-		return fmt.Errorf("failed to create: %w", err)
+		return err
 	}
 
 	logger.Infof("Transaction updated successfully directly in database: %s", tran.ID)

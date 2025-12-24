@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -132,7 +133,12 @@ func TestUpdateMetadata(t *testing.T) {
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				if errors.As(err, &internalErr) {
+					assert.Contains(t, internalErr.Err.Error(), tt.expectedErr.Error())
+				} else {
+					assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				}
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
