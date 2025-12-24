@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -28,17 +27,17 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 		logger.Errorf("Error getting balance: %v", err)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if balance == nil {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		businessErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", businessErr)
 
 		logger.Warnf("Balance not found")
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, businessErr
 	}
 
 	// Overlay amounts from Redis cache when available to ensure freshest values

@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -50,7 +50,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-			return nil, fmt.Errorf("failed to list balances by aliases with keys: %w", err)
+			return nil, err
 		}
 
 		logger.Infof("DB_QUERY_SUCCESS: PostgreSQL returned %d balances in %v", len(balancesByAliases), queryDuration)
@@ -70,7 +70,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 		logger.Error("Failed to get balances and update on redis", err.Error())
 
-		return nil, fmt.Errorf("failed to get account and lock: %w", err)
+		return nil, err
 	}
 
 	logger.Infof("REDIS_LOCK_SUCCESS: Successfully acquired locks for %d balances in %v", len(newBalances), lockDuration)
@@ -91,7 +91,7 @@ func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, o
 
 		lastErr = err
 		if !isRetriableBalanceLookupErr(err) || attempt == maxBalanceLookupAttempts-1 {
-			return nil, fmt.Errorf("after %d attempts: %w", attempt+1, lastErr)
+			return nil, pkg.ValidateInternalError(lastErr, "Balance")
 		}
 
 		backoff := time.Duration(1<<attempt) * balanceLookupBaseBackoff
@@ -99,7 +99,7 @@ func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, o
 		time.Sleep(backoff)
 	}
 
-	return nil, fmt.Errorf("after %d attempts: %w", maxBalanceLookupAttempts, lastErr)
+	return nil, pkg.ValidateInternalError(lastErr, "Balance")
 }
 
 func isRetriableBalanceLookupErr(err error) bool {
@@ -217,7 +217,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Error("Failed to validate accounting rules", err)
 
-		return nil, fmt.Errorf("failed to validate accounting rules: %w", err)
+		return nil, err
 	}
 
 	if parserDSL != nil {
@@ -232,7 +232,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Error("Failed to lock balance", err)
 
-		return nil, fmt.Errorf("failed to add sum balances in redis: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return newBalances, nil
@@ -250,7 +250,7 @@ func (uc *UseCase) validateParserDSLBalances(ctx context.Context, span *trace.Sp
 
 		logger.Errorf("Failed to validate balances: %v", err.Error())
 
-		return fmt.Errorf("failed to validate balances rules: %w", err)
+		return pkg.ValidateInternalError(err, "Balance")
 	}
 
 	return nil

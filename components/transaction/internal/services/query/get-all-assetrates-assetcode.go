@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -25,24 +24,24 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 	logger.Infof("Trying to get asset rate by source asset code: %s and target asset codes: %v", fromAssetCode, filter.ToAssetCodes)
 
 	if err := utils.ValidateCode(fromAssetCode); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		businessErr := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", businessErr)
 
-		logger.Warnf("Error validating 'from' asset code: %v", err)
+		logger.Warnf("Error validating 'from' asset code: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	for _, toAssetCode := range filter.ToAssetCodes {
 		if err := utils.ValidateCode(toAssetCode); err != nil {
-			err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+			businessErr := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset codes", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset codes", businessErr)
 
-			logger.Warnf("Error validating 'to' asset codes: %v", err)
+			logger.Warnf("Error validating 'to' asset codes: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 	}
 
@@ -52,7 +51,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
 	if assetRates != nil {
@@ -62,7 +61,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "AssetRate")
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

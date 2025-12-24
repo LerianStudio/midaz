@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,20 +31,20 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", businessErr)
 
-			logger.Warnf("Error getting transaction routes on repo: %v", err)
+			logger.Warnf("Error getting transaction routes on repo: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transaction routes: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find all transaction routes: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "TransactionRoute")
 	}
 
 	if transactionRoutes != nil {
@@ -56,13 +55,13 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction route", businessErr)
 
-			logger.Warnf("Error getting metadata on mongodb transaction route: %v", err)
+			logger.Warnf("Error getting metadata on mongodb transaction route: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transaction route metadata list: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

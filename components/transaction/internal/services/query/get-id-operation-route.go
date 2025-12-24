@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,18 +29,18 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 		logger.Errorf("Error getting operation route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", businessErr)
 
-			logger.Warnf("Error getting operation route on repo by id: %v", err)
+			logger.Warnf("Error getting operation route on repo by id: %v", businessErr)
 
-			return nil, fmt.Errorf("failed to find operation route by id: %w", err)
+			return nil, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)
 
-		return nil, fmt.Errorf("failed to find operation route by id: %w", err)
+		return nil, pkg.ValidateInternalError(err, "OperationRoute")
 	}
 
 	if operationRoute != nil {
@@ -51,7 +50,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 
 			logger.Errorf("Error get metadata on mongodb operation route: %v", err)
 
-			return nil, fmt.Errorf("failed to find operation route metadata: %w", err)
+			return nil, pkg.ValidateInternalError(err, "OperationRoute")
 		}
 
 		if metadata != nil {

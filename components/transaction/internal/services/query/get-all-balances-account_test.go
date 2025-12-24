@@ -187,7 +187,8 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-		assert.Contains(t, err.Error(), "database error")
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, errDB)
 	})
 
 	// Redis error should not fail; values remain from repository

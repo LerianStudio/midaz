@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,18 +29,18 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", businessErr)
 
-			logger.Warnf("Error getting operations on repo: %v", err)
+			logger.Warnf("Error getting operations on repo: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Operation")
 	}
 
 	if len(op) == 0 {
@@ -55,13 +54,13 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", businessErr)
 
-		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+		logger.Warnf("Error getting metadata on mongodb operation: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

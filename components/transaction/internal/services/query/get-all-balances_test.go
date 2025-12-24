@@ -727,17 +727,18 @@ func TestGetAllBalances(t *testing.T) {
 			RedisRepo:   mockRedisRepo,
 		}
 
-		errMsg := "errDatabaseItemNotFound"
+		expectedErr := errors.New("errDatabaseItemNotFound")
 		mockBalanceRepo.
 			EXPECT().
 			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, libHTTP.CursorPagination{}, expectedErr).
 			Times(1)
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), errMsg)
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
@@ -835,18 +836,19 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			BalanceRepo: mockBalanceRepo,
 		}
 
-		errMsg := "error getting balances"
+		expectedErr := errors.New("error getting balances")
 
 		mockBalanceRepo.
 			EXPECT().
 			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(nil, errors.New(errMsg)).
+			Return(nil, expectedErr).
 			Times(1)
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), errMsg)
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, res)
 	})
 

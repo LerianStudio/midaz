@@ -2,12 +2,12 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 		logger.Errorf("Error getting transaction: %v", err)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
 	if tran != nil {
@@ -36,7 +36,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, fmt.Errorf("failed to get: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Transaction")
 		}
 
 		if metadata != nil {
@@ -62,7 +62,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 
 		logger.Errorf("Error getting transaction: %v", err)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
 	if tran != nil {
@@ -72,7 +72,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, fmt.Errorf("failed to get: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Transaction")
 		}
 
 		if metadata != nil {

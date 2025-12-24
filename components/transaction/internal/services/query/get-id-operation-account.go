@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -28,18 +27,18 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 		logger.Errorf("Error getting operation on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by account", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by account", businessErr)
 
-			logger.Warnf("Error getting operation on repo: %v", err)
+			logger.Warnf("Error getting operation on repo: %v", businessErr)
 
-			return nil, fmt.Errorf("failed to get: %w", err)
+			return nil, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by account", err)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
 	if op != nil {
@@ -49,7 +48,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 
-			return nil, fmt.Errorf("failed to get: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Operation")
 		}
 
 		if metadata != nil {

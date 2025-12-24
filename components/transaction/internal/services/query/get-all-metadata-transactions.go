@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -49,7 +48,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	}
 
 	if err := uc.enrichTransactionsWithOperationMetadata(ctx, trans); err != nil {
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("operation failed: %w", err)
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	uc.populateTransactionSourcesAndMetadata(trans, metadataMap)
@@ -61,11 +60,11 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 func (uc *UseCase) fetchTransactionMetadata(ctx context.Context, span *trace.Span, logger libLog.Logger, filter http.QueryHeader) ([]*mongodb.Metadata, error) {
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo by metadata", err)
-		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo by metadata", businessErr)
+		logger.Warnf("Error getting transactions on repo by metadata: %v", businessErr)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, businessErr
 	}
 
 	return metadata, nil
@@ -103,16 +102,16 @@ func (uc *UseCase) handleTransactionFetchError(span *trace.Span, logger libLog.L
 	logger.Errorf("Error getting transactions on repo: %v", err)
 
 	if errors.Is(err, services.ErrDatabaseItemNotFound) {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
-		logger.Warnf("Error getting transactions on repo: %v", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", businessErr)
+		logger.Warnf("Error getting transactions on repo: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-	return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get: %w", err)
+	return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Transaction")
 }
 
 // populateTransactionSourcesAndMetadata populates source, destination and metadata for transactions
@@ -176,7 +175,7 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 
 		logger.Warnf("Error getting operation metadata: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, "Operation")
 	}
 
 	opMetadataMap := make(map[string]map[string]any, len(operationMetadata))

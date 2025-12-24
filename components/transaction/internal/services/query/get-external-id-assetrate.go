@@ -2,12 +2,12 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
-		return nil, fmt.Errorf("failed to get: %w", err)
+		return nil, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
 	if assetRate != nil {
@@ -36,7 +36,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 
-			return nil, fmt.Errorf("failed to get: %w", err)
+			return nil, pkg.ValidateInternalError(err, "AssetRate")
 		}
 
 		if metadata != nil {

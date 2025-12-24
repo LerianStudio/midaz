@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -28,13 +27,13 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo by metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo by metadata", businessErr)
 
-		logger.Warnf("Error getting operations on repo by metadata: %v", err)
+		logger.Warnf("Error getting operations on repo by metadata: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operation metadata list: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -48,18 +47,18 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", businessErr)
 
-			logger.Warnf("Error getting operations on repo: %v", err)
+			logger.Warnf("Error getting operations on repo: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operations: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find all operations by account: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Operation")
 	}
 
 	var operations []*operation.Operation

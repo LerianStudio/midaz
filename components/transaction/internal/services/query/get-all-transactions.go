@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -66,16 +65,16 @@ func (uc *UseCase) handleFetchTransactionsError(span *trace.Span, logger libLog.
 	logger.Errorf("Error getting transactions on repo: %v", err)
 
 	if errors.Is(err, services.ErrDatabaseItemNotFound) {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
-		logger.Warnf("Error getting transactions on repo: %v", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", businessErr)
+		logger.Warnf("Error getting transactions on repo: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find transactions: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-	return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find or list all transactions with operations: %w", err)
+	return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Transaction")
 }
 
 // fetchAndMapTransactionMetadata fetches and maps transaction metadata
@@ -84,11 +83,11 @@ func (uc *UseCase) fetchAndMapTransactionMetadata(ctx context.Context, span *tra
 
 	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
-		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", businessErr)
+		logger.Warnf("Error getting metadata on mongodb transaction: %v", businessErr)
 
-		return nil, fmt.Errorf("failed to find transaction metadata: %w", err)
+		return nil, businessErr
 	}
 
 	return uc.buildMetadataMap(metadata), nil
@@ -128,7 +127,7 @@ func (uc *UseCase) enrichTransactionsWithAllMetadata(ctx context.Context, trans 
 
 		if len(operationIDs) > 0 {
 			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
-				return fmt.Errorf("failed to enrich operations with metadata: %w", err)
+				return err
 			}
 		}
 	}
@@ -169,7 +168,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 
 		logger.Warnf("Error getting operation metadata: %v", err)
 
-		return fmt.Errorf("failed to find operation metadata by entity ids: %w", err)
+		return pkg.ValidateInternalError(err, "Operation")
 	}
 
 	operationMetadataMap := make(map[string]map[string]any, len(operationMetadata))
@@ -200,7 +199,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error())
 
-		return nil, fmt.Errorf("failed to get all operations by transaction: %w", err)
+		return nil, err
 	}
 
 	source := make([]string, 0)

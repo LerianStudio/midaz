@@ -3,11 +3,11 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -29,7 +29,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to list balances by account id: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	if len(balance) == 0 {

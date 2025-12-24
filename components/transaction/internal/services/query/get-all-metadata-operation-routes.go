@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -28,13 +27,13 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo by metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo by metadata", businessErr)
 
-		logger.Warnf("Error getting operation routes on repo by metadata: %v", err)
+		logger.Warnf("Error getting operation routes on repo by metadata: %v", businessErr)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operation route metadata list: %w", err)
+		return nil, libHTTP.CursorPagination{}, businessErr
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -48,18 +47,18 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 		logger.Errorf("Error getting operation routes on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", businessErr)
 
-			logger.Warnf("Error getting operation routes on repo: %v", err)
+			logger.Warnf("Error getting operation routes on repo: %v", businessErr)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find operation routes: %w", err)
+			return nil, libHTTP.CursorPagination{}, businessErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find all operation routes: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "OperationRoute")
 	}
 
 	var filteredOperationRoutes []*mmodel.OperationRoute

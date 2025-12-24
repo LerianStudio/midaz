@@ -136,10 +136,11 @@ func TestGetAllTransactions(t *testing.T) {
 	})
 
 	t.Run("Error_FindAll", func(t *testing.T) {
+		expectedErr := errors.New("database error")
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+			Return(nil, libHTTP.CursorPagination{}, expectedErr).
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
@@ -147,7 +148,8 @@ func TestGetAllTransactions(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-		assert.Contains(t, err.Error(), "database error")
+		// Check that the error chain contains our expected error
+		assert.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("Error_ItemNotFound", func(t *testing.T) {

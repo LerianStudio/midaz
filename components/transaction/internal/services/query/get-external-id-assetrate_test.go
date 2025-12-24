@@ -119,6 +119,10 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 		MetadataRepo:  metadataRepo,
 	}
 
+	// Define errors at test scope for use in setupMocks and assertions
+	errDatabase := errors.New("database error")
+	errMetadata := errors.New("metadata error")
+
 	// Test cases
 	tests := []struct {
 		name           string
@@ -178,10 +182,10 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 				// Setup AssetRateRepo mock with error
 				assetRateRepo.EXPECT().
 					FindByExternalID(gomock.Any(), orgID, ledgerID, exID).
-					Return(nil, errors.New("database error"))
+					Return(nil, errDatabase)
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("database error"),
+			expectedError:  errDatabase,
 		},
 		{
 			name: "error_finding_metadata",
@@ -194,10 +198,10 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 				// Setup MetadataRepo mock with error
 				metadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeOf(assetrate.AssetRate{}).Name(), id.String()).
-					Return(nil, errors.New("metadata error"))
+					Return(nil, errMetadata)
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("metadata error"),
+			expectedError:  errMetadata,
 		},
 	}
 
@@ -212,7 +216,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 			// Assert results
 			if tc.expectedError != nil {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedError.Error())
+				// Check that the error chain contains our expected error
+				assert.ErrorIs(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
 			}

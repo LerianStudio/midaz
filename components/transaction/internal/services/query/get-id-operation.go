@@ -2,12 +2,12 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 		logger.Errorf("Error getting operation: %v", err)
 
-		return nil, fmt.Errorf("failed to find operation by id: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
 	if o != nil {
@@ -36,7 +36,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 
-			return nil, fmt.Errorf("failed to find operation metadata: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Operation")
 		}
 
 		if metadata != nil {

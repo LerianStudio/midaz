@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"reflect"
 	"slices"
@@ -35,7 +34,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Warnf("Transaction route is empty")
 
-		return fmt.Errorf("transaction route not informed: %w", err)
+		return err
 	}
 
 	transactionRouteID, err := uuid.Parse(validate.TransactionRoute)
@@ -46,7 +45,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Warnf("Invalid transaction route ID format: %v", err)
 
-		return fmt.Errorf("invalid transaction route ID: %w", validationErr)
+		return validationErr
 	}
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
@@ -55,7 +54,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to load transaction route cache: %v", err)
 
-		return fmt.Errorf("failed to get or create transaction route cache: %w", err)
+		return err
 	}
 
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
@@ -69,7 +68,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Warnf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
 
-		return fmt.Errorf("accounting route count mismatch: %w", err)
+		return err
 	}
 
 	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
@@ -114,7 +113,7 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 
 			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias)
 
-			return fmt.Errorf("accounting route not found in cache: %w", err)
+			return err
 		}
 
 		if cacheRule.Account != nil {
@@ -123,7 +122,7 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 
 				logger.Warnf("Operation '%s' failed validation against route rules: %v", operation.Alias, err)
 
-				return fmt.Errorf("operation failed validation against route rules: %w", err)
+				return err
 			}
 		}
 	}
@@ -137,39 +136,39 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 	case constant.AccountRuleTypeAlias:
 		expected, ok := account.ValidIf.(string)
 		if !ok {
-			return fmt.Errorf("invalid account rule type: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
+			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
 		alias := pkgTransaction.SplitAlias(op.Alias)
 
 		if alias != expected {
-			return fmt.Errorf("alias validation failed: %w", pkg.ValidateBusinessError(
+			return pkg.ValidateBusinessError(
 				constant.ErrAccountingAliasValidationFailed,
 				reflect.TypeOf(mmodel.AccountRule{}).Name(),
 				alias,
 				expected,
-			))
+			)
 		}
 
 	case constant.AccountRuleTypeAccountType:
 		allowedTypes := extractStringSlice(account.ValidIf)
 		if allowedTypes == nil {
-			return fmt.Errorf("invalid account rule configuration: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
+			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
 		if slices.Contains(allowedTypes, op.Balance.AccountType) {
 			return nil
 		}
 
-		return fmt.Errorf("account type validation failed: %w", pkg.ValidateBusinessError(
+		return pkg.ValidateBusinessError(
 			constant.ErrAccountingAccountTypeValidationFailed,
 			reflect.TypeOf(mmodel.AccountRule{}).Name(),
 			op.Balance.AccountType,
 			allowedTypes,
-		))
+		)
 
 	default:
-		return fmt.Errorf("invalid account rule type: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 	}
 
 	return nil

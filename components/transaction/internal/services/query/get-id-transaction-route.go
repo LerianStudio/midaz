@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,18 +29,18 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 		logger.Errorf("Error getting transaction route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			businessErr := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", businessErr)
 
-			logger.Warnf("Error getting transaction route on repo by id: %v", err)
+			logger.Warnf("Error getting transaction route on repo by id: %v", businessErr)
 
-			return nil, fmt.Errorf("failed to find transaction route by id: %w", err)
+			return nil, businessErr
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
 
-		return nil, fmt.Errorf("failed to find transaction route by id: %w", err)
+		return nil, pkg.ValidateInternalError(err, "TransactionRoute")
 	}
 
 	if transactionRoute != nil {
@@ -51,7 +50,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 			logger.Errorf("Error get metadata on mongodb transaction route: %v", err)
 
-			return nil, fmt.Errorf("failed to find transaction route metadata: %w", err)
+			return nil, pkg.ValidateInternalError(err, "TransactionRoute")
 		}
 
 		if metadata != nil {
