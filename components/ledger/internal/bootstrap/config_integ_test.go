@@ -39,9 +39,9 @@ type ContainerAddresses struct {
 	RedisPort string
 
 	// RabbitMQ
-	RabbitMQHost         string
-	RabbitMQPort         string
-	RabbitMQMgmtPort     string
+	RabbitMQHost     string
+	RabbitMQPort     string
+	RabbitMQMgmtPort string
 }
 
 // setupAllContainers starts all required containers for ledger integration tests.
@@ -286,7 +286,6 @@ func changeToProjectRoot(t *testing.T) func() {
 	}
 }
 
-
 // setEnvFromContainers configures environment variables from running containers.
 // Uses t.Setenv for automatic cleanup after test.
 func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
@@ -482,4 +481,3 @@ func TestService_Run_StartsAllServers(t *testing.T) {
 
 	t.Logf("Service correctly composed with %d total runnables", totalRunnables)
 }
-
