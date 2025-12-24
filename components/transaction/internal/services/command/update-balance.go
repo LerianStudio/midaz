@@ -8,7 +8,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -23,9 +22,9 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	fromTo := make(map[string]libTransaction.Amount, len(validate.From)+len(validate.To))
+	fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
 	for k, v := range validate.From {
-		fromTo[k] = libTransaction.Amount{
+		fromTo[k] = pkgTransaction.Amount{
 			Asset:           v.Asset,
 			Value:           v.Value,
 			Operation:       v.Operation,
@@ -34,7 +33,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	for k, v := range validate.To {
-		fromTo[k] = libTransaction.Amount{
+		fromTo[k] = pkgTransaction.Amount{
 			Asset:           v.Asset,
 			Value:           v.Value,
 			Operation:       v.Operation,
@@ -47,7 +46,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	for _, balance := range balances {
 		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
-		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
+		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err.Error())
@@ -85,6 +84,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	logger.Infof("DB_UPDATE_START: Updating %d balances in PostgreSQL (org=%s, ledger=%s)",
 		len(balancesToUpdate), organizationID, ledgerID)
+
 	updateStart := time.Now()
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
@@ -118,7 +118,7 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 
 	for _, balance := range balances {
 		// Extract the balance key from alias format "0#@account1#default" -> "@account1#default"
-		balanceKey := libTransaction.SplitAliasWithKey(balance.Alias)
+		balanceKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
 
 		cachedBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, balanceKey)
 		if err != nil {

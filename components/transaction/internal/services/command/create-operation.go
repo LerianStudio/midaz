@@ -2,23 +2,23 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
-func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *libTransaction.Transaction, validate libTransaction.Responses, result chan []*operation.Operation, err chan error) {
+func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *pkgTransaction.Transaction, validate pkgTransaction.Responses, result chan []*operation.Operation, err chan error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation")
@@ -28,7 +28,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 	var operations []*operation.Operation
 
-	var fromTo []libTransaction.FromTo
+	var fromTo []pkgTransaction.FromTo
 
 	fromTo = append(fromTo, dsl.Send.Source.From...)
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)
@@ -70,7 +70,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, met
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(operation.Operation{}).Name(), &meta); err != nil {
 			logger.Errorf("Error into creating operation metadata: %v", err)
 
-			return fmt.Errorf("failed to create: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		o.Metadata = metadata
@@ -80,7 +80,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, met
 }
 
 // isMatchingAccount checks if the fromTo account matches the balance
-func (uc *UseCase) isMatchingAccount(ft libTransaction.FromTo, blc *mmodel.Balance) bool {
+func (uc *UseCase) isMatchingAccount(ft pkgTransaction.FromTo, blc *mmodel.Balance) bool {
 	return ft.AccountAlias == blc.ID || ft.AccountAlias == blc.Alias
 }
 
@@ -90,20 +90,21 @@ func (uc *UseCase) createOperationForBalance(
 	logger libLog.Logger,
 	span *trace.Span,
 	blc *mmodel.Balance,
-	ft libTransaction.FromTo,
+	ft pkgTransaction.FromTo,
 	transactionID string,
-	dsl *libTransaction.Transaction,
-	validate libTransaction.Responses,
+	dsl *pkgTransaction.Transaction,
+	validate pkgTransaction.Responses,
 ) (*operation.Operation, error) {
 	balance := operation.Balance{
 		Available: &blc.Available,
 		OnHold:    &blc.OnHold,
 	}
 
-	amt, bat, err := libTransaction.ValidateFromToOperation(ft, validate, blc.ConvertToLibBalance())
+	amt, bat, err := pkgTransaction.ValidateFromToOperation(ft, validate, blc.ToTransactionBalance())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate operation", err)
-		return nil, fmt.Errorf("failed to validate from/to operation: %w", err)
+
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 	}
 
 	amount := operation.Amount{
@@ -151,7 +152,7 @@ func (uc *UseCase) createOperationForBalance(
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation", err)
 		logger.Errorf("Error creating operation: %v", err)
 
-		return nil, fmt.Errorf("failed to create operation: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 	}
 
 	err = uc.CreateMetadata(ctx, logger, ft.Metadata, op)

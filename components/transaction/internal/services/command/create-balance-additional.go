@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -31,7 +30,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 			logger.Errorf("Failed to check if additional balance already exists: %v", err)
 
-			return nil, fmt.Errorf("failed to create: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 	}
 
@@ -40,7 +39,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		logger.Infof("Additional balance already exists: %v", cbi.Key)
 
-		return nil, fmt.Errorf("additional balance key already exists: %w", pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key))
+		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
 	}
 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
@@ -49,13 +48,13 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get default balance: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	if defaultBalance.AccountType == constant.ExternalAccountType {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", nil)
 
-		return nil, fmt.Errorf("additional balance not allowed for external account: %w", pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias))
+		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias)
 	}
 
 	additionalBalance := &mmodel.Balance{
@@ -77,7 +76,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	if err != nil {
 		logger.Errorf("Error creating additional balance on repo: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return additionalBalance, nil

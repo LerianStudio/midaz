@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -41,7 +40,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 		logger.Errorf("Failed to find operation routes: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	// Validate operation route types
@@ -50,7 +49,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 		logger.Errorf("Operation route validation failed: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, err
 	}
 
 	// Convert to slice for assignment
@@ -67,7 +66,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 		logger.Errorf("Failed to create transaction route: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	createdTransactionRoute.OperationRoutes = operationRoutes
@@ -86,7 +85,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 			logger.Errorf("Failed to create transaction route metadata: %v", err)
 
-			return nil, fmt.Errorf("operation failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
 		createdTransactionRoute.Metadata = payload.Metadata
@@ -117,5 +116,5 @@ func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error
 		}
 	}
 
-	return fmt.Errorf("missing required operation routes: %w", pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name()))
+	return pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 }

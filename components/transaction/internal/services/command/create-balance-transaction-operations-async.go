@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
@@ -38,7 +39,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
-			return fmt.Errorf("failed to create: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 	}
 
@@ -54,7 +55,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 			logger.Errorf("Failed to update balances: %v", err.Error())
 
-			return fmt.Errorf("failed to create: %w", err)
+			return err
 		}
 	}
 
@@ -67,7 +68,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
-		return fmt.Errorf("failed to create: %w", err)
+		return err
 	}
 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
@@ -79,12 +80,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
-		return fmt.Errorf("operation failed: %w", err)
+		return err
 	}
 
 	err = uc.createOperations(ctx, logger, tracer, tran.Operations)
 	if err != nil {
-		return fmt.Errorf("failed to create operations: %w", err)
+		return err
 	}
 
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
@@ -142,7 +143,7 @@ func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction on repo", err)
 		logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 
-		return fmt.Errorf("failed to create: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 	}
 
 	if pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
@@ -151,7 +152,7 @@ func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction", err)
 			logger.Warnf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
 
-			return fmt.Errorf("failed to create: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 	}
 
@@ -174,7 +175,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
 			logger.Errorf("Error into creating %s metadata: %v", collection, err)
 
-			return fmt.Errorf("failed to create: %w", err)
+			return pkg.ValidateInternalError(err, collection)
 		}
 	}
 
@@ -192,7 +193,7 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
 
-		return fmt.Errorf("failed to create: %w", err)
+		return err
 	}
 
 	return nil
@@ -258,7 +259,7 @@ func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, t
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
 			logger.Errorf("Error creating operation: %v", err)
 
-			return fmt.Errorf("operation failed: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
@@ -266,7 +267,7 @@ func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, t
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
-			return fmt.Errorf("operation failed: %w", err)
+			return err
 		}
 	}
 

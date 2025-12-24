@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -58,7 +58,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 		logger.Errorf("Error creating t: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 	}
 
 	if t.Metadata != nil {
@@ -75,7 +75,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)
 
-			return nil, fmt.Errorf("operation failed: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		tran.Metadata = t.Metadata

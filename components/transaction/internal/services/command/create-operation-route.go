@@ -2,13 +2,13 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -41,7 +41,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 		logger.Errorf("Failed to create operation route: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if payload.Metadata != nil {
@@ -58,7 +58,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 			logger.Errorf("Failed to create operation route metadata: %v", err)
 
-			return nil, fmt.Errorf("failed to create: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 		}
 
 		createdOperationRoute.Metadata = payload.Metadata

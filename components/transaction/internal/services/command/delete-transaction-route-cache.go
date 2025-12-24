@@ -2,10 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -27,7 +29,7 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 		logger.Errorf("Failed to delete transaction route cache: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	logger.Infof("Successfully deleted transaction route cache for transaction route with id: %s", transactionRouteID)

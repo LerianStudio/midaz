@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -34,7 +33,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
-			return fmt.Errorf("failed to create: %w", err)
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
 		balance := &mmodel.Balance{
@@ -59,7 +58,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			} else {
 				logger.Errorf("Error creating balance on repo: %v", err)
 
-				return fmt.Errorf("failed to create: %w", err)
+				return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 			}
 		}
 	}
@@ -88,7 +87,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Failed to check default balance existence: %v", err)
 
-			return nil, fmt.Errorf("failed to create: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
 		if !existsDefault {
@@ -97,7 +96,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Default balance not found: %v", berr)
 
-			return nil, fmt.Errorf("default balance not found: %w", berr)
+			return nil, berr
 		}
 
 		// Validate additional balance not allowed for external account type
@@ -108,7 +107,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 			logger.Errorf("Additional balance not allowed for external account type: %v", err)
 
-			return nil, fmt.Errorf("failed to create: %w", err)
+			return nil, err
 		}
 	}
 
@@ -118,7 +117,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Failed to check if balance already exists: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	if existsKey {
@@ -128,7 +127,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Balance key already exists: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, err
 	}
 
 	newBalance := &mmodel.Balance{
@@ -151,7 +150,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		logger.Errorf("Failed to create balance on repo: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return newBalance, nil

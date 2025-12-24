@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -54,7 +55,7 @@ func (uc *UseCase) getBalancesByAccountID(ctx context.Context, span *trace.Span,
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances by account id on repo", err)
 		logger.Errorf("Error getting balances by account id on repo: %v", err)
 
-		return nil, fmt.Errorf("failed to delete: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return balances, nil
@@ -87,7 +88,7 @@ func (uc *UseCase) checkBalanceInCache(ctx context.Context, span *trace.Span, lo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
 		logger.Errorf("Error getting balance by key on redis: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	if cacheBalance != nil {
@@ -95,7 +96,7 @@ func (uc *UseCase) checkBalanceInCache(ctx context.Context, span *trace.Span, lo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because there is transactions happening.", err)
 		logger.Warnf("Balance cannot be deleted because there is transactions happening: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return err
 	}
 
 	return nil
@@ -108,7 +109,7 @@ func (uc *UseCase) checkBalanceHasFunds(span *trace.Span, logger libLog.Logger, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 		logger.Warnf("Error deleting balances: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -120,7 +121,7 @@ func (uc *UseCase) performBalanceDeletion(ctx context.Context, span *trace.Span,
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)
 		logger.Errorf("Error toggling balance transfers for account on repo: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return err
 	}
 
 	balanceIDs := uc.extractBalanceIDs(balances)
@@ -132,7 +133,7 @@ func (uc *UseCase) performBalanceDeletion(ctx context.Context, span *trace.Span,
 
 		uc.rollbackBalanceTransfers(ctx, logger, organizationID, ledgerID, accountID)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return nil
@@ -178,7 +179,7 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 	}()
 
 	if err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, allowTransfer); err != nil {
-		return fmt.Errorf("operation failed: %w", err)
+		return err
 	}
 
 	return nil
@@ -201,7 +202,7 @@ func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organiz
 
 		logger.Errorf("Error update balance transfer permissions for account: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return nil

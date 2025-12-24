@@ -20,9 +20,8 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) erro
 	switch {
 	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
 		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
-		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
-		return errors.Join(ErrInvalidOperationRouteType, businessErr)
+		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
 	default:
-		return pgErr
+		return pkg.ValidateInternalError(pgErr, entityType)
 	}
 }

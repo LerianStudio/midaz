@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,14 +29,14 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Warnf("Transaction Route ID not found: %s", transactionRouteID.String())
 
-			return fmt.Errorf("transaction route not found: %w", pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name()))
+			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
 		logger.Errorf("Error finding transaction route: %v", err)
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	operationRoutesToRemove := make([]uuid.UUID, len(transactionRoute.OperationRoutes))
@@ -51,7 +50,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	return nil

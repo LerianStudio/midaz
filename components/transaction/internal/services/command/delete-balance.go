@@ -2,12 +2,13 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +27,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 		logger.Errorf("Error getting balance: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
@@ -34,7 +35,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because it still has funds in it.", err)
 		logger.Warnf("Error deleting balance: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return err
 	}
 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
@@ -42,7 +43,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance on repo", err)
 		logger.Errorf("Error delete balance: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return nil

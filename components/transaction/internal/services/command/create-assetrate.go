@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -44,18 +44,18 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 // validateAssetCodes validates from and to asset codes
 func (uc *UseCase) validateAssetCodes(span *trace.Span, cari *assetrate.CreateAssetRateInput) error {
-	if err := libCommons.ValidateCode(cari.From); err != nil {
+	if err := utils.ValidateCode(cari.From); err != nil {
 		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'from' asset code", err)
 
-		return fmt.Errorf("failed to create: %w", err)
+		return err
 	}
 
-	if err := libCommons.ValidateCode(cari.To); err != nil {
+	if err := utils.ValidateCode(cari.To); err != nil {
 		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'to' asset code", err)
 
-		return fmt.Errorf("failed to create: %w", err)
+		return err
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (uc *UseCase) findExistingAssetRate(ctx context.Context, span *trace.Span, 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset rate by currency pair", err)
 		logger.Errorf("Error creating asset rate: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	return arFound, nil
@@ -91,13 +91,14 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update asset rate", err)
 		logger.Errorf("Error updating asset rate: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), updated.ID, cari.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
-		return nil, fmt.Errorf("operation failed: %w", err)
+
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	updated.Metadata = metadataUpdated
@@ -154,7 +155,7 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate on repository", err)
 		logger.Errorf("Error creating asset rate: %v", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	if err := uc.createAssetRateMetadata(ctx, span, logger, assetRate.ID, cari.Metadata); err != nil {
@@ -184,7 +185,7 @@ func (uc *UseCase) createAssetRateMetadata(ctx context.Context, span *trace.Span
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate metadata", err)
 		logger.Errorf("Error into creating asset rate metadata: %v", err)
 
-		return fmt.Errorf("operation failed: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	return nil

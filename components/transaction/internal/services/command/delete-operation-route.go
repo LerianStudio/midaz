@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,7 +29,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		logger.Errorf("Error checking transaction route links for operation route %s: %v", id.String(), err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if hasLinks {
@@ -38,7 +37,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		logger.Warnf("Operation Route ID %s cannot be deleted because it is linked to transaction routes", id.String())
 
-		return fmt.Errorf("operation route linked to transaction routes: %w", pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, reflect.TypeOf(mmodel.OperationRoute{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
@@ -49,14 +48,14 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 			logger.Warnf("Operation Route ID not found: %s", id.String())
 
-			return fmt.Errorf("failed to delete: %w", err)
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation route on repo by id", err)
 
 		logger.Errorf("Error deleting operation route: %v", err)
 
-		return fmt.Errorf("failed to delete: %w", err)
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	return nil
