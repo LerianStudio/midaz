@@ -4,9 +4,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -40,7 +40,7 @@ type JSON map[string]any
 func (mj JSON) Value() (driver.Value, error) {
 	val, err := json.Marshal(mj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal JSON value: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	return val, nil
@@ -50,11 +50,11 @@ func (mj JSON) Value() (driver.Value, error) {
 func (mj *JSON) Scan(value any) error {
 	b, ok := value.([]byte)
 	if !ok {
-		return fmt.Errorf("metadata scan: %w", ErrTypeAssertionFailed)
+		return pkg.ValidateInternalError(ErrTypeAssertionFailed, "Metadata")
 	}
 
 	if err := json.Unmarshal(b, &mj); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON value: %w", err)
+		return pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	return nil
