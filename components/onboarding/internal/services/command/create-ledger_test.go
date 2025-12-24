@@ -8,9 +8,11 @@ import (
 
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -88,7 +90,7 @@ func TestCreateLedger(t *testing.T) {
 					Return(false, errors.New("database error")).
 					Times(1)
 			},
-			expectedErr: errors.New("database error"),
+			expectedErr: errors.New("InternalServerError"),
 			expectedRes: nil,
 		},
 		{
@@ -111,7 +113,7 @@ func TestCreateLedger(t *testing.T) {
 					Return(nil, errors.New("failed to insert ledger")).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to insert ledger"),
+			expectedErr: errors.New("InternalServerError"),
 			expectedRes: nil,
 		},
 	}
@@ -122,9 +124,14 @@ func TestCreateLedger(t *testing.T) {
 
 			result, err := uc.CreateLedger(ctx, organizationID, tt.input)
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-				assert.Nil(t, result)
+				require.Error(t, err)
+				require.Nil(t, result)
+				if tt.expectedErr.Error() == "InternalServerError" {
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				} else {
+					assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)

@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -38,7 +39,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -355,7 +356,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Create(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("failed to create account")).AnyTimes()
 			},
-			expectedErr:  "failed to create account",
+			expectedErr:  "InternalServerError",
 			expectedName: "",
 			expectError:  true,
 		},
@@ -379,7 +380,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(true, pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account")).AnyTimes()
 			},
 			expectError:  true,
-			expectedErr:  "alias",
+			expectedErr:  "EntityConflictError",
 			expectedName: "",
 		},
 	}
@@ -410,9 +411,18 @@ func TestCreateAccountScenarios(t *testing.T) {
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				require.Error(t, err)
+				require.Nil(t, account)
+				switch tt.expectedErr {
+				case "InternalServerError":
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				case "EntityConflictError":
+					var conflictErr pkg.EntityConflictError
+					require.True(t, errors.As(err, &conflictErr), "expected EntityConflictError, got %T", err)
+				default:
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, account)
@@ -439,7 +449,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -526,7 +536,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil, errors.New("portfolio not found")).AnyTimes()
 			},
 			expectError:  true,
-			expectedErr:  "portfolio not found",
+			expectedErr:  "InternalServerError",
 			expectedName: "",
 		},
 		{
@@ -658,7 +668,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil, nil).Times(1)
 			},
 			expectError:  true,
-			expectedErr:  "metadata creation error",
+			expectedErr:  "InternalServerError",
 			expectedName: "",
 		},
 		{
@@ -767,9 +777,15 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				require.Error(t, err)
+				require.Nil(t, account)
+				switch tt.expectedErr {
+				case "InternalServerError":
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				default:
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, account)
@@ -796,7 +812,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -922,7 +938,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).AnyTimes()
 			},
-			expectedErr:  "database connection error",
+			expectedErr:  "InternalServerError",
 			expectedName: "",
 			expectError:  true,
 		},
@@ -952,9 +968,15 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				require.Error(t, err)
+				require.Nil(t, account)
+				switch tt.expectedErr {
+				case "InternalServerError":
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				default:
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, account)
@@ -992,7 +1014,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		AccountRepo:     mockAccountRepo,
 		MetadataRepo:    mockMetadataRepo,
 		AccountTypeRepo: mockAccountTypeRepo,
-		BalancePort: mockBalanceGRPC,
+		BalancePort:     mockBalanceGRPC,
 	}
 
 	mockAssetRepo.EXPECT().

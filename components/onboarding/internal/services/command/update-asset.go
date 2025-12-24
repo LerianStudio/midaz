@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -40,12 +39,12 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
@@ -54,7 +53,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	assetUpdated.Metadata = metadataUpdated

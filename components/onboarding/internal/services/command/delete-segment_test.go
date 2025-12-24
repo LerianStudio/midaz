@@ -7,8 +7,10 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -50,7 +52,7 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided segment ID does not exist in our records. Please verify the segment ID and try again."),
+			expectedErr: errors.New("EntityNotFoundError"),
 		},
 		{
 			name: "failure - repository error",
@@ -60,7 +62,7 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Return(errors.New("failed to delete segment")).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete segment"),
+			expectedErr: errors.New("InternalServerError"),
 		},
 	}
 
@@ -71,8 +73,17 @@ func TestDeleteSegmentByID(t *testing.T) {
 			err := uc.DeleteSegmentByID(ctx, organizationID, ledgerID, segmentID)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				require.Error(t, err)
+				switch tt.expectedErr.Error() {
+				case "InternalServerError":
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				case "EntityNotFoundError":
+					var notFoundErr pkg.EntityNotFoundError
+					require.True(t, errors.As(err, &notFoundErr), "expected EntityNotFoundError, got %T", err)
+				default:
+					assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				}
 			} else {
 				assert.NoError(t, err)
 			}

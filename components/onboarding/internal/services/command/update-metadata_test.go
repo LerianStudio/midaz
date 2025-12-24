@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -25,11 +26,11 @@ func TestUpdateMetadata(t *testing.T) {
 	entityID := "123456"
 
 	tests := []struct {
-		name             string
-		inputMetadata    map[string]any
-		setupMocks       func()
-		expectedErr      error
-		expectedMetadata map[string]any
+		name              string
+		inputMetadata     map[string]any
+		setupMocks        func()
+		expectInternalErr bool
+		expectedMetadata  map[string]any
 	}{
 		{
 			name: "success - metadata updated with new data",
@@ -48,7 +49,7 @@ func TestUpdateMetadata(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectInternalErr: false,
 			expectedMetadata: map[string]any{
 				"key1": "value1",
 				"key2": "value2",
@@ -84,7 +85,7 @@ func TestUpdateMetadata(t *testing.T) {
 					}).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectInternalErr: false,
 			expectedMetadata: map[string]any{
 				"key1": "value1",
 				"key2": "new_value2",
@@ -100,8 +101,8 @@ func TestUpdateMetadata(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve metadata")).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve metadata"),
-			expectedMetadata: nil,
+			expectInternalErr: true,
+			expectedMetadata:  nil,
 		},
 		{
 			name: "failure - error updating metadata",
@@ -119,8 +120,8 @@ func TestUpdateMetadata(t *testing.T) {
 					Return(errors.New("failed to update metadata")).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to update metadata"),
-			expectedMetadata: nil,
+			expectInternalErr: true,
+			expectedMetadata:  nil,
 		},
 	}
 
@@ -130,9 +131,10 @@ func TestUpdateMetadata(t *testing.T) {
 
 			result, err := uc.UpdateMetadata(ctx, entityName, entityID, tt.inputMetadata)
 
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

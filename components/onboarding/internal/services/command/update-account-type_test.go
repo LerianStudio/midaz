@@ -182,7 +182,8 @@ func TestUpdateAccountTypeError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.ErrorIs(t, err, expectedError)
+	var internalErr pkg.InternalServerError
+	assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
 }
 
 // TestUpdateAccountTypeNotFound tests handling of account type not found
@@ -275,7 +276,8 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.ErrorIs(t, err, metadataError)
+	var internalErr pkg.InternalServerError
+	assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
 }
 
 // TestUpdateAccountTypePartialUpdate tests updating account type with partial input

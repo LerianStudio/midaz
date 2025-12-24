@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -35,10 +36,12 @@ func TestDeleteAccountByID(t *testing.T) {
 	accountID := uuid.New()
 
 	tests := []struct {
-		name        string
-		portfolioID *uuid.UUID
-		setupMocks  func()
-		expectedErr error
+		name              string
+		portfolioID       *uuid.UUID
+		setupMocks        func()
+		expectInternalErr bool
+		expectBusinessErr bool
+		expectedErrMsg    string
 	}{
 		{
 			name:        "success - account deleted",
@@ -59,7 +62,8 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectInternalErr: false,
+			expectBusinessErr: false,
 		},
 		{
 			name:        "failure - account not found",
@@ -70,7 +74,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("errDatabaseItemNotFound"),
+			expectInternalErr: true,
 		},
 		{
 			name:        "failure - forbidden external account manipulation",
@@ -81,7 +85,8 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil).
 					Times(1)
 			},
-			expectedErr: errors.New("0074 - Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts."),
+			expectBusinessErr: true,
+			expectedErrMsg:    "0074",
 		},
 		{
 			name:        "failure - delete operation error",
@@ -102,7 +107,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(errors.New("delete error")).
 					Times(1)
 			},
-			expectedErr: errors.New("delete error"),
+			expectInternalErr: true,
 		},
 	}
 
@@ -115,9 +120,13 @@ func TestDeleteAccountByID(t *testing.T) {
 			err := uc.DeleteAccountByID(ctx, organizationID, ledgerID, tt.portfolioID, accountID, "token")
 
 			// Validações
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
+			} else if tt.expectBusinessErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrMsg)
 			} else {
 				assert.NoError(t, err)
 			}

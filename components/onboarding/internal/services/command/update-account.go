@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,11 +33,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
 
-		return nil, fmt.Errorf("failed to find: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == accountTypeExternal {
-		return nil, fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
+		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	account := &mmodel.Account{
@@ -62,12 +61,12 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
@@ -76,7 +75,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	accountUpdated.Metadata = metadataUpdated

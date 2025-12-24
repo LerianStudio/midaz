@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -72,7 +73,6 @@ func TestCreateAccountTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	errMsg := "failed to create account type in database"
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 
@@ -90,14 +90,15 @@ func TestCreateAccountTypeError(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, errors.New(errMsg)).
+		Return(nil, errors.New("failed to create account type in database")).
 		Times(1)
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), errMsg)
-	assert.Nil(t, result)
+	require.Error(t, err)
+	var internalErr pkg.InternalServerError
+	require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+	require.Nil(t, result)
 }
 
 // TestCreateAccountTypeValidatesInput tests that input fields are properly validated and set

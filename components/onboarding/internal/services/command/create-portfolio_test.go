@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -41,11 +42,11 @@ func TestCreatePortfolio(t *testing.T) {
 	ledgerID := uuid.New()
 
 	tests := []struct {
-		name          string
-		input         *mmodel.CreatePortfolioInput
-		mockSetup     func()
-		expectedErr   error
-		expectedPortf *mmodel.Portfolio
+		name              string
+		input             *mmodel.CreatePortfolioInput
+		mockSetup         func()
+		expectInternalErr bool
+		expectedPortf     *mmodel.Portfolio
 	}{
 		{
 			name: "success - portfolio created",
@@ -83,7 +84,7 @@ func TestCreatePortfolio(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectInternalErr: false,
 			expectedPortf: &mmodel.Portfolio{
 				Name: "Test Portfolio",
 				Status: mmodel.Status{
@@ -107,8 +108,8 @@ func TestCreatePortfolio(t *testing.T) {
 					Return(nil, errors.New("failed to create portfolio")).
 					Times(1)
 			},
-			expectedErr:   errors.New("failed to create portfolio"),
-			expectedPortf: nil,
+			expectInternalErr: true,
+			expectedPortf:     nil,
 		},
 		{
 			name: "failure - metadata creation error",
@@ -144,8 +145,8 @@ func TestCreatePortfolio(t *testing.T) {
 					Return(errors.New("failed to create metadata")).
 					Times(1)
 			},
-			expectedErr:   errors.New("failed to create metadata"),
-			expectedPortf: nil,
+			expectInternalErr: true,
+			expectedPortf:     nil,
 		},
 	}
 
@@ -158,9 +159,10 @@ func TestCreatePortfolio(t *testing.T) {
 			result, err := uc.CreatePortfolio(ctx, organizationID, ledgerID, tt.input)
 
 			// Validações
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

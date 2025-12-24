@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -30,13 +29,13 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	}
 
 	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
-		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
+		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "ID cannot be used as the parent ID.", err)
 
 		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
 
-		return nil, fmt.Errorf("validation failed: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name()))
+		return nil, err
 	}
 
 	if !uoi.Address.IsEmpty() {
@@ -45,7 +44,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate address country", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 	}
 
@@ -68,12 +67,12 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
@@ -82,7 +81,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
-		return nil, fmt.Errorf("operation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	organizationUpdated.Metadata = metadataUpdated

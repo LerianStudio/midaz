@@ -2,10 +2,10 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 )
 
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
@@ -25,7 +25,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 
 			logger.Errorf("Error get metadata on mongodb: %v", err)
 
-			return nil, fmt.Errorf("failed to find: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Metadata")
 		}
 
 		if existingMetadata != nil {
@@ -38,7 +38,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	if err := uc.MetadataRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on mongodb", err)
 
-		return nil, fmt.Errorf("failed to update: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Metadata")
 	}
 
 	return metadataToUpdate, nil

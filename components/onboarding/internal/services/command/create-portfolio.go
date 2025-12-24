@@ -2,12 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -53,7 +53,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error creating portfolio: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	assert.NotNil(port, "repository Create must return non-nil portfolio on success",
@@ -65,7 +65,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 
-		return nil, fmt.Errorf("failed to create: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	port.Metadata = metadata

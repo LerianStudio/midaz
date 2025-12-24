@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -81,7 +83,7 @@ func TestCreateMetadata(t *testing.T) {
 					Return(errors.New("failed to create metadata")).
 					Times(1)
 			},
-			expectedErr:  errors.New("failed to create metadata"),
+			expectedErr:  errors.New("InternalServerError"),
 			expectedMeta: nil,
 		},
 		{
@@ -102,9 +104,14 @@ func TestCreateMetadata(t *testing.T) {
 			result, err := uc.CreateMetadata(ctx, tt.entityName, tt.entityID, tt.metadata)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-				assert.Nil(t, result)
+				require.Error(t, err)
+				require.Nil(t, result)
+				if tt.expectedErr.Error() == "InternalServerError" {
+					var internalErr pkg.InternalServerError
+					require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+				} else {
+					assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMeta, result)

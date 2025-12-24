@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -42,7 +41,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		"account_id", id)
 
 	if accFound.Type == "external" {
-		return fmt.Errorf("external account manipulation forbidden: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	// Inject authorization token into context metadata for downstream gRPC calls
@@ -63,7 +62,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		return fmt.Errorf("account balance deletion failed: %w", pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name()))
+		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
