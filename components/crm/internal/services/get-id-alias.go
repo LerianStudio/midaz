@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,11 +32,19 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 
 	alias, err := uc.AliasRepo.Find(ctx, organizationID, holderID, id, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get alias by id", err)
-
 		logger.Errorf("Failed to get alias by id %v", id)
 
-		return nil, pkg.ValidateInternalError(err, "CRM")
+		if errors.Is(err, cn.ErrAliasNotFound) {
+			err := pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+
+			libOpenTelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get alias by id", err)
+
+			return nil, err
+		}
+
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get alias by id", err)
+
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Alias{}).Name())
 	}
 
 	uc.enrichAliasWithLinkType(ctx, organizationID, alias)

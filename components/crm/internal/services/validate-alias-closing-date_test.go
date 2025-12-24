@@ -9,6 +9,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -160,7 +161,17 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			if testCase.expectError {
 				assert.Error(t, err)
 				if testCase.expectedError != nil {
-					assert.Contains(t, err.Error(), testCase.expectedError.Error())
+					var entityNotFoundError pkg.EntityNotFoundError
+					var validationError pkg.ValidationError
+
+					switch {
+					case errors.As(err, &entityNotFoundError):
+						assert.Equal(t, testCase.expectedError.Error(), entityNotFoundError.Code)
+					case errors.As(err, &validationError):
+						assert.Equal(t, testCase.expectedError.Error(), validationError.Code)
+					default:
+						assert.Contains(t, err.Error(), testCase.expectedError.Error())
+					}
 				}
 			} else {
 				assert.NoError(t, err)
