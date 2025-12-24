@@ -1,10 +1,10 @@
 package alias
 
 import (
-	"fmt"
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -40,12 +40,12 @@ type BankingMongoDBModel struct {
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt document: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	participantDocument, err := ds.Encrypt(a.ParticipantDocument)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt participant document: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	*amm = MongoDBModel{
@@ -91,12 +91,12 @@ func (amm *MongoDBModel) setBankingDetails(details *mmodel.BankingDetails, ds *l
 
 	account, err := ds.Encrypt(details.Account)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt banking account: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	iban, err := ds.Encrypt(details.IBAN)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt banking IBAN: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	amm.BankingDetails = &BankingMongoDBModel{
@@ -128,12 +128,12 @@ func (amm *MongoDBModel) addBankingDetailsToSearch(details *mmodel.BankingDetail
 func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	document, err := ds.Decrypt(amm.Document)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt document: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	participantDocument, err := ds.Decrypt(amm.ParticipantDocument)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt participant document: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	account := &mmodel.Alias{
@@ -154,12 +154,12 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	if amm.BankingDetails != nil {
 		accountNumber, err := ds.Decrypt(amm.BankingDetails.Account)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt banking account: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Alias")
 		}
 
 		iban, err := ds.Decrypt(amm.BankingDetails.IBAN)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt banking IBAN: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Alias")
 		}
 
 		account.BankingDetails = &mmodel.BankingDetails{

@@ -3,7 +3,6 @@ package alias
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -95,7 +94,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
@@ -136,11 +135,11 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "account_id") {
-				return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, reflect.TypeOf(mmodel.Alias{}).Name()))
+				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, reflect.TypeOf(mmodel.Alias{}).Name())
 			}
 		}
 
-		return nil, fmt.Errorf("failed to insert alias: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
@@ -173,7 +172,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
@@ -194,10 +193,10 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 		libOpenTelemetry.HandleSpanError(&span, "Failed to find account", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name()))
+			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
 		}
 
-		return nil, fmt.Errorf("failed to find alias: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
@@ -251,7 +250,7 @@ func (am *MongoDBRepository) getAliasCollection(ctx context.Context, span *trace
 	db, err := am.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID)), nil
@@ -283,11 +282,11 @@ func (am *MongoDBRepository) performUpdate(ctx context.Context, tracer trace.Tra
 	updateResult, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update alias", err)
-		return fmt.Errorf("failed to update: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name()))
+		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
 	}
 
 	return nil
@@ -304,13 +303,13 @@ func (am *MongoDBRepository) buildUpdateDocument(alias *mmodel.Alias, fieldsToRe
 	bsonData, err := bson.Marshal(aliasToUpdate)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to marshal alias", err)
-		return nil, fmt.Errorf("failed to marshal: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to unmarshal alias", err)
-		return nil, fmt.Errorf("failed to unmarshal: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove), nil
@@ -325,7 +324,7 @@ func (am *MongoDBRepository) findUpdatedAlias(ctx context.Context, tracer trace.
 	var record MongoDBModel
 	if err := coll.FindOne(ctx, filter).Decode(&record); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find alias after update", err)
-		return nil, fmt.Errorf("failed to decode: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
@@ -396,7 +395,7 @@ func (am *MongoDBRepository) executeFind(ctx context.Context, tracer trace.Trace
 	cursor, err := coll.Find(ctx, filter, &opts)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find aliases", err)
-		return nil, fmt.Errorf("failed to find: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return cursor, nil
@@ -412,7 +411,7 @@ func (am *MongoDBRepository) processCursorResults(ctx context.Context, span *tra
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to iterate aliases", err)
-		return nil, fmt.Errorf("failed to iterate cursor: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return am.convertAliasesToEntities(span, aliases)
@@ -425,7 +424,7 @@ func (am *MongoDBRepository) decodeAliases(ctx context.Context, span *trace.Span
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to decode aliases", err)
-			return nil, fmt.Errorf("failed to decode: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Alias")
 		}
 
 		aliases = append(aliases, &holder)
@@ -516,7 +515,7 @@ func (am *MongoDBRepository) addMetadataFilters(filter *bson.D, query http.Query
 	for k, v := range *query.Metadata {
 		safeValue, err := http.ValidateMetadataValue(v)
 		if err != nil {
-			return fmt.Errorf("failed to validate metadata value for key %s: %w", k, err)
+			return pkg.ValidateInternalError(err, "Alias")
 		}
 
 		*filter = append(*filter, bson.E{Key: k, Value: safeValue})
@@ -546,7 +545,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	opts := options.Delete()
@@ -568,13 +567,13 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete alias", err)
 
-			return fmt.Errorf("failed to delete: %w", err)
+			return pkg.ValidateInternalError(err, "Alias")
 		}
 
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return fmt.Errorf("alias not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name()))
+			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
 		}
 
 		logger.Infoln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")")
@@ -592,11 +591,11 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete alias", err)
 
-		return fmt.Errorf("failed to soft delete alias: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return fmt.Errorf("alias not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name()))
+		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
 	}
 
 	logger.Infoln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")")
@@ -622,7 +621,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return 0, fmt.Errorf("failed to get database connection: %w", err)
+		return 0, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
@@ -641,7 +640,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanCount, "Failed to count aliases by holder", err)
 
-		return 0, fmt.Errorf("failed to count documents: %w", err)
+		return 0, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return count, nil
@@ -731,7 +730,7 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 
 	_, err := collection.Indexes().CreateMany(ctxWithTimeout, indexModels)
 	if err != nil {
-		return fmt.Errorf("failed to create indexes: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil
