@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -37,6 +38,12 @@ import (
 const (
 	ApplicationName             = "transaction"
 	ensureIndexesTimeoutSeconds = 60
+)
+
+// Sentinel errors for bootstrap initialization.
+var (
+	// ErrInitializationFailed indicates a panic occurred during initialization.
+	ErrInitializationFailed = errors.New("initialization failed")
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -418,7 +425,7 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			service = nil
-			err = fmt.Errorf("initialization failed: %v", r)
+			err = fmt.Errorf("%w: %v", ErrInitializationFailed, r)
 		}
 	}()
 

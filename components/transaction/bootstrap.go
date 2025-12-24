@@ -38,6 +38,8 @@ type Options struct {
 //
 // Deprecated: Use InitServiceOrError for proper error handling.
 // This function panics on initialization errors.
+//
+//nolint:panicguardwarn // Deprecated function maintains backward compatibility; panic is intentional.
 func InitService() TransactionService {
 	service, err := InitServiceOrError()
 	if err != nil {
@@ -51,7 +53,12 @@ func InitService() TransactionService {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (TransactionService, error) {
-	return bootstrap.InitServersWithOptions(nil)
+	service, err := bootstrap.InitServersWithOptions(nil)
+	if err != nil {
+		return nil, fmt.Errorf("initializing transaction servers: %w", err)
+	}
+
+	return service, nil
 }
 
 // InitServiceWithOptionsOrError initializes the transaction service with custom options
@@ -61,7 +68,12 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		return InitServiceOrError()
 	}
 
-	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger: opts.Logger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("initializing transaction servers with options: %w", err)
+	}
+
+	return service, nil
 }
