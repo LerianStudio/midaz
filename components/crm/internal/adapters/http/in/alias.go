@@ -1,9 +1,8 @@
 package in
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
@@ -64,11 +63,11 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.Created(c, out); err != nil {
-		return fmt.Errorf("failed to send created response: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil
@@ -119,11 +118,11 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.OK(c, alias); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil
@@ -186,11 +185,11 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.OK(c, alias); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil
@@ -240,11 +239,11 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("failed to send no content response: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil
@@ -289,7 +288,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	var holderID uuid.UUID
@@ -300,7 +299,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
 
-			return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+			return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 		}
 	}
 
@@ -336,13 +335,13 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get all aliases, Error: %v", err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	pagination.SetItems(aliases)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return nil

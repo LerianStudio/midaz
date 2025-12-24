@@ -1,9 +1,8 @@
 package in
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
@@ -60,11 +59,11 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create holder: %v", err)
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.Created(c, out); err != nil {
-		return fmt.Errorf("failed to send created response: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
@@ -112,11 +111,11 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.OK(c, holder); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
@@ -176,11 +175,11 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.OK(c, holder); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
@@ -227,11 +226,11 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	if err := http.NoContent(c); err != nil {
-		return fmt.Errorf("failed to send no content response: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
@@ -271,7 +270,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	pagination := libPostgres.Pagination{
@@ -300,13 +299,13 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get all holders, Error: %v", err.Error())
 
-		return fmt.Errorf("failed to send error response: %w", http.WithError(c, err))
+		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 	}
 
 	pagination.SetItems(holders)
 
 	if err := http.OK(c, pagination); err != nil {
-		return fmt.Errorf("failed to send OK response: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
