@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,7 +33,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 		logger.Warn("No metadata found")
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -60,12 +59,12 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 			logger.Warn("No portfolios found")
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	for i := range portfolios {

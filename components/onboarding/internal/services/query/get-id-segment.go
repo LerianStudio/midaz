@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +34,12 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 			logger.Warn("No segment found")
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	if segment != nil {
@@ -52,7 +51,7 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 			logger.Warn("No metadata found")
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		if metadata != nil {

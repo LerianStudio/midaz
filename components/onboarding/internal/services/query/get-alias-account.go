@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,10 +34,10 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if account != nil {
@@ -48,7 +47,7 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, fmt.Errorf("failed to find: %w", err)
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if metadata != nil {

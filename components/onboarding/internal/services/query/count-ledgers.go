@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -35,12 +34,12 @@ func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
 
-			return 0, fmt.Errorf("failed to count: %w", err)
+			return 0, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
 
-		return 0, fmt.Errorf("operation failed: %w", err)
+		return 0, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	return count, nil

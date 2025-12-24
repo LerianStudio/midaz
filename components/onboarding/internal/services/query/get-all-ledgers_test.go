@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -35,10 +36,11 @@ func TestGetAllLedgers(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		setupMocks      func()
-		expectedErr     error
-		expectedLedgers []*mmodel.Ledger
+		name              string
+		setupMocks        func()
+		expectBusinessErr bool
+		expectInternalErr bool
+		expectedLedgers   []*mmodel.Ledger
 	}{
 		{
 			name: "success - ledgers retrieved with metadata",
@@ -59,7 +61,8 @@ func TestGetAllLedgers(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectBusinessErr: false,
+			expectInternalErr: false,
 			expectedLedgers: []*mmodel.Ledger{
 				{ID: "ledger1", Metadata: map[string]any{"key1": "value1"}},
 				{ID: "ledger2", Metadata: map[string]any{"key2": "value2"}},
@@ -73,8 +76,9 @@ func TestGetAllLedgers(t *testing.T) {
 					Return(nil, errors.New("No ledgers were found in the search. Please review the search criteria and try again.")).
 					Times(1)
 			},
-			expectedErr:     errors.New("No ledgers were found in the search. Please review the search criteria and try again."),
-			expectedLedgers: nil,
+			expectBusinessErr: false,
+			expectInternalErr: true,
+			expectedLedgers:   nil,
 		},
 		{
 			name: "failure - repository error retrieving ledgers",
@@ -84,8 +88,9 @@ func TestGetAllLedgers(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve ledgers")).
 					Times(1)
 			},
-			expectedErr:     errors.New("failed to retrieve ledgers"),
-			expectedLedgers: nil,
+			expectBusinessErr: false,
+			expectInternalErr: true,
+			expectedLedgers:   nil,
 		},
 		{
 			name: "failure - metadata retrieval error",
@@ -103,8 +108,9 @@ func TestGetAllLedgers(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve metadata")).
 					Times(1)
 			},
-			expectedErr:     errors.New("No ledgers were found in the search. Please review the search criteria and try again."),
-			expectedLedgers: nil,
+			expectBusinessErr: true,
+			expectInternalErr: false,
+			expectedLedgers:   nil,
 		},
 	}
 
@@ -114,9 +120,13 @@ func TestGetAllLedgers(t *testing.T) {
 
 			result, err := uc.GetAllLedgers(ctx, organizationID, filter)
 
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
+				assert.Nil(t, result)
+			} else if tt.expectBusinessErr {
+				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

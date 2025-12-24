@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -38,10 +39,11 @@ func TestGetAllAccount(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		setupMocks       func()
-		expectedErr      error
-		expectedAccounts []*mmodel.Account
+		name              string
+		setupMocks        func()
+		expectBusinessErr bool
+		expectInternalErr bool
+		expectedAccounts  []*mmodel.Account
 	}{
 		{
 			name: "success - accounts retrieved with metadata",
@@ -64,7 +66,8 @@ func TestGetAllAccount(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectBusinessErr: false,
+			expectInternalErr: false,
 			expectedAccounts: []*mmodel.Account{
 				func() *mmodel.Account {
 					b := false
@@ -84,8 +87,9 @@ func TestGetAllAccount(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
-			expectedAccounts: nil,
+			expectBusinessErr: true,
+			expectInternalErr: false,
+			expectedAccounts:  nil,
 		},
 		{
 			name: "failure - error retrieving accounts",
@@ -95,8 +99,9 @@ func TestGetAllAccount(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve accounts"),
-			expectedAccounts: nil,
+			expectBusinessErr: false,
+			expectInternalErr: true,
+			expectedAccounts:  nil,
 		},
 		{
 			name: "failure - metadata retrieval error",
@@ -114,8 +119,9 @@ func TestGetAllAccount(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve metadata")).
 					Times(1)
 			},
-			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
-			expectedAccounts: nil,
+			expectBusinessErr: true,
+			expectInternalErr: false,
+			expectedAccounts:  nil,
 		},
 	}
 
@@ -125,9 +131,13 @@ func TestGetAllAccount(t *testing.T) {
 
 			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, filter)
 
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
+				assert.Nil(t, result)
+			} else if tt.expectBusinessErr {
+				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

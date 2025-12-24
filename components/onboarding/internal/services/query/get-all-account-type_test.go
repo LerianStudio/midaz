@@ -233,7 +233,8 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, expectedError)
+	var internalErr pkg.InternalServerError
+	assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }

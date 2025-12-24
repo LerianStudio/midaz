@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,7 +33,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 		logger.Warn("No metadata found")
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -60,12 +59,12 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 			logger.Warn("No segments found")
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	for i := range segments {

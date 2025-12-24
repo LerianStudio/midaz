@@ -8,6 +8,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -30,10 +31,11 @@ func TestListAccountsByAlias(t *testing.T) {
 	aliases := []string{"alias1", "alias2"}
 
 	tests := []struct {
-		name             string
-		setupMocks       func()
-		expectedErr      error
-		expectedAccounts []*mmodel.Account
+		name              string
+		setupMocks        func()
+		expectBusinessErr bool
+		expectInternalErr bool
+		expectedAccounts  []*mmodel.Account
 	}{
 		{
 			name: "success - accounts retrieved",
@@ -46,7 +48,8 @@ func TestListAccountsByAlias(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedErr: nil,
+			expectBusinessErr: false,
+			expectInternalErr: false,
 			expectedAccounts: []*mmodel.Account{
 				{ID: uuid.New().String(), Alias: libPointers.String("alias1")},
 				{ID: uuid.New().String(), Alias: libPointers.String("alias2")},
@@ -60,8 +63,9 @@ func TestListAccountsByAlias(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr:      errors.New("The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again."),
-			expectedAccounts: nil,
+			expectBusinessErr: true,
+			expectInternalErr: false,
+			expectedAccounts:  nil,
 		},
 		{
 			name: "failure - repository error",
@@ -71,8 +75,9 @@ func TestListAccountsByAlias(t *testing.T) {
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve accounts"),
-			expectedAccounts: nil,
+			expectBusinessErr: false,
+			expectInternalErr: true,
+			expectedAccounts:  nil,
 		},
 	}
 
@@ -82,9 +87,13 @@ func TestListAccountsByAlias(t *testing.T) {
 
 			result, err := uc.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 
-			if tt.expectedErr != nil {
+			if tt.expectInternalErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				var internalErr pkg.InternalServerError
+				assert.True(t, errors.As(err, &internalErr), "expected InternalServerError type")
+				assert.Nil(t, result)
+			} else if tt.expectBusinessErr {
+				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)

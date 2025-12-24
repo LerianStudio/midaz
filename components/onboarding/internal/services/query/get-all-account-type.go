@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -36,14 +35,14 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find: %w", err)
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
 		logger.Errorf("Error getting account types on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find: %w", err)
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
 	if accountTypes != nil {
@@ -58,7 +57,7 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account type", err)
 
-			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to find metadata: %w", err)
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

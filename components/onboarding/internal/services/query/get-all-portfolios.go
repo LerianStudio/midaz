@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -36,12 +35,12 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 			logger.Warn("No portfolios found")
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	if len(portfolios) == 0 {
@@ -61,7 +60,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Warn("No metadata found")
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

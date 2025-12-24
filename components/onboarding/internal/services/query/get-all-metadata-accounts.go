@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,7 +33,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 		logger.Warn("No metadata found")
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -60,12 +59,12 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-			return nil, fmt.Errorf("validation failed: %w", err)
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	for i := range accounts {
