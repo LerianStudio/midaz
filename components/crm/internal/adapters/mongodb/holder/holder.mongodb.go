@@ -3,7 +3,6 @@ package holder
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -93,7 +92,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	coll := db.Database(strings.ToLower(hm.Database)).Collection(strings.ToLower("holders_" + organizationID))
@@ -128,11 +127,11 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "document") {
-				return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, reflect.TypeOf(mmodel.Holder{}).Name()))
+				return nil, pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, reflect.TypeOf(mmodel.Holder{}).Name())
 			}
 		}
 
-		return nil, fmt.Errorf("failed to insert holder: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	spanInsert.End()
@@ -167,7 +166,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	coll := db.Database(strings.ToLower(hm.Database)).Collection(strings.ToLower("holders_" + organizationID))
@@ -191,10 +190,10 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name()))
+			return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 		}
 
-		return nil, fmt.Errorf("failed to find holder: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	spanFind.End()
@@ -248,7 +247,7 @@ func (hm *MongoDBRepository) getHolderCollection(ctx context.Context, span *trac
 	db, err := hm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return db.Database(strings.ToLower(hm.Database)).Collection(strings.ToLower("holders_" + organizationID)), nil
@@ -277,7 +276,7 @@ func (hm *MongoDBRepository) executeHolderFind(ctx context.Context, tracer trace
 	cursor, err := coll.Find(ctx, filter, &opts)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder", err)
-		return nil, fmt.Errorf("failed to find: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return cursor, nil
@@ -293,7 +292,7 @@ func (hm *MongoDBRepository) processHolderCursorResults(ctx context.Context, spa
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to iterate holders", err)
-		return nil, fmt.Errorf("failed to iterate cursor: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return hm.convertHoldersToEntities(span, holders)
@@ -306,7 +305,7 @@ func (hm *MongoDBRepository) decodeHolders(ctx context.Context, span *trace.Span
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to decode holder", err)
-			return nil, fmt.Errorf("failed to decode: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Holder")
 		}
 
 		holders = append(holders, &holder)
@@ -351,7 +350,7 @@ func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDe
 		for k, v := range *query.Metadata {
 			safeValue, err := http.ValidateMetadataValue(v)
 			if err != nil {
-				return nil, fmt.Errorf("failed to validate metadata value for key %s: %w", k, err)
+				return nil, pkg.ValidateInternalError(err, "Holder")
 			}
 
 			filter = append(filter, bson.E{Key: k, Value: safeValue})
@@ -416,10 +415,10 @@ func (hm *MongoDBRepository) performHolderUpdate(ctx context.Context, tracer tra
 		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update holder", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return fmt.Errorf("validation error: %w", pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name()))
+			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 		}
 
-		return fmt.Errorf("failed to update holder: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil
@@ -436,13 +435,13 @@ func (hm *MongoDBRepository) buildHolderUpdateDocument(holder *mmodel.Holder, fi
 	bsonData, err := bson.Marshal(holderToUpdate)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to marshal holder", err)
-		return nil, fmt.Errorf("failed to marshal: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to unmarshal holder", err)
-		return nil, fmt.Errorf("failed to unmarshal: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove), nil
@@ -457,7 +456,7 @@ func (hm *MongoDBRepository) findUpdatedHolder(ctx context.Context, tracer trace
 	var record MongoDBModel
 	if err := coll.FindOne(ctx, bson.M{"_id": id}).Decode(&record); err != nil {
 		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder after update", err)
-		return nil, fmt.Errorf("failed to decode: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	result, err := record.ToEntity(hm.DataSecurity)
@@ -489,7 +488,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return fmt.Errorf("failed to get database connection: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	opts := options.Delete()
@@ -511,13 +510,13 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete holder", err)
 
-			return fmt.Errorf("failed to delete: %w", err)
+			return pkg.ValidateInternalError(err, "Holder")
 		}
 
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return fmt.Errorf("holder not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name()))
+			return pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 		}
 
 		logger.Infoln("Deleted a document with id: ", id.String())
@@ -535,11 +534,11 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete holder", err)
 
-		return fmt.Errorf("failed to soft delete holder: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return fmt.Errorf("holder not found for deletion: %w", pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name()))
+		return pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 	}
 
 	logger.Infoln("Deleted a document with id: ", id.String())
@@ -600,7 +599,7 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 
 	_, err := collection.Indexes().CreateMany(ctxWithTimeout, indexModels)
 	if err != nil {
-		return fmt.Errorf("failed to create indexes: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return nil

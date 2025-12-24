@@ -1,10 +1,10 @@
 package holder
 
 import (
-	"fmt"
 	"time"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -83,12 +83,12 @@ type RepresentativeMongoDBModel struct {
 func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) error {
 	name, err := ds.Encrypt(h.Name)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt holder name: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	document, err := ds.Encrypt(h.Document)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt document: %w", err)
+		return pkg.ValidateInternalError(err, "Holder")
 	}
 
 	*hmm = MongoDBModel{
@@ -172,22 +172,22 @@ func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMongoDBModel, error) {
 	primaryEmail, err := ds.Encrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt primary email: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	secondaryEmail, err := ds.Encrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt secondary email: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	mobilePhone, err := ds.Encrypt(c.MobilePhone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt mobile phone: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	otherPhone, err := ds.Encrypt(c.OtherPhone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt other phone: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return &ContactMongoDBModel{
@@ -202,12 +202,12 @@ func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMong
 func mapNaturalPersonFromEntity(ds *libCrypto.Crypto, np *mmodel.NaturalPerson) (*NaturalPersonMongoDBModel, error) {
 	motherName, err := ds.Encrypt(np.MotherName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt mother name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	fatherName, err := ds.Encrypt(np.FatherName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt father name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return &NaturalPersonMongoDBModel{
@@ -230,7 +230,7 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	if lp.FoundingDate != nil {
 		parsed, err := time.Parse("2006-01-02", *lp.FoundingDate)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse time: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Holder")
 		}
 
 		parsedFoundingDate = &parsed
@@ -248,17 +248,17 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	if lp.Representative != nil {
 		repName, err := ds.Encrypt(lp.Representative.Name)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt representative name: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Holder")
 		}
 
 		repDocument, err := ds.Encrypt(lp.Representative.Document)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt representative document: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Holder")
 		}
 
 		repEmail, err := ds.Encrypt(lp.Representative.Email)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt representative email: %w", err)
+			return nil, pkg.ValidateInternalError(err, "Holder")
 		}
 
 		mongoLP.Representative = &RepresentativeMongoDBModel{
@@ -293,12 +293,12 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) {
 	name, err := ds.Decrypt(hmm.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt holder name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	document, err := ds.Decrypt(hmm.Document)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt document: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	holder := &mmodel.Holder{
@@ -360,22 +360,22 @@ func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.Contact, error) {
 	primaryEmail, err := ds.Decrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt primary email: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	secondaryEmail, err := ds.Decrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt secondary email: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	mobilePhone, err := ds.Decrypt(c.MobilePhone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt mobile phone: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	otherPhone, err := ds.Decrypt(c.OtherPhone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt other phone: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return &mmodel.Contact{
@@ -390,12 +390,12 @@ func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.C
 func mapNaturalPersonToEntity(ds *libCrypto.Crypto, np *NaturalPersonMongoDBModel) (*mmodel.NaturalPerson, error) {
 	motherName, err := ds.Decrypt(np.MotherName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt mother name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	fatherName, err := ds.Decrypt(np.FatherName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt father name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return &mmodel.NaturalPerson{
@@ -445,17 +445,17 @@ func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (
 func mapRepresentativeToEntity(ds *libCrypto.Crypto, rep *RepresentativeMongoDBModel) (*mmodel.Representative, error) {
 	representativeName, err := ds.Decrypt(rep.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt representative name: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	representativeDocument, err := ds.Decrypt(rep.Document)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt representative document: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	email, err := ds.Decrypt(rep.Email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt representative email: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Holder")
 	}
 
 	return &mmodel.Representative{
