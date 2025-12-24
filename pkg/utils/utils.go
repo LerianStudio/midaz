@@ -1,24 +1,33 @@
 package utils
 
 import (
-	"errors"
 	"slices"
 	"unicode"
 )
 
+// ValidationError represents a validation error with an error code
+type ValidationError struct {
+	Code string
+}
+
+// Error implements the error interface
+func (e ValidationError) Error() string {
+	return e.Code
+}
+
 var (
 	// ErrInvalidCountryCode is returned when country code is not in ISO 3166-1 alpha-2 list
-	ErrInvalidCountryCode = errors.New("0032")
+	ErrInvalidCountryCode = ValidationError{Code: "0032"}
 	// ErrInvalidAccountType is returned when account type is invalid
-	ErrInvalidAccountType = errors.New("0066")
+	ErrInvalidAccountType = ValidationError{Code: "0066"}
 	// ErrInvalidAssetType is returned when asset type is invalid
-	ErrInvalidAssetType = errors.New("0040")
+	ErrInvalidAssetType = ValidationError{Code: "0040"}
 	// ErrCodeMustContainOnlyLetters is returned when code contains non-letter characters
-	ErrCodeMustContainOnlyLetters = errors.New("0033")
+	ErrCodeMustContainOnlyLetters = ValidationError{Code: "0033"}
 	// ErrCodeMustBeUppercase is returned when code contains lowercase letters
-	ErrCodeMustBeUppercase = errors.New("0004")
+	ErrCodeMustBeUppercase = ValidationError{Code: "0004"}
 	// ErrInvalidCurrencyCode is returned when currency code is not in ISO 4217 list
-	ErrInvalidCurrencyCode = errors.New("0005")
+	ErrInvalidCurrencyCode = ValidationError{Code: "0005"}
 )
 
 // ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2

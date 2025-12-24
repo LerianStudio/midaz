@@ -1,3 +1,4 @@
+//lint:file-ignore SA1019 This test file intentionally uses deprecated lib-commons transaction types to test conversion functions.
 package transaction
 
 import (

@@ -1,3 +1,4 @@
+//nolint:staticcheck // This file intentionally uses deprecated lib-commons transaction types for backward-compatible conversion.
 package transaction
 
 import (

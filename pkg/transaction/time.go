@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// TimeError wraps a time-related error with context
+type TimeError struct {
+	Message string
+	Cause   error
+}
+
+// Error implements the error interface
+func (e TimeError) Error() string {
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
+	}
+
+	return e.Message
+}
+
+// Unwrap returns the underlying error
+func (e TimeError) Unwrap() error {
+	return e.Cause
+}
+
 // TransactionDate is a custom time type that supports multiple ISO 8601 formats including milliseconds
 type TransactionDate time.Time
 
@@ -42,7 +62,7 @@ func (td *TransactionDate) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	return fmt.Errorf("invalid date format: %s", str)
+	return TimeError{Message: "invalid date format: " + str}
 }
 
 func (td TransactionDate) MarshalJSON() ([]byte, error) {
@@ -51,12 +71,22 @@ func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	}
 
 	t := time.Time(td)
-	
+
 	if t.Nanosecond() != 0 {
-		return json.Marshal(t.Format("2006-01-02T15:04:05.000Z07:00"))
+		result, err := json.Marshal(t.Format("2006-01-02T15:04:05.000Z07:00"))
+		if err != nil {
+			return nil, TimeError{Message: "failed to marshal time", Cause: err}
+		}
+
+		return result, nil
 	}
 
-	return json.Marshal(t.Format(time.RFC3339))
+	result, err := json.Marshal(t.Format(time.RFC3339))
+	if err != nil {
+		return nil, TimeError{Message: "failed to marshal time", Cause: err}
+	}
+
+	return result, nil
 }
 
 func (td TransactionDate) Time() time.Time {

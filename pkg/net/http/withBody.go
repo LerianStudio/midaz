@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -198,8 +197,7 @@ func ValidateStruct(s any) error {
 
 	// Generic null-byte validation across all string fields in the payload
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
-		return fmt.Errorf("null byte validation failed: %w",
-			pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{}))
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	return nil
@@ -216,12 +214,10 @@ func isStructType(s any) bool {
 }
 
 // checkBusinessValidationErrors checks for business validation errors and returns appropriate error.
-// Returns typed business errors directly to preserve error type for proper HTTP status code mapping.
 func checkBusinessValidationErrors(errs validator.ValidationErrors, trans ut.Translator) error {
 	for _, fieldError := range errs {
 		switch fieldError.Tag() {
 		case "keymax":
-			// Return typed error directly - do NOT wrap with fmt.Errorf to preserve error type for errors.As()
 			return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 		case "valuemax":
 			return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())

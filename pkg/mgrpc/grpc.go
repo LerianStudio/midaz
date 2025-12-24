@@ -16,6 +16,26 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
+// GRPCError wraps a gRPC-related error with context
+type GRPCError struct {
+	Message string
+	Cause   error
+}
+
+// Error implements the error interface
+func (e GRPCError) Error() string {
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
+	}
+
+	return e.Message
+}
+
+// Unwrap returns the underlying error
+func (e GRPCError) Unwrap() error {
+	return e.Cause
+}
+
 // GRPCConnection is a struct which deal with gRPC connections.
 type GRPCConnection struct {
 	Addr   string
@@ -28,7 +48,7 @@ func (c *GRPCConnection) Connect() error {
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		c.Logger.Error("Failed to connect on gRPC", zap.Error(err))
-		return fmt.Errorf("failed to create gRPC client: %w", err)
+		return GRPCError{Message: "failed to create gRPC client", Cause: err}
 	}
 
 	c.Logger.Info("Connected to gRPC ✅ ")

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
 )
 
@@ -12,29 +12,29 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 	cases := []struct {
 		name string
 		dsl  string
-		want libTransaction.Transaction
+		want pkgTransaction.Transaction
 	}{
 		{
 			name: "Simple transfer with chart-of-accounts",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 3|0 (source (from @A :amount USD 3|0)) (distribute (to @B :amount USD 3|0))))",
-			want: libTransaction.Transaction{
+			want: pkgTransaction.Transaction{
 				ChartOfAccountsGroupName: "FUNDING",
-				Send: libTransaction.Send{
+				Send: pkgTransaction.Send{
 					Asset: "USD",
 					Value: decimal.RequireFromString("3"),
-					Source: libTransaction.Source{
+					Source: pkgTransaction.Source{
 						Remaining: "",
-						From: []libTransaction.FromTo{{
+						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
 							IsFrom:       true,
 						}},
 					},
-					Distribute: libTransaction.Distribute{
+					Distribute: pkgTransaction.Distribute{
 						Remaining: "",
-						To: []libTransaction.FromTo{{
+						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
 							IsFrom:       false,
 						}},
 					},
@@ -44,23 +44,23 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 		{
 			name: "Pending with description and code",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (description \"desc\") (code 00000000-0000-0000-0000-000000000000) (pending true) (send USD 1|0 (source (from @A :amount USD 1|0)) (distribute (to @B :amount USD 1|0))))",
-			want: func() libTransaction.Transaction {
-				return libTransaction.Transaction{
+			want: func() pkgTransaction.Transaction {
+				return pkgTransaction.Transaction{
 					ChartOfAccountsGroupName: "FUNDING",
 					Description:              "desc",
 					Code:                     "00000000-0000-0000-0000-000000000000",
 					Pending:                  true,
-					Send: libTransaction.Send{
+					Send: pkgTransaction.Send{
 						Asset: "USD",
 						Value: decimal.RequireFromString("1"),
-						Source: libTransaction.Source{From: []libTransaction.FromTo{{
+						Source: pkgTransaction.Source{From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
 							IsFrom:       true,
 						}}},
-						Distribute: libTransaction.Distribute{To: []libTransaction.FromTo{{
+						Distribute: pkgTransaction.Distribute{To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
 							IsFrom:       false,
 						}}},
 					},
@@ -70,24 +70,24 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 		{
 			name: "Scale correctly applied (100|2 equals 1.00)",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 100|2 (source (from @A :amount USD 100|2)) (distribute (to @B :amount USD 100|2))))",
-			want: libTransaction.Transaction{
+			want: pkgTransaction.Transaction{
 				ChartOfAccountsGroupName: "FUNDING",
-				Send: libTransaction.Send{
+				Send: pkgTransaction.Send{
 					Asset: "USD",
 					Value: decimal.RequireFromString("1.00"),
-					Source: libTransaction.Source{
+					Source: pkgTransaction.Source{
 						Remaining: "",
-						From: []libTransaction.FromTo{{
+						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
 							IsFrom:       true,
 						}},
 					},
-					Distribute: libTransaction.Distribute{
+					Distribute: pkgTransaction.Distribute{
 						Remaining: "",
-						To: []libTransaction.FromTo{{
+						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
 							IsFrom:       false,
 						}},
 					},
@@ -97,24 +97,24 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 		{
 			name: "Scale correctly applied with larger scale (12345|4 equals 1.2345)",
 			dsl:  "(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 12345|4 (source (from @A :amount USD 12345|4)) (distribute (to @B :amount USD 12345|4))))",
-			want: libTransaction.Transaction{
+			want: pkgTransaction.Transaction{
 				ChartOfAccountsGroupName: "FUNDING",
-				Send: libTransaction.Send{
+				Send: pkgTransaction.Send{
 					Asset: "USD",
 					Value: decimal.RequireFromString("1.2345"),
-					Source: libTransaction.Source{
+					Source: pkgTransaction.Source{
 						Remaining: "",
-						From: []libTransaction.FromTo{{
+						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
 							IsFrom:       true,
 						}},
 					},
-					Distribute: libTransaction.Distribute{
+					Distribute: pkgTransaction.Distribute{
 						Remaining: "",
-						To: []libTransaction.FromTo{{
+						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
 							IsFrom:       false,
 						}},
 					},
@@ -129,7 +129,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 				t.Fatalf("validate failed: %+v", err)
 			}
 			got := Parse(tc.dsl)
-			tx, ok := got.(libTransaction.Transaction)
+			tx, ok := got.(pkgTransaction.Transaction)
 			if !ok {
 				t.Fatalf("unexpected parse type: %T", got)
 			}
@@ -141,7 +141,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 }
 
 // simplify clears zero-value metadata fields that may be omitted by the parser implementation.
-func simplify(t libTransaction.Transaction) libTransaction.Transaction {
+func simplify(t pkgTransaction.Transaction) pkgTransaction.Transaction {
 	// Normalize metadata empties
 	if t.Metadata != nil && len(t.Metadata) == 0 {
 		t.Metadata = nil
