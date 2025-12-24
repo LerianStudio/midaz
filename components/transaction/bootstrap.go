@@ -8,6 +8,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
 )
@@ -55,7 +56,7 @@ func InitService() TransactionService {
 func InitServiceOrError() (TransactionService, error) {
 	service, err := bootstrap.InitServersWithOptions(nil)
 	if err != nil {
-		return nil, fmt.Errorf("initializing transaction servers: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
 	return service, nil
@@ -72,7 +73,7 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		Logger: opts.Logger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("initializing transaction servers with options: %w", err)
+		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
 	return service, nil

@@ -17,6 +17,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -73,7 +74,7 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	if err != nil {
 		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
 
-		return fmt.Errorf("failed to get redis client for balance sync worker: %w", err)
+		return pkg.ValidateInternalError(err, "BalanceSyncWorker")
 	}
 
 	for {
@@ -411,7 +412,7 @@ func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID 
 		return first, u, nil
 	}
 
-	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("%w (orgID, ledgerID): %q", ErrBalanceSyncKeyMissingUUIDs, member)
+	return uuid.UUID{}, uuid.UUID{}, pkg.ValidateInternalError(ErrBalanceSyncKeyMissingUUIDs, "BalanceSyncWorker")
 }
 
 // isDelimiter checks if position i is at a delimiter (end of string or colon)
@@ -444,9 +445,13 @@ func (w *BalanceSyncWorker) tryParseUUID(seg string) (uuid.UUID, bool) {
 
 // panicAsError converts a recovered panic value to an error
 func (w *BalanceSyncWorker) panicAsError(rec any) error {
+	var panicErr error
+
 	if err, ok := rec.(error); ok {
-		return fmt.Errorf("%w: %w", ErrBalanceSyncPanicRecovered, err)
+		panicErr = fmt.Errorf("%w: %w", ErrBalanceSyncPanicRecovered, err)
+	} else {
+		panicErr = fmt.Errorf("%w: %s", ErrBalanceSyncPanicRecovered, fmt.Sprint(rec))
 	}
 
-	return fmt.Errorf("%w: %s", ErrBalanceSyncPanicRecovered, fmt.Sprint(rec))
+	return pkg.ValidateInternalError(panicErr, "BalanceSyncWorker")
 }

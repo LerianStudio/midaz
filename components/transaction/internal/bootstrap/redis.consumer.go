@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
@@ -140,7 +141,7 @@ Outer:
 func (r *RedisQueueConsumer) unmarshalAndValidateMessage(message string) (mmodel.TransactionRedisQueue, bool, error) {
 	var transaction mmodel.TransactionRedisQueue
 	if err := json.Unmarshal([]byte(message), &transaction); err != nil {
-		return mmodel.TransactionRedisQueue{}, false, fmt.Errorf("failed to unmarshal transaction: %w", err)
+		return mmodel.TransactionRedisQueue{}, false, pkg.ValidateInternalError(err, "TransactionRedisQueue")
 	}
 
 	skip := transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix()
@@ -286,7 +287,7 @@ func (r *RedisQueueConsumer) buildOperationsForTransaction(ctx context.Context, 
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 		logger.Errorf("Failed to validate balance: %v", err.Error())
 
-		return nil, fmt.Errorf("failed to build operations: %w", err)
+		return nil, pkg.ValidateInternalError(err, "RedisConsumer")
 	}
 
 	return operations, nil
@@ -300,7 +301,7 @@ func (r *RedisQueueConsumer) sendTransactionToQueue(ctx context.Context, span *t
 		libOpentelemetry.HandleSpanError(span, "Failed sending message to queue", err)
 		logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
 
-		return fmt.Errorf("failed to send transaction to execution queue: %w", err)
+		return pkg.ValidateInternalError(err, "RedisConsumer")
 	}
 
 	return nil
@@ -308,9 +309,13 @@ func (r *RedisQueueConsumer) sendTransactionToQueue(ctx context.Context, span *t
 
 // panicAsError converts a recovered panic value to an error
 func (r *RedisQueueConsumer) panicAsError(rec any) error {
+	var panicErr error
+
 	if err, ok := rec.(error); ok {
-		return fmt.Errorf("%w: %w", ErrPanicRecovered, err)
+		panicErr = fmt.Errorf("%w: %w", ErrPanicRecovered, err)
+	} else {
+		panicErr = fmt.Errorf("%w: %s", ErrPanicRecovered, fmt.Sprint(rec))
 	}
 
-	return fmt.Errorf("%w: %s", ErrPanicRecovered, fmt.Sprint(rec))
+	return pkg.ValidateInternalError(panicErr, "RedisConsumer")
 }

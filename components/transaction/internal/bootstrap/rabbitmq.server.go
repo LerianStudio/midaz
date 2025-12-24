@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -38,7 +38,7 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 // Run starts consumers for all registered queues.
 func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 	if err := mq.consumerRoutes.RunConsumers(); err != nil {
-		return fmt.Errorf("failed to run consumers: %w", err)
+		return pkg.ValidateInternalError(err, "MultiQueueConsumer")
 	}
 
 	return nil
@@ -121,7 +121,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 		logger.Errorf("Error unmarshalling accounts message JSON: %v", err)
 
-		return fmt.Errorf("failed to unmarshal balance create queue message: %w", err)
+		return pkg.ValidateInternalError(err, "Queue")
 	}
 
 	logger.Infof("Account message consumed: %s", message.AccountID)
@@ -133,12 +133,12 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 		// Log infrastructure vs business errors differently for debugging
 		if isInfrastructureError(err) {
 			logger.Errorf("Infrastructure error creating balance (will retry): %v", err)
-			return fmt.Errorf("infrastructure failure during balance creation for account %s: %w", message.AccountID, err)
+			return pkg.ValidateInternalError(err, "Queue")
 		}
 
 		logger.Errorf("Business error creating balance: %v", err)
 
-		return fmt.Errorf("failed to create balance for account %s: %w", message.AccountID, err)
+		return pkg.ValidateInternalError(err, "Queue")
 	}
 
 	return nil
@@ -161,7 +161,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
-		return fmt.Errorf("failed to unmarshal balance transaction operation message: %w", err)
+		return pkg.ValidateInternalError(err, "Queue")
 	}
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
@@ -173,12 +173,12 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 		// Log infrastructure vs business errors differently for debugging
 		if isInfrastructureError(err) {
 			logger.Errorf("Infrastructure error creating transaction (will retry): %v", err)
-			return fmt.Errorf("infrastructure failure during balance operation for transaction %s: %w", message.QueueData[0].ID, err)
+			return pkg.ValidateInternalError(err, "Queue")
 		}
 
 		logger.Errorf("Business error creating transaction: %v", err)
 
-		return fmt.Errorf("failed to create balance transaction operations for transaction %s: %w", message.QueueData[0].ID, err)
+		return pkg.ValidateInternalError(err, "Queue")
 	}
 
 	return nil

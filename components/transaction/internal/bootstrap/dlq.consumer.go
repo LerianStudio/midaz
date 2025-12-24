@@ -4,7 +4,6 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"os/signal"
@@ -17,6 +16,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -268,7 +268,7 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 	ch, err := d.RabbitMQConn.Connection.Channel()
 	if err != nil {
 		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to get channel for %s: %v", dlqName, err)
-		return nil, fmt.Errorf("failed to get channel: %w", err)
+		return nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	// Declare DLQ if it doesn't exist (idempotent)
@@ -284,7 +284,7 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 		ch.Close()
 		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to declare %s: %v", dlqName, err)
 
-		return nil, fmt.Errorf("failed to declare queue: %w", err)
+		return nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	// Set QoS for controlled processing
@@ -292,7 +292,7 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 		ch.Close()
 		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to set QoS for %s: %v", dlqName, err)
 
-		return nil, fmt.Errorf("failed to set QoS: %w", err)
+		return nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	// Get messages from DLQ (non-blocking check)
@@ -311,7 +311,7 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 		ch.Close()
 		logger.Errorf("DLQ_PROCESS_QUEUE: Failed to consume from %s: %v", dlqName, err)
 
-		return nil, fmt.Errorf("failed to start consumer: %w", err)
+		return nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	// H2: Cleanup function to cancel consumer and close channel
@@ -567,7 +567,7 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 			logger.Warnf("DLQ_REPLAY_FAILED: Failed to ack expired DLQ message: %v", err)
 		}
 
-		return fmt.Errorf("max DLQ retries exceeded (%d/%d): %w", dlqRetryCount, dlqMaxRetries, ErrMaxDLQRetriesExceeded)
+		return pkg.ValidateInternalError(ErrMaxDLQRetriesExceeded, "DLQConsumer")
 	}
 
 	// M7: SECURITY - Prepare headers for replay with allowlist (only copy safe headers)
@@ -634,7 +634,7 @@ func publishDLQMessage(conn *libRabbitmq.RabbitMQConnection, originalQueue strin
 	ch, err := conn.Connection.Channel()
 	if err != nil {
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to get channel: %v", err)
-		return nil, nil, fmt.Errorf("failed to get channel for DLQ replay: %w", err)
+		return nil, nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	cleanup := func() {
@@ -646,7 +646,7 @@ func publishDLQMessage(conn *libRabbitmq.RabbitMQConnection, originalQueue strin
 		cleanup()
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to enable confirm mode: %v", err)
 
-		return nil, nil, fmt.Errorf("failed to enable confirm mode for DLQ replay: %w", err)
+		return nil, nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
@@ -667,7 +667,7 @@ func publishDLQMessage(conn *libRabbitmq.RabbitMQConnection, originalQueue strin
 		cleanup()
 		logger.Errorf("DLQ_REPLAY_FAILED: Failed to publish to original queue: %v", err)
 
-		return nil, nil, fmt.Errorf("failed to publish DLQ message to %s: %w", originalQueue, err)
+		return nil, nil, pkg.ValidateInternalError(err, "DLQConsumer")
 	}
 
 	return confirms, cleanup, nil
@@ -680,12 +680,12 @@ func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog
 	case confirmation, ok := <-confirms:
 		if !ok {
 			logger.Errorf("DLQ_REPLAY_FAILED: Confirmation channel closed")
-			return ErrConfirmChannelClosed
+			return pkg.ValidateInternalError(ErrConfirmChannelClosed, "DLQConsumer")
 		}
 
 		if !confirmation.Ack {
 			logger.Errorf("DLQ_REPLAY_FAILED: Broker NACK'd message")
-			return ErrBrokerNackDLQReplay
+			return pkg.ValidateInternalError(ErrBrokerNackDLQReplay, "DLQConsumer")
 		}
 
 		logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
@@ -695,6 +695,6 @@ func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog
 
 	case <-time.After(publishConfirmTimeout):
 		logger.Errorf("DLQ_REPLAY_FAILED: Confirmation timeout")
-		return fmt.Errorf("confirmation timed out after %v: %w", publishConfirmTimeout, ErrDLQReplayConfirmTimeout)
+		return pkg.ValidateInternalError(ErrDLQReplayConfirmTimeout, "DLQConsumer")
 	}
 }
