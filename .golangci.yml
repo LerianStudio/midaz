@@ -129,6 +129,8 @@ linters:
         - "func github.com/LerianStudio/midaz/v3/pkg/net/http.NoContent(c *github.com/gofiber/fiber/v2.Ctx) error"
         # gRPC error mapping function - returns properly typed errors
         - "func github.com/LerianStudio/midaz/v3/pkg/mgrpc.MapAuthGRPCError(ctx context.Context, err error, code string, title string, operation string) error"
+        # gRPC status.Errorf - terminal gRPC response with proper status codes
+        - "func google.golang.org/grpc/status.Errorf(c google.golang.org/grpc/codes.Code, format string, a ...any) error"
     govet:
       enable:
         - shadow
