@@ -584,6 +584,7 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 				} else {
 					tran = refreshed
 				}
+
 				break
 			}
 		}
@@ -763,6 +764,8 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
+	ensureTransactionDefaults(trans)
+
 	if err := http.OK(c, trans); err != nil {
 		return err
 	}
@@ -846,6 +849,8 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	spanGetTransaction.End()
 
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
+
+	ensureTransactionDefaults(tran)
 
 	if err := http.OK(c, tran); err != nil {
 		return err
@@ -1314,6 +1319,8 @@ func (handler *TransactionHandler) handleIdempotencyResult(c *fiber.Ctx, existin
 	}
 
 	if existingTran != nil {
+		ensureTransactionDefaults(existingTran)
+
 		if err := http.Created(c, *existingTran); err != nil {
 			return err
 		}
@@ -1382,6 +1389,8 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "transaction_audit_log", mruntime.KeepRunning, func(ctx context.Context) {
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
+
+	ensureTransactionDefaults(tran)
 
 	if err := http.Created(c, tran); err != nil {
 		return err
@@ -1557,6 +1566,8 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
 
+	ensureTransactionDefaults(tran)
+
 	if err := http.Created(c, tran); err != nil {
 		return err
 	}
@@ -1682,4 +1693,18 @@ func getAliasWithoutKey(array []string) []string {
 	}
 
 	return result
+}
+
+func ensureTransactionDefaults(tran *transaction.Transaction) {
+	if tran == nil {
+		return
+	}
+
+	if tran.Metadata == nil {
+		tran.Metadata = map[string]any{}
+	}
+
+	if tran.Operations == nil {
+		tran.Operations = make([]*operation.Operation, 0)
+	}
 }

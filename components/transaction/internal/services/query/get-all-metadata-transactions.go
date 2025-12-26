@@ -53,6 +53,15 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	uc.populateTransactionSourcesAndMetadata(trans, metadataMap)
 
+	for i := range trans {
+		if trans[i].Metadata == nil {
+			trans[i].Metadata = map[string]any{}
+		}
+		if trans[i].Operations == nil {
+			trans[i].Operations = make([]*operation.Operation, 0)
+		}
+	}
+
 	return trans, cur, nil
 }
 

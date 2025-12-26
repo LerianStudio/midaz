@@ -47,6 +47,15 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	for i := range trans {
+		if trans[i].Metadata == nil {
+			trans[i].Metadata = map[string]any{}
+		}
+		if trans[i].Operations == nil {
+			trans[i].Operations = make([]*operation.Operation, 0)
+		}
+	}
+
 	return trans, cur, nil
 }
 
@@ -212,6 +221,10 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 		case constant.CREDIT:
 			destination = append(destination, op.AccountAlias)
 		}
+	}
+
+	if operations == nil {
+		operations = make([]*operation.Operation, 0)
 	}
 
 	tran.Source = source
