@@ -103,7 +103,8 @@ func TestGetAllOperations(t *testing.T) {
 		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
 
 		assert.NoError(t, err)
-		assert.Nil(t, result)
+		assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 		assert.Equal(t, mockCur, cur)
 	})
 

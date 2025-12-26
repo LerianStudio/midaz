@@ -24,7 +24,9 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 	logger.Infof("Retrieving operations by account")
 
-	op, cur, err := uc.OperationRepo.FindAll(ctx, organizationID, ledgerID, transactionID, filter.ToCursorPagination())
+	op, cur, err := waitForOperations(ctx, func(ctx context.Context) ([]*operation.Operation, libHTTP.CursorPagination, error) {
+		return uc.OperationRepo.FindAll(ctx, organizationID, ledgerID, transactionID, filter.ToCursorPagination())
+	})
 	if err != nil {
 		logger.Errorf("Error getting all operations on repo: %v", err)
 
@@ -41,6 +43,10 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Operation")
+	}
+
+	if op == nil {
+		op = make([]*operation.Operation, 0)
 	}
 
 	if len(op) == 0 {
