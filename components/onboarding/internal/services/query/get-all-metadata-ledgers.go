@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 	logger.Infof("Retrieving ledgers")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 			ledgers[i].Metadata = data
 		}
 	}
+
+	ledgers = paginateSlice(ledgers, filter.Page, filter.Limit)
 
 	return ledgers, nil
 }

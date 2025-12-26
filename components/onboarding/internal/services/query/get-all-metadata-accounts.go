@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 	logger.Infof("Retrieving accounts")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 			accounts[i].Metadata = data
 		}
 	}
+
+	accounts = paginateSlice(accounts, filter.Page, filter.Limit)
 
 	return accounts, nil
 }

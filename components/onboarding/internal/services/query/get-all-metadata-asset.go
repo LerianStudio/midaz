@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 	logger.Infof("Retrieving assets")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 			assets[idx].Metadata = data
 		}
 	}
+
+	assets = paginateSlice(assets, filter.Page, filter.Limit)
 
 	return assets, nil
 }

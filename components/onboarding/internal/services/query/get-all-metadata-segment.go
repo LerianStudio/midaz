@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	logger.Infof("Retrieving segments")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 			segments[i].Metadata = data
 		}
 	}
+
+	segments = paginateSlice(segments, filter.Page, filter.Limit)
 
 	return segments, nil
 }

@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 	logger.Infof("Retrieving organizations")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 			organizations[i].Metadata = data
 		}
 	}
+
+	organizations = paginateSlice(organizations, filter.Page, filter.Limit)
 
 	return organizations, nil
 }

@@ -25,7 +25,10 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 	logger.Infof("Retrieving portfolios")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
@@ -72,6 +75,8 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 			portfolios[i].Metadata = data
 		}
 	}
+
+	portfolios = paginateSlice(portfolios, filter.Page, filter.Limit)
 
 	return portfolios, nil
 }

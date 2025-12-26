@@ -26,7 +26,10 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	logger.Infof("Retrieving account types by metadata")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), filter)
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), metadataFilter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
@@ -71,6 +74,8 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 			accountTypes[i].Metadata = data
 		}
 	}
+
+	accountTypes = paginateSlice(accountTypes, filter.Page, filter.Limit)
 
 	cur := libHTTP.CursorPagination{}
 
