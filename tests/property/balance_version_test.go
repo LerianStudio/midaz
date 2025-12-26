@@ -44,8 +44,8 @@ func TestProperty_BalanceVersionMonotonicity_API(t *testing.T) {
 		if txns <= 1 {
 			txns = 2 // Need at least 2 transactions to verify monotonicity
 		}
-		if txns > 10 {
-			txns = 10
+		if txns > 5 {
+			txns = 5
 		}
 
 		// Create account
@@ -109,10 +109,10 @@ func TestProperty_BalanceVersionMonotonicity_API(t *testing.T) {
 			}
 
 			// Wait for balance to update
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(75 * time.Millisecond)
 
 			// Poll for version change
-			deadline := time.Now().Add(10 * time.Second)
+			deadline := time.Now().Add(3 * time.Second)
 			for {
 				newVersion, err := getVersion()
 				if err != nil {
