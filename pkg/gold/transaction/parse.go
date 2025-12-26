@@ -1,10 +1,10 @@
 package transaction
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/antlr4-go/antlr/v4"
@@ -17,6 +17,7 @@ const (
 
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
+	err error
 }
 
 func NewTransactionVisitor() *TransactionVisitor {
@@ -26,6 +27,11 @@ func NewTransactionVisitor() *TransactionVisitor {
 func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) }
 
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("transaction context is nil"))
+		return nil
+	}
+
 	var description string
 	if ctx.Description() != nil {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
@@ -46,7 +52,12 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(pkgTransaction.Send)
+	var send pkgTransaction.Send
+	if ctx.Send() != nil {
+		send = v.VisitSend(ctx.Send().(*parser.SendContext)).(pkgTransaction.Send)
+	} else {
+		v.setError(fmt.Errorf("send section is missing"))
+	}
 
 	transaction := pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: v.VisitVisitChartOfAccountsGroupName(ctx.ChartOfAccountsGroupName().(*parser.ChartOfAccountsGroupNameContext)).(string),
@@ -61,22 +72,38 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 }
 
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
+	if ctx == nil || ctx.UUID() == nil {
+		v.setError(fmt.Errorf("chart-of-accounts-group-name must be UUID"))
+		return ""
+	}
+
 	return ctx.UUID().GetText()
 }
 
 func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
+	if ctx == nil {
+		return ""
+	}
+
 	if ctx.UUID() != nil {
 		return ctx.UUID().GetText()
 	}
 
-	return nil
+	return ""
 }
 
 func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
+	if ctx == nil {
+		return false
+	}
+
 	if ctx.TrueOrFalse() != nil {
 		text := ctx.TrueOrFalse().GetText()
 		pending, err := strconv.ParseBool(text)
-		assert.NoError(err, "DSL boolean must be valid after ANTLR validation", "value", text)
+		if err != nil {
+			v.setError(fmt.Errorf("invalid pending boolean: %w", err))
+			return false
+		}
 
 		return pending
 	}
@@ -85,10 +112,19 @@ func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 }
 
 func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) any {
+	if ctx == nil || ctx.STRING() == nil {
+		return ""
+	}
+
 	return strings.Trim(ctx.STRING().GetText(), "\"")
 }
 
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
+	if ctx == nil || ctx.UUID() == nil {
+		v.setError(fmt.Errorf("chart-of-accounts must be UUID"))
+		return ""
+	}
+
 	return ctx.UUID().GetText()
 }
 
@@ -104,6 +140,11 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 }
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
+	if ctx == nil || ctx.Key() == nil || ctx.Value() == nil {
+		v.setError(fmt.Errorf("invalid metadata pair"))
+		return pkgTransaction.Metadata{}
+	}
+
 	return pkgTransaction.Metadata{
 		Key:   ctx.Key().GetText(),
 		Value: ctx.Value().GetText(),
@@ -111,32 +152,78 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 }
 
 func (v *TransactionVisitor) VisitNumericValue(ctx *parser.NumericValueContext) any {
+	if ctx == nil || ctx.INT() == nil {
+		v.setError(fmt.Errorf("numeric value is missing"))
+		return ""
+	}
+
 	return ctx.INT().GetText()
 }
 
 // parseDecimalWithScale parses a value|scale pair and returns the scaled decimal.
 // For example, "100" with scale "2" returns 1.00 (100 * 10^-2).
-func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx *parser.NumericValueContext, context string) decimal.Decimal {
-	valStr := v.VisitNumericValue(valueCtx).(string)
-	scaleStr := v.VisitNumericValue(scaleCtx).(string)
+func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INumericValueContext, context string) decimal.Decimal {
+	valueNode := numericValueContext(valueCtx)
+	scaleNode := numericValueContext(scaleCtx)
+
+	if valueNode == nil || scaleNode == nil {
+		v.setError(fmt.Errorf("missing %s numeric value or scale", context))
+		return decimal.Zero
+	}
+
+	valStr := v.VisitNumericValue(valueNode).(string)
+	scaleStr := v.VisitNumericValue(scaleNode).(string)
+
+	if valStr == "" || scaleStr == "" {
+		v.setError(fmt.Errorf("invalid %s numeric value or scale", context))
+		return decimal.Zero
+	}
 
 	value, err := decimal.NewFromString(valStr)
-	assert.NoError(err, "DSL "+context+" value must be valid decimal after ANTLR validation", "value", valStr)
+	if err != nil {
+		v.setError(fmt.Errorf("invalid %s decimal value: %w", context, err))
+		return decimal.Zero
+	}
 
 	scale, err := strconv.ParseInt(scaleStr, 10, 32)
-	assert.NoError(err, "DSL "+context+" scale must be valid integer after ANTLR validation", "scale", scaleStr)
+	if err != nil {
+		v.setError(fmt.Errorf("invalid %s scale: %w", context, err))
+		return decimal.Zero
+	}
 
 	return value.Shift(-int32(scale))
 }
 
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
-	asset := ctx.UUID().GetText()
-	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(pkgTransaction.Source)
-	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(pkgTransaction.Distribute)
+	if ctx == nil {
+		v.setError(fmt.Errorf("send context is nil"))
+		return pkgTransaction.Send{}
+	}
+
+	asset := ""
+	if ctx.UUID() != nil {
+		asset = ctx.UUID().GetText()
+	} else {
+		v.setError(fmt.Errorf("send asset must be UUID"))
+	}
+
+	var source pkgTransaction.Source
+	if ctx.Source() != nil {
+		source = v.VisitSource(ctx.Source().(*parser.SourceContext)).(pkgTransaction.Source)
+	} else {
+		v.setError(fmt.Errorf("send source is missing"))
+	}
+
+	var distribute pkgTransaction.Distribute
+	if ctx.Distribute() != nil {
+		distribute = v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(pkgTransaction.Distribute)
+	} else {
+		v.setError(fmt.Errorf("send distribute is missing"))
+	}
 
 	value := v.parseDecimalWithScale(
-		ctx.NumericValue(0).(*parser.NumericValueContext),
-		ctx.NumericValue(1).(*parser.NumericValueContext),
+		ctx.NumericValue(0),
+		ctx.NumericValue(1),
 		"send",
 	)
 
@@ -149,6 +236,11 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 }
 
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("source context is nil"))
+		return pkgTransaction.Source{}
+	}
+
 	var remaining string
 	if ctx.REMAINING() != nil {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
@@ -168,6 +260,11 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 }
 
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("account context is nil"))
+		return ""
+	}
+
 	switch {
 	case ctx.UUID() != nil:
 		return ctx.UUID().GetText()
@@ -181,13 +278,23 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 }
 
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("rate context is nil"))
+		return pkgTransaction.Rate{}
+	}
+
+	if ctx.UUID(0) == nil || ctx.UUID(1) == nil || ctx.UUID(rateToUUIDIndex) == nil {
+		v.setError(fmt.Errorf("rate UUID fields missing"))
+		return pkgTransaction.Rate{}
+	}
+
 	externalID := ctx.UUID(0).GetText()
 	from := ctx.UUID(1).GetText()
 	to := ctx.UUID(rateToUUIDIndex).GetText()
 
 	value := v.parseDecimalWithScale(
-		ctx.NumericValue(0).(*parser.NumericValueContext),
-		ctx.NumericValue(1).(*parser.NumericValueContext),
+		ctx.NumericValue(0),
+		ctx.NumericValue(1),
 		"rate",
 	)
 
@@ -200,15 +307,30 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 }
 
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("remaining context is nil"))
+		return ""
+	}
+
 	return strings.Trim(ctx.GetText(), ":")
 }
 
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
-	asset := ctx.UUID().GetText()
+	if ctx == nil {
+		v.setError(fmt.Errorf("amount context is nil"))
+		return pkgTransaction.Amount{}
+	}
+
+	asset := ""
+	if ctx.UUID() != nil {
+		asset = ctx.UUID().GetText()
+	} else {
+		v.setError(fmt.Errorf("amount asset must be UUID"))
+	}
 
 	value := v.parseDecimalWithScale(
-		ctx.NumericValue(0).(*parser.NumericValueContext),
-		ctx.NumericValue(1).(*parser.NumericValueContext),
+		ctx.NumericValue(0),
+		ctx.NumericValue(1),
 		"amount",
 	)
 
@@ -219,9 +341,17 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 }
 
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
-	percentageStr := v.VisitNumericValue(ctx.NumericValue().(*parser.NumericValueContext)).(string)
+	if ctx == nil {
+		v.setError(fmt.Errorf("share context is nil"))
+		return pkgTransaction.Share{}
+	}
+
+	percentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue())).(string)
 	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
-	assert.NoError(err, "DSL share percentage must be valid integer after ANTLR validation", "value", percentageStr)
+	if err != nil {
+		v.setError(fmt.Errorf("invalid share percentage: %w", err))
+		return pkgTransaction.Share{}
+	}
 
 	return pkgTransaction.Share{
 		Percentage:             percentage,
@@ -230,13 +360,24 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 }
 
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
-	percentageStr := v.VisitNumericValue(ctx.NumericValue(0).(*parser.NumericValueContext)).(string)
-	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
-	assert.NoError(err, "DSL share percentage must be valid integer after ANTLR validation", "value", percentageStr)
+	if ctx == nil {
+		v.setError(fmt.Errorf("share context is nil"))
+		return pkgTransaction.Share{}
+	}
 
-	percentageOfPercentageStr := v.VisitNumericValue(ctx.NumericValue(1).(*parser.NumericValueContext)).(string)
+	percentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue(0))).(string)
+	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
+	if err != nil {
+		v.setError(fmt.Errorf("invalid share percentage: %w", err))
+		return pkgTransaction.Share{}
+	}
+
+	percentageOfPercentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue(1))).(string)
 	percentageOfPercentage, err := strconv.ParseInt(percentageOfPercentageStr, 10, 64)
-	assert.NoError(err, "DSL share percentageOfPercentage must be valid integer after ANTLR validation", "value", percentageOfPercentageStr)
+	if err != nil {
+		v.setError(fmt.Errorf("invalid share percentageOfPercentage: %w", err))
+		return pkgTransaction.Share{}
+	}
 
 	return pkgTransaction.Share{
 		Percentage:             percentage,
@@ -245,7 +386,17 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 }
 
 func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
-	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
+	if ctx == nil {
+		v.setError(fmt.Errorf("from context is nil"))
+		return pkgTransaction.FromTo{}
+	}
+
+	account := ""
+	if ctx.Account() != nil {
+		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
+	} else {
+		v.setError(fmt.Errorf("from account is missing"))
+	}
 
 	var description string
 	if ctx.Description() != nil {
@@ -263,15 +414,17 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 
 	var remaining string
 
-	switch ctx.SendTypes().(type) {
+	switch sendTypes := ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(pkgTransaction.Amount)
+		amount = v.VisitAmount(sendTypes).(pkgTransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareInt(sendTypes).(pkgTransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareIntOfInt(sendTypes).(pkgTransaction.Share)
+	case *parser.RemainingContext:
+		remaining = v.VisitRemaining(sendTypes).(string)
 	default:
-		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
+		v.setError(fmt.Errorf("from send type is missing"))
 	}
 
 	var rate *pkgTransaction.Rate
@@ -297,7 +450,17 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 }
 
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
-	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
+	if ctx == nil {
+		v.setError(fmt.Errorf("to context is nil"))
+		return pkgTransaction.FromTo{}
+	}
+
+	account := ""
+	if ctx.Account() != nil {
+		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
+	} else {
+		v.setError(fmt.Errorf("to account is missing"))
+	}
 
 	var description string
 	if ctx.Description() != nil {
@@ -315,15 +478,17 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 
 	var remaining string
 
-	switch ctx.SendTypes().(type) {
+	switch sendTypes := ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(pkgTransaction.Amount)
+		amount = v.VisitAmount(sendTypes).(pkgTransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareInt(sendTypes).(pkgTransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(pkgTransaction.Share)
+		share = v.VisitShareIntOfInt(sendTypes).(pkgTransaction.Share)
+	case *parser.RemainingContext:
+		remaining = v.VisitRemaining(sendTypes).(string)
 	default:
-		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
+		v.setError(fmt.Errorf("to send type is missing"))
 	}
 
 	var rate *pkgTransaction.Rate
@@ -349,6 +514,11 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 }
 
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
+	if ctx == nil {
+		v.setError(fmt.Errorf("distribute context is nil"))
+		return pkgTransaction.Distribute{}
+	}
+
 	var remaining string
 	if ctx.REMAINING() != nil {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
@@ -373,9 +543,47 @@ func Parse(dsl string) any {
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 
 	p := parser.NewTransactionParser(stream)
+	lexerErrors := &Error{}
+	parserErrors := &Error{}
+	lexer.RemoveErrorListeners()
+	lexer.AddErrorListener(lexerErrors)
+	p.RemoveErrorListeners()
+	p.AddErrorListener(parserErrors)
 	p.BuildParseTrees = true
+	p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
+
+	tree := p.Transaction()
+	if len(lexerErrors.Errors) > 0 || len(parserErrors.Errors) > 0 {
+		return nil
+	}
+
 	visitor := NewTransactionVisitor()
-	transaction := visitor.Visit(p.Transaction())
+	transaction := visitor.Visit(tree)
+
+	if visitor.err != nil {
+		return nil
+	}
 
 	return transaction
+}
+
+func (v *TransactionVisitor) setError(err error) {
+	if err == nil || v.err != nil {
+		return
+	}
+
+	v.err = err
+}
+
+func numericValueContext(ctx parser.INumericValueContext) *parser.NumericValueContext {
+	if ctx == nil {
+		return nil
+	}
+
+	valueNode, ok := ctx.(*parser.NumericValueContext)
+	if !ok {
+		return nil
+	}
+
+	return valueNode
 }
