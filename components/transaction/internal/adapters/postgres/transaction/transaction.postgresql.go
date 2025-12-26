@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 var transactionColumnList = []string{
@@ -945,7 +946,35 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 // scanTransactionWithOperationRow scans a transaction with operation join row.
 func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLModel, *operation.OperationPostgreSQLModel, *string, error) {
 	tran := &TransactionPostgreSQLModel{}
-	op := &operation.OperationPostgreSQLModel{}
+	type operationRow struct {
+		ID                    sql.NullString
+		TransactionID         sql.NullString
+		Description           sql.NullString
+		Type                  sql.NullString
+		AssetCode             sql.NullString
+		Amount                decimal.NullDecimal
+		AvailableBalance      decimal.NullDecimal
+		OnHoldBalance         decimal.NullDecimal
+		AvailableBalanceAfter decimal.NullDecimal
+		OnHoldBalanceAfter    decimal.NullDecimal
+		Status                sql.NullString
+		StatusDescription     sql.NullString
+		AccountID             sql.NullString
+		AccountAlias          sql.NullString
+		BalanceID             sql.NullString
+		ChartOfAccounts       sql.NullString
+		OrganizationID        sql.NullString
+		LedgerID              sql.NullString
+		CreatedAt             sql.NullTime
+		UpdatedAt             sql.NullTime
+		DeletedAt             sql.NullTime
+		Route                 sql.NullString
+		BalanceAffected       sql.NullBool
+		BalanceKey            sql.NullString
+		VersionBalance        sql.NullInt64
+		VersionBalanceAfter   sql.NullInt64
+	}
+	opRow := &operationRow{}
 
 	var body *string
 
@@ -965,35 +994,93 @@ func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLMode
 		&tran.UpdatedAt,
 		&tran.DeletedAt,
 		&tran.Route,
-		&op.ID,
-		&op.TransactionID,
-		&op.Description,
-		&op.Type,
-		&op.AssetCode,
-		&op.Amount,
-		&op.AvailableBalance,
-		&op.OnHoldBalance,
-		&op.AvailableBalanceAfter,
-		&op.OnHoldBalanceAfter,
-		&op.Status,
-		&op.StatusDescription,
-		&op.AccountID,
-		&op.AccountAlias,
-		&op.BalanceID,
-		&op.ChartOfAccounts,
-		&op.OrganizationID,
-		&op.LedgerID,
-		&op.CreatedAt,
-		&op.UpdatedAt,
-		&op.DeletedAt,
-		&op.Route,
-		&op.BalanceAffected,
-		&op.BalanceKey,
-		&op.VersionBalance,
-		&op.VersionBalanceAfter,
+		&opRow.ID,
+		&opRow.TransactionID,
+		&opRow.Description,
+		&opRow.Type,
+		&opRow.AssetCode,
+		&opRow.Amount,
+		&opRow.AvailableBalance,
+		&opRow.OnHoldBalance,
+		&opRow.AvailableBalanceAfter,
+		&opRow.OnHoldBalanceAfter,
+		&opRow.Status,
+		&opRow.StatusDescription,
+		&opRow.AccountID,
+		&opRow.AccountAlias,
+		&opRow.BalanceID,
+		&opRow.ChartOfAccounts,
+		&opRow.OrganizationID,
+		&opRow.LedgerID,
+		&opRow.CreatedAt,
+		&opRow.UpdatedAt,
+		&opRow.DeletedAt,
+		&opRow.Route,
+		&opRow.BalanceAffected,
+		&opRow.BalanceKey,
+		&opRow.VersionBalance,
+		&opRow.VersionBalanceAfter,
 	)
 	if err != nil {
 		return nil, nil, nil, pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	if !opRow.ID.Valid {
+		return tran, nil, body, nil
+	}
+
+	op := &operation.OperationPostgreSQLModel{
+		ID:              opRow.ID.String,
+		TransactionID:   opRow.TransactionID.String,
+		Description:     opRow.Description.String,
+		Type:            opRow.Type.String,
+		AssetCode:       opRow.AssetCode.String,
+		Status:          opRow.Status.String,
+		AccountID:       opRow.AccountID.String,
+		AccountAlias:    opRow.AccountAlias.String,
+		BalanceID:       opRow.BalanceID.String,
+		BalanceKey:      opRow.BalanceKey.String,
+		ChartOfAccounts: opRow.ChartOfAccounts.String,
+		OrganizationID:  opRow.OrganizationID.String,
+		LedgerID:        opRow.LedgerID.String,
+		DeletedAt:       opRow.DeletedAt,
+	}
+
+	if opRow.Amount.Valid {
+		op.Amount = &opRow.Amount.Decimal
+	}
+	if opRow.AvailableBalance.Valid {
+		op.AvailableBalance = &opRow.AvailableBalance.Decimal
+	}
+	if opRow.OnHoldBalance.Valid {
+		op.OnHoldBalance = &opRow.OnHoldBalance.Decimal
+	}
+	if opRow.AvailableBalanceAfter.Valid {
+		op.AvailableBalanceAfter = &opRow.AvailableBalanceAfter.Decimal
+	}
+	if opRow.OnHoldBalanceAfter.Valid {
+		op.OnHoldBalanceAfter = &opRow.OnHoldBalanceAfter.Decimal
+	}
+	if opRow.VersionBalance.Valid {
+		op.VersionBalance = &opRow.VersionBalance.Int64
+	}
+	if opRow.VersionBalanceAfter.Valid {
+		op.VersionBalanceAfter = &opRow.VersionBalanceAfter.Int64
+	}
+	if opRow.StatusDescription.Valid {
+		op.StatusDescription = &opRow.StatusDescription.String
+	}
+	if opRow.Route.Valid {
+		op.Route = &opRow.Route.String
+	}
+	if opRow.BalanceAffected.Valid {
+		op.BalanceAffected = opRow.BalanceAffected.Bool
+	}
+	if opRow.CreatedAt.Valid {
+		op.CreatedAt = opRow.CreatedAt.Time
+	}
+	if opRow.UpdatedAt.Valid {
+		op.UpdatedAt = opRow.UpdatedAt.Time
 	}
 
 	return tran, op, body, nil
@@ -1040,7 +1127,9 @@ func groupTransactionsByID(rows *sql.Rows) (map[uuid.UUID]*Transaction, []uuid.U
 			transactionOrder = append(transactionOrder, transactionUUID)
 		}
 
-		t.Operations = append(t.Operations, op.ToEntity())
+		if op != nil {
+			t.Operations = append(t.Operations, op.ToEntity())
+		}
 	}
 
 	if err := rows.Err(); err != nil {
