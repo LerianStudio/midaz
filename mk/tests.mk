@@ -267,18 +267,25 @@ endif
 	else \
 	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
 	fi; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying fuzz engine once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
-	fi
+	fuzz_list=$$(go test -list '^Fuzz' ./tests/fuzzy | grep '^Fuzz' || true); \
+	if [ -z "$$fuzz_list" ]; then \
+	  echo "No fuzz tests found in ./tests/fuzzy"; \
+	  exit 1; \
+	fi; \
+	for fuzz in $$fuzz_list; do \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/$$fuzz.xml -- -v -race -fuzz="^$$fuzz$$" -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
+	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	        echo "Retrying fuzz engine for $$fuzz once..."; \
+	        ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/$$fuzz-rerun.xml -- -v -race -fuzz="^$$fuzz$$" -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	      else \
+	        exit 1; \
+	      fi; \
+	    }; \
+	  else \
+	    ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) go test -v -race -fuzz="^$$fuzz$$" -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	  fi; \
+	done
 
 # Security tests (run only when auth plugin enabled)
 .PHONY: test-security
@@ -434,5 +441,4 @@ test-all:
 	$(MAKE) test-fuzzy
 	$(call print_title,Running fuzz engine tests)
 	$(MAKE) test-fuzz-engine
-
 
