@@ -30,6 +30,8 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 		return pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, entityType)
 	case "idx_account_type_unique_key_value":
 		return pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, entityType)
+	case "idx_account_alias_unique":
+		return pkg.ValidateBusinessError(constant.ErrAliasUnavailability, entityType)
 	default:
 		return pgErr
 	}
