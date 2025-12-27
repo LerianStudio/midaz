@@ -16,6 +16,39 @@ const (
 	rateToUUIDIndex = 2
 )
 
+// Static error variables for err113 compliance.
+var (
+	ErrTransactionContextNil           = errors.New("transaction context is nil")
+	ErrSendSectionMissing              = errors.New("send section is missing")
+	ErrChartOfAccountsGroupNameUUID    = errors.New("chart-of-accounts-group-name must be UUID")
+	ErrChartOfAccountsUUID             = errors.New("chart-of-accounts must be UUID")
+	ErrInvalidMetadataPair             = errors.New("invalid metadata pair")
+	ErrNumericValueMissing             = errors.New("numeric value is missing")
+	ErrMissingNumericValueOrScale      = errors.New("missing numeric value or scale")
+	ErrInvalidNumericValueOrScale      = errors.New("invalid numeric value or scale")
+	ErrSendContextNil                  = errors.New("send context is nil")
+	ErrSendAssetUUID                   = errors.New("send asset must be UUID")
+	ErrSendSourceMissing               = errors.New("send source is missing")
+	ErrSendDistributeMissing           = errors.New("send distribute is missing")
+	ErrSourceContextNil                = errors.New("source context is nil")
+	ErrAccountContextNil               = errors.New("account context is nil")
+	ErrRateContextNil                  = errors.New("rate context is nil")
+	ErrRateUUIDFieldsMissing           = errors.New("rate UUID fields missing")
+	ErrRemainingContextNil             = errors.New("remaining context is nil")
+	ErrAmountContextNil                = errors.New("amount context is nil")
+	ErrAmountAssetUUID                 = errors.New("amount asset must be UUID")
+	ErrShareContextNil                 = errors.New("share context is nil")
+	ErrInvalidSharePercentage          = errors.New("invalid share percentage")
+	ErrInvalidSharePercentageOfPercent = errors.New("invalid share percentageOfPercentage")
+	ErrFromContextNil                  = errors.New("from context is nil")
+	ErrFromAccountMissing              = errors.New("from account is missing")
+	ErrFromSendTypeMissing             = errors.New("from send type is missing")
+	ErrToContextNil                    = errors.New("to context is nil")
+	ErrToAccountMissing                = errors.New("to account is missing")
+	ErrToSendTypeMissing               = errors.New("to send type is missing")
+	ErrDistributeContextNil            = errors.New("distribute context is nil")
+)
+
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 	err error
@@ -29,7 +62,7 @@ func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accep
 
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
 	if ctx == nil {
-		v.setError(errors.New("transaction context is nil"))
+		v.setError(ErrTransactionContextNil)
 		return nil
 	}
 
@@ -57,7 +90,7 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	if ctx.Send() != nil {
 		send = v.VisitSend(ctx.Send().(*parser.SendContext)).(pkgTransaction.Send)
 	} else {
-		v.setError(errors.New("send section is missing"))
+		v.setError(ErrSendSectionMissing)
 	}
 
 	transaction := pkgTransaction.Transaction{
@@ -74,7 +107,7 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
 	if ctx == nil || ctx.UUID() == nil {
-		v.setError(errors.New("chart-of-accounts-group-name must be UUID"))
+		v.setError(ErrChartOfAccountsGroupNameUUID)
 		return ""
 	}
 
@@ -123,7 +156,7 @@ func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) an
 
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
 	if ctx == nil || ctx.UUID() == nil {
-		v.setError(errors.New("chart-of-accounts must be UUID"))
+		v.setError(ErrChartOfAccountsUUID)
 		return ""
 	}
 
@@ -143,7 +176,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	if ctx == nil || ctx.Key() == nil || ctx.Value() == nil {
-		v.setError(errors.New("invalid metadata pair"))
+		v.setError(ErrInvalidMetadataPair)
 		return pkgTransaction.Metadata{}
 	}
 
@@ -155,7 +188,7 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 
 func (v *TransactionVisitor) VisitNumericValue(ctx *parser.NumericValueContext) any {
 	if ctx == nil || ctx.INT() == nil {
-		v.setError(errors.New("numeric value is missing"))
+		v.setError(ErrNumericValueMissing)
 		return ""
 	}
 
@@ -169,7 +202,7 @@ func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INu
 	scaleNode := numericValueContext(scaleCtx)
 
 	if valueNode == nil || scaleNode == nil {
-		v.setError(fmt.Errorf("missing %s numeric value or scale", context))
+		v.setError(fmt.Errorf("%s: %w", context, ErrMissingNumericValueOrScale))
 		return decimal.Zero
 	}
 
@@ -177,19 +210,19 @@ func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INu
 	scaleStr := v.VisitNumericValue(scaleNode).(string)
 
 	if valStr == "" || scaleStr == "" {
-		v.setError(fmt.Errorf("invalid %s numeric value or scale", context))
+		v.setError(fmt.Errorf("%s: %w", context, ErrInvalidNumericValueOrScale))
 		return decimal.Zero
 	}
 
 	value, err := decimal.NewFromString(valStr)
 	if err != nil {
-		v.setError(fmt.Errorf("invalid %s decimal value: %w", context, err))
+		v.setError(fmt.Errorf("%s decimal value: %w", context, err))
 		return decimal.Zero
 	}
 
 	scale, err := strconv.ParseInt(scaleStr, 10, 32)
 	if err != nil {
-		v.setError(fmt.Errorf("invalid %s scale: %w", context, err))
+		v.setError(fmt.Errorf("%s scale: %w", context, err))
 		return decimal.Zero
 	}
 
@@ -198,7 +231,7 @@ func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INu
 
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	if ctx == nil {
-		v.setError(errors.New("send context is nil"))
+		v.setError(ErrSendContextNil)
 		return pkgTransaction.Send{}
 	}
 
@@ -206,21 +239,21 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	if ctx.UUID() != nil {
 		asset = ctx.UUID().GetText()
 	} else {
-		v.setError(errors.New("send asset must be UUID"))
+		v.setError(ErrSendAssetUUID)
 	}
 
 	var source pkgTransaction.Source
 	if ctx.Source() != nil {
 		source = v.VisitSource(ctx.Source().(*parser.SourceContext)).(pkgTransaction.Source)
 	} else {
-		v.setError(errors.New("send source is missing"))
+		v.setError(ErrSendSourceMissing)
 	}
 
 	var distribute pkgTransaction.Distribute
 	if ctx.Distribute() != nil {
 		distribute = v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(pkgTransaction.Distribute)
 	} else {
-		v.setError(errors.New("send distribute is missing"))
+		v.setError(ErrSendDistributeMissing)
 	}
 
 	value := v.parseDecimalWithScale(
@@ -239,7 +272,7 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	if ctx == nil {
-		v.setError(errors.New("source context is nil"))
+		v.setError(ErrSourceContextNil)
 		return pkgTransaction.Source{}
 	}
 
@@ -263,7 +296,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	if ctx == nil {
-		v.setError(errors.New("account context is nil"))
+		v.setError(ErrAccountContextNil)
 		return ""
 	}
 
@@ -281,12 +314,12 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	if ctx == nil {
-		v.setError(errors.New("rate context is nil"))
+		v.setError(ErrRateContextNil)
 		return pkgTransaction.Rate{}
 	}
 
 	if ctx.UUID(0) == nil || ctx.UUID(1) == nil || ctx.UUID(rateToUUIDIndex) == nil {
-		v.setError(errors.New("rate UUID fields missing"))
+		v.setError(ErrRateUUIDFieldsMissing)
 		return pkgTransaction.Rate{}
 	}
 
@@ -310,7 +343,7 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	if ctx == nil {
-		v.setError(errors.New("remaining context is nil"))
+		v.setError(ErrRemainingContextNil)
 		return ""
 	}
 
@@ -319,7 +352,7 @@ func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	if ctx == nil {
-		v.setError(errors.New("amount context is nil"))
+		v.setError(ErrAmountContextNil)
 		return pkgTransaction.Amount{}
 	}
 
@@ -327,7 +360,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	if ctx.UUID() != nil {
 		asset = ctx.UUID().GetText()
 	} else {
-		v.setError(errors.New("amount asset must be UUID"))
+		v.setError(ErrAmountAssetUUID)
 	}
 
 	value := v.parseDecimalWithScale(
@@ -344,7 +377,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	if ctx == nil {
-		v.setError(errors.New("share context is nil"))
+		v.setError(ErrShareContextNil)
 		return pkgTransaction.Share{}
 	}
 
@@ -352,7 +385,7 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 
 	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
 	if err != nil {
-		v.setError(fmt.Errorf("invalid share percentage: %w", err))
+		v.setError(fmt.Errorf("%w: %w", ErrInvalidSharePercentage, err))
 		return pkgTransaction.Share{}
 	}
 
@@ -364,7 +397,7 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
 	if ctx == nil {
-		v.setError(errors.New("share context is nil"))
+		v.setError(ErrShareContextNil)
 		return pkgTransaction.Share{}
 	}
 
@@ -372,7 +405,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 
 	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
 	if err != nil {
-		v.setError(fmt.Errorf("invalid share percentage: %w", err))
+		v.setError(fmt.Errorf("%w: %w", ErrInvalidSharePercentage, err))
 		return pkgTransaction.Share{}
 	}
 
@@ -380,7 +413,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 
 	percentageOfPercentage, err := strconv.ParseInt(percentageOfPercentageStr, 10, 64)
 	if err != nil {
-		v.setError(fmt.Errorf("invalid share percentageOfPercentage: %w", err))
+		v.setError(fmt.Errorf("%w: %w", ErrInvalidSharePercentageOfPercent, err))
 		return pkgTransaction.Share{}
 	}
 
@@ -390,57 +423,92 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 }
 
-func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
-	if ctx == nil {
-		v.setError(errors.New("from context is nil"))
-		return pkgTransaction.FromTo{}
+// parseFromToAccount extracts account from context and handles errors.
+func (v *TransactionVisitor) parseFromToAccount(accountCtx parser.IAccountContext, isFrom bool) string {
+	if accountCtx == nil {
+		if isFrom {
+			v.setError(ErrFromAccountMissing)
+		} else {
+			v.setError(ErrToAccountMissing)
+		}
+
+		return ""
 	}
 
-	account := ""
-	if ctx.Account() != nil {
-		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
-	} else {
-		v.setError(errors.New("from account is missing"))
+	return v.VisitAccount(accountCtx.(*parser.AccountContext)).(string)
+}
+
+// parseFromToDescription extracts description from context.
+func (v *TransactionVisitor) parseFromToDescription(descCtx parser.IDescriptionContext) string {
+	if descCtx == nil {
+		return ""
 	}
 
-	var description string
-	if ctx.Description() != nil {
-		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
+	return v.VisitDescription(descCtx.(*parser.DescriptionContext)).(string)
+}
+
+// parseFromToMetadata extracts metadata from context.
+func (v *TransactionVisitor) parseFromToMetadata(metaCtx parser.IMetadataContext) map[string]any {
+	if metaCtx == nil {
+		return nil
 	}
 
-	var metadata map[string]any
-	if ctx.Metadata() != nil {
-		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
-	}
+	return v.VisitMetadata(metaCtx.(*parser.MetadataContext)).(map[string]any)
+}
 
+// parseSendTypes parses the send types (amount, share, or remaining).
+func (v *TransactionVisitor) parseSendTypes(sendTypes parser.ISendTypesContext, isFrom bool) (pkgTransaction.Amount, pkgTransaction.Share, string) {
 	var amount pkgTransaction.Amount
 
 	var share pkgTransaction.Share
 
 	var remaining string
 
-	switch sendTypes := ctx.SendTypes().(type) {
+	switch st := sendTypes.(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(sendTypes).(pkgTransaction.Amount)
+		amount = v.VisitAmount(st).(pkgTransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(sendTypes).(pkgTransaction.Share)
+		share = v.VisitShareInt(st).(pkgTransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(sendTypes).(pkgTransaction.Share)
+		share = v.VisitShareIntOfInt(st).(pkgTransaction.Share)
 	case *parser.RemainingContext:
-		remaining = v.VisitRemaining(sendTypes).(string)
+		remaining = v.VisitRemaining(st).(string)
 	default:
-		v.setError(errors.New("from send type is missing"))
-	}
-
-	var rate *pkgTransaction.Rate
-
-	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(pkgTransaction.Rate)
-
-		if !rateValue.IsEmpty() {
-			rate = &rateValue
+		if isFrom {
+			v.setError(ErrFromSendTypeMissing)
+		} else {
+			v.setError(ErrToSendTypeMissing)
 		}
 	}
+
+	return amount, share, remaining
+}
+
+// parseFromToRate extracts and validates rate from context.
+func (v *TransactionVisitor) parseFromToRate(rateCtx parser.IRateContext) *pkgTransaction.Rate {
+	if rateCtx == nil {
+		return nil
+	}
+
+	rateValue := v.VisitRate(rateCtx.(*parser.RateContext)).(pkgTransaction.Rate)
+	if rateValue.IsEmpty() {
+		return nil
+	}
+
+	return &rateValue
+}
+
+func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
+	if ctx == nil {
+		v.setError(ErrFromContextNil)
+		return pkgTransaction.FromTo{}
+	}
+
+	account := v.parseFromToAccount(ctx.Account(), true)
+	description := v.parseFromToDescription(ctx.Description())
+	metadata := v.parseFromToMetadata(ctx.Metadata())
+	amount, share, remaining := v.parseSendTypes(ctx.SendTypes(), true)
+	rate := v.parseFromToRate(ctx.Rate())
 
 	return pkgTransaction.FromTo{
 		AccountAlias: account,
@@ -456,55 +524,15 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	if ctx == nil {
-		v.setError(errors.New("to context is nil"))
+		v.setError(ErrToContextNil)
 		return pkgTransaction.FromTo{}
 	}
 
-	account := ""
-	if ctx.Account() != nil {
-		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
-	} else {
-		v.setError(errors.New("to account is missing"))
-	}
-
-	var description string
-	if ctx.Description() != nil {
-		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
-	}
-
-	var metadata map[string]any
-	if ctx.Metadata() != nil {
-		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
-	}
-
-	var amount pkgTransaction.Amount
-
-	var share pkgTransaction.Share
-
-	var remaining string
-
-	switch sendTypes := ctx.SendTypes().(type) {
-	case *parser.AmountContext:
-		amount = v.VisitAmount(sendTypes).(pkgTransaction.Amount)
-	case *parser.ShareIntContext:
-		share = v.VisitShareInt(sendTypes).(pkgTransaction.Share)
-	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(sendTypes).(pkgTransaction.Share)
-	case *parser.RemainingContext:
-		remaining = v.VisitRemaining(sendTypes).(string)
-	default:
-		v.setError(errors.New("to send type is missing"))
-	}
-
-	var rate *pkgTransaction.Rate
-
-	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(pkgTransaction.Rate)
-
-		if !rateValue.IsEmpty() {
-			rate = &rateValue
-		}
-	}
+	account := v.parseFromToAccount(ctx.Account(), false)
+	description := v.parseFromToDescription(ctx.Description())
+	metadata := v.parseFromToMetadata(ctx.Metadata())
+	amount, share, remaining := v.parseSendTypes(ctx.SendTypes(), false)
+	rate := v.parseFromToRate(ctx.Rate())
 
 	return pkgTransaction.FromTo{
 		AccountAlias: account,
@@ -520,7 +548,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
 	if ctx == nil {
-		v.setError(errors.New("distribute context is nil"))
+		v.setError(ErrDistributeContextNil)
 		return pkgTransaction.Distribute{}
 	}
 
