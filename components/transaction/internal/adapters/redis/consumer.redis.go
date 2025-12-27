@@ -374,12 +374,19 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	for _, b := range blcsRedis {
 		mapBalance, ok := mapBalances[b.Alias]
 		if !ok {
-			logger.Warnf("Failed to find balance for id: %v", b.ID)
+			logger.Warnf("Failed to find balance for alias: %v, id: %v", b.Alias, b.ID)
+
+			continue
+		}
+
+		balanceKey := mapBalance.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
 		}
 
 		balances = append(balances, &mmodel.Balance{
 			Alias:          b.Alias,
-			Key:            mapBalance.Key,
+			Key:            balanceKey,
 			ID:             b.ID,
 			AccountID:      b.AccountID,
 			Available:      b.Available,
