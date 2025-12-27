@@ -1599,7 +1599,7 @@ const docTemplatetransaction = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
+                            "$ref": "#/definitions/CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -3129,9 +3129,6 @@ const docTemplatetransaction = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
             "post": {
                 "description": "Cancel a previously created pre transaction",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3224,9 +3221,6 @@ const docTemplatetransaction = `{
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
                 "description": "Commit a previously created transaction",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3524,17 +3518,8 @@ const docTemplatetransaction = `{
         }
     },
     "definitions": {
-        "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
-            "type": "object",
-            "properties": {
-                "value": {
-                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
-                }
-            }
+        "AccountRule": {
+            "type": "object"
         },
         "AssetRate": {
             "description": "AssetRate is a struct designed to store asset rate data. Represents a complete asset rate entity containing conversion information between two assets, including all system-generated fields.",
@@ -3617,30 +3602,6 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
-                }
-            }
-        },
-        "Balance": {
-            "description": "Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).",
-            "type": "object",
-            "properties": {
-                "available": {
-                    "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
-                },
-                "onHold": {
-                    "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
-                },
-                "version": {
-                    "description": "Balance version after the operation\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 }
             }
         },
@@ -3727,6 +3688,9 @@ const docTemplatetransaction = `{
                     "example": 3600
                 }
             }
+        },
+        "CreateOperationRouteInput": {
+            "type": "object"
         },
         "CreateTransactionInflowSwaggerModel": {
             "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
@@ -3999,7 +3963,7 @@ const docTemplatetransaction = `{
                     "description": "Operation amount information",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/Amount"
+                            "$ref": "#/definitions/OperationAmount"
                         }
                     ]
                 },
@@ -4014,7 +3978,7 @@ const docTemplatetransaction = `{
                     "description": "Balance before the operation",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/Balance"
+                            "$ref": "#/definitions/OperationBalance"
                         }
                     ]
                 },
@@ -4028,7 +3992,7 @@ const docTemplatetransaction = `{
                     "description": "Balance after the operation",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/Balance"
+                            "$ref": "#/definitions/OperationBalance"
                         }
                     ]
                 },
@@ -4125,6 +4089,42 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "OperationAmount": {
+            "description": "OperationAmount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
+            "type": "object",
+            "properties": {
+                "value": {
+                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 1500
+                }
+            }
+        },
+        "OperationBalance": {
+            "description": "OperationBalance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).",
+            "type": "object",
+            "properties": {
+                "available": {
+                    "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 1500
+                },
+                "onHold": {
+                    "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 500
+                },
+                "version": {
+                    "description": "Balance version after the operation\nexample: 2\nminimum: 0",
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                }
+            }
+        },
         "OperationRoute": {
             "description": "OperationRoute object",
             "type": "object",
@@ -4133,7 +4133,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4223,17 +4223,17 @@ const docTemplatetransaction = `{
             }
         },
         "Status": {
-            "description": "Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.",
+            "description": "Entity status information with a standardized code and optional description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED.",
             "type": "object",
             "properties": {
                 "code": {
-                    "description": "Status code identifying the state of the transaction\nexample: ACTIVE\nmaxLength: 100",
+                    "description": "Status code identifier, common values include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED",
                     "type": "string",
                     "maxLength": 100,
                     "example": "ACTIVE"
                 },
                 "description": {
-                    "description": "Optional descriptive text explaining the status\nexample: Active status\nmaxLength: 256",
+                    "description": "Optional human-readable description of the status",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Active status"
@@ -4458,7 +4458,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4533,9 +4533,6 @@ const docTemplatetransaction = `{
                     "example": "Charge Settlement"
                 }
             }
-        },
-        "mmodel.AccountRule": {
-            "type": "object"
         },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
@@ -4642,9 +4639,6 @@ const docTemplatetransaction = `{
                     "example": 1
                 }
             }
-        },
-        "mmodel.CreateOperationRouteInput": {
-            "type": "object"
         },
         "transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",

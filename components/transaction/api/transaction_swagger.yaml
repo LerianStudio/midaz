@@ -1,17 +1,6 @@
 basePath: /
 definitions:
-  Amount:
-    description: Amount is the struct designed to represent the amount of an operation.
-      Contains the value and scale (decimal places) of an operation amount.
-    properties:
-      value:
-        description: |-
-          The amount value in the smallest unit of the asset (e.g., cents)
-          example: 1500
-          minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+  AccountRule:
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
@@ -123,35 +112,6 @@ definitions:
         format: date-time
         type: string
     type: object
-  Balance:
-    description: Balance is the struct designed to represent the account balance.
-      Contains available and on-hold amounts along with the scale (decimal places).
-    properties:
-      available:
-        description: |-
-          Amount available for transactions (in the smallest unit of asset)
-          example: 1500
-          minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
-      onHold:
-        description: |-
-          Amount on hold and unavailable for transactions (in the smallest unit of asset)
-          example: 500
-          minimum: 0
-        example: 500
-        minimum: 0
-        type: number
-      version:
-        description: |-
-          Balance version after the operation
-          example: 2
-          minimum: 0
-        example: 2
-        minimum: 0
-        type: integer
-    type: object
   CreateAdditionalBalance:
     description: Request payload for creating a new balance with specified permissions
       and custom key.
@@ -258,6 +218,8 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateOperationRouteInput:
     type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
@@ -580,7 +542,7 @@ definitions:
         type: string
       amount:
         allOf:
-        - $ref: '#/definitions/Amount'
+        - $ref: '#/definitions/OperationAmount'
         description: Operation amount information
       assetCode:
         description: |-
@@ -594,7 +556,7 @@ definitions:
         type: string
       balance:
         allOf:
-        - $ref: '#/definitions/Balance'
+        - $ref: '#/definitions/OperationBalance'
         description: Balance before the operation
       balanceAffected:
         description: |-
@@ -605,7 +567,7 @@ definitions:
         type: boolean
       balanceAfter:
         allOf:
-        - $ref: '#/definitions/Balance'
+        - $ref: '#/definitions/OperationBalance'
         description: Balance after the operation
       balanceId:
         description: |-
@@ -722,12 +684,56 @@ definitions:
         format: date-time
         type: string
     type: object
+  OperationAmount:
+    description: OperationAmount is the struct designed to represent the amount of
+      an operation. Contains the value and scale (decimal places) of an operation
+      amount.
+    properties:
+      value:
+        description: |-
+          The amount value in the smallest unit of the asset (e.g., cents)
+          example: 1500
+          minimum: 0
+        example: 1500
+        minimum: 0
+        type: number
+    type: object
+  OperationBalance:
+    description: OperationBalance is the struct designed to represent the account
+      balance. Contains available and on-hold amounts along with the scale (decimal
+      places).
+    properties:
+      available:
+        description: |-
+          Amount available for transactions (in the smallest unit of asset)
+          example: 1500
+          minimum: 0
+        example: 1500
+        minimum: 0
+        type: number
+      onHold:
+        description: |-
+          Amount on hold and unavailable for transactions (in the smallest unit of asset)
+          example: 500
+          minimum: 0
+        example: 500
+        minimum: 0
+        type: number
+      version:
+        description: |-
+          Balance version after the operation
+          example: 2
+          minimum: 0
+        example: 2
+        minimum: 0
+        type: integer
+    type: object
   OperationRoute:
     description: OperationRoute object
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -800,22 +806,18 @@ definitions:
         x-omitempty: true
     type: object
   Status:
-    description: Status is the struct designed to represent the status of a transaction.
-      Contains code and optional description for transaction states.
+    description: 'Entity status information with a standardized code and optional
+      description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,
+      DELETED.'
     properties:
       code:
-        description: |-
-          Status code identifying the state of the transaction
-          example: ACTIVE
-          maxLength: 100
+        description: 'Status code identifier, common values include: ACTIVE, INACTIVE,
+          PENDING, SUSPENDED, DELETED'
         example: ACTIVE
         maxLength: 100
         type: string
       description:
-        description: |-
-          Optional descriptive text explaining the status
-          example: Active status
-          maxLength: 256
+        description: Optional human-readable description of the status
         example: Active status
         maxLength: 256
         type: string
@@ -1049,7 +1051,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1116,8 +1118,6 @@ definitions:
         example: Charge Settlement
         maxLength: 50
         type: string
-    type: object
-  mmodel.AccountRule:
     type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
@@ -1257,8 +1257,6 @@ definitions:
         example: 1
         minimum: 1
         type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
     type: object
   transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
@@ -2485,7 +2483,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       produces:
       - application/json
       responses:
@@ -3211,8 +3209,6 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
-      consumes:
-      - application/json
       description: Cancel a previously created pre transaction
       parameters:
       - description: Authorization Bearer Token
@@ -3275,8 +3271,6 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
-      consumes:
-      - application/json
       description: Commit a previously created transaction
       parameters:
       - description: Authorization Bearer Token
