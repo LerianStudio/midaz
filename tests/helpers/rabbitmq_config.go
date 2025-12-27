@@ -1,4 +1,8 @@
 // Package helpers provides test utilities for the Midaz test suite.
+//
+// SECURITY NOTICE: These helpers are designed for LOCAL TESTING ONLY
+// against Docker containers. They do NOT support production-grade security
+// configurations (password auth, TLS encryption, IAM). DO NOT use for production.
 package helpers
 
 import "os"
