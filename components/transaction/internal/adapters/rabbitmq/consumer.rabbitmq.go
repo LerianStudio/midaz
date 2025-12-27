@@ -42,9 +42,26 @@ const retryCountHeader = "x-midaz-retry-count"
 const dlqSuffix = ".dlq"
 
 // buildDLQName creates the Dead Letter Queue name for a given queue.
-// TODO(review): Consider adding validation for empty queueName - returns ".dlq" which may indicate programming error (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Low)
 func buildDLQName(queueName string) string {
+	if queueName == "" {
+		panic("queueName must not be empty for DLQ routing")
+	}
+
 	return queueName + dlqSuffix
+}
+
+// sleepWithContext waits for the specified duration or until context is cancelled.
+func sleepWithContext(ctx context.Context, duration time.Duration) bool {
+	if duration <= 0 {
+		return true
+	}
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(duration):
+		return true
+	}
 }
 
 // Retry backoff delays - designed to span ~50 seconds total
@@ -288,7 +305,9 @@ func publishToDLQShared(params *dlqPublishParams) error {
 
 // panicRecoveryContext holds context for panic recovery handling
 type panicRecoveryContext struct {
+	ctx        context.Context
 	logger     libLog.Logger
+	span       trace.Span
 	msg        *amqp.Delivery
 	queue      string
 	workerID   int
@@ -299,7 +318,9 @@ type panicRecoveryContext struct {
 // businessErrorContext holds context for business error handling with retry tracking.
 // Used by processHandler to track retries and route to DLQ after max attempts.
 type businessErrorContext struct {
+	ctx        context.Context
 	logger     libLog.Logger
+	span       trace.Span
 	msg        *amqp.Delivery
 	queue      string
 	workerID   int
@@ -313,6 +334,7 @@ type businessErrorContext struct {
 func (bec *businessErrorContext) handleBusinessError() {
 	if bec.retryCount >= maxRetries-1 {
 		// Max retries exceeded - route to DLQ
+		bec.span.SetAttributes(attribute.String("retry.action", "dlq"))
 		bec.logger.Errorf("Worker %d: business error after %d delivery attempts - routing to DLQ: %v",
 			bec.workerID, bec.retryCount+1, bec.err)
 
@@ -338,6 +360,7 @@ func (bec *businessErrorContext) handleBusinessError() {
 	}
 
 	// Retry with incremented counter
+	bec.span.SetAttributes(attribute.String("retry.action", "retry"))
 	bec.republishWithRetry()
 }
 
@@ -381,12 +404,10 @@ func (bec *businessErrorContext) republishWithRetry() {
 	bec.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering business error message (delivery %d of %d max), delay=%v: %v",
 		bec.workerID, bec.retryCount+1, maxRetries, backoffDelay, bec.err)
 
-	// Apply backoff delay before republishing
-	// TODO(review): Consider using context-aware sleep (select with ctx.Done()) to support
-	// graceful shutdown during backoff. Current blocking sleep may delay shutdown by up to 30s.
-	// (reported by security-reviewer on 2025-12-14, severity: Low)
-	if backoffDelay > 0 {
-		time.Sleep(backoffDelay)
+	// Apply backoff delay before republishing (context-aware for graceful shutdown)
+	if !sleepWithContext(bec.ctx, backoffDelay) {
+		bec.logger.Warnf("Worker %d: context cancelled during backoff, skipping republish", bec.workerID)
+		return
 	}
 
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
@@ -462,6 +483,7 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 		return false
 	}
 
+	prc.span.SetAttributes(attribute.String("retry.action", "dlq"))
 	prc.logger.Errorf("Worker %d: poison message after %d delivery attempts: %v - routing to DLQ",
 		prc.workerID, prc.retryCount+1, panicValue)
 
@@ -524,17 +546,16 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 // DLQ uses confirms (last chance), but retry path accepts potential message loss during broker
 // failure. (reported by business-logic-reviewer on 2025-12-14, severity: Medium)
 func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
+	prc.span.SetAttributes(attribute.String("retry.action", "retry"))
 	backoffDelay := calculateRetryBackoff(prc.retryCount + 1)
 
 	prc.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering message (delivery %d of %d max), delay=%v: %v",
 		prc.workerID, prc.retryCount+1, maxRetries, backoffDelay, panicValue)
 
-	// Apply backoff delay before republishing
-	// TODO(review): Consider using context-aware sleep (select with ctx.Done()) to support
-	// graceful shutdown during backoff. Current blocking sleep may delay shutdown by up to 30s.
-	// (reported by security-reviewer on 2025-12-14, severity: Low)
-	if backoffDelay > 0 {
-		time.Sleep(backoffDelay)
+	// Apply backoff delay before republishing (context-aware for graceful shutdown)
+	if !sleepWithContext(prc.ctx, backoffDelay) {
+		prc.logger.Warnf("Worker %d: context cancelled during backoff, skipping republish", prc.workerID)
+		return
 	}
 
 	// Copy only safe headers to prevent sensitive data propagation (CWE-200)
@@ -676,9 +697,6 @@ func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 	retryCount := getRetryCount(mpc.msg.Headers)
 	backoffDelay := calculateRetryBackoff(retryCount + 1)
 
-	// TODO(review): Span attribute retry.backoff_seconds is set even when message routes to DLQ
-	// without applying backoff. Consider adding retry.action attribute ('retry' | 'dlq') for clarity.
-	// (reported by code-reviewer on 2025-12-14, severity: Medium)
 	mpc.span.AddEvent("panic.recovered", trace.WithAttributes(
 		attribute.String("panic.value", fmt.Sprintf("%v", panicValue)),
 		attribute.String("panic.stack", string(stack)),
@@ -692,7 +710,9 @@ func (mpc *messageProcessingContext) handlePanicRecovery(panicValue any) {
 		mpc.workerID, mpc.queue, panicValue, string(stack))
 
 	prc := &panicRecoveryContext{
+		ctx:        mpc.ctx,
 		logger:     mpc.logger,
+		span:       mpc.span,
 		msg:        mpc.msg,
 		queue:      mpc.queue,
 		workerID:   mpc.workerID,
@@ -717,9 +737,6 @@ func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc
 		retryCount := getRetryCount(mpc.msg.Headers)
 		backoffDelay := calculateRetryBackoff(retryCount + 1)
 
-		// TODO(review): Span attribute retry.backoff_seconds is set even when message routes to DLQ
-		// without applying backoff. Consider adding retry.action attribute ('retry' | 'dlq') for clarity.
-		// (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Medium)
 		mpc.span.SetAttributes(
 			attribute.Int64("retry.backoff_seconds", int64(backoffDelay.Seconds())),
 		)
