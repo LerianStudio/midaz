@@ -464,7 +464,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	listQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
-		Where(squirrel.Eq{"id": pq.Array(ids)}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
