@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -31,7 +33,81 @@ var (
 
 	// ErrDLQNotEmpty indicates DLQ still has messages after timeout
 	ErrDLQNotEmpty = errors.New("DLQ not empty after timeout")
+
+	// ErrInvalidQueueName indicates the queue name contains invalid characters.
+	ErrInvalidQueueName = errors.New("invalid queue name: contains disallowed characters")
+
+	// queueNamePattern validates queue names to prevent URL path injection.
+	// Only allows alphanumeric characters, hyphens, underscores, and dots.
+	queueNamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 )
+
+// dlqQueueTypeMap maps DLQ queue name patterns to their type for explicit classification.
+// Using a map with exact suffixes is more reliable than substring matching.
+var dlqQueueTypeMap = map[string]string{
+	"balance_create.dlq":  "balance_create",
+	"balance-create.dlq":  "balance_create",
+	"transaction_ops.dlq": "transaction_ops",
+	"transaction-ops.dlq": "transaction_ops",
+	"operations.dlq":      "transaction_ops",
+}
+
+// classifyDLQQueue returns the queue type for a DLQ queue name.
+// Falls back to pattern matching if not in explicit map.
+func classifyDLQQueue(queueName string) string {
+	// Check explicit mapping first
+	if queueType, ok := dlqQueueTypeMap[queueName]; ok {
+		return queueType
+	}
+
+	// Fallback to pattern matching for unknown queues
+	switch {
+	case strings.Contains(queueName, "balance") && strings.Contains(queueName, "create"):
+		return "balance_create"
+	case strings.Contains(queueName, "transaction") || strings.Contains(queueName, "operation"):
+		return "transaction_ops"
+	default:
+		return "unknown"
+	}
+}
+
+// validateQueueName checks that a queue name is safe for URL construction.
+// Returns error if the name contains characters that could cause URL injection.
+func validateQueueName(queueName string) error {
+	if queueName == "" {
+		return errors.New("queue name cannot be empty")
+	}
+
+	if len(queueName) > 255 {
+		return errors.New("queue name too long (max 255 characters)")
+	}
+
+	if !queueNamePattern.MatchString(queueName) {
+		return ErrInvalidQueueName
+	}
+
+	// Additional check: reject names that could escape URL path
+	if strings.Contains(queueName, "..") || strings.HasPrefix(queueName, "/") {
+		return ErrInvalidQueueName
+	}
+
+	return nil
+}
+
+// sleepWithContext waits for the specified duration or until context is cancelled.
+// Returns true if the sleep completed, false if context was cancelled.
+func sleepWithContext(ctx context.Context, duration time.Duration) bool {
+	if duration <= 0 {
+		return true
+	}
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(duration):
+		return true
+	}
+}
 
 // BuildDLQName constructs the DLQ name for a given queue.
 func BuildDLQName(queueName string) string {
@@ -48,12 +124,19 @@ type RabbitMQQueueInfo struct {
 
 // GetDLQMessageCount queries RabbitMQ Management API for DLQ message count.
 // Returns the number of messages in the DLQ, or 0 if the queue doesn't exist.
-// TODO(review): Add queue name validation to prevent URL path injection (queueName from env vars) - security-reviewer on 2025-12-14
+// Validates queue name to prevent URL path injection attacks.
 func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass string) (int, error) {
-	dlqName := BuildDLQName(queueName)
-	url := fmt.Sprintf("%s/api/queues/%%2F/%s", mgmtURL, dlqName)
+	// Security: Validate queue name to prevent URL path injection
+	if err := validateQueueName(queueName); err != nil {
+		return 0, fmt.Errorf("queue name validation failed: %w", err)
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	dlqName := BuildDLQName(queueName)
+	// URL-encode the queue name to handle special characters safely
+	encodedDLQName := url.PathEscape(dlqName)
+	apiURL := fmt.Sprintf("%s/api/queues/%%2F/%s", mgmtURL, encodedDLQName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to create request: %w", err)
@@ -111,8 +194,10 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 		count, err := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 		if err != nil {
 			// Log but continue - transient errors are expected during chaos
-			// TODO(review): Use context-aware sleep to respect ctx.Done() - security-reviewer on 2025-12-14
-			time.Sleep(dlqPollInterval)
+			// Use context-aware sleep to respect graceful shutdown
+			if !sleepWithContext(ctx, dlqPollInterval) {
+				return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
+			}
 			continue
 		}
 
@@ -120,8 +205,10 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 			return nil
 		}
 
-		// TODO(review): Use context-aware sleep to respect ctx.Done() - security-reviewer on 2025-12-14
-		time.Sleep(dlqPollInterval)
+		// Context-aware sleep between poll attempts
+		if !sleepWithContext(ctx, dlqPollInterval) {
+			return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
+		}
 	}
 
 	// Get final count for error message
@@ -132,7 +219,9 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 }
 
 // DLQCounts holds message counts for all DLQs used in chaos tests.
-// TODO(review): Consider using map instead of struct fields if new queue types are added - code-reviewer on 2025-12-14
+// NOTE: Using struct fields intentionally for type safety and explicit field access.
+// A map[string]int would be more flexible but loses compile-time checking.
+// Current approach is acceptable for 2-3 queue types; refactor to map if >5 types needed.
 type DLQCounts struct {
 	BalanceCreateDLQ  int
 	TransactionOpsDLQ int
@@ -152,11 +241,12 @@ func GetAllDLQCounts(ctx context.Context, mgmtURL, user, pass string, queueNames
 
 		counts.TotalDLQMessages += count
 
-		// Map to named fields based on queue name pattern
-		switch {
-		case strings.Contains(queueName, "balance") && strings.Contains(queueName, "create"):
+		// Map to named fields based on queue name using explicit classification
+		queueType := classifyDLQQueue(queueName)
+		switch queueType {
+		case "balance_create":
 			counts.BalanceCreateDLQ = count
-		case strings.Contains(queueName, "transaction") || strings.Contains(queueName, "operation"):
+		case "transaction_ops":
 			counts.TransactionOpsDLQ = count
 		}
 	}
