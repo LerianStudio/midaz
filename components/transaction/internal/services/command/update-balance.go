@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -12,13 +11,17 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	balanceRepo "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// ErrCacheMiss indicates a balance was not found in the cache during refresh.
+var ErrCacheMiss = errors.New("cache miss for balance")
 
 // UpdateBalances func that is responsible to update balances without select for update.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance) error {
@@ -27,67 +30,17 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
-	for k, v := range validate.From {
-		fromTo[k] = pkgTransaction.Amount{
-			Asset:           v.Asset,
-			Value:           v.Value,
-			Operation:       v.Operation,
-			TransactionType: v.TransactionType,
-		}
-	}
+	fromTo := buildFromToMap(validate)
 
-	for k, v := range validate.To {
-		fromTo[k] = pkgTransaction.Amount{
-			Asset:           v.Asset,
-			Value:           v.Value,
-			Operation:       v.Operation,
-			TransactionType: v.TransactionType,
-		}
-	}
-
-	newBalances := make([]*mmodel.Balance, 0, len(balances))
-
-	for _, balance := range balances {
-		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
-
-		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-			logger.Errorf("Failed to update balances on database: %v", err.Error())
-
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
-		}
-
-		newBalances = append(newBalances, &mmodel.Balance{
-			ID:        balance.ID,
-			Alias:     balance.Alias,
-			Available: calculateBalances.Available,
-			OnHold:    calculateBalances.OnHold,
-			Version:   balance.Version + 1,
-		})
-
-		spanBalance.End()
+	newBalances, err := uc.calculateNewBalances(ctx, tracer, fromTo, balances, &spanUpdateBalances, logger)
+	if err != nil {
+		return err
 	}
 
 	// Filter out stale balances by checking Redis cache version
-	balancesToUpdate, skippedCount := uc.filterStaleBalances(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
-	usedCache := false
-
-	if skippedCount > 0 {
-		logger.Warnf("STALE_BALANCE_DETECTED: %d stale balances found, refreshing from cache before DB update (org=%s, ledger=%s)",
-			skippedCount, organizationID, ledgerID)
-
-		refreshedBalances, err := uc.refreshBalancesFromCache(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to refresh balances from cache", err)
-			logger.Errorf("Failed to refresh balances from cache: %v", err)
-
-			return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
-		}
-
-		balancesToUpdate = refreshedBalances
-		usedCache = true
+	balancesToUpdate, usedCache, err := uc.prepareBalancesForUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances, &spanUpdateBalances, logger)
+	if err != nil {
+		return err
 	}
 
 	if len(balancesToUpdate) == 0 {
@@ -110,57 +63,145 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	updateStart := time.Now()
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
-		if errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
-			if usedCache {
-				logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already up to date after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
-				return nil
-			}
+		return uc.handleBalanceUpdateError(ctxProcessBalances, err, organizationID, ledgerID, newBalances, usedCache, updateStart, &spanUpdateBalances, logger)
+	}
 
-			refreshedBalances, refreshErr := uc.refreshBalancesFromCache(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
-			if refreshErr != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to refresh balances after no-op update", refreshErr)
-				logger.Errorf("Failed to refresh balances after no-op update: %v", refreshErr)
+	updateDuration := time.Since(updateStart)
+	logger.Infof("DB_UPDATE_SUCCESS: Balance update completed in %v for %d balances", updateDuration, len(balancesToUpdate))
 
-				return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
-			}
+	return nil
+}
 
-			if len(refreshedBalances) == 0 {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Cache refresh returned empty balances", nil)
-				logger.Errorf("Cache refresh returned empty balances after no-op update, aborting")
+// buildFromToMap creates a map of balance aliases to their transaction amounts.
+func buildFromToMap(validate pkgTransaction.Responses) map[string]pkgTransaction.Amount {
+	fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
 
-				return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
-			}
+	for k, v := range validate.From {
+		fromTo[k] = pkgTransaction.Amount{
+			Asset:           v.Asset,
+			Value:           v.Value,
+			Operation:       v.Operation,
+			TransactionType: v.TransactionType,
+		}
+	}
 
-			if err = uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, refreshedBalances); err != nil {
-				if errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
-					logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already current after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
-					return nil
-				}
+	for k, v := range validate.To {
+		fromTo[k] = pkgTransaction.Amount{
+			Asset:           v.Asset,
+			Value:           v.Value,
+			Operation:       v.Operation,
+			TransactionType: v.TransactionType,
+		}
+	}
 
-				updateDuration := time.Since(updateStart)
-				logger.Errorf("DB_UPDATE_FAILED: Balance update failed after refresh in %v: %v", updateDuration, err)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database after refresh", err)
-				logger.Errorf("Failed to update balances on database after refresh: %v", err.Error())
+	return fromTo
+}
 
-				return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
-			}
+// calculateNewBalances computes new balance values after applying transaction amounts.
+func (uc *UseCase) calculateNewBalances(ctx context.Context, tracer trace.Tracer, fromTo map[string]pkgTransaction.Amount, balances []*mmodel.Balance, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, error) {
+	newBalances := make([]*mmodel.Balance, 0, len(balances))
 
-			updateDuration := time.Since(updateStart)
-			logger.Infof("DB_UPDATE_SUCCESS: Balance update completed after refresh in %v for %d balances", updateDuration, len(refreshedBalances))
+	for _, balance := range balances {
+		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
-			return nil
+		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to update balances on database", err)
+			logger.Errorf("Failed to update balances on database: %v", err.Error())
+
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
+		newBalances = append(newBalances, &mmodel.Balance{
+			ID:        balance.ID,
+			Alias:     balance.Alias,
+			Available: calculateBalances.Available,
+			OnHold:    calculateBalances.OnHold,
+			Version:   balance.Version + 1,
+		})
+
+		spanBalance.End()
+	}
+
+	return newBalances, nil
+}
+
+// prepareBalancesForUpdate filters stale balances and refreshes from cache if needed.
+func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, newBalances []*mmodel.Balance, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, bool, error) {
+	balancesToUpdate, skippedCount := uc.filterStaleBalances(ctx, organizationID, ledgerID, newBalances, logger)
+	usedCache := false
+
+	if skippedCount > 0 {
+		logger.Warnf("STALE_BALANCE_DETECTED: %d stale balances found, refreshing from cache before DB update (org=%s, ledger=%s)",
+			skippedCount, organizationID, ledgerID)
+
+		refreshedBalances, err := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, newBalances, logger)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances from cache", err)
+			logger.Errorf("Failed to refresh balances from cache: %v", err)
+
+			return nil, false, pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+		}
+
+		balancesToUpdate = refreshedBalances
+		usedCache = true
+	}
+
+	return balancesToUpdate, usedCache, nil
+}
+
+// handleBalanceUpdateError handles errors from BalancesUpdate, including retry logic for ErrNoBalancesUpdated.
+func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, newBalances []*mmodel.Balance, usedCache bool, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
+	if !errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
 		updateDuration := time.Since(updateStart)
 		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after %v: %v", updateDuration, err)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
+	if usedCache {
+		logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already up to date after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
+		return nil
+	}
+
+	return uc.retryBalanceUpdateWithCacheRefresh(ctx, organizationID, ledgerID, newBalances, updateStart, span, logger)
+}
+
+// retryBalanceUpdateWithCacheRefresh refreshes balances from cache and retries the database update.
+func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organizationID, ledgerID uuid.UUID, newBalances []*mmodel.Balance, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
+	refreshedBalances, refreshErr := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, newBalances, logger)
+	if refreshErr != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances after no-op update", refreshErr)
+		logger.Errorf("Failed to refresh balances after no-op update: %v", refreshErr)
+
+		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
+	if len(refreshedBalances) == 0 {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cache refresh returned empty balances", nil)
+		logger.Errorf("Cache refresh returned empty balances after no-op update, aborting")
+
+		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
+	if err := uc.BalanceRepo.BalancesUpdate(ctx, organizationID, ledgerID, refreshedBalances); err != nil {
+		if errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
+			logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already current after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
+			return nil
+		}
+
+		updateDuration := time.Since(updateStart)
+		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after refresh in %v: %v", updateDuration, err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balances on database after refresh", err)
+		logger.Errorf("Failed to update balances on database after refresh: %v", err.Error())
+
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
 	updateDuration := time.Since(updateStart)
-	logger.Infof("DB_UPDATE_SUCCESS: Balance update completed in %v for %d balances", updateDuration, len(balancesToUpdate))
+	logger.Infof("DB_UPDATE_SUCCESS: Balance update completed after refresh in %v for %d balances", updateDuration, len(refreshedBalances))
 
 	return nil
 }
@@ -231,11 +272,14 @@ func (uc *UseCase) refreshBalancesFromCache(ctx context.Context, organizationID,
 		cachedBalance, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, balanceKey)
 		if err != nil {
 			logger.Errorf("Failed to refresh balance from cache for key %s (alias: %s): %v", balanceKey, balance.Alias, err)
-			return nil, fmt.Errorf("refresh balance from cache: %w", err)
+
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
 		if cachedBalance == nil {
-			return nil, fmt.Errorf("cache miss for balance key %s (alias: %s)", balanceKey, balance.Alias)
+			logger.Errorf("Cache miss for balance key %s (alias: %s)", balanceKey, balance.Alias)
+
+			return nil, pkg.ValidateBusinessError(ErrCacheMiss, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
 		balanceID := cachedBalance.ID
