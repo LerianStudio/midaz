@@ -1,3 +1,6 @@
+// Package main provides the entry point for the Midaz Transaction API service.
+// It initializes the server configuration and starts the HTTP/gRPC services
+// for handling financial transaction operations.
 package main
 
 import (

@@ -1,3 +1,6 @@
+// Package in provides gRPC handler implementations for the transaction service.
+// It contains protocol buffer service implementations for balance management
+// and other gRPC-based communication endpoints.
 package in
 
 import (
@@ -20,12 +23,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// BalanceProto implements the gRPC BalanceProtoServer interface for managing balance operations.
+// It provides methods for creating and deleting balances through gRPC protocol.
 type BalanceProto struct {
 	balance.UnimplementedBalanceProtoServer
 	Command *command.UseCase
 	Query   *query.UseCase
 }
 
+// CreateBalance handles gRPC requests to create a new balance for an account.
+// It validates the request parameters and delegates to the command use case for balance creation.
 func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRequest) (*balance.BalanceResponse, error) {
 	assert.NotNil(req, "gRPC BalanceRequest must not be nil")
 
@@ -108,6 +115,8 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 	return resp, nil
 }
 
+// DeleteAllBalancesByAccountID handles gRPC requests to delete all balances associated with an account.
+// It validates the request parameters and delegates to the command use case for balance deletion.
 func (b *BalanceProto) DeleteAllBalancesByAccountID(ctx context.Context, req *balance.DeleteAllBalancesByAccountIDRequest) (*balance.Empty, error) {
 	assert.NotNil(req, "gRPC DeleteAllBalancesByAccountIDRequest must not be nil")
 

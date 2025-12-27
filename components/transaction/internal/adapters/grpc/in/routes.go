@@ -56,6 +56,9 @@ func grpcPanicRecoveryInterceptor(lg libLog.Logger) grpc.UnaryServerInterceptor 
 	}
 }
 
+// NewRouterGRPC creates and configures a new gRPC server with all required interceptors.
+// It sets up panic recovery, telemetry, logging, and authentication middleware,
+// and registers the balance service handler.
 func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, commandUseCase *command.UseCase, queryUseCase *query.UseCase) *grpc.Server {
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 

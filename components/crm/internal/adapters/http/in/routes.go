@@ -21,6 +21,7 @@ import (
 
 const applicationName = "crm"
 
+// NewRouter creates and configures a new Fiber router with all CRM API routes.
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
