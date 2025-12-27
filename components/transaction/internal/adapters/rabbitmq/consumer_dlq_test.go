@@ -42,11 +42,6 @@ func TestBuildDLQName(t *testing.T) {
 			queueName: "balance-updates",
 			expected:  "balance-updates.dlq",
 		},
-		{
-			name:      "empty queue name",
-			queueName: "",
-			expected:  ".dlq",
-		},
 	}
 
 	for _, tt := range tests {
@@ -57,6 +52,15 @@ func TestBuildDLQName(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "buildDLQName should append dlqSuffix to queue name")
 		})
 	}
+
+	// Test panic on empty queue name
+	t.Run("empty queue name panics", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Panics(t, func() {
+			buildDLQName("")
+		}, "buildDLQName should panic on empty queue name")
+	})
 }
 
 // TODO(review): Add unit tests for publishToDLQ confirmation scenarios (Ack/Nack/Timeout/ChannelClose) using mock channels (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Low)
