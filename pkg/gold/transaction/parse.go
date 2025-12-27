@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accep
 
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("transaction context is nil"))
+		v.setError(errors.New("transaction context is nil"))
 		return nil
 	}
 
@@ -56,7 +57,7 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	if ctx.Send() != nil {
 		send = v.VisitSend(ctx.Send().(*parser.SendContext)).(pkgTransaction.Send)
 	} else {
-		v.setError(fmt.Errorf("send section is missing"))
+		v.setError(errors.New("send section is missing"))
 	}
 
 	transaction := pkgTransaction.Transaction{
@@ -73,7 +74,7 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
 	if ctx == nil || ctx.UUID() == nil {
-		v.setError(fmt.Errorf("chart-of-accounts-group-name must be UUID"))
+		v.setError(errors.New("chart-of-accounts-group-name must be UUID"))
 		return ""
 	}
 
@@ -99,6 +100,7 @@ func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 
 	if ctx.TrueOrFalse() != nil {
 		text := ctx.TrueOrFalse().GetText()
+
 		pending, err := strconv.ParseBool(text)
 		if err != nil {
 			v.setError(fmt.Errorf("invalid pending boolean: %w", err))
@@ -121,7 +123,7 @@ func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) an
 
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
 	if ctx == nil || ctx.UUID() == nil {
-		v.setError(fmt.Errorf("chart-of-accounts must be UUID"))
+		v.setError(errors.New("chart-of-accounts must be UUID"))
 		return ""
 	}
 
@@ -141,7 +143,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	if ctx == nil || ctx.Key() == nil || ctx.Value() == nil {
-		v.setError(fmt.Errorf("invalid metadata pair"))
+		v.setError(errors.New("invalid metadata pair"))
 		return pkgTransaction.Metadata{}
 	}
 
@@ -153,7 +155,7 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 
 func (v *TransactionVisitor) VisitNumericValue(ctx *parser.NumericValueContext) any {
 	if ctx == nil || ctx.INT() == nil {
-		v.setError(fmt.Errorf("numeric value is missing"))
+		v.setError(errors.New("numeric value is missing"))
 		return ""
 	}
 
@@ -196,7 +198,7 @@ func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INu
 
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("send context is nil"))
+		v.setError(errors.New("send context is nil"))
 		return pkgTransaction.Send{}
 	}
 
@@ -204,21 +206,21 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	if ctx.UUID() != nil {
 		asset = ctx.UUID().GetText()
 	} else {
-		v.setError(fmt.Errorf("send asset must be UUID"))
+		v.setError(errors.New("send asset must be UUID"))
 	}
 
 	var source pkgTransaction.Source
 	if ctx.Source() != nil {
 		source = v.VisitSource(ctx.Source().(*parser.SourceContext)).(pkgTransaction.Source)
 	} else {
-		v.setError(fmt.Errorf("send source is missing"))
+		v.setError(errors.New("send source is missing"))
 	}
 
 	var distribute pkgTransaction.Distribute
 	if ctx.Distribute() != nil {
 		distribute = v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(pkgTransaction.Distribute)
 	} else {
-		v.setError(fmt.Errorf("send distribute is missing"))
+		v.setError(errors.New("send distribute is missing"))
 	}
 
 	value := v.parseDecimalWithScale(
@@ -237,7 +239,7 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("source context is nil"))
+		v.setError(errors.New("source context is nil"))
 		return pkgTransaction.Source{}
 	}
 
@@ -261,7 +263,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("account context is nil"))
+		v.setError(errors.New("account context is nil"))
 		return ""
 	}
 
@@ -279,12 +281,12 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("rate context is nil"))
+		v.setError(errors.New("rate context is nil"))
 		return pkgTransaction.Rate{}
 	}
 
 	if ctx.UUID(0) == nil || ctx.UUID(1) == nil || ctx.UUID(rateToUUIDIndex) == nil {
-		v.setError(fmt.Errorf("rate UUID fields missing"))
+		v.setError(errors.New("rate UUID fields missing"))
 		return pkgTransaction.Rate{}
 	}
 
@@ -308,7 +310,7 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("remaining context is nil"))
+		v.setError(errors.New("remaining context is nil"))
 		return ""
 	}
 
@@ -317,7 +319,7 @@ func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("amount context is nil"))
+		v.setError(errors.New("amount context is nil"))
 		return pkgTransaction.Amount{}
 	}
 
@@ -325,7 +327,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	if ctx.UUID() != nil {
 		asset = ctx.UUID().GetText()
 	} else {
-		v.setError(fmt.Errorf("amount asset must be UUID"))
+		v.setError(errors.New("amount asset must be UUID"))
 	}
 
 	value := v.parseDecimalWithScale(
@@ -342,11 +344,12 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("share context is nil"))
+		v.setError(errors.New("share context is nil"))
 		return pkgTransaction.Share{}
 	}
 
 	percentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue())).(string)
+
 	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
 	if err != nil {
 		v.setError(fmt.Errorf("invalid share percentage: %w", err))
@@ -361,11 +364,12 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("share context is nil"))
+		v.setError(errors.New("share context is nil"))
 		return pkgTransaction.Share{}
 	}
 
 	percentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue(0))).(string)
+
 	percentage, err := strconv.ParseInt(percentageStr, 10, 64)
 	if err != nil {
 		v.setError(fmt.Errorf("invalid share percentage: %w", err))
@@ -373,6 +377,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 
 	percentageOfPercentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue(1))).(string)
+
 	percentageOfPercentage, err := strconv.ParseInt(percentageOfPercentageStr, 10, 64)
 	if err != nil {
 		v.setError(fmt.Errorf("invalid share percentageOfPercentage: %w", err))
@@ -387,7 +392,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 
 func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("from context is nil"))
+		v.setError(errors.New("from context is nil"))
 		return pkgTransaction.FromTo{}
 	}
 
@@ -395,7 +400,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	if ctx.Account() != nil {
 		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 	} else {
-		v.setError(fmt.Errorf("from account is missing"))
+		v.setError(errors.New("from account is missing"))
 	}
 
 	var description string
@@ -424,7 +429,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	case *parser.RemainingContext:
 		remaining = v.VisitRemaining(sendTypes).(string)
 	default:
-		v.setError(fmt.Errorf("from send type is missing"))
+		v.setError(errors.New("from send type is missing"))
 	}
 
 	var rate *pkgTransaction.Rate
@@ -451,7 +456,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("to context is nil"))
+		v.setError(errors.New("to context is nil"))
 		return pkgTransaction.FromTo{}
 	}
 
@@ -459,7 +464,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	if ctx.Account() != nil {
 		account = v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 	} else {
-		v.setError(fmt.Errorf("to account is missing"))
+		v.setError(errors.New("to account is missing"))
 	}
 
 	var description string
@@ -488,7 +493,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	case *parser.RemainingContext:
 		remaining = v.VisitRemaining(sendTypes).(string)
 	default:
-		v.setError(fmt.Errorf("to send type is missing"))
+		v.setError(errors.New("to send type is missing"))
 	}
 
 	var rate *pkgTransaction.Rate
@@ -515,7 +520,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
 	if ctx == nil {
-		v.setError(fmt.Errorf("distribute context is nil"))
+		v.setError(errors.New("distribute context is nil"))
 		return pkgTransaction.Distribute{}
 	}
 
@@ -545,6 +550,7 @@ func Parse(dsl string) any {
 	p := parser.NewTransactionParser(stream)
 	lexerErrors := &Error{}
 	parserErrors := &Error{}
+
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(lexerErrors)
 	p.RemoveErrorListeners()
@@ -553,6 +559,7 @@ func Parse(dsl string) any {
 	p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
 
 	tree := p.Transaction()
+
 	if len(lexerErrors.Errors) > 0 || len(parserErrors.Errors) > 0 {
 		return nil
 	}
