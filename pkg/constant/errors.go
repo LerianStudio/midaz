@@ -135,4 +135,6 @@ var (
 	ErrInvalidTransactionNonPositiveValue       = errors.New("0125")
 	ErrDefaultBalanceNotFound                   = errors.New("0126")
 	ErrAccountCreationFailed                    = errors.New("0127")
+	ErrTransactionBackupCacheFailed             = errors.New("0128")
+	ErrTransactionBackupCacheMarshalFailed      = errors.New("0129")
 )

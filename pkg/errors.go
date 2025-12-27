@@ -1044,6 +1044,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Creation Failed",
 			Message:    "The account could not be created because the default balance could not be created. Please try again.",
 		},
+		constant.ErrTransactionBackupCacheFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheFailed.Error(),
+			Title:      "Transaction Backup Cache Failed",
+			Message:    "The server encountered an unexpected error while adding the transaction to the backup cache. Please try again later or contact support.",
+		},
+		constant.ErrTransactionBackupCacheMarshalFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheMarshalFailed.Error(),
+			Title:      "Transaction Backup Cache Marshal Failed",
+			Message:    "The server encountered an unexpected error while serializing the transaction for the backup cache. This uses the same backup mechanism. Please try again later or contact support.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

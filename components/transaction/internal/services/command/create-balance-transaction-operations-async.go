@@ -225,7 +225,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
@@ -243,11 +243,17 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 
 	raw, err := json.Marshal(queue)
 	if err != nil {
-		logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
+		logger.Errorf("Failed to marshal transaction to json string: %s", err.Error())
+
+		return constant.ErrTransactionBackupCacheMarshalFailed
 	}
 
 	err = uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
 	if err != nil {
-		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
+		logger.Errorf("Failed to send transaction to redis queue: %s", err.Error())
+
+		return constant.ErrTransactionBackupCacheFailed
 	}
+
+	return nil
 }
