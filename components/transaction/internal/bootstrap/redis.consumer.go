@@ -59,7 +59,7 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled
+//nolint:dogsled,gocognit
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

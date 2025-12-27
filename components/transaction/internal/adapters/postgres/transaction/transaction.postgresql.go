@@ -845,8 +845,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}
 
-		op := operation.OperationPostgreSQLModel{}
-
 		var body *string
 
 		// Nullable pointers for operation fields (LEFT JOIN may return NULL)
@@ -963,8 +961,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 			t.Operations = append(t.Operations, op.ToEntity())
 		}
-
-		t.Operations = append(t.Operations, op.ToEntity())
 	}
 
 	if err = rows.Err(); err != nil {
