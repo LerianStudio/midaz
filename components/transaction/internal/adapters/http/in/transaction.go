@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -41,6 +40,12 @@ import (
 
 const (
 	pendingTransactionLockTTLSeconds = 300
+	// asyncModeValue is the value used to check if async mode is enabled via environment variable.
+	asyncModeValue = "true"
+	// revertWaitTimeoutSeconds is the timeout in seconds for waiting for operations to be ready for revert.
+	revertWaitTimeoutSeconds = 5
+	// revertPollIntervalMillis is the polling interval in milliseconds when waiting for operations.
+	revertPollIntervalMillis = 75
 )
 
 // TransactionHandler struct that handle transaction
@@ -528,6 +533,24 @@ func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Conte
 
 // fetchAndValidateTransactionForRevert retrieves and validates a transaction before reverting it.
 func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	tran, err := handler.retrieveTransactionForRevert(ctx, c, span, logger, organizationID, ledgerID, transactionID)
+	if err != nil || tran == nil {
+		return tran, err
+	}
+
+	if err := handler.waitForOperationsIfNeeded(ctx, span, logger, organizationID, ledgerID, transactionID, tran); err != nil {
+		return nil, err
+	}
+
+	if err := handler.validateTransactionCanBeReverted(c, span, logger, transactionID, tran); err != nil {
+		return nil, err
+	}
+
+	return tran, nil
+}
+
+// retrieveTransactionForRevert fetches transaction data and merges operations.
+func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve base transaction on query", err)
@@ -558,76 +581,114 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 		tran.Operations = tranWithOps.Operations
 	}
 
+	return tran, nil
+}
+
+// waitForOperationsIfNeeded polls for operations readiness when async mode is enabled.
+func (handler *TransactionHandler) waitForOperationsIfNeeded(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, tran *transaction.Transaction) error {
 	needsOperations := tran != nil && tran.Body.IsEmpty()
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" && needsOperations && !operationsReadyForRevert(tran) {
-		waitDeadline := time.Now().Add(5 * time.Second)
-		if dl, ok := ctx.Deadline(); ok {
-			if remaining := time.Until(dl); remaining < 5*time.Second {
-				waitDeadline = time.Now().Add(remaining)
-			}
+	if !handler.isAsyncModeEnabled() || !needsOperations || operationsReadyForRevert(tran) {
+		return nil
+	}
+
+	waitDeadline := handler.calculateWaitDeadline(ctx)
+
+	for time.Now().Before(waitDeadline) {
+		time.Sleep(revertPollIntervalMillis * time.Millisecond)
+
+		refreshed, refreshErr := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+		if refreshErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh transaction operations", refreshErr)
+			logger.Errorf("Failed to refresh transaction operations for ID %s: %s", transactionID.String(), refreshErr.Error())
+
+			return pkg.ValidateInternalError(refreshErr, "RefreshTransactionOperations")
 		}
 
-		for time.Now().Before(waitDeadline) {
-			time.Sleep(75 * time.Millisecond)
-
-			refreshed, refreshErr := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
-			if refreshErr != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh transaction operations", refreshErr)
-				logger.Errorf("Failed to refresh transaction operations for ID %s: %s", transactionID.String(), refreshErr.Error())
-
-				return nil, fmt.Errorf("refresh transaction operations: %w", refreshErr)
+		if operationsReadyForRevert(refreshed) {
+			if tran != nil {
+				tran.Operations = refreshed.Operations
 			}
 
-			if operationsReadyForRevert(refreshed) {
-				if tran != nil {
-					tran.Operations = refreshed.Operations
-				} else {
-					tran = refreshed
-				}
-
-				break
-			}
+			break
 		}
 	}
 
+	return nil
+}
+
+// calculateWaitDeadline computes the deadline for waiting, respecting context deadline.
+func (handler *TransactionHandler) calculateWaitDeadline(ctx context.Context) time.Time {
+	waitDeadline := time.Now().Add(revertWaitTimeoutSeconds * time.Second)
+	if dl, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(dl); remaining < revertWaitTimeoutSeconds*time.Second {
+			waitDeadline = time.Now().Add(remaining)
+		}
+	}
+
+	return waitDeadline
+}
+
+// isAsyncModeEnabled checks if async transaction processing is enabled.
+func (handler *TransactionHandler) isAsyncModeEnabled() bool {
+	return strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == asyncModeValue
+}
+
+// validateTransactionCanBeReverted checks if the transaction is eligible for revert.
+func (handler *TransactionHandler) validateTransactionCanBeReverted(c *fiber.Ctx, span *trace.Span, logger libLog.Logger, transactionID uuid.UUID, tran *transaction.Transaction) error {
 	if tran.ParentTransactionID != nil {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
+		err := pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return nil, httpErr
+			return httpErr
 		}
 
-		return nil, nil
+		return nil
 	}
 
 	if tran.Status.Code != constant.APPROVED {
-		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
+		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 		logger.Errorf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
-			return nil, httpErr
+			return httpErr
 		}
 
-		return nil, nil
+		return nil
 	}
 
-	return tran, nil
+	return nil
 }
 
 func operationsReadyForRevert(tran *transaction.Transaction) bool {
-	if tran == nil || tran.Amount == nil || len(tran.Operations) == 0 {
+	if !transactionHasRequiredFields(tran) {
 		return false
 	}
 
-	debitTotal := decimal.Zero
-	creditTotal := decimal.Zero
+	debitTotal, creditTotal, valid := computeOperationTotals(tran.Operations)
+	if !valid {
+		return false
+	}
 
-	for _, op := range tran.Operations {
+	return totalsMatchAmount(debitTotal, creditTotal, *tran.Amount)
+}
+
+// transactionHasRequiredFields checks if a transaction has the basic fields required for revert validation.
+func transactionHasRequiredFields(tran *transaction.Transaction) bool {
+	return tran != nil && tran.Amount != nil && len(tran.Operations) > 0
+}
+
+// computeOperationTotals computes debit and credit totals from operations.
+// Returns false if any operation is invalid.
+func computeOperationTotals(operations []*operation.Operation) (debitTotal, creditTotal decimal.Decimal, valid bool) {
+	debitTotal = decimal.Zero
+	creditTotal = decimal.Zero
+
+	for _, op := range operations {
 		if op == nil || op.Amount.Value == nil {
-			return false
+			return decimal.Zero, decimal.Zero, false
 		}
 
 		switch op.Type {
@@ -638,11 +699,16 @@ func operationsReadyForRevert(tran *transaction.Transaction) bool {
 		}
 	}
 
+	return debitTotal, creditTotal, true
+}
+
+// totalsMatchAmount checks if both debit and credit totals are non-zero and equal to the transaction amount.
+func totalsMatchAmount(debitTotal, creditTotal, amount decimal.Decimal) bool {
 	if debitTotal.IsZero() || creditTotal.IsZero() {
 		return false
 	}
 
-	return debitTotal.Equal(*tran.Amount) && creditTotal.Equal(*tran.Amount)
+	return debitTotal.Equal(amount) && creditTotal.Equal(amount)
 }
 
 func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *transaction.Transaction) pkgTransaction.Transaction {
@@ -1402,7 +1468,7 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 // ensureAsyncTransactionVisibility persists the transaction record synchronously when async processing is enabled.
 // This keeps API semantics (e.g., immediate retrieval, commit on non-pending) consistent even when BTO runs async.
 func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction) error {
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) != "true" {
+	if !handler.isAsyncModeEnabled() {
 		return nil
 	}
 
@@ -1429,7 +1495,7 @@ func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.
 		libOpentelemetry.HandleSpanError(span, "Failed to persist async transaction record", err)
 		logger.Errorf("Failed to persist async transaction record: %v", err)
 
-		return fmt.Errorf("persist async transaction record: %w", err)
+		return pkg.ValidateInternalError(err, "PersistAsyncTransaction")
 	}
 
 	return nil
@@ -1666,7 +1732,7 @@ func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.C
 
 // updateTransactionStatusIfAsync updates transaction status synchronously if async mode is enabled.
 func (handler *TransactionHandler) updateTransactionStatusIfAsync(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+	if handler.isAsyncModeEnabled() {
 		if _, err := handler.Command.UpdateTransactionStatus(ctx, tran); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction status synchronously", err)
 			logger.Errorf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error())
