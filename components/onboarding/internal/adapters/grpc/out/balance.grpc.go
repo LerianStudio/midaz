@@ -148,6 +148,13 @@ func NewBalanceAdapter(c *mgrpc.GRPCConnection) *BalanceAdapter {
 
 // extractAuthToken extracts the authorization token from context metadata.
 // Returns empty string if no token is found.
+//
+// DESIGN NOTE: Empty token return is intentional, not an error.
+// Not all gRPC calls require authentication:
+// - Some endpoints are public
+// - Internal service-to-service calls may use mTLS instead
+// - Token validation happens at the receiving service
+// Using assertions here would break legitimate unauthenticated flows.
 func extractAuthToken(ctx context.Context) string {
 	if md, ok := metadata.FromOutgoingContext(ctx); ok {
 		if vals := md.Get(libConstant.MetadataAuthorization); len(vals) > 0 {
@@ -193,6 +200,17 @@ func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.Cre
 	if err != nil {
 		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
+
+	// Balance values from the transaction service must be non-negative.
+	// Negative balances indicate a bug in the balance calculation service.
+	assert.That(assert.NonNegativeDecimal(available),
+		"available balance from gRPC must be non-negative",
+		"available", available.String(),
+		"response_id", resp.Id)
+	assert.That(assert.NonNegativeDecimal(onHold),
+		"onHold balance from gRPC must be non-negative",
+		"onHold", onHold.String(),
+		"response_id", resp.Id)
 
 	return &mmodel.Balance{
 		ID:             resp.Id,

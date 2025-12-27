@@ -3,6 +3,7 @@ package in
 import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
@@ -45,6 +46,13 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	payload := http.Payload[*mmodel.CreateAliasInput](c, p)
 	holderID := http.LocalUUID(c, "holder_id")
 	organizationID := c.Get("X-Organization-Id")
+
+	// organizationID header should be validated by middleware before reaching handler.
+	// If we get here with invalid UUID, it indicates middleware misconfiguration.
+	assert.That(assert.ValidUUID(organizationID),
+		"X-Organization-Id header must be valid UUID - check middleware configuration",
+		"handler", "CreateAlias",
+		"organizationID", organizationID)
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -301,6 +309,10 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 			return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
 		}
+		// NOTE: After successful Parse, holderID is guaranteed to be a valid UUID.
+		// It could be uuid.Nil (all zeros) only if the input was "00000000-0000-0000-0000-000000000000".
+		// This is a valid UUID per RFC 4122, so we don't assert against uuid.Nil.
+		// The service layer handles the semantic meaning of nil vs non-nil holder IDs.
 	}
 
 	pagination := libPostgres.Pagination{

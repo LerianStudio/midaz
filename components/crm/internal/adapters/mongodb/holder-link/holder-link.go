@@ -3,6 +3,7 @@ package holderlink
 import (
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -39,6 +40,20 @@ func (hmm *MongoDBModel) FromEntity(hl *mmodel.HolderLink) {
 
 // ToEntity maps a MongoDB model to a holder link entity
 func (hmm *MongoDBModel) ToEntity() *mmodel.HolderLink {
+	// Required fields must be present in stored documents.
+	// Nil values here indicate data corruption or schema mismatch.
+	assert.NotNil(hmm.ID, "HolderLink ID must not be nil in stored document",
+		"model", "HolderLinkMongoDBModel")
+	assert.NotNil(hmm.HolderID, "HolderLink HolderID must not be nil in stored document",
+		"model", "HolderLinkMongoDBModel",
+		"id", hmm.ID)
+	assert.NotNil(hmm.AliasID, "HolderLink AliasID must not be nil in stored document",
+		"model", "HolderLinkMongoDBModel",
+		"id", hmm.ID)
+	assert.NotNil(hmm.LinkType, "HolderLink LinkType must not be nil in stored document",
+		"model", "HolderLinkMongoDBModel",
+		"id", hmm.ID)
+
 	var createdAt, updatedAt time.Time
 	if hmm.CreatedAt != nil {
 		createdAt = *hmm.CreatedAt

@@ -149,6 +149,13 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	// ToEntity must return a valid entity after successful DB insertion.
+	// A nil result here indicates data corruption in model conversion.
+	assert.NotNil(result, "ToEntity must return valid alias after successful insertion",
+		"repository", "AliasMongoDBRepository",
+		"organizationID", organizationID,
+		"aliasID", alias.ID)
+
 	return result, nil
 }
 

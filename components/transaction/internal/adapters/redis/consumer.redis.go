@@ -201,6 +201,13 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 	out := make(map[string]string, len(keys))
 
+	// DESIGN NOTE: MGet intentionally returns fewer values than requested keys.
+	// This is expected Redis behavior - missing keys return nil values.
+	// We skip nil values rather than asserting, because:
+	// 1. Key expiration between request and response is normal
+	// 2. Cache misses are expected in distributed systems
+	// 3. Callers handle missing keys via map lookup (ok pattern)
+	// Using assertions here would crash for normal cache operations.
 	for i, v := range res {
 		if v == nil {
 			continue
@@ -391,12 +398,23 @@ func (rr *RedisConsumerRepository) handleScriptExecutionError(span *trace.Span, 
 		return businessErr
 	}
 
+	if strings.Contains(err.Error(), constant.ErrOnHoldInsufficient.Error()) {
+		businessErr := pkg.ValidateBusinessError(constant.ErrOnHoldInsufficient, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", businessErr)
+
+		return businessErr
+	}
+
 	libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", err)
 
 	return pkg.ValidateInternalError(err, "Redis")
 }
 
 // convertResultToBytes converts Redis script result to bytes
+//
+// NOTE: The Lua script (add_sub.lua) is internal code that MUST return string or []byte.
+// Other types indicate a bug in the Lua script, not an external system issue.
+// We use assert here because this is a programmer error, not a runtime condition.
 func (rr *RedisConsumerRepository) convertResultToBytes(result any, logger libLog.Logger) ([]byte, error) {
 	switch v := result.(type) {
 	case string:
@@ -404,10 +422,14 @@ func (rr *RedisConsumerRepository) convertResultToBytes(result any, logger libLo
 	case []byte:
 		return v, nil
 	default:
-		err := fmt.Errorf("%w: %T", ErrUnexpectedRedisResultType, result)
-		logger.Warnf("Warning: %v", err)
+		// This should never happen with our Lua script - indicates a programming error
+		assert.Never("Lua script returned unexpected type - check add_sub.lua",
+			"expected", "string or []byte",
+			"actual_type", fmt.Sprintf("%T", result),
+			"script", "add_sub.lua")
 
-		return nil, pkg.ValidateInternalError(err, "Redis")
+		// Unreachable, but satisfies compiler
+		return nil, nil
 	}
 }
 

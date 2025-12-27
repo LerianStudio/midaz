@@ -103,6 +103,14 @@ type ConsumerRepository interface {
 // getRetryCount extracts the retry count from our custom retry tracking header.
 // This header is set and incremented by this consumer on each republish.
 // Returns 0 for first delivery (header not present).
+//
+// DESIGN NOTE: Silent fallback to 0 for unexpected types is intentional.
+// Headers come from external message brokers and may have unexpected types due to:
+// - Different RabbitMQ client implementations
+// - Message broker upgrades changing serialization
+// - Third-party message producers
+// Using assertions here would crash the consumer for recoverable conditions.
+// Instead, we treat unknown types as "no retry count" (first delivery).
 func getRetryCount(headers amqp.Table) int {
 	if val, ok := headers[retryCountHeader].(int32); ok {
 		return int(val)
@@ -128,6 +136,12 @@ var safeHeadersAllowlist = map[string]bool{
 
 // copyHeadersSafe copies only allowlisted headers to prevent sensitive data propagation.
 // This is a security measure to filter out auth tokens, PII, and internal paths (CWE-200).
+//
+// DESIGN NOTE: Nil check is defensive programming, not assertion.
+// Headers come from external AMQP messages and may be nil in edge cases:
+// - Malformed messages from other systems
+// - RabbitMQ protocol edge cases
+// We return an empty table rather than panic to maintain consumer stability.
 func copyHeadersSafe(src amqp.Table) amqp.Table {
 	if src == nil {
 		return amqp.Table{}
