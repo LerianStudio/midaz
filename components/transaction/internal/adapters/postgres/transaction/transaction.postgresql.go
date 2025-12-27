@@ -943,40 +943,119 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	return newTransaction, nil
 }
 
+// operationNullableRow holds nullable fields from operation scan.
+type operationNullableRow struct {
+	ID                    sql.NullString
+	TransactionID         sql.NullString
+	Description           sql.NullString
+	Type                  sql.NullString
+	AssetCode             sql.NullString
+	Amount                decimal.NullDecimal
+	AvailableBalance      decimal.NullDecimal
+	OnHoldBalance         decimal.NullDecimal
+	AvailableBalanceAfter decimal.NullDecimal
+	OnHoldBalanceAfter    decimal.NullDecimal
+	Status                sql.NullString
+	StatusDescription     sql.NullString
+	AccountID             sql.NullString
+	AccountAlias          sql.NullString
+	BalanceID             sql.NullString
+	ChartOfAccounts       sql.NullString
+	OrganizationID        sql.NullString
+	LedgerID              sql.NullString
+	CreatedAt             sql.NullTime
+	UpdatedAt             sql.NullTime
+	DeletedAt             sql.NullTime
+	Route                 sql.NullString
+	BalanceAffected       sql.NullBool
+	BalanceKey            sql.NullString
+	VersionBalance        sql.NullInt64
+	VersionBalanceAfter   sql.NullInt64
+}
+
+// assignOperationBalanceFields assigns nullable balance-related fields to the operation model.
+func assignOperationBalanceFields(op *operation.OperationPostgreSQLModel, opRow *operationNullableRow) {
+	if opRow.Amount.Valid {
+		op.Amount = &opRow.Amount.Decimal
+	}
+
+	if opRow.AvailableBalance.Valid {
+		op.AvailableBalance = &opRow.AvailableBalance.Decimal
+	}
+
+	if opRow.OnHoldBalance.Valid {
+		op.OnHoldBalance = &opRow.OnHoldBalance.Decimal
+	}
+
+	if opRow.AvailableBalanceAfter.Valid {
+		op.AvailableBalanceAfter = &opRow.AvailableBalanceAfter.Decimal
+	}
+
+	if opRow.OnHoldBalanceAfter.Valid {
+		op.OnHoldBalanceAfter = &opRow.OnHoldBalanceAfter.Decimal
+	}
+
+	if opRow.VersionBalance.Valid {
+		op.VersionBalance = &opRow.VersionBalance.Int64
+	}
+
+	if opRow.VersionBalanceAfter.Valid {
+		op.VersionBalanceAfter = &opRow.VersionBalanceAfter.Int64
+	}
+}
+
+// assignOperationMetadataFields assigns nullable metadata fields to the operation model.
+func assignOperationMetadataFields(op *operation.OperationPostgreSQLModel, opRow *operationNullableRow) {
+	if opRow.StatusDescription.Valid {
+		op.StatusDescription = &opRow.StatusDescription.String
+	}
+
+	if opRow.Route.Valid {
+		op.Route = &opRow.Route.String
+	}
+
+	if opRow.BalanceAffected.Valid {
+		op.BalanceAffected = opRow.BalanceAffected.Bool
+	}
+
+	if opRow.CreatedAt.Valid {
+		op.CreatedAt = opRow.CreatedAt.Time
+	}
+
+	if opRow.UpdatedAt.Valid {
+		op.UpdatedAt = opRow.UpdatedAt.Time
+	}
+}
+
+// buildOperationFromRow constructs an OperationPostgreSQLModel from nullable row data.
+func buildOperationFromRow(opRow *operationNullableRow) *operation.OperationPostgreSQLModel {
+	op := &operation.OperationPostgreSQLModel{
+		ID:              opRow.ID.String,
+		TransactionID:   opRow.TransactionID.String,
+		Description:     opRow.Description.String,
+		Type:            opRow.Type.String,
+		AssetCode:       opRow.AssetCode.String,
+		Status:          opRow.Status.String,
+		AccountID:       opRow.AccountID.String,
+		AccountAlias:    opRow.AccountAlias.String,
+		BalanceID:       opRow.BalanceID.String,
+		BalanceKey:      opRow.BalanceKey.String,
+		ChartOfAccounts: opRow.ChartOfAccounts.String,
+		OrganizationID:  opRow.OrganizationID.String,
+		LedgerID:        opRow.LedgerID.String,
+		DeletedAt:       opRow.DeletedAt,
+	}
+
+	assignOperationBalanceFields(op, opRow)
+	assignOperationMetadataFields(op, opRow)
+
+	return op
+}
+
 // scanTransactionWithOperationRow scans a transaction with operation join row.
 func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLModel, *operation.OperationPostgreSQLModel, *string, error) {
 	tran := &TransactionPostgreSQLModel{}
-
-	type operationRow struct {
-		ID                    sql.NullString
-		TransactionID         sql.NullString
-		Description           sql.NullString
-		Type                  sql.NullString
-		AssetCode             sql.NullString
-		Amount                decimal.NullDecimal
-		AvailableBalance      decimal.NullDecimal
-		OnHoldBalance         decimal.NullDecimal
-		AvailableBalanceAfter decimal.NullDecimal
-		OnHoldBalanceAfter    decimal.NullDecimal
-		Status                sql.NullString
-		StatusDescription     sql.NullString
-		AccountID             sql.NullString
-		AccountAlias          sql.NullString
-		BalanceID             sql.NullString
-		ChartOfAccounts       sql.NullString
-		OrganizationID        sql.NullString
-		LedgerID              sql.NullString
-		CreatedAt             sql.NullTime
-		UpdatedAt             sql.NullTime
-		DeletedAt             sql.NullTime
-		Route                 sql.NullString
-		BalanceAffected       sql.NullBool
-		BalanceKey            sql.NullString
-		VersionBalance        sql.NullInt64
-		VersionBalanceAfter   sql.NullInt64
-	}
-
-	opRow := &operationRow{}
+	opRow := &operationNullableRow{}
 
 	var body *string
 
@@ -1031,72 +1110,7 @@ func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLMode
 		return tran, nil, body, nil
 	}
 
-	op := &operation.OperationPostgreSQLModel{
-		ID:              opRow.ID.String,
-		TransactionID:   opRow.TransactionID.String,
-		Description:     opRow.Description.String,
-		Type:            opRow.Type.String,
-		AssetCode:       opRow.AssetCode.String,
-		Status:          opRow.Status.String,
-		AccountID:       opRow.AccountID.String,
-		AccountAlias:    opRow.AccountAlias.String,
-		BalanceID:       opRow.BalanceID.String,
-		BalanceKey:      opRow.BalanceKey.String,
-		ChartOfAccounts: opRow.ChartOfAccounts.String,
-		OrganizationID:  opRow.OrganizationID.String,
-		LedgerID:        opRow.LedgerID.String,
-		DeletedAt:       opRow.DeletedAt,
-	}
-
-	if opRow.Amount.Valid {
-		op.Amount = &opRow.Amount.Decimal
-	}
-
-	if opRow.AvailableBalance.Valid {
-		op.AvailableBalance = &opRow.AvailableBalance.Decimal
-	}
-
-	if opRow.OnHoldBalance.Valid {
-		op.OnHoldBalance = &opRow.OnHoldBalance.Decimal
-	}
-
-	if opRow.AvailableBalanceAfter.Valid {
-		op.AvailableBalanceAfter = &opRow.AvailableBalanceAfter.Decimal
-	}
-
-	if opRow.OnHoldBalanceAfter.Valid {
-		op.OnHoldBalanceAfter = &opRow.OnHoldBalanceAfter.Decimal
-	}
-
-	if opRow.VersionBalance.Valid {
-		op.VersionBalance = &opRow.VersionBalance.Int64
-	}
-
-	if opRow.VersionBalanceAfter.Valid {
-		op.VersionBalanceAfter = &opRow.VersionBalanceAfter.Int64
-	}
-
-	if opRow.StatusDescription.Valid {
-		op.StatusDescription = &opRow.StatusDescription.String
-	}
-
-	if opRow.Route.Valid {
-		op.Route = &opRow.Route.String
-	}
-
-	if opRow.BalanceAffected.Valid {
-		op.BalanceAffected = opRow.BalanceAffected.Bool
-	}
-
-	if opRow.CreatedAt.Valid {
-		op.CreatedAt = opRow.CreatedAt.Time
-	}
-
-	if opRow.UpdatedAt.Valid {
-		op.UpdatedAt = opRow.UpdatedAt.Time
-	}
-
-	return tran, op, body, nil
+	return tran, buildOperationFromRow(opRow), body, nil
 }
 
 // unmarshalTransactionBody unmarshals transaction body JSON.
