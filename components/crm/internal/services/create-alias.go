@@ -163,6 +163,7 @@ func (uc *UseCase) createAliasWithHolderLink(ctx context.Context, span *trace.Sp
 			"organization_id", organizationID,
 			"holder_id", holderID.String())
 		uc.rollbackHolderLinkCreation(ctx, logger, organizationID, *createdHolderLink.ID)
+
 		return nil, err
 	}
 

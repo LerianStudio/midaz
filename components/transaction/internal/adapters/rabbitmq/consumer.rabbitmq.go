@@ -437,6 +437,7 @@ func (bec *businessErrorContext) handleBusinessError() {
 
 		// Attempt to publish to DLQ with single retry on failure
 		dlqName := buildDLQName(bec.queue)
+
 		err := bec.publishToDLQ(dlqName)
 		if err != nil {
 			// First attempt failed - wait and retry once before giving up
@@ -592,6 +593,7 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 
 	// Attempt to publish to DLQ with single retry on failure
 	dlqName := buildDLQName(prc.queue)
+
 	err := prc.publishToDLQ(dlqName, panicValue)
 	if err != nil {
 		// First attempt failed - wait and retry once before giving up

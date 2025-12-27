@@ -946,6 +946,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 // scanTransactionWithOperationRow scans a transaction with operation join row.
 func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLModel, *operation.OperationPostgreSQLModel, *string, error) {
 	tran := &TransactionPostgreSQLModel{}
+
 	type operationRow struct {
 		ID                    sql.NullString
 		TransactionID         sql.NullString
@@ -974,6 +975,7 @@ func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLMode
 		VersionBalance        sql.NullInt64
 		VersionBalanceAfter   sql.NullInt64
 	}
+
 	opRow := &operationRow{}
 
 	var body *string
@@ -1049,36 +1051,47 @@ func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLMode
 	if opRow.Amount.Valid {
 		op.Amount = &opRow.Amount.Decimal
 	}
+
 	if opRow.AvailableBalance.Valid {
 		op.AvailableBalance = &opRow.AvailableBalance.Decimal
 	}
+
 	if opRow.OnHoldBalance.Valid {
 		op.OnHoldBalance = &opRow.OnHoldBalance.Decimal
 	}
+
 	if opRow.AvailableBalanceAfter.Valid {
 		op.AvailableBalanceAfter = &opRow.AvailableBalanceAfter.Decimal
 	}
+
 	if opRow.OnHoldBalanceAfter.Valid {
 		op.OnHoldBalanceAfter = &opRow.OnHoldBalanceAfter.Decimal
 	}
+
 	if opRow.VersionBalance.Valid {
 		op.VersionBalance = &opRow.VersionBalance.Int64
 	}
+
 	if opRow.VersionBalanceAfter.Valid {
 		op.VersionBalanceAfter = &opRow.VersionBalanceAfter.Int64
 	}
+
 	if opRow.StatusDescription.Valid {
 		op.StatusDescription = &opRow.StatusDescription.String
 	}
+
 	if opRow.Route.Valid {
 		op.Route = &opRow.Route.String
 	}
+
 	if opRow.BalanceAffected.Valid {
 		op.BalanceAffected = opRow.BalanceAffected.Bool
 	}
+
 	if opRow.CreatedAt.Valid {
 		op.CreatedAt = opRow.CreatedAt.Time
 	}
+
 	if opRow.UpdatedAt.Valid {
 		op.UpdatedAt = opRow.UpdatedAt.Time
 	}

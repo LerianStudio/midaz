@@ -42,6 +42,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 		if metadata != nil {
 			tran.Metadata = metadata.Data
 		}
+
 		if tran.Metadata == nil {
 			tran.Metadata = map[string]any{}
 		}
@@ -81,6 +82,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 		if metadata != nil {
 			tran.Metadata = metadata.Data
 		}
+
 		if tran.Metadata == nil {
 			tran.Metadata = map[string]any{}
 		}

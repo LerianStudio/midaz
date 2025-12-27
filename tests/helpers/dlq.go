@@ -198,6 +198,7 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 			if !sleepWithContext(ctx, dlqPollInterval) {
 				return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
 			}
+
 			continue
 		}
 

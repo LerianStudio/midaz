@@ -51,6 +51,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		if trans[i].Metadata == nil {
 			trans[i].Metadata = map[string]any{}
 		}
+
 		if trans[i].Operations == nil {
 			trans[i].Operations = make([]*operation.Operation, 0)
 		}
