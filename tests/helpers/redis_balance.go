@@ -3,8 +3,6 @@
 // SECURITY NOTICE: These helpers are designed for LOCAL TESTING ONLY
 // against Docker containers. They do NOT support production-grade security
 // configurations (password auth, TLS encryption, IAM). DO NOT use for production.
-//
-// TODO(review): Add unit tests for buildBalanceKey, convergence wait, error handling (reported by code-reviewer and business-logic-reviewer on 2025-12-14, severity: Medium)
 package helpers
 
 import (
