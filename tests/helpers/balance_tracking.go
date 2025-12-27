@@ -9,9 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	balanceChangePollInterval = 100 * time.Millisecond
-)
 
 // ErrBalanceChangeTimeout indicates timeout waiting for balance change
 var ErrBalanceChangeTimeout = errors.New("timeout waiting for balance change")
@@ -76,7 +73,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 			return current, nil
 		}
 
-		time.Sleep(balanceChangePollInterval)
+		time.Sleep(PollIntervalFast)
 	}
 
 	actualDelta := lastSeen.Sub(snapshot.Available)
