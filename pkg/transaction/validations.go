@@ -105,19 +105,7 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 
 // ValidateFromToOperation func that validate operate balance
 func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (Amount, Balance, error) {
-	if ft.IsFrom {
-		ba, err := OperateBalances(validate.From[ft.AccountAlias], *balance)
-		if err != nil {
-			return Amount{}, Balance{}, err
-		}
-
-		if ba.Available.IsNegative() && balance.AccountType != constant.ExternalAccountType {
-			//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
-			return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
-		}
-
-		return validate.From[ft.AccountAlias], ba, nil
-	} else {
+	if !ft.IsFrom {
 		ba, err := OperateBalances(validate.To[ft.AccountAlias], *balance)
 		if err != nil {
 			return Amount{}, Balance{}, err
@@ -125,6 +113,19 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 
 		return validate.To[ft.AccountAlias], ba, nil
 	}
+
+	ba, err := OperateBalances(validate.From[ft.AccountAlias], *balance)
+	if err != nil {
+		return Amount{}, Balance{}, err
+	}
+
+	isInsufficientFunds := ba.Available.IsNegative() && balance.AccountType != constant.ExternalAccountType
+	if isInsufficientFunds {
+		//nolint:wrapcheck // ValidateBusinessError already returns a properly formatted business error with context
+		return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
+	}
+
+	return validate.From[ft.AccountAlias], ba, nil
 }
 
 // AliasKey function to concatenate alias with balance key
