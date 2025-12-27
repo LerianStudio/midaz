@@ -1,3 +1,4 @@
+// Package mongo provides utilities for MongoDB document manipulation and transformation.
 package mongo
 
 import (
@@ -7,6 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// BuildDocumentToPatch transforms an update document into a MongoDB patch operation by flattening nested fields,
+// creating a $set map for fields to keep and an $unset map for fields to remove.
 func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M {
 	flatDocument := bson.M{}
 	flattenBSONM(updateDocument, "", flatDocument)

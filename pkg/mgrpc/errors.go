@@ -1,3 +1,4 @@
+// Package mgrpc provides error mapping and handling utilities for gRPC services.
 package mgrpc
 
 import (

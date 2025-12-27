@@ -49,17 +49,22 @@ var (
 	ErrDistributeContextNil            = errors.New("distribute context is nil")
 )
 
+// TransactionVisitor is an ANTLR visitor that traverses the transaction parse tree
+// and builds a transaction domain object from the parsed DSL.
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 	err error
 }
 
+// NewTransactionVisitor creates a new TransactionVisitor instance.
 func NewTransactionVisitor() *TransactionVisitor {
 	return new(TransactionVisitor)
 }
 
+// Visit dispatches the given parse tree to the appropriate visit method.
 func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) }
 
+// VisitTransaction visits a transaction context and builds the main transaction object.
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
 	if ctx == nil {
 		v.setError(ErrTransactionContextNil)
@@ -105,6 +110,7 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	return transaction
 }
 
+// VisitVisitChartOfAccountsGroupName visits a chart of accounts group name context and extracts the UUID.
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
 	if ctx == nil || ctx.UUID() == nil {
 		v.setError(ErrChartOfAccountsGroupNameUUID)
@@ -114,6 +120,7 @@ func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.Char
 	return ctx.UUID().GetText()
 }
 
+// VisitCode visits a code context and extracts the UUID if present.
 func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	if ctx == nil {
 		return ""
@@ -126,6 +133,7 @@ func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	return ""
 }
 
+// VisitPending visits a pending context and extracts the boolean value.
 func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	if ctx == nil {
 		return false
@@ -146,6 +154,7 @@ func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	return false
 }
 
+// VisitDescription visits a description context and extracts the string value.
 func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) any {
 	if ctx == nil || ctx.STRING() == nil {
 		return ""
@@ -154,6 +163,7 @@ func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) an
 	return strings.Trim(ctx.STRING().GetText(), "\"")
 }
 
+// VisitVisitChartOfAccounts visits a chart of accounts context and extracts the UUID.
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
 	if ctx == nil || ctx.UUID() == nil {
 		v.setError(ErrChartOfAccountsUUID)
@@ -163,6 +173,7 @@ func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccoun
 	return ctx.UUID().GetText()
 }
 
+// VisitMetadata visits a metadata context and builds a map of key-value pairs.
 func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	metadata := make(map[string]any, len(ctx.AllPair()))
 
@@ -174,6 +185,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	return metadata
 }
 
+// VisitPair visits a pair context and extracts a key-value metadata pair.
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	if ctx == nil || ctx.Key() == nil || ctx.Value() == nil {
 		v.setError(ErrInvalidMetadataPair)
@@ -186,6 +198,7 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	}
 }
 
+// VisitNumericValue visits a numeric value context and extracts the integer text.
 func (v *TransactionVisitor) VisitNumericValue(ctx *parser.NumericValueContext) any {
 	if ctx == nil || ctx.INT() == nil {
 		v.setError(ErrNumericValueMissing)
@@ -229,6 +242,7 @@ func (v *TransactionVisitor) parseDecimalWithScale(valueCtx, scaleCtx parser.INu
 	return value.Shift(-int32(scale))
 }
 
+// VisitSend visits a send context and builds a Send object with asset, value, source, and distribution.
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	if ctx == nil {
 		v.setError(ErrSendContextNil)
@@ -270,6 +284,7 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	}
 }
 
+// VisitSource visits a source context and builds a Source object with from accounts and remaining marker.
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	if ctx == nil {
 		v.setError(ErrSourceContextNil)
@@ -294,6 +309,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	}
 }
 
+// VisitAccount visits an account context and extracts the account identifier (UUID, account name, or variable).
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	if ctx == nil {
 		v.setError(ErrAccountContextNil)
@@ -312,6 +328,7 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	}
 }
 
+// VisitRate visits a rate context and builds a Rate object with from/to assets and conversion value.
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	if ctx == nil {
 		v.setError(ErrRateContextNil)
@@ -341,6 +358,7 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	}
 }
 
+// VisitRemaining visits a remaining context and extracts the remaining marker.
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	if ctx == nil {
 		v.setError(ErrRemainingContextNil)
@@ -350,6 +368,7 @@ func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	return strings.Trim(ctx.GetText(), ":")
 }
 
+// VisitAmount visits an amount context and builds an Amount object with asset and scaled value.
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	if ctx == nil {
 		v.setError(ErrAmountContextNil)
@@ -375,6 +394,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	}
 }
 
+// VisitShareInt visits a share int context and builds a Share object with percentage.
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	if ctx == nil {
 		v.setError(ErrShareContextNil)
@@ -395,6 +415,7 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	}
 }
 
+// VisitShareIntOfInt visits a share int of int context and builds a Share object with percentage and percentageOfPercentage.
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
 	if ctx == nil {
 		v.setError(ErrShareContextNil)
@@ -498,6 +519,7 @@ func (v *TransactionVisitor) parseFromToRate(rateCtx parser.IRateContext) *pkgTr
 	return &rateValue
 }
 
+// VisitFrom visits a from context and builds a FromTo object representing a source account in a transaction.
 func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	if ctx == nil {
 		v.setError(ErrFromContextNil)
@@ -522,6 +544,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	}
 }
 
+// VisitTo visits a to context and builds a FromTo object representing a destination account in a transaction.
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	if ctx == nil {
 		v.setError(ErrToContextNil)
@@ -546,6 +569,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	}
 }
 
+// VisitDistribute visits a distribute context and builds a Distribute object with destination accounts.
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
 	if ctx == nil {
 		v.setError(ErrDistributeContextNil)
@@ -570,6 +594,7 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 	}
 }
 
+// Parse parses a transaction DSL string and returns a Transaction object or nil if parsing fails.
 func Parse(dsl string) any {
 	input := antlr.NewInputStream(dsl)
 	lexer := parser.NewTransactionLexer(input)

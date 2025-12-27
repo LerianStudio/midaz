@@ -1,3 +1,4 @@
+// Package pkg provides error types and utilities for validation, entity management, and business logic error handling.
 package pkg
 
 import (
@@ -1149,6 +1150,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	return err
 }
 
+// HandleKnownBusinessValidationErrors converts known business validation errors into ValidateBusinessError instances.
+// It maps transaction-related errors such as ambiguous transactions and value mismatches to their corresponding business errors.
 func HandleKnownBusinessValidationErrors(err error) error {
 	switch {
 	case err.Error() == constant.ErrTransactionAmbiguous.Error():
