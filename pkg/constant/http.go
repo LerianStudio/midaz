@@ -1,5 +1,6 @@
 package constant
 
+// UUIDPathParameters is a list of path parameter names that are expected to contain UUIDs.
 var UUIDPathParameters = []string{
 	"id",
 	"organization_id",
@@ -20,6 +21,7 @@ var UUIDPathParameters = []string{
 	"alias_id",
 }
 
+// XTotalCount is the HTTP header for the total count of items in a paginated response.
 const (
 	XTotalCount   = "X-Total-Count"
 	ContentLength = "Content-Length"

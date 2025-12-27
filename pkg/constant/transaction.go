@@ -1,5 +1,6 @@
 package constant
 
+// CREATED represents a transaction status indicating it has been created.
 const (
 	CREATED             = "CREATED"
 	APPROVED            = "APPROVED"
