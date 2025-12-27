@@ -49,18 +49,20 @@ func TestBuildDLQName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := buildDLQName(tt.queueName)
+			result, err := buildDLQName(tt.queueName)
+			assert.NoError(t, err, "buildDLQName should not return error for valid queue name")
 			assert.Equal(t, tt.expected, result, "buildDLQName should append dlqSuffix to queue name")
 		})
 	}
 
-	// Test panic on empty queue name
-	t.Run("empty queue name panics", func(t *testing.T) {
+	// Test error on empty queue name
+	t.Run("empty queue name returns error", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Panics(t, func() {
-			buildDLQName("")
-		}, "buildDLQName should panic on empty queue name")
+		result, err := buildDLQName("")
+		assert.Error(t, err, "buildDLQName should return error on empty queue name")
+		assert.ErrorIs(t, err, ErrEmptyQueueName, "buildDLQName should return ErrEmptyQueueName")
+		assert.Empty(t, result, "buildDLQName should return empty string on error")
 	})
 }
 
@@ -157,12 +159,12 @@ func TestDLQPublishRetryDelay(t *testing.T) {
 func TestDLQConfirmChannelValidation(t *testing.T) {
 	t.Parallel()
 
-	// Test that buildDLQName still panics on empty queue (existing behavior)
-	t.Run("buildDLQName panics on empty queue", func(t *testing.T) {
+	// Test that buildDLQName returns error on empty queue
+	t.Run("buildDLQName returns error on empty queue", func(t *testing.T) {
 		t.Parallel()
-		assert.Panics(t, func() {
-			buildDLQName("")
-		}, "buildDLQName should panic on empty queue name")
+		_, err := buildDLQName("")
+		assert.Error(t, err, "buildDLQName should return error on empty queue name")
+		assert.ErrorIs(t, err, ErrEmptyQueueName, "buildDLQName should return ErrEmptyQueueName")
 	})
 
 	// Test that we document the nil channel assertion requirement

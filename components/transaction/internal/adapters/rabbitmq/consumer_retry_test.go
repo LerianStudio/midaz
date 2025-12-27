@@ -90,7 +90,8 @@ func TestCopyHeadersSafe_CopiesOnlyAllowlistedHeaders(t *testing.T) {
 func TestBuildDLQName_AppendsSuffix(t *testing.T) {
 	t.Parallel()
 
-	result := buildDLQName("transactions")
+	result, err := buildDLQName("transactions")
+	assert.NoError(t, err, "Should not return error for valid queue name")
 	assert.Equal(t, "transactions.dlq", result, "Should append .dlq suffix")
 }
 

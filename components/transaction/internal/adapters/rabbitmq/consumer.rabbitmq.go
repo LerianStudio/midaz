@@ -45,13 +45,16 @@ const dlqSuffix = ".dlq"
 // Short delay (1s) to allow transient broker issues to resolve.
 const dlqPublishRetryDelay = 1 * time.Second
 
+// ErrEmptyQueueName is returned when an empty queue name is provided for DLQ routing.
+var ErrEmptyQueueName = errors.New("queueName must not be empty for DLQ routing")
+
 // buildDLQName creates the Dead Letter Queue name for a given queue.
-func buildDLQName(queueName string) string {
+func buildDLQName(queueName string) (string, error) {
 	if queueName == "" {
-		panic("queueName must not be empty for DLQ routing")
+		return "", pkg.ValidateInternalError(ErrEmptyQueueName, "Consumer")
 	}
 
-	return queueName + dlqSuffix
+	return queueName + dlqSuffix, nil
 }
 
 // sleepWithContext waits for the specified duration or until context is cancelled.
@@ -429,49 +432,74 @@ type businessErrorContext struct {
 // handleBusinessError handles a business error with retry tracking.
 // Routes to DLQ after max retries exceeded, or republishes with incremented counter.
 func (bec *businessErrorContext) handleBusinessError() {
-	if bec.retryCount >= maxRetries-1 {
-		// Max retries exceeded - route to DLQ
-		bec.span.SetAttributes(attribute.String("retry.action", "dlq"))
-		bec.logger.Errorf("Worker %d: business error after %d delivery attempts - routing to DLQ: %v",
-			bec.workerID, bec.retryCount+1, bec.err)
-
-		// Attempt to publish to DLQ with single retry on failure
-		dlqName := buildDLQName(bec.queue)
-
-		err := bec.publishToDLQ(dlqName)
-		if err != nil {
-			// First attempt failed - wait and retry once before giving up
-			bec.logger.Warnf("Worker %d: DLQ publish failed for business error, retrying in %v: %v", bec.workerID, dlqPublishRetryDelay, err)
-
-			if sleepWithContext(bec.ctx, dlqPublishRetryDelay) {
-				err = bec.publishToDLQ(dlqName)
-			}
-		}
-
-		if err != nil {
-			recordDLQPublishFailure(bec.ctx, bec.queue, categorizePublishError(err))
-			bec.logger.Errorf("Worker %d: CRITICAL - DLQ publish failed after retry for business error, message will be PERMANENTLY LOST - queue=%s, dlq=%s, retry_count=%d, error=%v, original_error=%v",
-				bec.workerID, bec.queue, dlqName, bec.retryCount+1, err, bec.err)
-
-			// Fall back to reject (message is lost - tradeoff accepted for max retries exceeded)
-			if rejectErr := bec.msg.Reject(false); rejectErr != nil {
-				bec.logger.Warnf("Worker %d: failed to reject business error message: %v", bec.workerID, rejectErr)
-			}
-
-			return
-		}
-
-		// Ack original message since we successfully published to DLQ
-		if err := bec.msg.Ack(false); err != nil {
-			bec.logger.Warnf("Worker %d: failed to ack original message after DLQ publish: %v", bec.workerID, err)
-		}
-
+	if bec.routeToDLQIfMaxRetries() {
 		return
 	}
 
 	// Retry with incremented counter
 	bec.span.SetAttributes(attribute.String("retry.action", "retry"))
 	bec.republishWithRetry()
+}
+
+// routeToDLQIfMaxRetries routes the message to DLQ if max retries exceeded.
+// Returns true if the message was handled (routed to DLQ or rejected), false if retries remain.
+func (bec *businessErrorContext) routeToDLQIfMaxRetries() bool {
+	if bec.retryCount < maxRetries-1 {
+		return false
+	}
+
+	// Max retries exceeded - route to DLQ
+	bec.span.SetAttributes(attribute.String("retry.action", "dlq"))
+	bec.logger.Errorf("Worker %d: business error after %d delivery attempts - routing to DLQ: %v",
+		bec.workerID, bec.retryCount+1, bec.err)
+
+	dlqName, dlqErr := buildDLQName(bec.queue)
+	if dlqErr != nil {
+		bec.logger.Errorf("Worker %d: failed to build DLQ name: %v", bec.workerID, dlqErr)
+		bec.rejectMessage("DLQ name error")
+
+		return true
+	}
+
+	if err := bec.publishToDLQWithRetry(dlqName); err != nil {
+		recordDLQPublishFailure(bec.ctx, bec.queue, categorizePublishError(err))
+		bec.logger.Errorf("Worker %d: CRITICAL - DLQ publish failed after retry for business error, message will be PERMANENTLY LOST - queue=%s, dlq=%s, retry_count=%d, error=%v, original_error=%v",
+			bec.workerID, bec.queue, dlqName, bec.retryCount+1, err, bec.err)
+		bec.rejectMessage("business error")
+
+		return true
+	}
+
+	// Ack original message since we successfully published to DLQ
+	if err := bec.msg.Ack(false); err != nil {
+		bec.logger.Warnf("Worker %d: failed to ack original message after DLQ publish: %v", bec.workerID, err)
+	}
+
+	return true
+}
+
+// publishToDLQWithRetry attempts to publish to DLQ with a single retry on failure.
+func (bec *businessErrorContext) publishToDLQWithRetry(dlqName string) error {
+	err := bec.publishToDLQ(dlqName)
+	if err == nil {
+		return nil
+	}
+
+	// First attempt failed - wait and retry once before giving up
+	bec.logger.Warnf("Worker %d: DLQ publish failed for business error, retrying in %v: %v", bec.workerID, dlqPublishRetryDelay, err)
+
+	if !sleepWithContext(bec.ctx, dlqPublishRetryDelay) {
+		return err
+	}
+
+	return bec.publishToDLQ(dlqName)
+}
+
+// rejectMessage rejects the message without requeue and logs any rejection error.
+func (bec *businessErrorContext) rejectMessage(msgContext string) {
+	if rejectErr := bec.msg.Reject(false); rejectErr != nil {
+		bec.logger.Warnf("Worker %d: failed to reject %s message: %v", bec.workerID, msgContext, rejectErr)
+	}
 }
 
 // publishToDLQ publishes a business error message to the Dead Letter Queue.
@@ -592,7 +620,16 @@ func (prc *panicRecoveryContext) handlePoisonMessage(panicValue any) bool {
 		prc.workerID, prc.retryCount+1, panicValue)
 
 	// Attempt to publish to DLQ with single retry on failure
-	dlqName := buildDLQName(prc.queue)
+	dlqName, dlqErr := buildDLQName(prc.queue)
+	if dlqErr != nil {
+		prc.logger.Errorf("Worker %d: failed to build DLQ name: %v", prc.workerID, dlqErr)
+
+		if rejectErr := prc.msg.Reject(false); rejectErr != nil {
+			prc.logger.Warnf("Worker %d: failed to reject message after DLQ name error: %v", prc.workerID, rejectErr)
+		}
+
+		return true
+	}
 
 	err := prc.publishToDLQ(dlqName, panicValue)
 	if err != nil {
