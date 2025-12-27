@@ -1053,8 +1053,7 @@ const docTemplatecrm = `{
             "type": "object",
             "required": [
                 "accountId",
-                "ledgerId",
-                "participantDocument"
+                "ledgerId"
             ],
             "properties": {
                 "accountId": {
@@ -1123,7 +1122,7 @@ const docTemplatecrm = `{
                     ]
                 },
                 "document": {
-                    "description": "The holder’s identification document.",
+                    "description": "The holder's identification document.\nNOTE(globalization): Validation currently supports Brazilian CPF/CNPJ formats only.\nFuture enhancement: Support international document types (SSN, NIF, TIN, passport, etc.)\nStrategy: Add ` + "`" + `documentType` + "`" + ` field to select validator, or detect format automatically.\nRequires: Product decision on supported countries/formats, migration plan for existing data.",
                     "type": "string",
                     "example": "91315026015"
                 },
