@@ -11,12 +11,10 @@ import (
 )
 
 const (
-	balanceDefaultKey         = "default"
-	balanceCheckTimeout       = 120 * time.Second
-	balanceCheckPollInterval  = 150 * time.Millisecond
-	balanceEnableTimeout      = 60 * time.Second
-	balanceEnablePollInterval = 100 * time.Millisecond
-	balanceHTTPStatusOK       = 200
+	balanceDefaultKey    = "default"
+	balanceCheckTimeout  = 120 * time.Second
+	balanceEnableTimeout = 60 * time.Second
+	balanceHTTPStatusOK  = 200
 )
 
 var (
@@ -65,7 +63,7 @@ func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, l
 			return fmt.Errorf("%w: %s", ErrDefaultBalanceNotReady, accountID)
 		}
 
-		time.Sleep(balanceCheckPollInterval)
+		time.Sleep(PollIntervalStandard)
 	}
 }
 
@@ -103,7 +101,7 @@ func findDefaultBalanceID(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 			return "", fmt.Errorf("%w: %s", ErrDefaultBalanceNotFound, alias)
 		}
 
-		time.Sleep(balanceEnablePollInterval)
+		time.Sleep(PollIntervalFast)
 	}
 }
 
@@ -183,6 +181,6 @@ func WaitForAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, l
 			return last, fmt.Errorf("%w; last=%s expected=%s", ErrBalanceTimeoutWaiting, last.String(), expected.String())
 		}
 
-		time.Sleep(balanceCheckPollInterval)
+		time.Sleep(PollIntervalStandard)
 	}
 }
