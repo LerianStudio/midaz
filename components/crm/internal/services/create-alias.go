@@ -123,6 +123,14 @@ func (uc *UseCase) shouldCreateHolderLink(linkType *string) bool {
 	return linkType != nil && strings.TrimSpace(*linkType) != ""
 }
 
+// createAliasWithHolderLink creates a holder link for the alias and updates the alias with it.
+//
+// Race Condition Note: A race condition window exists between ValidateHolderLinkConstraints
+// and the actual holder link creation. If concurrent requests pass validation simultaneously,
+// only one will succeed due to the database unique index on (alias_id, link_type).
+// The database unique index is the authoritative source of truth for constraint enforcement.
+// The rollback pattern (rollbackAliasCreation) handles cleanup when race conditions cause
+// the holder link creation to fail after the alias has already been created.
 func (uc *UseCase) createAliasWithHolderLink(ctx context.Context, span *trace.Span, logger loggerInterface, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput, alias *mmodel.Alias, createdAccount *mmodel.Alias) (*mmodel.Alias, error) {
 	if err := uc.validateAndCreateHolderLinkConstraints(ctx, span, logger, organizationID, createdAccount.ID, cai.LinkType); err != nil {
 		uc.rollbackAliasCreation(ctx, logger, organizationID, holderID, *createdAccount.ID)
