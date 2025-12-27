@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -132,6 +133,15 @@ func (uc *UseCase) shouldCreateHolderLink(linkType *string) bool {
 // The rollback pattern (rollbackAliasCreation) handles cleanup when race conditions cause
 // the holder link creation to fail after the alias has already been created.
 func (uc *UseCase) createAliasWithHolderLink(ctx context.Context, span *trace.Span, logger loggerInterface, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput, alias *mmodel.Alias, createdAccount *mmodel.Alias) (*mmodel.Alias, error) {
+	// Validate pointers before any dereference - nil pointers in rollback paths
+	// cause cryptic panics that mask the original error
+	assert.NotNil(createdAccount, "createdAccount must not be nil for holder link creation",
+		"organization_id", organizationID,
+		"holder_id", holderID.String())
+	assert.NotNil(createdAccount.ID, "createdAccount.ID must not be nil for holder link creation",
+		"organization_id", organizationID,
+		"holder_id", holderID.String())
+
 	if err := uc.validateAndCreateHolderLinkConstraints(ctx, span, logger, organizationID, createdAccount.ID, cai.LinkType); err != nil {
 		uc.rollbackAliasCreation(ctx, logger, organizationID, holderID, *createdAccount.ID)
 		return nil, err
@@ -139,6 +149,8 @@ func (uc *UseCase) createAliasWithHolderLink(ctx context.Context, span *trace.Sp
 
 	createdHolderLink, err := uc.createHolderLink(ctx, span, logger, organizationID, holderID, createdAccount.ID, cai.LinkType)
 	if err != nil {
+		uc.rollbackAliasCreation(ctx, logger, organizationID, holderID, *createdAccount.ID)
+
 		return nil, err
 	}
 

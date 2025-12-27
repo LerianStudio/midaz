@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -50,24 +52,27 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return pkg.ValidateInternalError(err, "CRM")
 	}
 
-	var firstErr error
+	var deleteErrs []error
 
 	for _, holderLink := range holderLinks {
+		if holderLink.ID == nil {
+			logger.Errorf("HolderLink with nil ID found for holder %s, skipping", id.String())
+
+			continue
+		}
+
 		deleteErr := uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
 		if deleteErr != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", deleteErr)
 			logger.Errorf("Failed to delete holder link id %s: %v", holderLink.ID.String(), deleteErr)
-
-			if firstErr == nil {
-				firstErr = deleteErr
-			}
+			deleteErrs = append(deleteErrs, fmt.Errorf("failed to delete holder link %s: %w", holderLink.ID.String(), deleteErr))
 
 			continue
 		}
 	}
 
-	if firstErr != nil {
-		return pkg.ValidateInternalError(firstErr, "CRM")
+	if len(deleteErrs) > 0 {
+		return pkg.ValidateInternalError(errors.Join(deleteErrs...), "CRM")
 	}
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
