@@ -70,7 +70,7 @@ func (uc *UseCase) validateLinkTypeIfPresent(ctx context.Context, span *trace.Sp
 func (uc *UseCase) buildAliasFromInput(ctx context.Context, span *trace.Span, logger loggerInterface, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput) (*mmodel.Alias, error) {
 	accountID := libCommons.GenerateUUIDv7()
 
-	alias := &mmodel.Alias{
+	newAlias := &mmodel.Alias{
 		ID:                  &accountID,
 		LedgerID:            &cai.LedgerID,
 		AccountID:           &cai.AccountID,
@@ -82,7 +82,7 @@ func (uc *UseCase) buildAliasFromInput(ctx context.Context, span *trace.Span, lo
 	}
 
 	if cai.BankingDetails != nil {
-		alias.BankingDetails = &mmodel.BankingDetails{
+		newAlias.BankingDetails = &mmodel.BankingDetails{
 			Branch:      cai.BankingDetails.Branch,
 			Account:     cai.BankingDetails.Account,
 			Type:        cai.BankingDetails.Type,
@@ -101,10 +101,10 @@ func (uc *UseCase) buildAliasFromInput(ctx context.Context, span *trace.Span, lo
 		return nil, err
 	}
 
-	alias.Document = holder.Document
-	alias.Type = holder.Type
+	newAlias.Document = holder.Document
+	newAlias.Type = holder.Type
 
-	return alias, nil
+	return newAlias, nil
 }
 
 func (uc *UseCase) createAliasInRepo(ctx context.Context, span *trace.Span, logger loggerInterface, organizationID string, alias *mmodel.Alias) (*mmodel.Alias, error) {
