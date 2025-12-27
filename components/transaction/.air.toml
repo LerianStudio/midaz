@@ -3,12 +3,12 @@
 
 root = "/app"
 testdata_dir = "testdata"
-tmp_dir = "tmp/transaction"
+tmp_dir = "/tmp/transaction"
 
 [build]
-  args_bin = []
-  bin = "./tmp/transaction/main"
-  cmd = "go build -o ./tmp/transaction/main ./components/transaction/cmd/app/main.go"
+  args = []
+  entrypoint = ["/tmp/transaction/main"]
+  cmd = "go build -o /tmp/transaction/main ./components/transaction/cmd/app/main.go"
   delay = 1000
   exclude_dir = [
     "assets",
@@ -34,7 +34,6 @@ tmp_dir = "tmp/transaction"
   exclude_regex = ["_test.go", ".*_mock.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = ""
   include_dir = [
     "components/transaction",
     "pkg",

@@ -3,12 +3,12 @@
 
 root = "/app"
 testdata_dir = "testdata"
-tmp_dir = "tmp/crm"
+tmp_dir = "/tmp/crm"
 
 [build]
-  args_bin = []
-  bin = "./tmp/crm/main"
-  cmd = "go build -o ./tmp/crm/main ./components/crm/cmd/app/main.go"
+  args = []
+  entrypoint = ["/tmp/crm/main"]
+  cmd = "go build -o /tmp/crm/main ./components/crm/cmd/app/main.go"
   delay = 1000
   exclude_dir = [
     "assets",
@@ -34,7 +34,6 @@ tmp_dir = "tmp/crm"
   exclude_regex = ["_test.go", ".*_mock.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = ""
   include_dir = [
     "components/crm",
     "pkg",

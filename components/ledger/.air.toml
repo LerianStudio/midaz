@@ -3,12 +3,12 @@
 
 root = "/app"
 testdata_dir = "testdata"
-tmp_dir = "tmp/ledger"
+tmp_dir = "/tmp/ledger"
 
 [build]
-  args_bin = []
-  bin = "./tmp/ledger/main"
-  cmd = "go build -o ./tmp/ledger/main ./components/ledger/cmd/app/main.go"
+  args = []
+  entrypoint = ["/tmp/ledger/main"]
+  cmd = "go build -o /tmp/ledger/main ./components/ledger/cmd/app/main.go"
   delay = 1000
   exclude_dir = [
     "assets",
@@ -34,7 +34,6 @@ tmp_dir = "tmp/ledger"
   exclude_regex = ["_test.go", ".*_mock.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = ""
   # Ledger watches onboarding and transaction since it's a unified service
   include_dir = [
     "components/ledger",

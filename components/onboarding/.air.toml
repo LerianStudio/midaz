@@ -3,12 +3,12 @@
 
 root = "/app"
 testdata_dir = "testdata"
-tmp_dir = "tmp/onboarding"
+tmp_dir = "/tmp/onboarding"
 
 [build]
-  args_bin = []
-  bin = "./tmp/onboarding/main"
-  cmd = "go build -o ./tmp/onboarding/main ./components/onboarding/cmd/app/main.go"
+  args = []
+  entrypoint = ["/tmp/onboarding/main"]
+  cmd = "go build -o /tmp/onboarding/main ./components/onboarding/cmd/app/main.go"
   delay = 1000
   exclude_dir = [
     "assets",
@@ -34,7 +34,6 @@ tmp_dir = "tmp/onboarding"
   exclude_regex = ["_test.go", ".*_mock.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = ""
   include_dir = [
     "components/onboarding",
     "pkg",
