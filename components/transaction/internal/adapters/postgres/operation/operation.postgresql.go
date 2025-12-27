@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -151,6 +152,15 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+			libOpentelemetry.HandleSpanEvent(&spanExec, "Operation already exists, skipping duplicate insert (idempotent retry)")
+
+			logger.Infof("Operation already exists, skipping duplicate insert (idempotent retry): %v", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		logger.Errorf("Failed to execute query: %v", err)
