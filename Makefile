@@ -313,6 +313,10 @@ restart-backend-dev:
 .PHONY: rebuild-up-backend-dev
 rebuild-up-backend-dev:
 	$(call print_title,Rebuilding and restarting backend DEV services)
+	$(call check_env_files)
+	@echo "Ensuring infrastructure services are running..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "Rebuilding backend components in DEV mode..."
 	@for dir in $(BACKEND_COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
 			echo "Rebuilding DEV services in $$dir..."; \
