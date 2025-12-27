@@ -7,15 +7,15 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // UpdateOperation update an operation from the repository by given id.
-func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
+func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *mmodel.UpdateOperationInput) (*mmodel.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_operation")
@@ -23,7 +23,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Trying to update operation: %v", uoi)
 
-	op := &operation.Operation{
+	op := &mmodel.Operation{
 		Description: uoi.Description,
 	}
 
@@ -32,7 +32,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error updating op on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, reflect.TypeOf(operation.Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation on repo by id", err)
 
@@ -43,10 +43,10 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation on repo by id", err)
 
-		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Operation{}).Name())
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Operation{}).Name(), operationID.String(), uoi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 

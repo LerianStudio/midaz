@@ -1,3 +1,6 @@
+// Package command provides use case implementations for transaction write operations.
+// It contains command handlers for creating, updating, and processing transactions,
+// balances, and related entities.
 package command
 
 import (

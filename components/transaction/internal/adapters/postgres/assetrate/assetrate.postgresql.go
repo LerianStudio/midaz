@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -49,11 +50,11 @@ const (
 // Repository provides an interface for asset_rate template entities.
 // It defines methods for creating, finding, and updating asset rates.
 type Repository interface {
-	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
-	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
-	FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error)
-	FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, libHTTP.CursorPagination, error)
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error)
+	Create(ctx context.Context, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error)
+	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*mmodel.AssetRate, error)
+	FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AssetRate, error)
+	FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*mmodel.AssetRate, libHTTP.CursorPagination, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error)
 }
 
 // AssetRatePostgreSQLRepository is a Postgresql-specific implementation of the AssetRateRepository.
@@ -78,7 +79,7 @@ func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Asset
 }
 
 // Create a new AssetRate entity into Postgresql and returns it.
-func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error) {
 	assert.NotNil(assetRate, "assetRate entity must not be nil for Create",
 		"repository", "AssetRatePostgreSQLRepository")
 
@@ -135,7 +136,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate. Rows affected is 0", err)
 
@@ -148,7 +149,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 }
 
 // FindByExternalID an AssetRate entity by its external ID in Postgresql and returns it.
-func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*mmodel.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_external_id")
@@ -205,7 +206,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 		&record.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AssetRate{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset rate. Row not found", err)
 
@@ -225,7 +226,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 }
 
 // FindByCurrencyPair an AssetRate entity by its currency pair in Postgresql and returns it.
-func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*mmodel.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_currency_pair")
@@ -299,7 +300,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 }
 
 // FindAllByAssetCodes returns all asset rates by asset codes.
-func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, libHTTP.CursorPagination, error) {
+func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*mmodel.AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
@@ -381,7 +382,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 }
 
 // Update an AssetRate entity into Postgresql and returns the AssetRate updated.
-func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset_rate")
@@ -448,7 +449,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset rate. Rows affected is 0", err)
 
@@ -461,8 +462,8 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 }
 
 // scanAssetRateRows scans rows and returns asset rates
-func (r *AssetRatePostgreSQLRepository) scanAssetRateRows(rows *sql.Rows) ([]*AssetRate, error) {
-	assetRates := make([]*AssetRate, 0)
+func (r *AssetRatePostgreSQLRepository) scanAssetRateRows(rows *sql.Rows) ([]*mmodel.AssetRate, error) {
+	assetRates := make([]*mmodel.AssetRate, 0)
 
 	for rows.Next() {
 		var assetRate AssetRatePostgreSQLModel

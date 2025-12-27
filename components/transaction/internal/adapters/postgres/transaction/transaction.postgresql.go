@@ -18,6 +18,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -858,7 +859,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	defer rows.Close()
 
 	newTransaction := &Transaction{}
-	operations := make([]*operation.Operation, 0)
+	operations := make([]*mmodel.Operation, 0)
 
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}

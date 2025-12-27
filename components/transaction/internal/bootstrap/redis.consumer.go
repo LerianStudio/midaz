@@ -1,3 +1,5 @@
+// Package bootstrap provides initialization and consumer implementation for the transaction service,
+// including Redis queue consumer for handling transaction messages.
 package bootstrap
 
 import (
@@ -27,9 +29,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// CronTimeToRun is the interval between Redis queue processing cycles.
+const CronTimeToRun = 30 * time.Minute
+
 const (
-	CronTimeToRun            = 30 * time.Minute
-	MessageTimeOfLife        = 30
+	// MessageTimeOfLife is the time-to-live duration (in seconds) for messages in the Redis queue before expiration.
+	MessageTimeOfLife = 30
+	// MaxWorkers is the maximum number of concurrent workers processing messages from the Redis queue.
 	MaxWorkers               = 100
 	messageProcessingTimeout = 30
 )
@@ -37,11 +43,13 @@ const (
 // ErrPanicRecovered is returned when a panic is recovered during message processing
 var ErrPanicRecovered = errors.New("panic recovered")
 
+// RedisQueueConsumer processes transaction messages from the Redis backup queue.
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
 	TransactionHandler in.TransactionHandler
 }
 
+// NewRedisQueueConsumer creates a new RedisQueueConsumer with the provided logger and handler.
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
 		Logger:             logger,
@@ -49,6 +57,8 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 	}
 }
 
+// Run starts the Redis queue consumer loop that periodically processes backup messages.
+// It blocks until the context is cancelled or an interrupt signal is received.
 func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

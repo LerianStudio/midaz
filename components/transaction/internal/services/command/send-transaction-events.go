@@ -13,11 +13,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-const (
-	Source    string = "midaz"
-	EventType string = "transaction"
-)
+// Source identifies the origin of transaction events.
+const Source string = "midaz"
 
+// EventType identifies the type of event being sent.
+const EventType string = "transaction"
+
+// SendTransactionEvents publishes transaction events to RabbitMQ for external consumption.
+// It only sends events if the RABBITMQ_TRANSACTION_EVENTS_ENABLED environment variable is set.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

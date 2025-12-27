@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -44,10 +45,10 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
+func (m *MockRepository) Create(ctx context.Context, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, assetRate)
-	ret0, _ := ret[0].(*AssetRate)
+	ret0, _ := ret[0].(*mmodel.AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -59,10 +60,10 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 }
 
 // FindAllByAssetCodes mocks base method.
-func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http0.Pagination) ([]*AssetRate, http.CursorPagination, error) {
+func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http0.Pagination) ([]*mmodel.AssetRate, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, filter)
-	ret0, _ := ret[0].([]*AssetRate)
+	ret0, _ := ret[0].([]*mmodel.AssetRate)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -75,10 +76,10 @@ func (mr *MockRepositoryMockRecorder) FindAllByAssetCodes(ctx, organizationID, l
 }
 
 // FindByCurrencyPair mocks base method.
-func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
+func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*mmodel.AssetRate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindByCurrencyPair", ctx, organizationID, ledgerID, from, to)
-	ret0, _ := ret[0].(*AssetRate)
+	ret0, _ := ret[0].(*mmodel.AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -90,10 +91,10 @@ func (mr *MockRepositoryMockRecorder) FindByCurrencyPair(ctx, organizationID, le
 }
 
 // FindByExternalID mocks base method.
-func (m *MockRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error) {
+func (m *MockRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AssetRate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindByExternalID", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(*AssetRate)
+	ret0, _ := ret[0].(*mmodel.AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -105,10 +106,10 @@ func (mr *MockRepositoryMockRecorder) FindByExternalID(ctx, organizationID, ledg
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *mmodel.AssetRate) (*mmodel.AssetRate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, id, assetRate)
-	ret0, _ := ret[0].(*AssetRate)
+	ret0, _ := ret[0].(*mmodel.AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

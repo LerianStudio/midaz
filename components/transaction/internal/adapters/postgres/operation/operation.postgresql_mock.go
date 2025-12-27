@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -43,10 +44,10 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 *Operation) (*Operation, error) {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *mmodel.Operation) (*mmodel.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
-	ret0, _ := ret[0].(*Operation)
+	ret0, _ := ret[0].(*mmodel.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -72,10 +73,10 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*Operation, error) {
+func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*mmodel.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(*Operation)
+	ret0, _ := ret[0].(*mmodel.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -87,10 +88,10 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3, arg4 any) *go
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http0.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http0.Pagination) ([]*mmodel.Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].([]*Operation)
+	ret0, _ := ret[0].([]*mmodel.Operation)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -103,10 +104,10 @@ func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4 any) 
 }
 
 // FindAllByAccount mocks base method.
-func (m *MockRepository) FindAllByAccount(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *string, arg5 http0.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAllByAccount(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *string, arg5 http0.Pagination) ([]*mmodel.Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByAccount", arg0, arg1, arg2, arg3, arg4, arg5)
-	ret0, _ := ret[0].([]*Operation)
+	ret0, _ := ret[0].([]*mmodel.Operation)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -119,10 +120,10 @@ func (mr *MockRepositoryMockRecorder) FindAllByAccount(arg0, arg1, arg2, arg3, a
 }
 
 // FindByAccount mocks base method.
-func (m *MockRepository) FindByAccount(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*Operation, error) {
+func (m *MockRepository) FindByAccount(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*mmodel.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindByAccount", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(*Operation)
+	ret0, _ := ret[0].(*mmodel.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -134,10 +135,10 @@ func (mr *MockRepositoryMockRecorder) FindByAccount(arg0, arg1, arg2, arg3, arg4
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*Operation, error) {
+func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*mmodel.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByIDs", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]*Operation)
+	ret0, _ := ret[0].([]*mmodel.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -149,10 +150,10 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(arg0, arg1, arg2, arg3 any) *gom
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID, arg5 *Operation) (*Operation, error) {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID, arg5 *mmodel.Operation) (*mmodel.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4, arg5)
-	ret0, _ := ret[0].(*Operation)
+	ret0, _ := ret[0].(*mmodel.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

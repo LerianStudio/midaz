@@ -56,20 +56,7 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		account := &mmodel.AccountRule{
 			RuleType: m.AccountRuleType,
 		}
-
-		if m.AccountRuleValidIf != "" {
-			if strings.ToLower(m.AccountRuleType) == constant.AccountRuleTypeAccountType {
-				values := strings.Split(m.AccountRuleValidIf, ",")
-				for i, v := range values {
-					values[i] = strings.TrimSpace(v)
-				}
-
-				account.ValidIf = values
-			} else {
-				account.ValidIf = m.AccountRuleValidIf
-			}
-		}
-
+		m.processAccountRuleValidIfForEntity(account)
 		e.Account = account
 	}
 
@@ -78,6 +65,26 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 	}
 
 	return e
+}
+
+// processAccountRuleValidIfForEntity processes the account rule ValidIf field when converting from model to entity
+func (m *OperationRoutePostgreSQLModel) processAccountRuleValidIfForEntity(account *mmodel.AccountRule) {
+	if m.AccountRuleValidIf == "" {
+		return
+	}
+
+	if strings.ToLower(m.AccountRuleType) == constant.AccountRuleTypeAccountType {
+		values := strings.Split(m.AccountRuleValidIf, ",")
+		for i, v := range values {
+			values[i] = strings.TrimSpace(v)
+		}
+
+		account.ValidIf = values
+
+		return
+	}
+
+	account.ValidIf = m.AccountRuleValidIf
 }
 
 // setAccountRuleValidIf sets the AccountRuleValidIf field based on the account rule type

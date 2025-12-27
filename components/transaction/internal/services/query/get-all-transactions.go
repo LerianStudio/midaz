@@ -194,6 +194,7 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 	return nil
 }
 
+// GetOperationsByTransaction retrieves all operations associated with a transaction and attaches them to the transaction object.
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

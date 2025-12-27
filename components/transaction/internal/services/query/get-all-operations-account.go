@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetAllOperationsByAccount retrieves all operations for a specific account with filtering and pagination.
 func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

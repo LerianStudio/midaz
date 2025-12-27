@@ -17,6 +17,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// CreateOrCheckIdempotencyKey attempts to create an idempotency key in Redis using SetNX.
+// If the key already exists, it returns the stored value. Returns nil if the key was created.
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -54,13 +56,13 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 			logger.Infof("Found value on redis with this key: %v", internalKey)
 
 			return &value, nil
-		} else {
-			err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
-
-			logger.Warnf("Failed, exists value on redis with this key: %v", err)
-
-			return nil, err
 		}
+
+		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+
+		logger.Warnf("Failed, exists value on redis with this key: %v", err)
+
+		return nil, err
 	}
 
 	return nil, nil

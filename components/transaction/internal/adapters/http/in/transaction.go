@@ -18,8 +18,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -66,7 +64,7 @@ type TransactionHandler struct {
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -83,7 +81,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := http.Payload[*transaction.CreateTransactionInput](c, p)
+	input := http.Payload[*mmodel.CreateTransactionInput](c, p)
 	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
@@ -112,7 +110,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			organization_id	path		string										true	"Organization ID"
 //	@Param			ledger_id		path		string								        true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -129,7 +127,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	c.SetUserContext(ctx)
 
-	input := http.Payload[*transaction.CreateTransactionInput](c, p)
+	input := http.Payload[*mmodel.CreateTransactionInput](c, p)
 	parserDSL := input.FromDSL()
 	logger.Infof("Create an transaction annotation without an affected balance: %#v", parserDSL)
 
@@ -148,7 +146,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -165,7 +163,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := http.Payload[*transaction.CreateTransactionInflowInput](c, p)
+	input := http.Payload[*mmodel.CreateTransactionInflowInput](c, p)
 	parserDSL := input.InflowFromDSL()
 	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
 
@@ -191,7 +189,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -208,7 +206,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := http.Payload[*transaction.CreateTransactionOutflowInput](c, p)
+	input := http.Payload[*mmodel.CreateTransactionOutflowInput](c, p)
 	parserDSL := input.OutflowFromDSL()
 	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
@@ -237,7 +235,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -320,7 +318,7 @@ func (handler *TransactionHandler) getDSLFile(c *fiber.Ctx, span *trace.Span, lo
 func (handler *TransactionHandler) validateAndParseDSL(span *trace.Span, dsl string) (pkgTransaction.Transaction, error) {
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(mmodel.Transaction{}).Name(), errListener.Errors)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
 
 		return pkgTransaction.Transaction{}, err
@@ -333,7 +331,7 @@ func (handler *TransactionHandler) validateAndParseDSL(span *trace.Span, dsl str
 	//nolint:staticcheck // SA1019: libTransaction.Transaction is required here as goldTransaction.Parse returns this type
 	libTran, ok := parsed.(libTransaction.Transaction)
 	if !ok {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(mmodel.Transaction{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL: unexpected type", err)
 
 		return pkgTransaction.Transaction{}, err
@@ -355,7 +353,7 @@ func (handler *TransactionHandler) validateAndParseDSL(span *trace.Span, dsl str
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -402,7 +400,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -450,7 +448,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -531,7 +529,7 @@ func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Conte
 }
 
 // fetchAndValidateTransactionForRevert retrieves and validates a transaction before reverting it.
-func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*mmodel.Transaction, error) {
 	tran, err := handler.retrieveTransactionForRevert(ctx, span, logger, organizationID, ledgerID, transactionID)
 	if err != nil || tran == nil {
 		return tran, err
@@ -549,7 +547,7 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 }
 
 // retrieveTransactionForRevert fetches transaction data and merges operations.
-func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*mmodel.Transaction, error) {
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve base transaction on query", err)
@@ -576,7 +574,7 @@ func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Cont
 }
 
 // waitForOperationsIfNeeded polls for operations readiness when async mode is enabled.
-func (handler *TransactionHandler) waitForOperationsIfNeeded(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, tran *transaction.Transaction) error {
+func (handler *TransactionHandler) waitForOperationsIfNeeded(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, tran *mmodel.Transaction) error {
 	needsOperations := tran != nil && tran.Body.IsEmpty()
 	if !handler.isAsyncModeEnabled() || !needsOperations || operationsReadyForRevert(tran) {
 		return nil
@@ -625,7 +623,7 @@ func (handler *TransactionHandler) isAsyncModeEnabled() bool {
 }
 
 // validateTransactionCanBeReverted checks if the transaction is eligible for revert.
-func (handler *TransactionHandler) validateTransactionCanBeReverted(span *trace.Span, logger libLog.Logger, transactionID uuid.UUID, tran *transaction.Transaction) error {
+func (handler *TransactionHandler) validateTransactionCanBeReverted(span *trace.Span, logger libLog.Logger, transactionID uuid.UUID, tran *mmodel.Transaction) error {
 	if tran.ParentTransactionID != nil {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
@@ -645,7 +643,7 @@ func (handler *TransactionHandler) validateTransactionCanBeReverted(span *trace.
 	return nil
 }
 
-func operationsReadyForRevert(tran *transaction.Transaction) bool {
+func operationsReadyForRevert(tran *mmodel.Transaction) bool {
 	if !transactionHasRequiredFields(tran) {
 		return false
 	}
@@ -659,13 +657,13 @@ func operationsReadyForRevert(tran *transaction.Transaction) bool {
 }
 
 // transactionHasRequiredFields checks if a transaction has the basic fields required for revert validation.
-func transactionHasRequiredFields(tran *transaction.Transaction) bool {
+func transactionHasRequiredFields(tran *mmodel.Transaction) bool {
 	return tran != nil && tran.Amount != nil && len(tran.Operations) > 0
 }
 
 // computeOperationTotals computes debit and credit totals from operations.
 // Returns false if any operation is invalid.
-func computeOperationTotals(operations []*operation.Operation) (debitTotal, creditTotal decimal.Decimal, valid bool) {
+func computeOperationTotals(operations []*mmodel.Operation) (debitTotal, creditTotal decimal.Decimal, valid bool) {
 	debitTotal = decimal.Zero
 	creditTotal = decimal.Zero
 
@@ -694,7 +692,7 @@ func totalsMatchAmount(debitTotal, creditTotal, amount decimal.Decimal) bool {
 	return debitTotal.Equal(amount) && creditTotal.Equal(amount)
 }
 
-func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *transaction.Transaction) pkgTransaction.Transaction {
+func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *mmodel.Transaction) pkgTransaction.Transaction {
 	if operationsReadyForRevert(tran) {
 		return tran.TransactionRevert()
 	}
@@ -756,8 +754,8 @@ func reverseTransactionBody(body pkgTransaction.Transaction) pkgTransaction.Tran
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
-//	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Param			transaction		body		mmodel.UpdateTransactionInput	true	"Transaction Input"
+//	@Success		200				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -778,7 +776,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
-	payload := http.Payload[*transaction.UpdateTransactionInput](c, p)
+	payload := http.Payload[*mmodel.UpdateTransactionInput](c, p)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
@@ -833,7 +831,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -923,7 +921,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -1083,12 +1081,12 @@ func (handler *TransactionHandler) BuildOperations(
 	balances []*mmodel.Balance,
 	fromTo []pkgTransaction.FromTo,
 	parserDSL pkgTransaction.Transaction,
-	tran transaction.Transaction,
+	tran mmodel.Transaction,
 	validate *pkgTransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
-) ([]*operation.Operation, []*mmodel.Balance, error) {
-	var operations []*operation.Operation
+) ([]*mmodel.Operation, []*mmodel.Balance, error) {
+	var operations []*mmodel.Operation
 
 	var preBalances []*mmodel.Balance
 
@@ -1114,17 +1112,17 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				}
 
-				amount := operation.Amount{
+				amount := mmodel.OperationAmount{
 					Value: &amt.Value,
 				}
 
-				balance := operation.Balance{
+				balance := mmodel.OperationBalance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
 					Version:   &blc.Version,
 				}
 
-				balanceAfter := operation.Balance{
+				balanceAfter := mmodel.OperationBalance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
 					Version:   &bat.Version,
@@ -1150,7 +1148,7 @@ func (handler *TransactionHandler) BuildOperations(
 					description = parserDSL.Description
 				}
 
-				operations = append(operations, &operation.Operation{
+				operations = append(operations, &mmodel.Operation{
 					ID:              libCommons.GenerateUUIDv7().String(),
 					TransactionID:   tran.ID,
 					Description:     description,
@@ -1254,7 +1252,7 @@ func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, lo
 	}
 
 	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(mmodel.Transaction{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
 		logger.Warnf("Transaction value must be greater than zero")
 
@@ -1279,7 +1277,7 @@ func (handler *TransactionHandler) buildFromToList(parserDSL pkgTransaction.Tran
 }
 
 // handleIdempotency handles idempotency checking and returns existing transaction if found.
-func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fiber.Ctx, tracer trace.Tracer, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fiber.Ctx, tracer trace.Tracer, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*mmodel.Transaction, error) {
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 	defer spanIdempotency.End()
 
@@ -1292,7 +1290,7 @@ func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fib
 	}
 
 	if !libCommons.IsNilOrEmpty(value) {
-		t := transaction.Transaction{}
+		t := mmodel.Transaction{}
 		if err = json.Unmarshal([]byte(*value), &t); err != nil {
 			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
 			logger.Errorf("Error to deserialization idempotency transaction json on redis: %v", err)
@@ -1358,7 +1356,7 @@ func (handler *TransactionHandler) handleTransactionDateError(c *fiber.Ctx, span
 }
 
 // handleIdempotencyResult handles the result of idempotency checks.
-func (handler *TransactionHandler) handleIdempotencyResult(c *fiber.Ctx, existingTran *transaction.Transaction, err error) error {
+func (handler *TransactionHandler) handleIdempotencyResult(c *fiber.Ctx, existingTran *mmodel.Transaction, err error) error {
 	if err != nil {
 		if httpErr := http.WithError(c, err); httpErr != nil {
 			return httpErr
@@ -1405,7 +1403,7 @@ func (handler *TransactionHandler) handleBuildOperationsError(c *fiber.Ctx, span
 }
 
 // executeAndRespondTransaction executes the transaction and sends the response.
-func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration, tran *transaction.Transaction, operations []*operation.Operation, validate *pkgTransaction.Responses, balances []*mmodel.Balance, parserDSL pkgTransaction.Transaction) error {
+func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration, tran *mmodel.Transaction, operations []*mmodel.Operation, validate *pkgTransaction.Responses, balances []*mmodel.Balance, parserDSL pkgTransaction.Transaction) error {
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
@@ -1450,7 +1448,7 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 
 // ensureAsyncTransactionVisibility persists the transaction record synchronously when async processing is enabled.
 // This keeps API semantics (e.g., immediate retrieval, commit on non-pending) consistent even when BTO runs async.
-func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction) error {
+func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *mmodel.Transaction, parserDSL pkgTransaction.Transaction) error {
 	if !handler.isAsyncModeEnabled() {
 		return nil
 	}
@@ -1460,7 +1458,7 @@ func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.
 	switch tranCopy.Status.Code {
 	case constant.CREATED:
 		approved := constant.APPROVED
-		tranCopy.Status = transaction.Status{
+		tranCopy.Status = mmodel.Status{
 			Code:        approved,
 			Description: &approved,
 		}
@@ -1485,7 +1483,7 @@ func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.
 }
 
 // buildTransaction creates a transaction object with the provided data.
-func (handler *TransactionHandler) buildTransaction(transactionID, parentID, organizationID, ledgerID uuid.UUID, parserDSL pkgTransaction.Transaction, transactionStatus string, transactionDate time.Time) *transaction.Transaction {
+func (handler *TransactionHandler) buildTransaction(transactionID, parentID, organizationID, ledgerID uuid.UUID, parserDSL pkgTransaction.Transaction, transactionStatus string, transactionDate time.Time) *mmodel.Transaction {
 	var parentTransactionID *string
 
 	if parentID != uuid.Nil {
@@ -1493,7 +1491,7 @@ func (handler *TransactionHandler) buildTransaction(transactionID, parentID, org
 		parentTransactionID = &str
 	}
 
-	return &transaction.Transaction{
+	return &mmodel.Transaction{
 		ID:                       transactionID.String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
@@ -1506,7 +1504,7 @@ func (handler *TransactionHandler) buildTransaction(transactionID, parentID, org
 		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
-		Status: transaction.Status{
+		Status: mmodel.Status{
 			Code:        transactionStatus,
 			Description: &transactionStatus,
 		},
@@ -1514,7 +1512,7 @@ func (handler *TransactionHandler) buildTransaction(transactionID, parentID, org
 }
 
 // commitOrCancelTransaction func that is responsible to commit or cancel transaction.
-func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *mmodel.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1567,7 +1565,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 }
 
 // executeCommitOrCancel builds operations and executes the commit or cancel transaction.
-func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, fromTo []pkgTransaction.FromTo, transactionStatus string) error {
+func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *mmodel.Transaction, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, fromTo []pkgTransaction.FromTo, transactionStatus string) error {
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
@@ -1576,7 +1574,7 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 	}
 
 	tran.UpdatedAt = time.Now()
-	tran.Status = transaction.Status{
+	tran.Status = mmodel.Status{
 		Code:        transactionStatus,
 		Description: &transactionStatus,
 	}
@@ -1656,7 +1654,7 @@ func (handler *TransactionHandler) acquireTransactionLock(ctx context.Context, s
 }
 
 // validatePendingTransaction validates that the transaction is in pending state.
-func (handler *TransactionHandler) validatePendingTransaction(span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, deleteLockOnError func()) error {
+func (handler *TransactionHandler) validatePendingTransaction(span *trace.Span, logger libLog.Logger, tran *mmodel.Transaction, deleteLockOnError func()) error {
 	if tran.Status.Code != constant.PENDING {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
@@ -1684,7 +1682,7 @@ func (handler *TransactionHandler) buildCommitFromToList(parserDSL pkgTransactio
 }
 
 // validateAndGetBalancesForCommit validates transaction and retrieves balances for commit/cancel.
-func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, parserDSL pkgTransaction.Transaction, transactionStatus string, deleteLockOnError func()) (*pkgTransaction.Responses, []*mmodel.Balance, error) {
+func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.Context, tracer trace.Tracer, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *mmodel.Transaction, parserDSL pkgTransaction.Transaction, transactionStatus string, deleteLockOnError func()) (*pkgTransaction.Responses, []*mmodel.Balance, error) {
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
@@ -1714,7 +1712,7 @@ func (handler *TransactionHandler) validateAndGetBalancesForCommit(ctx context.C
 }
 
 // updateTransactionStatusIfAsync updates transaction status synchronously if async mode is enabled.
-func (handler *TransactionHandler) updateTransactionStatusIfAsync(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
+func (handler *TransactionHandler) updateTransactionStatusIfAsync(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *mmodel.Transaction) {
 	if handler.isAsyncModeEnabled() {
 		if _, err := handler.Command.UpdateTransactionStatus(ctx, tran); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction status synchronously", err)
@@ -1744,7 +1742,7 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
-func ensureTransactionDefaults(tran *transaction.Transaction) {
+func ensureTransactionDefaults(tran *mmodel.Transaction) {
 	if tran == nil {
 		return
 	}
@@ -1754,6 +1752,6 @@ func ensureTransactionDefaults(tran *transaction.Transaction) {
 	}
 
 	if tran.Operations == nil {
-		tran.Operations = make([]*operation.Operation, 0)
+		tran.Operations = make([]*mmodel.Operation, 0)
 	}
 }

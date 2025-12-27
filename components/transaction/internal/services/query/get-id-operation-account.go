@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetOperationByAccount retrieves a specific operation by its ID for a given account.
 func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

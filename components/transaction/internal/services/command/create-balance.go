@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// CreateBalance processes a queue message to create balances for accounts.
+// It unmarshals account data and creates corresponding balance records.
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

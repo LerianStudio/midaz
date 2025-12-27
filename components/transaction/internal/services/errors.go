@@ -1,3 +1,5 @@
+// Package services provides business logic and use case implementations for the transaction domain.
+// It contains command and query handlers for managing transactions, operations, and balances.
 package services
 
 import (

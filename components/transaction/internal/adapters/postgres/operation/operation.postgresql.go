@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -27,13 +28,13 @@ import (
 //
 //go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
 type Repository interface {
-	Create(ctx context.Context, operation *Operation) (*Operation, error)
-	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
-	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
-	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
-	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
-	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
-	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
+	Create(ctx context.Context, operation *mmodel.Operation) (*mmodel.Operation, error)
+	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*mmodel.Operation, libHTTP.CursorPagination, error)
+	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*mmodel.Operation, libHTTP.CursorPagination, error)
+	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*mmodel.Operation, error)
+	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*mmodel.Operation, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Operation, error)
+	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *mmodel.Operation) (*mmodel.Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
@@ -88,7 +89,7 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Opera
 }
 
 // Create a new Operation entity into Postgresql and returns it.
-func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
+func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *mmodel.Operation) (*mmodel.Operation, error) {
 	assert.NotNil(operation, "operation entity must not be nil for Create",
 		"repository", "OperationPostgreSQLRepository")
 
@@ -172,7 +173,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation. Rows affected is 0", err)
 
@@ -185,8 +186,8 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 }
 
 // scanOperationRows scans operation rows from database result set.
-func scanOperationRows(rows *sql.Rows) ([]*Operation, error) {
-	operations := make([]*Operation, 0)
+func scanOperationRows(rows *sql.Rows) ([]*mmodel.Operation, error) {
+	operations := make([]*mmodel.Operation, 0)
 
 	for rows.Next() {
 		var operation OperationPostgreSQLModel
@@ -233,7 +234,7 @@ func scanOperationRows(rows *sql.Rows) ([]*Operation, error) {
 
 // calculateOperationPagination calculates pagination cursor for operation results.
 // hasPagination must be calculated BEFORE trimming results with PaginateRecords.
-func calculateOperationPagination(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, hasPagination bool) (libHTTP.CursorPagination, error) {
+func calculateOperationPagination(operations []*mmodel.Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, hasPagination bool) (libHTTP.CursorPagination, error) {
 	if len(operations) == 0 {
 		return libHTTP.CursorPagination{}, nil
 	}
@@ -249,7 +250,7 @@ func calculateOperationPagination(operations []*Operation, filter http.Paginatio
 }
 
 // FindAll retrieves Operations entities from the database.
-func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*mmodel.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
@@ -331,7 +332,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 }
 
 // ListByIDs retrieves Operation entities from the database using the provided IDs.
-func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error) {
+func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_operations_by_ids")
@@ -346,7 +347,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
-	var operations []*Operation
+	var operations []*mmodel.Operation
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_ids.query")
 
@@ -432,7 +433,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 }
 
 // Find retrieves a Operation entity from the database using the provided ID.
-func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error) {
+func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*mmodel.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation")
@@ -500,7 +501,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.VersionBalanceAfter,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation not found", err)
 
@@ -520,7 +521,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 }
 
 // FindByAccount retrieves a Operation entity from the database using the provided account ID.
-func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
+func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*mmodel.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
@@ -588,7 +589,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.VersionBalanceAfter,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation not found", err)
 
@@ -608,7 +609,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 }
 
 // Update an Operation entity into Postgresql and returns the Operation updated.
-func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
+func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *mmodel.Operation) (*mmodel.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation")
@@ -671,7 +672,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation. Rows affected is 0", err)
 
@@ -737,7 +738,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation. Rows affected is 0", err)
 
@@ -772,7 +773,7 @@ type queryContextExecutor interface {
 }
 
 // executeOperationQuery executes the query and returns the scanned operations
-func (r *OperationPostgreSQLRepository) executeOperationQuery(ctx context.Context, db queryContextExecutor, query string, args []any) ([]*Operation, error) {
+func (r *OperationPostgreSQLRepository) executeOperationQuery(ctx context.Context, db queryContextExecutor, query string, args []any) ([]*mmodel.Operation, error) {
 	logger, tracer, spanCtx, spanTracer := libCommons.NewTrackingFromContext(ctx)
 	_ = logger
 	_ = spanCtx
@@ -796,7 +797,7 @@ func (r *OperationPostgreSQLRepository) executeOperationQuery(ctx context.Contex
 
 // paginateOperations applies pagination logic to the operations list
 // paginateOperations trims operation results and returns hasPagination flag for cursor calculation.
-func paginateOperations(operations []*Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) ([]*Operation, bool) {
+func paginateOperations(operations []*mmodel.Operation, filter http.Pagination, decodedCursor libHTTP.Cursor, orderDirection string) ([]*mmodel.Operation, bool) {
 	hasPagination := len(operations) > filter.Limit
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
 
@@ -832,7 +833,7 @@ func buildOperationByAccountQuery(r *OperationPostgreSQLRepository, organization
 }
 
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
-func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*mmodel.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")

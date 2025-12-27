@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetAllOperations retrieves all operations for a specific transaction with pagination support.
 func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

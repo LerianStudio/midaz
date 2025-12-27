@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// UpdateOperationRoute updates an existing operation route with the provided input.
+// It validates the operation type and persists changes to the database.
 func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -7,9 +7,9 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -40,7 +40,7 @@ type OperationHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Param			type			query		string	false	"DEBIT, CREDIT"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Operation,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -161,7 +161,7 @@ func (handler *OperationHandler) getOperationsWithoutMetadata(ctx context.Contex
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			operation_id	path		string	true	"Operation ID"
-//	@Success		200				{object}	operation.Operation
+//	@Success		200				{object}	mmodel.Operation
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Operation not found"
@@ -217,8 +217,8 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			transaction_id	path		string							true	"Transaction ID"
 //	@Param			operation_id	path		string							true	"Operation ID"
-//	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
-//	@Success		200				{object}	operation.Operation
+//	@Param			operation		body		mmodel.UpdateOperationInput	true	"Operation Input"
+//	@Success		200				{object}	mmodel.Operation
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -240,7 +240,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 
-	payload := http.Payload[*operation.UpdateOperationInput](c, p)
+	payload := http.Payload[*mmodel.UpdateOperationInput](c, p)
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
