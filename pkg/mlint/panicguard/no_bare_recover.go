@@ -23,20 +23,86 @@ const (
 	minStackDepthForGrandparent = 3
 )
 
+// recoverCheckResult represents the outcome of checking a recover() call.
+type recoverCheckResult int
+
+const (
+	// resultContinue means continue to next checks.
+	resultContinue recoverCheckResult = iota
+	// resultAllowed means the recover() usage is allowed.
+	resultAllowed
+	// resultReported means a diagnostic was already reported.
+	resultReported
+)
+
+// bareRecoverMessage is the standard diagnostic message for bare recover() calls.
+const bareRecoverMessage = "recover() call should capture and log the panic value. " +
+	"Silently swallowing panics makes debugging impossible. " +
+	"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } " +
+	"Or use mruntime.RecoverAndLog(logger, \"name\")."
+
+// blankRecoverMessage is the diagnostic message for discarded recover() results.
+const blankRecoverMessage = "recover() result is discarded with blank identifier. " +
+	"The panic value must be captured and logged. " +
+	"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) }"
+
+// checkAssignStmt checks if a recover() in an AssignStmt is allowed or should be flagged.
+func checkAssignStmt(pass *analysis.Pass, call *ast.CallExpr, assign *ast.AssignStmt) recoverCheckResult {
+	for i, rhs := range assign.Rhs {
+		if rhs != call {
+			continue
+		}
+
+		if i < len(assign.Lhs) {
+			if ident, ok := assign.Lhs[i].(*ast.Ident); ok && ident.Name == "_" {
+				pass.Reportf(call.Pos(), blankRecoverMessage)
+				return resultReported
+			}
+		}
+		// Allow r := recover() / r = recover()
+		return resultAllowed
+	}
+
+	return resultAllowed
+}
+
+// checkParentNode checks the parent node type and returns the appropriate result.
+func checkParentNode(pass *analysis.Pass, call *ast.CallExpr, parent ast.Node) recoverCheckResult {
+	switch p := parent.(type) {
+	case *ast.AssignStmt:
+		return checkAssignStmt(pass, call, p)
+
+	case *ast.IfStmt:
+		// If the call is part of the if init (e.g., if r := recover(); r != nil { ... })
+		// it will usually be under an AssignStmt, not directly under IfStmt.
+		return resultContinue
+
+	case *ast.DeferStmt, *ast.ExprStmt:
+		pass.Reportf(call.Pos(), bareRecoverMessage)
+		return resultReported
+	}
+
+	return resultContinue
+}
+
+// isIfInitAssignment checks if the recover() is in an if-init assignment.
+func isIfInitAssignment(parent, grandparent ast.Node) bool {
+	gpIf, ok := grandparent.(*ast.IfStmt)
+	if !ok {
+		return false
+	}
+
+	as, ok := parent.(*ast.AssignStmt)
+
+	return ok && gpIf.Init == as
+}
+
 // runNoBareRecover inspects recover() calls to ensure they capture and log the panic value.
 // The cognitive complexity is inherent to distinguishing between allowed patterns
 // (r := recover()) and disallowed patterns (bare recover(), _ = recover()).
-//
-//nolint:gocognit,cyclop // AST analysis with stack context requires nested conditionals
 func runNoBareRecover(pass *analysis.Pass) (any, error) {
-	// Build exclusion matcher - only test files excluded
 	matcher := NewPathMatcher(CommonExclusions)
-
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-
-	// We need stack context to distinguish:
-	//   - allowed: r := recover() / r = recover() (incl. if-init)
-	//   - disallowed: recover() (including defer recover(), _ = recover(), and recover() used in expressions)
 	nodeFilter := []ast.Node{(*ast.CallExpr)(nil)}
 
 	insp.WithStack(nodeFilter, func(n ast.Node, push bool, stack []ast.Node) bool {
@@ -54,78 +120,26 @@ func runNoBareRecover(pass *analysis.Pass) (any, error) {
 			return true
 		}
 
-		var parent ast.Node
+		var parent, grandparent ast.Node
 		if len(stack) >= minStackDepthForParent {
 			parent = stack[len(stack)-minStackDepthForParent]
 		}
 
-		var grandparent ast.Node
 		if len(stack) >= minStackDepthForGrandparent {
 			grandparent = stack[len(stack)-minStackDepthForGrandparent]
 		}
 
-		switch p := parent.(type) {
-		case *ast.AssignStmt:
-			// Allow any assignment to a non-blank identifier (Semgrep parity).
-			// Flag blank identifier discard: _ = recover().
-			for i, rhs := range p.Rhs {
-				if rhs != call {
-					continue
-				}
-
-				if i < len(p.Lhs) {
-					if ident, ok := p.Lhs[i].(*ast.Ident); ok && ident.Name == "_" {
-						pass.Reportf(call.Pos(),
-							"recover() result is discarded with blank identifier. "+
-								"The panic value must be captured and logged. "+
-								"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) }")
-
-						return true
-					}
-				}
-				// Allow r := recover() / r = recover()
-				return true
-			}
-
-			return true
-
-		case *ast.IfStmt:
-			// If the call is part of the if init (e.g., if r := recover(); r != nil { ... })
-			// it will usually be under an AssignStmt, not directly under IfStmt.
-			_ = p
-
-		case *ast.DeferStmt:
-			pass.Reportf(call.Pos(),
-				"recover() call should capture and log the panic value. "+
-					"Silently swallowing panics makes debugging impossible. "+
-					"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } "+
-					"Or use mruntime.RecoverAndLog(logger, \"name\").")
-
-			return true
-
-		case *ast.ExprStmt:
-			pass.Reportf(call.Pos(),
-				"recover() call should capture and log the panic value. "+
-					"Silently swallowing panics makes debugging impossible. "+
-					"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } "+
-					"Or use mruntime.RecoverAndLog(logger, \"name\").")
-
+		result := checkParentNode(pass, call, parent)
+		if result != resultContinue {
 			return true
 		}
 
-		// If this recover() is in an if-init assign, allow it.
-		if gpIf, ok := grandparent.(*ast.IfStmt); ok {
-			if as, ok := parent.(*ast.AssignStmt); ok && gpIf.Init == as {
-				return true
-			}
+		if isIfInitAssignment(parent, grandparent) {
+			return true
 		}
 
 		// Any other usage (e.g., fmt.Println(recover())) is treated as "bare".
-		pass.Reportf(call.Pos(),
-			"recover() call should capture and log the panic value. "+
-				"Silently swallowing panics makes debugging impossible. "+
-				"Use: if r := recover(); r != nil { logger.Errorf(\"panic: %%v\", r) } "+
-				"Or use mruntime.RecoverAndLog(logger, \"name\").")
+		pass.Reportf(call.Pos(), bareRecoverMessage)
 
 		return true
 	})
