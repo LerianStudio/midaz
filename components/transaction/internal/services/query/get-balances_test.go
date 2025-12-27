@@ -40,21 +40,9 @@ func TestGetBalances(t *testing.T) {
 	t.Run("get balances from redis and database", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
-		toAmount2 := pkgTransaction.Amount{
-			Asset:     "EUR",
-			Value:     decimal.NewFromFloat(40),
-			Operation: constant.CREDIT,
-		}
-		toAmount3 := pkgTransaction.Amount{
-			Asset:     "GBP",
-			Value:     decimal.NewFromFloat(30),
-			Operation: constant.CREDIT,
-		}
+		fromAmount := pkgTransaction.NewTestDebitAmount("USD", decimal.NewFromFloat(50))
+		toAmount2 := pkgTransaction.NewTestCreditAmount("EUR", decimal.NewFromFloat(40))
+		toAmount3 := pkgTransaction.NewTestCreditAmount("GBP", decimal.NewFromFloat(30))
 
 		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
@@ -191,17 +179,8 @@ func TestGetBalances(t *testing.T) {
 
 	t.Run("all balances from redis", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default"}
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
-
-		toAmount := pkgTransaction.Amount{
-			Asset:     "EUR",
-			Value:     decimal.NewFromFloat(40),
-			Operation: constant.CREDIT,
-		}
+		fromAmount := pkgTransaction.NewTestDebitAmount("USD", decimal.NewFromFloat(50))
+		toAmount := pkgTransaction.NewTestCreditAmount("EUR", decimal.NewFromFloat(40))
 
 		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
@@ -321,11 +300,7 @@ func TestGetAccountAndLock(t *testing.T) {
 		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
 		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
 
-		fromAmount := pkgTransaction.Amount{
-			Asset:     "USD",
-			Value:     decimal.NewFromFloat(50),
-			Operation: constant.DEBIT,
-		}
+		fromAmount := pkgTransaction.NewTestDebitAmount("USD", decimal.NewFromFloat(50))
 
 		validate := &pkgTransaction.Responses{
 			Aliases: []string{"alias1"},
