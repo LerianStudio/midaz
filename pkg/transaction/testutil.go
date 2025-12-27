@@ -25,11 +25,11 @@ import (
 // Example:
 //
 //	amount := NewTestAmount(t, "USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED)
-func NewTestAmount(t testing.TB, asset string, value decimal.Decimal, operation, transactionType string) Amount {
-	t.Helper()
+func NewTestAmount(tb testing.TB, asset string, value decimal.Decimal, operation, transactionType string) Amount {
+	tb.Helper()
 
 	if asset == "" {
-		t.Fatal("asset must not be empty for test Amount")
+		tb.Fatal("asset must not be empty for test Amount")
 	}
 
 	return Amount{
@@ -93,8 +93,8 @@ func NewTestCreditAmount(asset string, value decimal.Decimal) Amount {
 //	    map[string]Amount{"@account1": NewTestDebitAmount("USD", decimal.NewFromInt(100))},
 //	    map[string]Amount{"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100))},
 //	)
-func NewTestResponses(t testing.TB, from, to map[string]Amount) *Responses {
-	t.Helper()
+func NewTestResponses(tb testing.TB, from, to map[string]Amount) *Responses {
+	tb.Helper()
 
 	// Extract aliases from maps and validate asset consistency
 	aliases := make([]string, 0, len(from)+len(to))
@@ -110,7 +110,7 @@ func NewTestResponses(t testing.TB, from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
-			t.Fatalf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset)
+			tb.Fatalf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset)
 		}
 	}
 
@@ -121,7 +121,7 @@ func NewTestResponses(t testing.TB, from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
-			t.Fatalf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset)
+			tb.Fatalf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset)
 		}
 	}
 
@@ -153,10 +153,10 @@ func NewTestResponses(t testing.TB, from, to map[string]Amount) *Responses {
 //	    map[string]Amount{"@account1": NewTestDebitAmount("USD", decimal.NewFromInt(100))},
 //	    map[string]Amount{"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100))},
 //	)
-func NewTestResponsesWithTotal(t testing.TB, total decimal.Decimal, asset string, from, to map[string]Amount) *Responses {
-	t.Helper()
+func NewTestResponsesWithTotal(tb testing.TB, total decimal.Decimal, asset string, from, to map[string]Amount) *Responses {
+	tb.Helper()
 
-	resp := NewTestResponses(t, from, to)
+	resp := NewTestResponses(tb, from, to)
 	resp.Total = total
 	resp.Asset = asset
 
@@ -319,10 +319,11 @@ func NewTestReleaseAmount(asset string, value decimal.Decimal) Amount {
 //	fromTo := FromTo{
 //	    Amount: NewTestAmountPtr(t, "USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED),
 //	}
-func NewTestAmountPtr(t testing.TB, asset string, value decimal.Decimal, operation, transactionType string) *Amount {
-	t.Helper()
+func NewTestAmountPtr(tb testing.TB, asset string, value decimal.Decimal, operation, transactionType string) *Amount {
+	tb.Helper()
 
-	amount := NewTestAmount(t, asset, value, operation, transactionType)
+	amount := NewTestAmount(tb, asset, value, operation, transactionType)
+
 	return &amount
 }
 
