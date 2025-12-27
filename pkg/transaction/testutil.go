@@ -287,3 +287,36 @@ func NewTestReleaseAmount(asset string, value decimal.Decimal) Amount {
 		TransactionType: constant.CANCELED,
 	}
 }
+
+// NewTestAmountPtr creates a pointer to a fully-initialized Amount struct.
+// Use this when the Amount needs to be assigned to a pointer field.
+//
+// Example:
+//
+//	fromTo := FromTo{
+//	    Amount: NewTestAmountPtr("USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED),
+//	}
+func NewTestAmountPtr(asset string, value decimal.Decimal, operation, transactionType string) *Amount {
+	amount := NewTestAmount(asset, value, operation, transactionType)
+	return &amount
+}
+
+// NewTestDebitAmountPtr creates a pointer to a DEBIT Amount with CREATED transaction type.
+//
+// Example:
+//
+//	fromTo := FromTo{Amount: NewTestDebitAmountPtr("USD", decimal.NewFromInt(100))}
+func NewTestDebitAmountPtr(asset string, value decimal.Decimal) *Amount {
+	amount := NewTestDebitAmount(asset, value)
+	return &amount
+}
+
+// NewTestCreditAmountPtr creates a pointer to a CREDIT Amount with CREATED transaction type.
+//
+// Example:
+//
+//	fromTo := FromTo{Amount: NewTestCreditAmountPtr("USD", decimal.NewFromInt(100))}
+func NewTestCreditAmountPtr(asset string, value decimal.Decimal) *Amount {
+	amount := NewTestCreditAmount(asset, value)
+	return &amount
+}
