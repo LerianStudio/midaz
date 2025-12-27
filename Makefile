@@ -2,6 +2,9 @@
 # Coordinates all component Makefiles and provides centralized commands.
 # Midaz Project Management.
 
+# Default target when running 'make' without arguments
+.DEFAULT_GOAL := help
+
 # Define the root directory of the project
 MIDAZ_ROOT := $(shell pwd)
 
@@ -142,9 +145,11 @@ help:
 	@echo "  make down-dev                     - Stop backend dev services"
 	@echo "  make rebuild-up-dev               - Rebuild and restart backend dev services"
 	@echo "  make restart-dev                  - Restart backend dev services"
-	@echo "  make logs-dev                     - Show logs for backend dev services"
+	@echo "  make logs-dev                     - Show logs for backend dev services (snapshot)"
 	@echo "  make up-backend-dev               - Alias for up-dev"
 	@echo "  make down-backend-dev             - Alias for down-dev"
+	@echo "  Note: Ledger is a unified service (onboarding+transaction). To use ledger dev mode:"
+	@echo "        cd components/ledger && make up-dev (instead of up-dev from root)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -319,12 +324,13 @@ rebuild-up-backend-dev:
 .PHONY: logs-backend-dev
 logs-backend-dev:
 	$(call print_title,Showing logs for backend DEV services)
+	@echo "Tip: For live logs of a single service, use: cd components/<service> && make logs-dev"
 	@for dir in $(BACKEND_COMPONENTS); do \
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
-			echo "Logs for DEV component: $$component_name"; \
-			(cd $$dir && $(DOCKER_CMD) -f docker-compose.dev.yml logs --tail=50) || exit 1; \
 			echo ""; \
+			echo "=== Logs for DEV component: $$component_name ==="; \
+			(cd $$dir && $(DOCKER_CMD) -f docker-compose.dev.yml logs --tail=100) || exit 1; \
 		fi; \
 	done
 
