@@ -32,7 +32,9 @@ func NewChaosRedisClient() (*ChaosRedisHelper, error) {
 
 	client, err := NewRedisBalanceClient(addr)
 	if err != nil {
-		// Return nil client - chaos tests should degrade gracefully
+		// Return nil client - chaos tests should degrade gracefully when Redis is unavailable.
+		// This is intentional: chaos tests should not fail just because Redis is down.
+		//nolint:nilerr // Intentional: graceful degradation for chaos tests when Redis unavailable
 		return &ChaosRedisHelper{client: nil}, nil
 	}
 

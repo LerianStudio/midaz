@@ -26,6 +26,7 @@ import (
 //	amount := NewTestAmount("USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED)
 func NewTestAmount(asset string, value decimal.Decimal, operation, transactionType string) Amount {
 	if asset == "" {
+		//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
 		panic("asset must not be empty for test Amount")
 	}
 
@@ -104,6 +105,7 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
+			//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
 			panic(fmt.Sprintf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset))
 		}
 	}
@@ -115,6 +117,7 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
+			//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
 			panic(fmt.Sprintf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset))
 		}
 	}

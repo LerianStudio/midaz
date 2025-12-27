@@ -25,6 +25,9 @@ const (
 
 	// httpClientTimeout is the timeout for HTTP requests to RabbitMQ Management API
 	httpClientTimeout = 10 * time.Second
+
+	// maxQueueNameLength is the maximum allowed length for queue names
+	maxQueueNameLength = 255
 )
 
 var (
@@ -36,6 +39,18 @@ var (
 
 	// ErrInvalidQueueName indicates the queue name contains invalid characters.
 	ErrInvalidQueueName = errors.New("invalid queue name: contains disallowed characters")
+
+	// ErrQueueNameEmpty indicates an empty queue name was provided.
+	ErrQueueNameEmpty = errors.New("queue name cannot be empty")
+
+	// ErrQueueNameTooLong indicates the queue name exceeds maximum length.
+	ErrQueueNameTooLong = errors.New("queue name too long")
+
+	// ErrContextCancelledDLQ indicates the context was cancelled during DLQ operations.
+	ErrContextCancelledDLQ = errors.New("context cancelled while waiting for DLQ")
+
+	// ErrQueueValidationFailed indicates queue name validation failed.
+	ErrQueueValidationFailed = errors.New("queue name validation failed")
 
 	// queueNamePattern validates queue names to prevent URL path injection.
 	// Only allows alphanumeric characters, hyphens, underscores, and dots.
@@ -73,22 +88,24 @@ func classifyDLQQueue(queueName string) string {
 
 // validateQueueName checks that a queue name is safe for URL construction.
 // Returns error if the name contains characters that could cause URL injection.
+//
+//nolint:wrapcheck // Returns package-defined sentinel errors intentionally
 func validateQueueName(queueName string) error {
 	if queueName == "" {
-		return errors.New("queue name cannot be empty")
+		return ErrQueueNameEmpty
 	}
 
-	if len(queueName) > 255 {
-		return errors.New("queue name too long (max 255 characters)")
+	if len(queueName) > maxQueueNameLength {
+		return ErrQueueNameTooLong
 	}
 
 	if !queueNamePattern.MatchString(queueName) {
-		return ErrInvalidQueueName
+		return fmt.Errorf("%w: pattern mismatch", ErrInvalidQueueName)
 	}
 
 	// Additional check: reject names that could escape URL path
 	if strings.Contains(queueName, "..") || strings.HasPrefix(queueName, "/") {
-		return ErrInvalidQueueName
+		return fmt.Errorf("%w: path escape attempt", ErrInvalidQueueName)
 	}
 
 	return nil
@@ -128,7 +145,8 @@ type RabbitMQQueueInfo struct {
 func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass string) (int, error) {
 	// Security: Validate queue name to prevent URL path injection
 	if err := validateQueueName(queueName); err != nil {
-		return 0, fmt.Errorf("queue name validation failed: %w", err)
+		//nolint:wrapcheck // Wrapping with package-defined sentinel error
+		return 0, fmt.Errorf("%w: %w", ErrQueueValidationFailed, err)
 	}
 
 	dlqName := BuildDLQName(queueName)
@@ -186,8 +204,8 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
-			return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
+			//nolint:wrapcheck // Wrapping with package-defined sentinel error
+			return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 		default:
 		}
 
@@ -196,7 +214,8 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 			// Log but continue - transient errors are expected during chaos
 			// Use context-aware sleep to respect graceful shutdown
 			if !sleepWithContext(ctx, dlqPollInterval) {
-				return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
+				//nolint:wrapcheck // Wrapping with package-defined sentinel error
+				return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 			}
 
 			continue
@@ -208,7 +227,8 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 
 		// Context-aware sleep between poll attempts
 		if !sleepWithContext(ctx, dlqPollInterval) {
-			return fmt.Errorf("context cancelled while waiting for DLQ: %w", ctx.Err())
+			//nolint:wrapcheck // Wrapping with package-defined sentinel error
+			return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 		}
 	}
 
