@@ -1,3 +1,4 @@
+// Package services provides business logic use cases for the CRM domain.
 package services
 
 import (

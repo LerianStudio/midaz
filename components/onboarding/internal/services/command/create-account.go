@@ -161,7 +161,7 @@ func (uc *UseCase) handleBalanceCreationError(ctx context.Context, err error, or
 	return pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 }
 
-// CreateAccountSync creates an account and metadata, then synchronously creates the default balance via gRPC.
+// CreateAccount creates an account and metadata, then synchronously creates the default balance via gRPC.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 

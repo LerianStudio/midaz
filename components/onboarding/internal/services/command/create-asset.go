@@ -140,7 +140,7 @@ func (uc *UseCase) createExternalAccountForAsset(ctx context.Context, organizati
 	return nil
 }
 
-// CreateAssetSync creates an asset and metadata synchronously and ensures an external
+// CreateAsset creates an asset and metadata synchronously and ensures an external
 // account exists for the asset. If a new external account is created, it also
 // creates the default balance for that account via gRPC.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {

@@ -19,6 +19,7 @@ type loggerInterface interface {
 	Errorf(format string, args ...any)
 }
 
+// CreateAlias creates a new alias for a holder with optional holder link.
 func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput) (*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 )
 
+// CreateMetadata stores metadata for a specified entity in MongoDB.
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	assert.NotEmpty(entityName, "entityName must not be empty for metadata creation",
 		"operation", "CreateMetadata")

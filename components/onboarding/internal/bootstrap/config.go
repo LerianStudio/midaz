@@ -39,6 +39,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ApplicationName is the identifier for the onboarding service used in logging and tracing.
 const (
 	ApplicationName = "onboarding"
 	// indexCreationTimeout is the timeout duration for MongoDB index creation operations

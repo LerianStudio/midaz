@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 )
 
+// UpdateMetadata modifies existing metadata for a specified entity in MongoDB.
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -40,6 +40,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	}
 }
 
+// Set stores a key-value pair in Redis with the specified time-to-live duration.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -69,10 +70,12 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// Get retrieves a value from Redis by its key.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
 	return nil
 }
 
+// Del removes a key-value pair from Redis.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }

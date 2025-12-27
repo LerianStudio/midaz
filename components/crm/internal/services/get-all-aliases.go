@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// GetAllAliases retrieves all aliases with optional filtering and pagination.
 func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
