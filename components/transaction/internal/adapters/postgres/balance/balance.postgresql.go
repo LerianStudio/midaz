@@ -109,6 +109,8 @@ func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Balance
 	}
 }
 
+// Create inserts a new balance record into the PostgreSQL database.
+// It converts the domain model to the database model and executes the insert query.
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
 	assert.NotNil(balance, "balance entity must not be nil for Create",
 		"repository", "BalancePostgreSQLRepository")
@@ -1268,6 +1270,8 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	return nil
 }
 
+// Sync updates a balance record from Redis cache to PostgreSQL using optimistic concurrency.
+// It returns true if the balance was updated, false if the version was stale.
 func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1322,6 +1326,8 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 	return affected > 0, nil
 }
 
+// UpdateAllByAccountID updates all balance records for a given account ID.
+// It modifies the allow_sending and allow_receiving flags for all matching balances.
 func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

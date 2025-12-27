@@ -542,7 +542,8 @@ func calculateOperationRoutePagination(operationRoutes []*mmodel.OperationRoute,
 	return cursor, nil
 }
 
-// The function supports filtering by date range and pagination.
+// FindAll retrieves all operation routes for a given organization and ledger with pagination.
+// The function supports filtering by date range and cursor-based pagination.
 func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

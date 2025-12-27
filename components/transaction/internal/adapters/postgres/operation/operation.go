@@ -1,3 +1,6 @@
+// Package operation provides PostgreSQL adapter implementations for operation management.
+// It contains database models, input/output types, and utilities for storing
+// and retrieving financial operation records that affect account balances.
 package operation
 
 import (

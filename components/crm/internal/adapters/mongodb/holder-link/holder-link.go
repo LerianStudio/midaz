@@ -1,3 +1,4 @@
+// Package holderlink provides MongoDB repository implementation for holder link entities.
 package holderlink
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// MongoDBModel represents the MongoDB document structure for a holder link.
 type MongoDBModel struct {
 	ID        *uuid.UUID     `bson:"_id,omitempty"`
 	HolderID  *uuid.UUID     `bson:"holder_id,omitempty"`

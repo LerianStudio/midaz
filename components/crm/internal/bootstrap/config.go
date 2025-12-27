@@ -1,3 +1,4 @@
+// Package bootstrap provides initialization and configuration for the CRM service.
 package bootstrap
 
 import (

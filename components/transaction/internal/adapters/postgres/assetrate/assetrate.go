@@ -1,3 +1,6 @@
+// Package assetrate provides PostgreSQL adapter implementations for asset rate management.
+// It contains database models, input/output types, and repository methods for
+// storing and retrieving currency conversion rates between assets.
 package assetrate
 
 import (

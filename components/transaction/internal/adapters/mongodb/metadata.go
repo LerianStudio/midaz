@@ -1,3 +1,5 @@
+// Package mongodb provides MongoDB adapter implementations for metadata storage.
+// It contains models and utilities for persisting metadata entities in MongoDB.
 package mongodb
 
 import (

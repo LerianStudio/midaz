@@ -1,3 +1,6 @@
+// Package operationroute provides PostgreSQL adapter implementations for operation route management.
+// It contains database models and conversion utilities for storing and retrieving
+// operation route configurations that define how operations should be processed.
 package operationroute
 
 import (

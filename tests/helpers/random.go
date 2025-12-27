@@ -17,6 +17,7 @@ func RandString(n int) string {
 		// Using crypto/rand for secure random number generation
 		idx, err := rand.Int(rand.Reader, lettersLen)
 		if err != nil {
+			//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
 			panic("failed to generate random index: " + err.Error())
 		}
 
@@ -30,6 +31,7 @@ func RandString(n int) string {
 func RandHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
+		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
 		panic("failed to read random bytes: " + err.Error())
 	}
 

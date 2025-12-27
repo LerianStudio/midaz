@@ -130,6 +130,7 @@ func (handler *PortfolioHandler) respondWithPortfolios(c *fiber.Ctx, pagination 
 	return nil
 }
 
+// GetAllPortfolios retrieves all portfolios for a given organization and ledger without pagination.
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

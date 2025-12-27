@@ -1,3 +1,5 @@
+// Package ledger provides PostgreSQL database adapters for ledger entity
+// persistence and retrieval operations.
 package ledger
 
 import (

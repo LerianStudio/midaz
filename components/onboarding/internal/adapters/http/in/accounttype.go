@@ -17,12 +17,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// AccountTypeHandler provides HTTP handlers for account type management operations.
 type AccountTypeHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
 }
 
-// Create an Account Type.
+// CreateAccountType creates a new account type within an organization's ledger.
 //
 //	@Summary		Create Account Type
 //	@Description	Endpoint to create a new Account Type.
@@ -134,7 +135,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	return nil
 }
 
-// Update an Account Type.
+// UpdateAccountType modifies an existing account type within an organization's ledger.
 //
 //	@Summary		Update Account Type
 //	@Description	Endpoint to update an existing Account Type.
@@ -308,6 +309,7 @@ func (handler *AccountTypeHandler) respondWithAccountTypes(c *fiber.Ctx, paginat
 	return nil
 }
 
+// GetAllAccountTypes retrieves all account types for a given organization and ledger without pagination.
 func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

@@ -1,3 +1,5 @@
+// Package accounttype provides PostgreSQL database adapters for account type entity
+// persistence and retrieval operations.
 package accounttype
 
 import (

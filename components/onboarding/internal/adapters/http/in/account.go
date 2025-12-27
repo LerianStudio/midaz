@@ -146,6 +146,7 @@ func (handler *AccountHandler) respondWithAccounts(c *fiber.Ctx, pagination *lib
 	return nil
 }
 
+// GetAllAccounts retrieves all accounts for a given organization, ledger, and optional portfolio without pagination.
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

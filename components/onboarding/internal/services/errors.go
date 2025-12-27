@@ -1,3 +1,5 @@
+// Package services provides shared service-layer utilities including error handling
+// and common functionality used across command and query operations.
 package services
 
 import (

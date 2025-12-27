@@ -134,6 +134,7 @@ func (handler *AssetHandler) respondWithAssets(c *fiber.Ctx, pagination *libPost
 	return nil
 }
 
+// GetAllAssets retrieves all assets for a given organization and ledger without pagination.
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

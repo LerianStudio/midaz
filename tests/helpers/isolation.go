@@ -29,6 +29,7 @@ func NewTestIsolation() *TestIsolation {
 	randomBytes := make([]byte, randomBytesLength)
 
 	if _, err := rand.Read(randomBytes); err != nil {
+		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
 		panic("failed to generate random bytes for test isolation: " + err.Error())
 	}
 

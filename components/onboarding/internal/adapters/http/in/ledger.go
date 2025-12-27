@@ -177,6 +177,7 @@ func (handler *LedgerHandler) respondWithLedgers(c *fiber.Ctx, pagination *libPo
 	return nil
 }
 
+// GetAllLedgers retrieves all ledgers for a given organization without pagination.
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

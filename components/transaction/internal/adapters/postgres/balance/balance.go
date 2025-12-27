@@ -1,3 +1,6 @@
+// Package balance provides PostgreSQL adapter implementations for balance management.
+// It contains database models and conversion utilities for storing and retrieving
+// account balance information including available and on-hold amounts.
 package balance
 
 import (

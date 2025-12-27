@@ -1,3 +1,5 @@
+// Package redis provides Redis database adapters for caching and temporary
+// data storage operations in the onboarding service.
 package redis
 
 import (

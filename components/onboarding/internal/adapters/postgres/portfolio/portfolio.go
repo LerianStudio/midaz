@@ -1,3 +1,5 @@
+// Package portfolio provides PostgreSQL database adapters for portfolio entity
+// persistence and retrieval operations.
 package portfolio
 
 import (

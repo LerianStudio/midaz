@@ -129,6 +129,7 @@ func (handler *SegmentHandler) respondWithSegments(c *fiber.Ctx, pagination *lib
 	return nil
 }
 
+// GetAllSegments retrieves all segments for a given organization and ledger without pagination.
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

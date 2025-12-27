@@ -1,3 +1,6 @@
+// Package transaction provides PostgreSQL adapter implementations for transaction management.
+// It contains database models, input/output types, and utilities for storing
+// and retrieving financial transaction records and their associated operations.
 package transaction
 
 import (
@@ -105,60 +108,60 @@ type CreateTransactionInput struct {
 	Send *pkgTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
-//		@example {
-//		  "chartOfAccountsGroupName": "FUNDING",
-//		  "description": "New Transaction",
-//		  "code": "TR12345",
-//		  "metadata": {
-//		    "reference": "TRANSACTION-001",
-//		    "source": "api"
-//		  },
-//		  "route": "00000000-0000-0000-0000-000000000000",
-//		  "send": {
-//		    "asset": "USD",
-//		    "value": "100.00",
-//		    "source": {
-//		      "from": [
-//		        {
-//		          "account": "@external/USD",
-//		          "amount": {
-//		            "asset": "USD",
-//	                "value": "100.00",
-//		          },
-//		          "description": "Debit Operation",
-//		          "chartOfAccounts": "FUNDING_DEBIT",
-//		          "metadata": {
-//		            "operation": "funding",
-//		            "type": "external"
-//		          }
-//		        }
-//		      ]
-//		    },
-//		    "distribute": {
-//		      "to": [
-//		        {
-//		          "account": "{{accountAlias}}",
-//		          "amount": {
-//		            "asset": "USD",
-//		            "value": "100.00",
-//		          },
-//		          "description": "Credit Operation",
-//		          "chartOfAccounts": "FUNDING_CREDIT",
-//		          "metadata": {
-//		            "operation": "funding",
-//		            "type": "account"
-//		          }
-//		        }
-//		      ]
-//		    }
-//		  }
-//		}
-//
-// CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
-// This is only used for Swagger documentation generation
+// CreateTransactionSwaggerModel is a struct that mirrors CreateTransactionInput but with explicit types for Swagger.
+// This is only used for Swagger documentation generation.
 //
 // swagger:model CreateTransactionSwaggerModel
 // @Description Schema for creating transaction with the complete Send operation structure defined inline
+//
+//	@example {
+//	  "chartOfAccountsGroupName": "FUNDING",
+//	  "description": "New Transaction",
+//	  "code": "TR12345",
+//	  "metadata": {
+//	    "reference": "TRANSACTION-001",
+//	    "source": "api"
+//	  },
+//	  "route": "00000000-0000-0000-0000-000000000000",
+//	  "send": {
+//	    "asset": "USD",
+//	    "value": "100.00",
+//	    "source": {
+//	      "from": [
+//	        {
+//	          "account": "@external/USD",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": "100.00"
+//	          },
+//	          "description": "Debit Operation",
+//	          "chartOfAccounts": "FUNDING_DEBIT",
+//	          "metadata": {
+//	            "operation": "funding",
+//	            "type": "external"
+//	          }
+//	        }
+//	      ]
+//	    },
+//	    "distribute": {
+//	      "to": [
+//	        {
+//	          "account": "{{accountAlias}}",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": "100.00"
+//	          },
+//	          "description": "Credit Operation",
+//	          "chartOfAccounts": "FUNDING_CREDIT",
+//	          "metadata": {
+//	            "operation": "funding",
+//	            "type": "account"
+//	          }
+//	        }
+//	      ]
+//	    }
+//	  }
+//	}
 type CreateTransactionSwaggerModel struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING

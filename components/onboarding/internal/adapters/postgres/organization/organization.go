@@ -1,3 +1,5 @@
+// Package organization provides PostgreSQL database adapters for organization entity
+// persistence and retrieval operations.
 package organization
 
 import (

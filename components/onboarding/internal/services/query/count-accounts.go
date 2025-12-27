@@ -1,3 +1,5 @@
+// Package query implements query-side use cases for the onboarding service,
+// handling read operations and data retrieval from domain entities.
 package query
 
 import (

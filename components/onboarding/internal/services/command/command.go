@@ -1,3 +1,5 @@
+// Package command implements command-side use cases for the onboarding service,
+// handling create, update, and delete operations on domain entities.
 package command
 
 import (

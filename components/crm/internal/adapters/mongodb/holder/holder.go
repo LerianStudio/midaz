@@ -1,3 +1,4 @@
+// Package holder provides MongoDB repository implementation for holder entities.
 package holder
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// MongoDBModel represents the MongoDB document structure for a holder.
 type MongoDBModel struct {
 	ID            *uuid.UUID                 `bson:"_id,omitempty"`
 	ExternalID    *string                    `bson:"external_id,omitempty"`
@@ -26,12 +28,14 @@ type MongoDBModel struct {
 	DeletedAt     *time.Time                 `bson:"deleted_at"`
 }
 
+// AddressesMongoDBModel represents the collection of addresses in MongoDB.
 type AddressesMongoDBModel struct {
 	Primary     *AddressMongoDBModel `bson:"primary,omitempty"`
 	Additional1 *AddressMongoDBModel `bson:"additional_1,omitempty"`
 	Additional2 *AddressMongoDBModel `bson:"additional_2,omitempty"`
 }
 
+// AddressMongoDBModel represents a single address subdocument in MongoDB.
 type AddressMongoDBModel struct {
 	Line1     *string `bson:"line_1,omitempty"`
 	Line2     *string `bson:"line_2,omitempty"`
@@ -42,6 +46,7 @@ type AddressMongoDBModel struct {
 	IsPrimary *bool   `bson:"is_primary,omitempty"`
 }
 
+// ContactMongoDBModel represents contact information subdocument in MongoDB.
 type ContactMongoDBModel struct {
 	PrimaryEmail   *string `bson:"primary_email,omitempty"`
 	SecondaryEmail *string `bson:"secondary_email,omitempty"`
@@ -49,6 +54,7 @@ type ContactMongoDBModel struct {
 	OtherPhone     *string `bson:"other_phone,omitempty"`
 }
 
+// NaturalPersonMongoDBModel represents natural person details subdocument in MongoDB.
 type NaturalPersonMongoDBModel struct {
 	FavoriteName *string `bson:"favorite_name,omitempty"`
 	SocialName   *string `bson:"social_name,omitempty"`
@@ -61,6 +67,7 @@ type NaturalPersonMongoDBModel struct {
 	Status       *string `bson:"status,omitempty"`
 }
 
+// LegalPersonMongoDBModel represents legal person details subdocument in MongoDB.
 type LegalPersonMongoDBModel struct {
 	TradeName      *string                     `bson:"trade_name,omitempty"`
 	Activity       *string                     `bson:"activity,omitempty"`
@@ -71,6 +78,7 @@ type LegalPersonMongoDBModel struct {
 	Representative *RepresentativeMongoDBModel `bson:"representative,omitempty"`
 }
 
+// RepresentativeMongoDBModel represents a legal person representative subdocument in MongoDB.
 type RepresentativeMongoDBModel struct {
 	Name     *string `bson:"name,omitempty"`
 	Document *string `bson:"document,omitempty"`

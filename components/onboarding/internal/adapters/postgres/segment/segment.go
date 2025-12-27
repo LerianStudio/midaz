@@ -1,3 +1,5 @@
+// Package segment provides PostgreSQL database adapters for segment entity
+// persistence and retrieval operations.
 package segment
 
 import (

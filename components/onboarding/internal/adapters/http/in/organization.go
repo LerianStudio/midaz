@@ -240,6 +240,7 @@ func (handler *OrganizationHandler) respondWithOrganizations(c *fiber.Ctx, pagin
 	return nil
 }
 
+// GetAllOrganizations retrieves all organizations without pagination.
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

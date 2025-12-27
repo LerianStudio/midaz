@@ -1,3 +1,5 @@
+// Package bootstrap provides initialization and configuration logic for the
+// onboarding service, including dependency injection and server setup.
 package bootstrap
 
 import (

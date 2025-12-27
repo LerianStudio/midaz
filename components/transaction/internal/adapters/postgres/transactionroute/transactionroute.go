@@ -1,3 +1,6 @@
+// Package transactionroute provides PostgreSQL adapter implementations for transaction route management.
+// It contains database models and conversion utilities for storing and retrieving
+// transaction route configurations that define how transactions are processed.
 package transactionroute
 
 import (

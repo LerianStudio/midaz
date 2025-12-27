@@ -1,3 +1,5 @@
+// Package asset provides PostgreSQL database adapters for asset entity
+// persistence and retrieval operations.
 package asset
 
 import (
