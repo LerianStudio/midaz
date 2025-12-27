@@ -313,7 +313,7 @@ func InitServers() *Service {
 		organizationHandler: organizationHandler,
 		segmentHandler:      segmentHandler,
 		accountTypeHandler:  accountTypeHandler,
-	}, nil
+	}
 }
 
 // Options configures the onboarding service initialization behavior.

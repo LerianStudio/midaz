@@ -406,7 +406,7 @@ func InitServers() *Service {
 		balanceHandler:           balanceHandler,
 		operationRouteHandler:    operationRouteHandler,
 		transactionRouteHandler:  transactionRouteHandler,
-	}, nil
+	}
 }
 
 // Options configures the transaction service initialization behavior.
