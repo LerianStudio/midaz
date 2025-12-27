@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -9,6 +10,9 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 )
+
+// ErrOperationsWaitTimeout indicates that operations polling timed out without finding results.
+var ErrOperationsWaitTimeout = errors.New("operations wait timeout: async operations may still be processing")
 
 const (
 	asyncTransactionEnvVar    = "RABBITMQ_TRANSACTION_ASYNC"
@@ -40,5 +44,5 @@ func waitForOperations(ctx context.Context, fetch func(context.Context) ([]*oper
 		}
 	}
 
-	return ops, cur, nil
+	return ops, cur, ErrOperationsWaitTimeout
 }

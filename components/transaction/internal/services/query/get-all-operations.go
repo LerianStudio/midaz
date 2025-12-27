@@ -28,6 +28,11 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		return uc.OperationRepo.FindAll(ctx, organizationID, ledgerID, transactionID, filter.ToCursorPagination())
 	})
 	if err != nil {
+		if errors.Is(err, ErrOperationsWaitTimeout) {
+			logger.Warnf("Operations polling timed out, async operations may still be processing: %v", err)
+			return op, cur, nil
+		}
+
 		logger.Errorf("Error getting all operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
