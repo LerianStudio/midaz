@@ -26,7 +26,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       pkgTransaction.NewTestDebitAmountPtr("USD", decimal.RequireFromString("3")),
 							IsFrom:       true,
 						}},
 					},
@@ -34,7 +34,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("3")},
+							Amount:       pkgTransaction.NewTestCreditAmountPtr("USD", decimal.RequireFromString("3")),
 							IsFrom:       false,
 						}},
 					},
@@ -55,12 +55,12 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Value: decimal.RequireFromString("1"),
 						Source: pkgTransaction.Source{From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       pkgTransaction.NewTestDebitAmountPtr("USD", decimal.RequireFromString("1")),
 							IsFrom:       true,
 						}}},
 						Distribute: pkgTransaction.Distribute{To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1")},
+							Amount:       pkgTransaction.NewTestCreditAmountPtr("USD", decimal.RequireFromString("1")),
 							IsFrom:       false,
 						}}},
 					},
@@ -79,7 +79,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							Amount:       pkgTransaction.NewTestDebitAmountPtr("USD", decimal.RequireFromString("1.00")),
 							IsFrom:       true,
 						}},
 					},
@@ -87,7 +87,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.00")},
+							Amount:       pkgTransaction.NewTestCreditAmountPtr("USD", decimal.RequireFromString("1.00")),
 							IsFrom:       false,
 						}},
 					},
@@ -106,7 +106,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						From: []pkgTransaction.FromTo{{
 							AccountAlias: "@A",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							Amount:       pkgTransaction.NewTestDebitAmountPtr("USD", decimal.RequireFromString("1.2345")),
 							IsFrom:       true,
 						}},
 					},
@@ -114,7 +114,7 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 						Remaining: "",
 						To: []pkgTransaction.FromTo{{
 							AccountAlias: "@B",
-							Amount:       &pkgTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("1.2345")},
+							Amount:       pkgTransaction.NewTestCreditAmountPtr("USD", decimal.RequireFromString("1.2345")),
 							IsFrom:       false,
 						}},
 					},
@@ -147,14 +147,23 @@ func simplify(t pkgTransaction.Transaction) pkgTransaction.Transaction {
 		t.Metadata = nil
 	}
 	// Normalize zero shares to nil for easier comparison
+	// Also normalize Amount's Operation and TransactionType fields (parser doesn't set these)
 	for i := range t.Send.Source.From {
 		if t.Send.Source.From[i].Share != nil && t.Send.Source.From[i].Share.Percentage == 0 && t.Send.Source.From[i].Share.PercentageOfPercentage == 0 {
 			t.Send.Source.From[i].Share = nil
+		}
+		if t.Send.Source.From[i].Amount != nil {
+			t.Send.Source.From[i].Amount.Operation = ""
+			t.Send.Source.From[i].Amount.TransactionType = ""
 		}
 	}
 	for i := range t.Send.Distribute.To {
 		if t.Send.Distribute.To[i].Share != nil && t.Send.Distribute.To[i].Share.Percentage == 0 && t.Send.Distribute.To[i].Share.PercentageOfPercentage == 0 {
 			t.Send.Distribute.To[i].Share = nil
+		}
+		if t.Send.Distribute.To[i].Amount != nil {
+			t.Send.Distribute.To[i].Amount.Operation = ""
+			t.Send.Distribute.To[i].Amount.TransactionType = ""
 		}
 	}
 	return t
