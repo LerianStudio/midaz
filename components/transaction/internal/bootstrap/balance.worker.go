@@ -49,6 +49,8 @@ type BalanceSyncWorker struct {
 	useCase    *command.UseCase
 }
 
+// NewBalanceSyncWorker creates a new BalanceSyncWorker with the specified Redis connection and configuration.
+// The maxWorkers parameter controls the concurrency of balance sync operations.
 func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
 	if maxWorkers <= 0 {
 		maxWorkers = 5
@@ -64,6 +66,8 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 	}
 }
 
+// Run starts the balance sync worker loop that continuously processes scheduled balance syncs.
+// It blocks until the context is cancelled or an interrupt signal is received.
 func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

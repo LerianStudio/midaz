@@ -35,8 +35,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ApplicationName is the identifier for the transaction service used in logging and tracing.
+const ApplicationName = "transaction"
+
 const (
-	ApplicationName             = "transaction"
 	ensureIndexesTimeoutSeconds = 60
 )
 

@@ -1,4 +1,5 @@
-// File: components/transaction/internal/bootstrap/dlq.consumer.go
+// Package bootstrap provides initialization and server lifecycle management for the transaction service.
+// It contains configuration, server setup, workers, and consumer implementations.
 package bootstrap
 
 import (
