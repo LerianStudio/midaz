@@ -238,18 +238,16 @@ func calculateDLQBackoff(attempt int) time.Duration {
 		return dlqInitialBackoff
 	}
 
-	// Tiered backoff with predefined intervals
-	// Attempt 1: 1min, 2: 5min, 3: 15min, 4+: 30min (max)
-	// TODO(review): Consider extracting backoff tier durations to named constants (Low severity - code style)
+	// Tiered backoff with predefined intervals using named constants
 	switch attempt {
 	case 1:
-		return 1 * time.Minute
+		return dlqInitialBackoff // 1 minute
 	case dlqBackoffTier2Level:
-		return dlqBackoffTier2
+		return dlqBackoffTier2 // 5 minutes
 	case dlqBackoffTier3Level:
-		return dlqBackoffTier3
+		return dlqBackoffTier3 // 15 minutes
 	default:
-		return dlqMaxBackoff
+		return dlqMaxBackoff // 30 minutes (max)
 	}
 }
 

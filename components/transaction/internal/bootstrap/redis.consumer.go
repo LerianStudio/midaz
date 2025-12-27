@@ -176,6 +176,8 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 	// wrapper can observe the panic for metrics and error reporting.
 	// TODO(review): Consider implementing dead-letter queue for messages that cause repeated panics
 	// to avoid infinite processing loops. (reported by business-logic-reviewer on 2025-12-13, severity: Medium)
+	// TRACKING: Deferred to separate feature - requires Redis Streams DLQ design.
+	// See: https://redis.io/docs/data-types/streams-tutorial/#consumer-groups
 	defer func() {
 		if rec := recover(); rec != nil {
 			stack := debug.Stack()
