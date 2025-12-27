@@ -372,10 +372,7 @@ func (rr *RedisConsumerRepository) executeBalanceScript(ctx context.Context, rds
 
 	logger.Infof("result value: %v", result)
 
-	balanceJSON, err := rr.convertResultToBytes(result, logger)
-	if err != nil {
-		return nil, err
-	}
+	balanceJSON := rr.convertResultToBytes(result)
 
 	return rr.unmarshalBalanceRedis(balanceJSON, &spanScript, logger)
 }
@@ -415,12 +412,13 @@ func (rr *RedisConsumerRepository) handleScriptExecutionError(span *trace.Span, 
 // NOTE: The Lua script (add_sub.lua) is internal code that MUST return string or []byte.
 // Other types indicate a bug in the Lua script, not an external system issue.
 // We use assert here because this is a programmer error, not a runtime condition.
-func (rr *RedisConsumerRepository) convertResultToBytes(result any, logger libLog.Logger) ([]byte, error) {
+// This function panics via assert.Never on unexpected types rather than returning an error.
+func (rr *RedisConsumerRepository) convertResultToBytes(result any) []byte {
 	switch v := result.(type) {
 	case string:
-		return []byte(v), nil
+		return []byte(v)
 	case []byte:
-		return v, nil
+		return v
 	default:
 		// This should never happen with our Lua script - indicates a programming error
 		assert.Never("Lua script returned unexpected type - check add_sub.lua",
@@ -428,8 +426,7 @@ func (rr *RedisConsumerRepository) convertResultToBytes(result any, logger libLo
 			"actual_type", fmt.Sprintf("%T", result),
 			"script", "add_sub.lua")
 
-		// Unreachable, but satisfies compiler
-		return nil, nil
+		return nil // unreachable after assert.Never
 	}
 }
 
