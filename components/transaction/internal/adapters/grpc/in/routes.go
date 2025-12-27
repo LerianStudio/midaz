@@ -24,7 +24,9 @@ import (
 const midazName = "midaz"
 
 // grpcPanicRecoveryInterceptor creates a unary interceptor that recovers from panics.
-// TODO(phase2): Add stream interceptor variant for streaming gRPC endpoints if needed.
+// NOTE(phase2): Stream interceptor variant needed if streaming gRPC endpoints are added.
+// Implementation pattern: grpc.StreamServerInterceptor with similar panic recovery logic.
+// Current state: No streaming endpoints exist, so unary-only interceptor is sufficient.
 func grpcPanicRecoveryInterceptor(lg libLog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		defer func() {

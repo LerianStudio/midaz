@@ -2,8 +2,6 @@ package http
 
 import (
 	"errors"
-	"log"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -11,11 +9,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// maxErrorChainDepth is the maximum depth for unwrapping error chains in diagnostic logging.
-// TODO(diagnostic): REMOVE THIS AFTER INFRASTRUCTURE ERROR TYPING IS COMPLETE
-const maxErrorChainDepth = 10
-
 // WithError returns an error with the given status code and message.
+//
+// DESIGN NOTE: No assertions on c or err parameters.
+// - c (fiber.Ctx): Fiber guarantees non-nil context when calling handlers.
+//   If we receive nil, Fiber itself is broken - panic is appropriate.
+// - err: May be nil in edge cases (defensive callers). We handle this gracefully
+//   in handleUnknownError rather than asserting.
+//
+// The current behavior (implicit nil dereference for c, graceful handling for err)
+// is intentional and appropriate for this HTTP boundary.
 func WithError(c *fiber.Ctx, err error) error {
 	// Handle standard error types
 	if handled, result := handleStandardErrors(c, err); handled {
@@ -101,49 +104,8 @@ func handleSpecialErrors(c *fiber.Ctx, err error) (bool, error) {
 	return false, nil
 }
 
-// logUnknownErrorDetails logs detailed information about errors for debugging.
-// TODO(diagnostic): REMOVE THIS AFTER INFRASTRUCTURE ERROR TYPING IS COMPLETE
-// This diagnostic function was added to identify which errors need proper typing.
-// It helps trace what error types are falling through to 500 responses.
-func logUnknownErrorDetails(err error) {
-	// Log error type and value
-	log.Printf("[DIAGNOSTIC] Unknown error falling through to 500:")
-	log.Printf("  Type: %s", reflect.TypeOf(err))
-	log.Printf("  Value: %+v", err)
-	log.Printf("  Message: %s", err.Error())
-
-	// Unwrap and log error chain
-	log.Printf("  Error Chain:")
-
-	current := err
-	depth := 1
-
-	for current != nil {
-		log.Printf("    %d. %s: %s", depth, reflect.TypeOf(current), current.Error())
-
-		// Try to unwrap
-		unwrapped := errors.Unwrap(current)
-		if unwrapped == nil || errors.Is(unwrapped, current) {
-			break
-		}
-
-		current = unwrapped
-		depth++
-
-		// Prevent infinite loops
-		if depth > maxErrorChainDepth {
-			log.Printf("    ... (max depth reached)")
-			break
-		}
-	}
-}
-
 // handleUnknownError handles unknown errors by converting them to InternalServerError
 func handleUnknownError(c *fiber.Ctx, err error) error {
-	// DIAGNOSTIC: Log details about unknown errors to identify which need typing
-	// TODO(diagnostic): REMOVE after infrastructure error typing is complete
-	logUnknownErrorDetails(err)
-
 	internalErr := pkg.ValidateInternalError(err, "")
 
 	var internalServerErr pkg.InternalServerError

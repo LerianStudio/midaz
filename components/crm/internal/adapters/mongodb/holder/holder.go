@@ -33,14 +33,13 @@ type AddressesMongoDBModel struct {
 }
 
 type AddressMongoDBModel struct {
-	Line1       *string `bson:"line_1,omitempty"`
-	Line2       *string `bson:"line_2,omitempty"`
-	ZipCode     *string `bson:"zip_code,omitempty"`
-	City        *string `bson:"city,omitempty"`
-	State       *string `bson:"state,omitempty"`
-	Country     *string `bson:"country,omitempty"`
-	Description *string `bson:"description,omitempty"`
-	IsPrimary   *bool   `bson:"is_primary,omitempty"`
+	Line1     *string `bson:"line_1,omitempty"`
+	Line2     *string `bson:"line_2,omitempty"`
+	ZipCode   *string `bson:"zip_code,omitempty"`
+	City      *string `bson:"city,omitempty"`
+	State     *string `bson:"state,omitempty"`
+	Country   *string `bson:"country,omitempty"`
+	IsPrimary *bool   `bson:"is_primary,omitempty"`
 }
 
 type ContactMongoDBModel struct {
@@ -285,7 +284,6 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 		City:    &a.City,
 		State:   &a.State,
 		Country: &a.Country,
-		// Description: &a.Description, // TODO: Check if this is needed
 	}
 }
 
@@ -500,6 +498,5 @@ func mapAddressToEntity(a *AddressMongoDBModel) *mmodel.Address {
 		City:    city,
 		State:   state,
 		Country: country,
-		// Description: a.Description,
 	}
 }
