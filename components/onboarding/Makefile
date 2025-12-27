@@ -55,6 +55,14 @@ help:
 	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
 	@echo ""
+	@echo "$(BOLD)Development (Hot-Reload) Commands:$(NC)"
+	@echo "  make up-dev                      - Start services in dev mode with hot-reload"
+	@echo "  make down-dev                    - Stop dev services"
+	@echo "  make rebuild-up-dev              - Rebuild and restart dev services"
+	@echo "  make restart-dev                 - Restart dev services"
+	@echo "  make logs-dev                    - Show logs for dev services"
+	@echo "  make ps-dev                      - List dev container status"
+	@echo ""
 	@echo "$(BOLD)Onboarding-Specific Commands:$(NC)"
 	@echo "  make generate-docs               - Generate Swagger API documentation"
 	@echo ""
@@ -262,6 +270,54 @@ ps:
 .PHONY: destroy
 destroy: clean-docker
 	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
+
+#-------------------------------------------------------
+# Development (Hot-Reload) Commands
+#-------------------------------------------------------
+
+.PHONY: up-dev
+up-dev:
+	$(call title1,"Starting services in DEV mode with hot-reload")
+	@$(DOCKER_CMD) -f docker-compose.dev.yml up $(c) -d
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dev services started with hot-reload$(GREEN) ✔️$(NC)"
+
+.PHONY: down-dev
+down-dev:
+	$(call title1,"Stopping DEV services")
+	@if [ -f "docker-compose.dev.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.dev.yml down $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.dev.yml file found. Skipping down command.$(NC)"; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dev services stopped successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: rebuild-up-dev
+rebuild-up-dev:
+	$(call title1,"Rebuilding and restarting DEV services")
+	@$(DOCKER_CMD) -f docker-compose.dev.yml down
+	@$(DOCKER_CMD) -f docker-compose.dev.yml build --no-cache
+	@$(DOCKER_CMD) -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dev services rebuilt and restarted$(GREEN) ✔️$(NC)"
+
+.PHONY: restart-dev
+restart-dev:
+	$(call title1,"Restarting DEV services")
+	@$(DOCKER_CMD) -f docker-compose.dev.yml restart $(c)
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dev services restarted$(GREEN) ✔️$(NC)"
+
+.PHONY: logs-dev
+logs-dev:
+	$(call title1,"Showing logs for DEV services")
+	@if [ -f "docker-compose.dev.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.dev.yml logs --tail=100 -f $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.dev.yml file found.$(NC)"; \
+	fi
+
+.PHONY: ps-dev
+ps-dev:
+	$(call title1,"Listing DEV container status")
+	@$(DOCKER_CMD) -f docker-compose.dev.yml ps
 
 #-------------------------------------------------------
 # Onboarding-Specific Commands

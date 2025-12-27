@@ -17,6 +17,7 @@ coverage.out
 scripts/coverage_ignore.txt
 reports/
 /bin/
+build-errors.log
 
 # Docker compose files
 components/ledger/_docker-compose.yml

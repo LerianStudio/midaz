@@ -137,6 +137,16 @@ help:
 	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
 	@echo ""
 	@echo ""
+	@echo "Development (Hot-Reload) Commands:"
+	@echo "  make up-dev                       - Start backend services in dev mode with hot-reload"
+	@echo "  make down-dev                     - Stop backend dev services"
+	@echo "  make rebuild-up-dev               - Rebuild and restart backend dev services"
+	@echo "  make restart-dev                  - Restart backend dev services"
+	@echo "  make logs-dev                     - Show logs for backend dev services"
+	@echo "  make up-backend-dev               - Alias for up-dev"
+	@echo "  make down-backend-dev             - Alias for down-dev"
+	@echo ""
+	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
@@ -253,6 +263,79 @@ restart-backend:
 	$(call print_title,Restarting backend services)
 	@make down-backend && make up-backend
 	@echo "[ok] Backend services restarted successfully ✔️"
+
+#-------------------------------------------------------
+# Development (Hot-Reload) Backend Commands
+#-------------------------------------------------------
+
+.PHONY: up-backend-dev
+up-backend-dev:
+	$(call print_title,Starting backend services in DEV mode with hot-reload)
+	$(call check_env_files)
+	@echo "Validating crypto keys..."
+	@bash $(PWD)/scripts/ensure-crypto-keys.sh
+	@echo "Starting infrastructure services first..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "Starting backend components in DEV mode..."
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
+			echo "Starting DEV services in $$dir..."; \
+			(cd $$dir && $(MAKE) up-dev) || exit 1; \
+		fi \
+	done
+	@echo "[ok] Backend DEV services started with hot-reload ✔️"
+
+.PHONY: down-backend-dev
+down-backend-dev:
+	$(call print_title,Stopping backend DEV services)
+	@echo "Stopping backend DEV components..."
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
+			echo "Stopping DEV services in $$dir..."; \
+			(cd $$dir && $(MAKE) down-dev) || exit 1; \
+		fi \
+	done
+	@echo "Stopping infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) down
+	@echo "[ok] Backend DEV services stopped ✔️"
+
+.PHONY: restart-backend-dev
+restart-backend-dev:
+	$(call print_title,Restarting backend DEV services)
+	@make down-backend-dev && make up-backend-dev
+	@echo "[ok] Backend DEV services restarted ✔️"
+
+.PHONY: rebuild-up-backend-dev
+rebuild-up-backend-dev:
+	$(call print_title,Rebuilding and restarting backend DEV services)
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
+			echo "Rebuilding DEV services in $$dir..."; \
+			(cd $$dir && $(MAKE) rebuild-up-dev) || exit 1; \
+		fi \
+	done
+	@echo "[ok] Backend DEV services rebuilt and restarted ✔️"
+
+.PHONY: logs-backend-dev
+logs-backend-dev:
+	$(call print_title,Showing logs for backend DEV services)
+	@for dir in $(BACKEND_COMPONENTS); do \
+		component_name=$$(basename $$dir); \
+		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
+			echo "Logs for DEV component: $$component_name"; \
+			(cd $$dir && $(DOCKER_CMD) -f docker-compose.dev.yml logs --tail=50) || exit 1; \
+			echo ""; \
+		fi; \
+	done
+
+# Convenience aliases for dev commands
+.PHONY: up-dev down-dev rebuild-up-dev restart-dev logs-dev
+
+up-dev: up-backend-dev
+down-dev: down-backend-dev
+rebuild-up-dev: rebuild-up-backend-dev
+restart-dev: restart-backend-dev
+logs-dev: logs-backend-dev
 
 #-------------------------------------------------------
 # Code Quality Commands

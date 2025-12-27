@@ -1,0 +1,24 @@
+# Development Dockerfile for hot-reload with air
+# Uses Alpine with Go toolchain (not distroless)
+
+FROM golang:1.25.1-alpine
+
+# Install air for hot-reload and required tools
+RUN apk add --no-cache git curl && \
+    go install github.com/air-verse/air@latest
+
+# Set working directory to monorepo root
+WORKDIR /app
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# The rest of the source code will be mounted as a volume
+# This allows for hot-reload without rebuilding the image
+
+# Expose the service port
+EXPOSE 3002
+
+# Run air with the component-specific config
+CMD ["air", "-c", "./components/ledger/.air.toml"]

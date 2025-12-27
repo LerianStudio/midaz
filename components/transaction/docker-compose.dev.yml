@@ -1,0 +1,42 @@
+services:
+  transaction:
+    container_name: midaz-transaction-dev
+    restart: unless-stopped
+    build:
+      context: ../../
+      dockerfile: ./components/transaction/Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - ENV_NAME=development
+      - CGO_ENABLED=0
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    volumes:
+      # Mount full monorepo for watching all Go code
+      - ../../:/app
+      # Preserve go module cache for faster rebuilds
+      - go-mod-cache:/go/pkg/mod
+      # Preserve go build cache
+      - go-build-cache:/root/.cache/go-build
+    networks:
+      - infra-network
+      - onboarding-network
+      - transaction-network
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
+  onboarding-network:
+    name: onboarding-network
+    driver: bridge
+    external: true
+  transaction-network:
+    name: transaction-network
+    driver: bridge
