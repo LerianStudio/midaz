@@ -169,7 +169,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 		if err != nil {
 			lastErr = err
 
-			time.Sleep(redisBalancePollInterval)
+			time.Sleep(PollIntervalFast)
 
 			continue
 		}
@@ -181,7 +181,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 			return pgValue, nil
 		}
 
-		time.Sleep(redisBalancePollInterval)
+		time.Sleep(PollIntervalFast)
 	}
 
 	if lastErr != nil {
