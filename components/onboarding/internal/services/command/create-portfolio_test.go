@@ -3,20 +3,13 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -225,51 +218,185 @@ func TestCreatePortfolioError(t *testing.T) {
 }
 
 func TestUseCase_CreatePortfolio(t *testing.T) {
-	type fields struct {
-		OrganizationRepo organization.Repository
-		LedgerRepo       ledger.Repository
-		SegmentRepo      segment.Repository
-		PortfolioRepo    portfolio.Repository
-		AccountRepo      account.Repository
-		AssetRepo        asset.Repository
-		MetadataRepo     mongodb.Repository
-		RedisRepo        redis.RedisRepository
-	}
-	type args struct {
-		ctx            context.Context
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		cpi            *mmodel.CreatePortfolioInput
-	}
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *mmodel.Portfolio
-		wantErr bool
+		name      string
+		input     *mmodel.CreatePortfolioInput
+		setupMock func(ctrl *gomock.Controller) (*portfolio.MockRepository, *mongodb.MockRepository)
+		validate  func(t *testing.T, result *mmodel.Portfolio, err error)
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default status when status is empty",
+			input: &mmodel.CreatePortfolioInput{
+				Name:     "Empty Status Portfolio",
+				EntityID: "entity-empty-status",
+				Status:   mmodel.Status{}, // Empty status - no metadata
+			},
+			setupMock: func(ctrl *gomock.Controller) (*portfolio.MockRepository, *mongodb.MockRepository) {
+				mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+				mockPortfolioRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, p *mmodel.Portfolio) (*mmodel.Portfolio, error) {
+						// Verify the status was defaulted to ACTIVE
+						assert.Equal(t, "ACTIVE", p.Status.Code)
+						return p, nil
+					}).
+					Times(1)
+
+				// No metadata in input, so MetadataRepo.Create is not called
+
+				return mockPortfolioRepo, mockMetadataRepo
+			},
+			validate: func(t *testing.T, result *mmodel.Portfolio, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, "ACTIVE", result.Status.Code)
+			},
+		},
+		{
+			name: "preserves custom status code",
+			input: &mmodel.CreatePortfolioInput{
+				Name:     "Custom Status Portfolio",
+				EntityID: "entity-custom-status",
+				Status: mmodel.Status{
+					Code:        "PENDING",
+					Description: libPointers.String("Pending approval"),
+				},
+				// No metadata
+			},
+			setupMock: func(ctrl *gomock.Controller) (*portfolio.MockRepository, *mongodb.MockRepository) {
+				mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+				mockPortfolioRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, p *mmodel.Portfolio) (*mmodel.Portfolio, error) {
+						// Verify the custom status is preserved
+						assert.Equal(t, "PENDING", p.Status.Code)
+						assert.Equal(t, "Pending approval", *p.Status.Description)
+						return p, nil
+					}).
+					Times(1)
+
+				// No metadata in input, so MetadataRepo.Create is not called
+
+				return mockPortfolioRepo, mockMetadataRepo
+			},
+			validate: func(t *testing.T, result *mmodel.Portfolio, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, "PENDING", result.Status.Code)
+				assert.Equal(t, "Pending approval", *result.Status.Description)
+			},
+		},
+		{
+			name: "assigns organization and ledger IDs",
+			input: &mmodel.CreatePortfolioInput{
+				Name:     "ID Assignment Portfolio",
+				EntityID: "entity-id-assignment",
+				Status: mmodel.Status{
+					Code: "ACTIVE",
+				},
+				// No metadata
+			},
+			setupMock: func(ctrl *gomock.Controller) (*portfolio.MockRepository, *mongodb.MockRepository) {
+				mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+				mockPortfolioRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, p *mmodel.Portfolio) (*mmodel.Portfolio, error) {
+						// Verify organization and ledger IDs are properly assigned
+						assert.Equal(t, organizationID.String(), p.OrganizationID)
+						assert.Equal(t, ledgerID.String(), p.LedgerID)
+						assert.Equal(t, "entity-id-assignment", p.EntityID)
+						assert.Equal(t, "ID Assignment Portfolio", p.Name)
+						return p, nil
+					}).
+					Times(1)
+
+				// No metadata in input, so MetadataRepo.Create is not called
+
+				return mockPortfolioRepo, mockMetadataRepo
+			},
+			validate: func(t *testing.T, result *mmodel.Portfolio, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, organizationID.String(), result.OrganizationID)
+				assert.Equal(t, ledgerID.String(), result.LedgerID)
+			},
+		},
+		{
+			name: "with metadata",
+			input: &mmodel.CreatePortfolioInput{
+				Name:     "Metadata Portfolio",
+				EntityID: "entity-metadata",
+				Status: mmodel.Status{
+					Code: "ACTIVE",
+				},
+				Metadata: map[string]any{
+					"department": "finance",
+					"region":     "us-east",
+					"priority":   1,
+				},
+			},
+			setupMock: func(ctrl *gomock.Controller) (*portfolio.MockRepository, *mongodb.MockRepository) {
+				mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+				mockPortfolioRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, p *mmodel.Portfolio) (*mmodel.Portfolio, error) {
+						return p, nil
+					}).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), "Portfolio", gomock.Any()).
+					DoAndReturn(func(ctx context.Context, entityName string, meta *mongodb.Metadata) error {
+						// Verify metadata is properly passed
+						assert.NotEmpty(t, meta.EntityID)
+						assert.Equal(t, "Portfolio", meta.EntityName)
+						assert.Equal(t, "finance", meta.Data["department"])
+						assert.Equal(t, "us-east", meta.Data["region"])
+						assert.Equal(t, 1, meta.Data["priority"])
+						return nil
+					}).
+					Times(1)
+
+				return mockPortfolioRepo, mockMetadataRepo
+			},
+			validate: func(t *testing.T, result *mmodel.Portfolio, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				// Verify metadata is returned in the result
+				assert.NotNil(t, result.Metadata)
+				assert.Equal(t, "finance", result.Metadata["department"])
+				assert.Equal(t, "us-east", result.Metadata["region"])
+				assert.Equal(t, 1, result.Metadata["priority"])
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockPortfolioRepo, mockMetadataRepo := tt.setupMock(ctrl)
+
 			uc := &UseCase{
-				OrganizationRepo: tt.fields.OrganizationRepo,
-				LedgerRepo:       tt.fields.LedgerRepo,
-				SegmentRepo:      tt.fields.SegmentRepo,
-				PortfolioRepo:    tt.fields.PortfolioRepo,
-				AccountRepo:      tt.fields.AccountRepo,
-				AssetRepo:        tt.fields.AssetRepo,
-				MetadataRepo:     tt.fields.MetadataRepo,
-				RedisRepo:        tt.fields.RedisRepo,
+				PortfolioRepo: mockPortfolioRepo,
+				MetadataRepo:  mockMetadataRepo,
 			}
-			got, err := uc.CreatePortfolio(tt.args.ctx, tt.args.organizationID, tt.args.ledgerID, tt.args.cpi)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("UseCase.CreatePortfolio() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("UseCase.CreatePortfolio() = %v, want %v", got, tt.want)
-			}
+
+			result, err := uc.CreatePortfolio(ctx, organizationID, ledgerID, tt.input)
+			tt.validate(t, result, err)
 		})
 	}
 }
