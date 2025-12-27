@@ -263,3 +263,39 @@ func TestUpdateBalances_StaleRefreshFails_ReturnsError(t *testing.T) {
 	assert.Equal(t, constant.ErrStaleBalanceUpdateSkipped.Error(), failedPreconditionErr.Code,
 		"Error code should match ErrStaleBalanceUpdateSkipped")
 }
+
+// TestUpdateBalances_EmptyBalances_Panics verifies that when balancesToUpdate is empty,
+// the system panics rather than silently succeeding. This prevents data loss scenarios
+// where transactions are created but balances are never persisted.
+func TestUpdateBalances_EmptyBalances_Panics(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:   mockRedis,
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Empty validate and balances to trigger the assertion
+	validate := pkgTransaction.Responses{
+		From: map[string]pkgTransaction.Amount{},
+		To:   map[string]pkgTransaction.Amount{},
+	}
+
+	// Empty balances slice - this should trigger the assertion
+	balances := []*mmodel.Balance{}
+
+	// Verify panic occurs with expected assertion
+	assert.Panics(t, func() {
+		_ = uc.UpdateBalances(ctx, orgID, ledgerID, validate, balances)
+	}, "UpdateBalances should panic when balancesToUpdate is empty")
+}
