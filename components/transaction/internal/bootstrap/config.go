@@ -3,12 +3,12 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -150,15 +150,18 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
+	// Extract port and parameters for MongoDB connection
+	mongoPort, mongoParameters := extractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -329,4 +332,37 @@ func InitServers() *Service {
 		BalanceSyncWorker:  balanceSyncWorker,
 		Logger:             logger,
 	}
+}
+
+// extractMongoPortAndParameters handles backward compatibility for MongoDB connection configuration.
+// MONGO_PORT=5703/replicaSet=rs0&authSource=admin&directConnection=true
+//
+// This function extracts the actual port and parameters from such configurations.
+// If MONGO_PARAMETERS is already set, it takes precedence over embedded parameters.
+//
+// DEPRECATED: This backward compatibility for embedded parameters in MONGO_PORT will be removed
+// in Midaz 4.0.0. Update environment variables to use the MONGO_PARAMETERS environment variable.
+func extractMongoPortAndParameters(port, parameters string, logger libLog.Logger) (string, string) {
+	// If parameters are already explicitly set, use them directly
+	if parameters != "" {
+		return port, parameters
+	}
+
+	// Check if port contains embedded parameters (legacy)
+	// Format: "5703/replicaSet=rs0&authSource=admin" or "5703?replicaSet=rs0"
+	if idx := strings.IndexAny(port, "/?"); idx != -1 {
+		actualPort := port[:idx]
+		embeddedParams := port[idx+1:]
+
+		logger.Warnf(
+			"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected. "+
+				"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
+				"Extracted port=%s, parameters=%s",
+			actualPort, embeddedParams,
+		)
+
+		return actualPort, embeddedParams
+	}
+
+	return port, parameters
 }
