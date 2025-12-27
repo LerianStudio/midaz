@@ -19,13 +19,25 @@
 --
 -- INPUTS:
 --   KEYS[1] - The Redis sorted set key for balance sync schedule
---             (e.g., "schedule:{transactions}:balance-sync")
---   ARGV[1] - Maximum number of balances to claim per invocation (default: 25)
---   ARGV[2] - TTL for claim locks in seconds (default: 600)
---   ARGV[3] - Prefix for lock keys (default: "lock:{transactions}:balance-sync:")
+--             Go caller: utils.BalanceSyncScheduleKey ("schedule:{transactions}:balance-sync")
+--   ARGV[1] - Maximum number of balances to claim per invocation
+--             Go caller: batchSize (from config), Lua fallback: 25
+--   ARGV[2] - TTL for claim locks in seconds
+--             Go caller: balanceSyncExpirationWindow (600), Lua fallback: 600
+--   ARGV[3] - Prefix for lock keys
+--             Go caller: utils.BalanceSyncLockPrefix, Lua fallback: "lock:{transactions}:balance-sync:"
 --
 -- OUTPUTS:
 --   Returns an array of balance keys that were successfully claimed by this worker
+--
+-- DEPENDENCIES:
+--   This script uses standard Redis commands only (TIME, ZRANGEBYSCORE, SET).
+--   No external modules required.
+--
+-- GO CROSS-REFERENCES:
+--   - Called from: consumer.redis.go:GetBalanceSyncKeys()
+--   - Constants: pkg/utils/cache.go (BalanceSyncScheduleKey, BalanceSyncLockPrefix)
+--   - Worker: bootstrap/balance.worker.go (processBalancesToExpire)
 --------------------------------------------------------------------------------
 
 -- WHAT: Extracts the Redis sorted set key name for balance sync schedule from KEYS array
@@ -63,7 +75,7 @@ local now = tonumber(t[1])
 local limit = tonumber(ARGV[1]) or 25
 
 -- WHAT: Extracts the claim lock TTL from ARGV[2], defaulting to 600 seconds (10 min)
--- WHY:  The TTL should match or exceed the sync warning window. 600s provides ample
+-- WHY:  The TTL should match the pre-expiry sync window (warnBefore in add_sub.lua). 600s provides ample
 --       time for the worker to complete the database sync operation. If a worker dies
 --       mid-processing, the lock auto-expires after this time, allowing another worker
 --       to retry. Too short = premature unlock and duplicate work; too long = stuck

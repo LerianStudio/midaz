@@ -15,11 +15,25 @@
 -- Philosophy: Fail open, not closed. Schedule removal is guaranteed.
 --             Lock cleanup is best-effort because locks auto-expire (600s TTL).
 --
--- KEYS[1]: Schedule sorted set key (e.g., "schedule:{transactions}:balance-sync")
--- ARGV[1]: Balance key to remove (e.g., "balance:{transactions}:orgID:ledgerID:key")
--- ARGV[2]: Optional lock prefix (defaults to "lock:{transactions}:balance-sync:")
+-- INPUTS:
+--   KEYS[1]: Schedule sorted set key
+--            Go caller: utils.BalanceSyncScheduleKey ("schedule:{transactions}:balance-sync")
+--   ARGV[1]: Balance key to remove
+--            Format: "balance:{transactions}:orgID:ledgerID:key"
+--   ARGV[2]: Optional lock prefix
+--            Go caller: utils.BalanceSyncLockPrefix, Lua fallback: "lock:{transactions}:balance-sync:"
 --
--- Returns: 1 if member was removed from schedule, 0 if it didn't exist
+-- OUTPUTS:
+--   Returns 1 if member was removed from schedule, 0 if it didn't exist
+--
+-- DEPENDENCIES:
+--   This script uses standard Redis commands only (ZREM, DEL).
+--   No external modules required.
+--
+-- GO CROSS-REFERENCES:
+--   - Called from: consumer.redis.go:RemoveBalanceSyncKey()
+--   - Constants: pkg/utils/cache.go (BalanceSyncScheduleKey, BalanceSyncLockPrefix)
+--   - Worker: bootstrap/balance.worker.go (syncAndRecordBalance)
 --------------------------------------------------------------------------------
 
 -- WHAT: Assigns the first key argument to scheduleKey variable
@@ -45,7 +59,9 @@ local claimPrefix = ARGV[2] or "lock:{transactions}:balance-sync:"
 --       2. Cause silent failures that are hard to debug
 --       3. Leave orphaned schedule entries or locks
 --       Early failure with clear error message aids troubleshooting
-if not scheduleKey or not member or member == "" then
+--       Note: In Lua, only nil and false are falsy; empty string "" is truthy,
+--       so we must explicitly check for empty strings.
+if not scheduleKey or scheduleKey == "" or not member or member == "" then
   return redis.error_reply("invalid scheduleKey or member")
 end
 
