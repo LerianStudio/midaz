@@ -4,11 +4,14 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -80,10 +83,27 @@ func createTestRedisConnection(t *testing.T, addr string) *libRedis.RedisConnect
 	return conn
 }
 
+// assertInsufficientFundsError verifies the error is an UnprocessableOperationError with code "0018".
+func assertInsufficientFundsError(t *testing.T, err error) {
+	t.Helper()
+
+	require.Error(t, err, "expected an error")
+
+	var unprocessableErr pkg.UnprocessableOperationError
+	if assert.ErrorAs(t, err, &unprocessableErr, "error should be UnprocessableOperationError") {
+		assert.Equal(t, constant.ErrInsufficientFunds.Error(), unprocessableErr.Code, "error code should be 0018")
+	}
+}
+
 // createTestBalanceOperation creates a BalanceOperation for testing purposes.
 func createTestBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount decimal.Decimal) mmodel.BalanceOperation {
-	balanceID := uuid.New().String()
-	accountID := uuid.New().String()
+	return createTestBalanceOperationWithAvailable(organizationID, ledgerID, alias, assetCode, operation, amount, decimal.NewFromInt(1000), "deposit")
+}
+
+// createTestBalanceOperationWithAvailable creates a BalanceOperation with custom available balance and account type.
+func createTestBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available decimal.Decimal, accountType string) mmodel.BalanceOperation {
+	balanceID := libCommons.GenerateUUIDv7().String()
+	accountID := libCommons.GenerateUUIDv7().String()
 	balanceKey := "default"
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
@@ -97,10 +117,10 @@ func createTestBalanceOperation(organizationID, ledgerID uuid.UUID, alias, asset
 			Alias:          alias,
 			Key:            balanceKey,
 			AssetCode:      assetCode,
-			Available:      decimal.NewFromInt(1000),
+			Available:      available,
 			OnHold:         decimal.Zero,
 			Version:        1,
-			AccountType:    "deposit",
+			AccountType:    accountType,
 			AllowSending:   true,
 			AllowReceiving: true,
 			CreatedAt:      time.Now(),
@@ -135,9 +155,9 @@ func TestIntegration_AddSumBalancesRedis_WithSyncEnabled_SchedulesBalanceSync(t 
 		balanceSyncEnabled: true,
 	}
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
 
 	balanceOp := createTestBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
 
@@ -180,9 +200,9 @@ func TestIntegration_AddSumBalancesRedis_WithSyncDisabled_DoesNotScheduleBalance
 		balanceSyncEnabled: false,
 	}
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
 
 	balanceOp := createTestBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
 
@@ -232,9 +252,9 @@ func TestIntegration_AddSumBalancesRedis_ProcessesBalancesCorrectly_RegardlessOf
 				balanceSyncEnabled: tc.balanceSyncEnabled,
 			}
 
-			organizationID := uuid.New()
-			ledgerID := uuid.New()
-			transactionID := uuid.New()
+			organizationID := libCommons.GenerateUUIDv7()
+			ledgerID := libCommons.GenerateUUIDv7()
+			transactionID := libCommons.GenerateUUIDv7()
 
 			// Create a CREDIT operation that adds 500 to balance
 			balanceOp := createTestBalanceOperation(organizationID, ledgerID, "@receiver", "USD", constant.CREDIT, decimal.NewFromInt(500))
@@ -273,9 +293,9 @@ func TestIntegration_AddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnab
 		balanceSyncEnabled: true,
 	}
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
 
 	// Create two balance operations with different keys
 	balanceOp1 := createTestBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
@@ -297,9 +317,15 @@ func TestIntegration_AddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnab
 	count, err := client.ZCard(ctx, scheduleKey).Result()
 	require.NoError(t, err, "failed to get ZCARD for schedule key")
 	assert.Equal(t, int64(2), count, "schedule key should have 2 members for 2 operations")
+
+	// Verify the exact keys scheduled match both operations
+	members, err := client.ZRange(ctx, scheduleKey, 0, -1).Result()
+	require.NoError(t, err, "failed to get ZRANGE for schedule key")
+	assert.ElementsMatch(t, []string{balanceOp1.InternalKey, balanceOp2.InternalKey}, members,
+		"scheduled members should match both balance internal keys")
 }
 
-func TestIntegration_AddSumBalancesRedis_NotedStatus_SkipsLuaScript(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_InsufficientFunds_ReturnsError(t *testing.T) {
 	// Arrange
 	client, cleanup := setupRedisContainer(t)
 	defer cleanup()
@@ -311,26 +337,179 @@ func TestIntegration_AddSumBalancesRedis_NotedStatus_SkipsLuaScript(t *testing.T
 
 	repo := &RedisConsumerRepository{
 		conn:               conn,
-		balanceSyncEnabled: true,
+		balanceSyncEnabled: false,
 	}
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
 
-	balanceOp := createTestBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
+	// Create a balance with 100 available, but try to debit 500
+	balanceOp := createTestBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@sender", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(500), // amount to debit
+		decimal.NewFromInt(100), // available balance (insufficient)
+		"deposit",               // internal account type
+	)
 
-	// Act - with NOTED status, Lua script should be skipped
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.NOTED, false, []mmodel.BalanceOperation{balanceOp})
+	// Act
+	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp})
 
 	// Assert
-	require.NoError(t, err, "AddSumBalancesRedis should not return error")
-	require.NotNil(t, balances, "balances should not be nil")
-	assert.Len(t, balances, 1, "should return one balance")
+	assertInsufficientFundsError(t, err)
+	assert.Nil(t, balances, "balances should be nil on error")
+}
 
-	// With NOTED status, the Lua script is skipped entirely, so no scheduling happens
-	scheduleKey := utils.BalanceSyncScheduleKey
-	count, err := client.ZCard(ctx, scheduleKey).Result()
-	require.NoError(t, err, "failed to get ZCARD for schedule key")
-	assert.Equal(t, int64(0), count, "schedule key should be empty for NOTED transactions")
+func TestIntegration_AddSumBalancesRedis_InsufficientFunds_RollsBackAllBalances(t *testing.T) {
+	// Arrange
+	client, cleanup := setupRedisContainer(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	addr := client.Options().Addr
+	conn := createTestRedisConnection(t, addr)
+
+	repo := &RedisConsumerRepository{
+		conn:               conn,
+		balanceSyncEnabled: false,
+	}
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
+
+	// First operation: valid debit (100 from 1000 available)
+	balanceOp1 := createTestBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@sender1", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(100),
+		decimal.NewFromInt(1000),
+		"deposit",
+	)
+
+	// Second operation: invalid debit (500 from 100 available) - will fail
+	balanceOp2 := createTestBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@sender2", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(500),
+		decimal.NewFromInt(100),
+		"deposit",
+	)
+	// Use different key to avoid collision
+	balanceOp2.Balance.Key = "secondary"
+	balanceOp2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "secondary")
+
+	// Act
+	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp1, balanceOp2})
+
+	// Assert
+	assertInsufficientFundsError(t, err)
+	assert.Nil(t, balances, "balances should be nil on error")
+
+	// Verify rollback: first balance should be restored to original state
+	val, err := client.Get(ctx, balanceOp1.InternalKey).Result()
+	require.NoError(t, err, "rolled-back balance key should exist in Redis")
+
+	var restored mmodel.BalanceRedis
+	require.NoError(t, json.Unmarshal([]byte(val), &restored), "should unmarshal balance")
+	assert.True(t, restored.Available.Equal(decimal.NewFromInt(1000)),
+		"first balance should be rolled back to original 1000, got %s", restored.Available)
+}
+
+func TestIntegration_AddSumBalancesRedis_NonNegativeBalance_BoundaryConditions(t *testing.T) {
+	// Single container for all subtests - avoids 4× container startup overhead
+	client, cleanup := setupRedisContainer(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	addr := client.Options().Addr
+	conn := createTestRedisConnection(t, addr)
+
+	testCases := []struct {
+		name        string
+		available   decimal.Decimal
+		debitAmount decimal.Decimal
+		accountType string
+		expectError bool
+	}{
+		{
+			name:        "exact balance debit succeeds",
+			available:   decimal.NewFromInt(100),
+			debitAmount: decimal.NewFromInt(100),
+			accountType: "deposit",
+			expectError: false,
+		},
+		{
+			name:        "one cent over fails",
+			available:   decimal.NewFromFloat(100.00),
+			debitAmount: decimal.NewFromFloat(100.01),
+			accountType: "deposit",
+			expectError: true,
+		},
+		{
+			name:        "zero balance debit fails",
+			available:   decimal.Zero,
+			debitAmount: decimal.NewFromInt(1),
+			accountType: "deposit",
+			expectError: true,
+		},
+		{
+			name:        "external account allows overdraft",
+			available:   decimal.NewFromInt(100),
+			debitAmount: decimal.NewFromInt(1000),
+			accountType: "external",
+			expectError: false,
+		},
+		{
+			name:        "sub-cent precision debit fails",
+			available:   decimal.NewFromFloat(100.001),
+			debitAmount: decimal.NewFromFloat(100.002),
+			accountType: "deposit",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Flush Redis between subtests for isolation
+			require.NoError(t, client.FlushDB(ctx).Err(), "failed to flush Redis")
+
+			repo := &RedisConsumerRepository{
+				conn:               conn,
+				balanceSyncEnabled: false,
+			}
+
+			organizationID := libCommons.GenerateUUIDv7()
+			ledgerID := libCommons.GenerateUUIDv7()
+			transactionID := libCommons.GenerateUUIDv7()
+
+			balanceOp := createTestBalanceOperationWithAvailable(
+				organizationID, ledgerID,
+				"@account", "USD",
+				constant.DEBIT,
+				tc.debitAmount,
+				tc.available,
+				tc.accountType,
+			)
+
+			// Act
+			balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp})
+
+			// Assert
+			if tc.expectError {
+				assertInsufficientFundsError(t, err)
+				assert.Nil(t, balances, "balances should be nil on error")
+			} else {
+				require.NoError(t, err, "should not return error")
+				require.NotNil(t, balances, "balances should not be nil")
+				assert.Len(t, balances, 1, "should return one balance")
+			}
+		})
+	}
 }
