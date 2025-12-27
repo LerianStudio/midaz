@@ -216,6 +216,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 	return result, nil
 }
 
+// Update modifies an existing alias document in MongoDB.
 func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
 	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -610,6 +611,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	return nil
 }
 
+// Count returns the number of aliases for a given holder.
 func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error) {
 	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

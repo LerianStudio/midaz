@@ -1,3 +1,5 @@
+// Package out provides gRPC client adapters for outbound communication
+// with external services, including balance operations on the Transaction component.
 package out
 
 import (

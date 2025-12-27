@@ -17,12 +17,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// TransactionRouteHandler handles HTTP requests for transaction route management.
+// It provides CRUD operations for transaction routes within a ledger.
 type TransactionRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
 }
 
-// Create a Transaction Route.
+// CreateTransactionRoute creates a new transaction route within a ledger.
 //
 //	@Summary		Create Transaction Route
 //	@Description	Endpoint to create a new Transaction Route.
@@ -88,7 +90,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	return nil
 }
 
-// Get a Transaction Route by ID.
+// GetTransactionRouteByID retrieves a transaction route by its unique identifier.
 //
 //	@Summary		Get Transaction Route by ID
 //	@Description	Endpoint to get a Transaction Route by its ID.
@@ -141,7 +143,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	return nil
 }
 
-// Update a Transaction Route.
+// UpdateTransactionRoute modifies an existing transaction route.
 //
 //	@Summary		Update Transaction Route
 //	@Description	Endpoint to update a Transaction Route by its ID.
@@ -224,7 +226,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	return nil
 }
 
-// Delete a Transaction Route by ID.
+// DeleteTransactionRouteByID removes a transaction route by its unique identifier.
 //
 //	@Summary		Delete Transaction Route by ID
 //	@Description	Endpoint to delete a Transaction Route by its ID.
@@ -283,7 +285,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	return nil
 }
 
-// Get all Transaction Routes.
+// GetAllTransactionRoutes retrieves all transaction routes with optional filtering.
 //
 //	@Summary		Get all Transaction Routes
 //	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.

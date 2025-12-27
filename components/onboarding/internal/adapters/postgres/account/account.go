@@ -1,3 +1,5 @@
+// Package account provides PostgreSQL database adapters for account entity
+// persistence and retrieval operations.
 package account
 
 import (

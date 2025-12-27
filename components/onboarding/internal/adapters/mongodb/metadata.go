@@ -1,3 +1,5 @@
+// Package mongodb provides MongoDB database adapters for metadata storage
+// and retrieval operations in the onboarding service.
 package mongodb
 
 import (

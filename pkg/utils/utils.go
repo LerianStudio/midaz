@@ -78,6 +78,7 @@ func ValidateType(t string) error {
 	return nil
 }
 
+// ValidateCode checks that the code contains only uppercase letters.
 func ValidateCode(code string) error {
 	for _, r := range code {
 		if !unicode.IsLetter(r) {

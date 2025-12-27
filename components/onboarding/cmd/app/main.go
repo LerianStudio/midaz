@@ -1,3 +1,5 @@
+// Package main is the entry point for the Midaz Onboarding service, which handles
+// organization, ledger, account, asset, portfolio, and segment management operations.
 package main
 
 import (

@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for inbound API requests,
+// implementing REST endpoints for the onboarding service resources.
 package in
 
 import (

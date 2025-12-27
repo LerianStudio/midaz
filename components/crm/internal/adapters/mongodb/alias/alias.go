@@ -1,3 +1,4 @@
+// Package alias provides MongoDB repository implementation for alias entities.
 package alias
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// MongoDBModel represents the MongoDB document structure for an alias.
 type MongoDBModel struct {
 	ID                  *uuid.UUID           `bson:"_id,omitempty"`
 	Document            *string              `bson:"document,omitempty"`
@@ -26,6 +28,7 @@ type MongoDBModel struct {
 	DeletedAt           *time.Time           `bson:"deleted_at"`
 }
 
+// BankingMongoDBModel represents the banking details subdocument in MongoDB.
 type BankingMongoDBModel struct {
 	Branch      *string `bson:"branch,omitempty"`
 	Account     *string `bson:"account,omitempty"`

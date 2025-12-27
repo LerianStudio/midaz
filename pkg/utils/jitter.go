@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Retry configuration constants for exponential backoff with jitter.
 const (
 	MaxRetries     = 5
 	InitialBackoff = 500 * time.Millisecond

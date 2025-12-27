@@ -27,7 +27,7 @@ type OperationRouteHandler struct {
 	Query   *query.UseCase
 }
 
-// Create an Operation Route.
+// CreateOperationRoute creates a new operation route within a ledger.
 //
 //	@Summary		Create Operation Route
 //	@Description	Endpoint to create a new Operation Route.

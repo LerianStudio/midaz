@@ -1,3 +1,5 @@
+// Package utils provides utility functions for the transaction service including
+// Redis key generation, validation helpers, metrics definitions, and common operations.
 package utils
 
 import (
@@ -6,6 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Redis key constants for balance synchronization scheduling and locking.
 const (
 	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
 	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"

@@ -1,3 +1,6 @@
+// Package in provides HTTP handler implementations for the transaction service.
+// It contains REST API handlers for managing transactions, balances, asset rates,
+// and routing configurations through the Fiber web framework.
 package in
 
 import (
