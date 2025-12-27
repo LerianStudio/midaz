@@ -255,17 +255,29 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	c.SetUserContext(ctx)
 
 	if err := handler.validateDSLQueryParams(c, &span, logger); err != nil {
-		return err
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	dsl, err := handler.getDSLFile(c, &span, logger)
 	if err != nil {
-		return err
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
-	parserDSL, err := handler.validateAndParseDSL(c, &span, dsl)
+	parserDSL, err := handler.validateAndParseDSL(&span, dsl)
 	if err != nil {
-		return err
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.send", parserDSL.Send)
@@ -283,11 +295,8 @@ func (handler *TransactionHandler) validateDSLQueryParams(c *fiber.Ctx, span *tr
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		logger.Error("Failed to validate query parameters: ", err.Error())
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
+		//nolint:wrapcheck // Error is validated and written by CreateTransactionDSL.
+		return err
 	}
 
 	return nil
@@ -300,28 +309,21 @@ func (handler *TransactionHandler) getDSLFile(c *fiber.Ctx, span *trace.Span, lo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get file from Header", err)
 		logger.Error("Failed to get file from Header: ", err.Error())
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return "", httpErr
-		}
-
-		return "", nil
+		//nolint:wrapcheck // Error is validated and written by CreateTransactionDSL.
+		return "", err
 	}
 
 	return dsl, nil
 }
 
 // validateAndParseDSL validates and parses the DSL content.
-func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace.Span, dsl string) (pkgTransaction.Transaction, error) {
+func (handler *TransactionHandler) validateAndParseDSL(span *trace.Span, dsl string) (pkgTransaction.Transaction, error) {
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return pkgTransaction.Transaction{}, httpErr
-		}
-
-		return pkgTransaction.Transaction{}, nil
+		return pkgTransaction.Transaction{}, err
 	}
 
 	parsed := goldTransaction.Parse(dsl)
@@ -334,11 +336,7 @@ func (handler *TransactionHandler) validateAndParseDSL(c *fiber.Ctx, span *trace
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL: unexpected type", err)
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return pkgTransaction.Transaction{}, httpErr
-		}
-
-		return pkgTransaction.Transaction{}, nil
+		return pkgTransaction.Transaction{}, err
 	}
 
 	parserDSL := goldTransaction.ConvertLibToPkgTransaction(libTran)
@@ -473,13 +471,21 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
-	if err := handler.validateNoParentTransaction(ctx, c, &span, logger, organizationID, ledgerID, transactionID); err != nil {
-		return err
+	if err := handler.validateNoParentTransaction(ctx, &span, logger, organizationID, ledgerID, transactionID); err != nil {
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
-	tran, err := handler.fetchAndValidateTransactionForRevert(ctx, c, &span, logger, organizationID, ledgerID, transactionID)
+	tran, err := handler.fetchAndValidateTransactionForRevert(ctx, &span, logger, organizationID, ledgerID, transactionID)
 	if err != nil {
-		return err
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if tran == nil {
@@ -503,17 +509,14 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 }
 
 // validateNoParentTransaction checks if the transaction already has a parent.
-func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) error {
+func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) error {
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Parent Transaction on query", err)
 		logger.Errorf("Failed to retrieve Parent Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
+		//nolint:wrapcheck // Error is already validated in the query layer and mapped to HTTP at the handler boundary.
+		return err
 	}
 
 	if parent != nil {
@@ -521,19 +524,15 @@ func (handler *TransactionHandler) validateNoParentTransaction(ctx context.Conte
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
+		return err
 	}
 
 	return nil
 }
 
 // fetchAndValidateTransactionForRevert retrieves and validates a transaction before reverting it.
-func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	tran, err := handler.retrieveTransactionForRevert(ctx, c, span, logger, organizationID, ledgerID, transactionID)
+func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	tran, err := handler.retrieveTransactionForRevert(ctx, span, logger, organizationID, ledgerID, transactionID)
 	if err != nil || tran == nil {
 		return tran, err
 	}
@@ -542,7 +541,7 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 		return nil, err
 	}
 
-	if err := handler.validateTransactionCanBeReverted(c, span, logger, transactionID, tran); err != nil {
+	if err := handler.validateTransactionCanBeReverted(span, logger, transactionID, tran); err != nil {
 		return nil, err
 	}
 
@@ -550,29 +549,21 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 }
 
 // retrieveTransactionForRevert fetches transaction data and merges operations.
-func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) retrieveTransactionForRevert(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve base transaction on query", err)
 		logger.Errorf("Failed to retrieve base Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return nil, httpErr
-		}
-
-		return nil, nil
+		//nolint:wrapcheck // Error is already validated in the query layer and mapped to HTTP at the handler boundary.
+		return nil, err
 	}
 
 	tranWithOps, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction operations on query", err)
 		logger.Errorf("Failed to retrieve Transaction operations with ID: %s, Error: %s", transactionID.String(), err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return nil, httpErr
-		}
-
-		return nil, nil
+		//nolint:wrapcheck // Error is already validated in the query layer and mapped to HTTP at the handler boundary.
+		return nil, err
 	}
 
 	if tran == nil || tran.ID == "" {
@@ -634,29 +625,21 @@ func (handler *TransactionHandler) isAsyncModeEnabled() bool {
 }
 
 // validateTransactionCanBeReverted checks if the transaction is eligible for revert.
-func (handler *TransactionHandler) validateTransactionCanBeReverted(c *fiber.Ctx, span *trace.Span, logger libLog.Logger, transactionID uuid.UUID, tran *transaction.Transaction) error {
+func (handler *TransactionHandler) validateTransactionCanBeReverted(span *trace.Span, logger libLog.Logger, transactionID uuid.UUID, tran *transaction.Transaction) error {
 	if tran.ParentTransactionID != nil {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
+		return err
 	}
 
 	if tran.Status.Code != constant.APPROVED {
-		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
+		err := pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 		logger.Errorf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
+		return err
 	}
 
 	return nil

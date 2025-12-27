@@ -167,9 +167,6 @@ func TestIntegration_Transactions_RevertOnNonApproved_Should4xx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("revert request error: %v", err)
 	}
-	if code == 500 {
-		t.Skipf("known backend issue: revert non-approved returns 500; expected 4xx. body=%s", string(body))
-	}
 	if !(code == 400 || code == 422) {
 		t.Fatalf("expected 400/422 reverting non-approved, got %d body=%s", code, string(body))
 	}
