@@ -20,9 +20,6 @@ import (
 const (
 	// redisBalanceTimeout is the maximum time to wait for Redis+PostgreSQL convergence
 	redisBalanceTimeout = 30 * time.Second
-	// redisBalancePollInterval is the interval between convergence checks
-	// TODO(review): Standardize poll interval across helpers (balances.go uses 150ms, cache.go uses 100ms) (reported by code-reviewer on 2025-12-14, severity: Medium)
-	redisBalancePollInterval = 100 * time.Millisecond
 	// redisConnectionTimeout is the maximum time to wait for initial Redis connection
 	redisConnectionTimeout = 5 * time.Second
 )
@@ -204,7 +201,7 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 // Parameters:
 //   - ctx: Context for cancellation
 //   - httpClient: HTTP client for checking PostgreSQL via API
-//   - orgID, ledgerID, alias, assetCode: Identifiers for the balance
+//   - orgID, ledgerID, alias, assetCode, balanceKey: Identifiers for the balance
 //   - headers: HTTP headers for authentication
 //   - timeout: Maximum time to wait (0 uses default)
 //
@@ -214,13 +211,16 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 func (r *RedisBalanceClient) WaitForRedisPostgresConvergenceWithHTTP(
 	ctx context.Context,
 	httpClient *HTTPClient,
-	orgID, ledgerID, alias, assetCode string,
+	orgID, ledgerID, alias, assetCode, balanceKey string,
 	headers map[string]string,
 	timeout time.Duration,
 ) (*mmodel.BalanceRedis, error) {
+	if balanceKey == "" {
+		balanceKey = "default"
+	}
+
 	// First get the Redis balance (source of truth)
-	// TODO(review): Make balance key configurable instead of hardcoded "default" (reported by business-logic-reviewer on 2025-12-14, severity: Low)
-	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, "default")
+	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, balanceKey)
 	if err != nil {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get Redis balance: %w", err)

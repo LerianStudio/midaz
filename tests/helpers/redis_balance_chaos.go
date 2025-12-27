@@ -73,7 +73,7 @@ func (h *ChaosRedisHelper) WaitForConvergenceOrSkip(
 	}
 
 	_, err := h.client.WaitForRedisPostgresConvergenceWithHTTP(
-		ctx, httpClient, orgID, ledgerID, alias, assetCode, headers, timeout,
+		ctx, httpClient, orgID, ledgerID, alias, assetCode, "default", headers, timeout,
 	)
 
 	return err
