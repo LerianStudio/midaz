@@ -160,8 +160,8 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	}
 
 	// Log initial DLQ counts for diagnostics
-	// TODO(review): Consider using environment variables for RabbitMQ credentials instead of hardcoded values - code-reviewer on 2025-12-14
-	initialCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, "midaz", "lerian", queueNames)
+	creds := h.GetRabbitMQCredentials()
+	initialCounts, err := h.GetAllDLQCounts(ctx, dlqMgmtURL, creds.User, creds.Pass, queueNames)
 	if err != nil {
 		t.Logf("warning: failed to get initial DLQ counts: %v", err)
 	} else {
@@ -172,7 +172,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	// Wait for all DLQs to empty (indicating replay completion)
 	// Increased timeout to 5 minutes to account for exponential backoff (max delay 30s + processing time)
 	for _, queueName := range queueNames {
-		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, "midaz", "lerian", 5*time.Minute); err != nil {
+		if err := h.WaitForDLQEmpty(ctx, dlqMgmtURL, queueName, creds.User, creds.Pass, 5*time.Minute); err != nil {
 			t.Logf("warning: DLQ not empty after timeout: %v", err)
 		}
 	}
