@@ -47,15 +47,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	for i := range trans {
-		if trans[i].Metadata == nil {
-			trans[i].Metadata = map[string]any{}
-		}
-
-		if trans[i].Operations == nil {
-			trans[i].Operations = make([]*operation.Operation, 0)
-		}
-	}
+	setTransactionDefaults(trans)
 
 	return trans, cur, nil
 }
@@ -126,23 +118,30 @@ func (uc *UseCase) buildMetadataMap(metadata []*mongodb.Metadata) map[string]map
 // enrichTransactionsWithAllMetadata enriches transactions with transaction and operation metadata
 func (uc *UseCase) enrichTransactionsWithAllMetadata(ctx context.Context, trans []*transaction.Transaction, metadataMap map[string]map[string]any) error {
 	for i := range trans {
-		source, destination, operationIDs := uc.processTransactionOperations(trans[i].Operations)
-
-		trans[i].Source = source
-		trans[i].Destination = destination
-
-		if data, ok := metadataMap[trans[i].ID]; ok {
-			trans[i].Metadata = data
-		}
-
-		if len(operationIDs) > 0 {
-			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
-				return err
-			}
+		if err := uc.enrichSingleTransaction(ctx, trans[i], metadataMap); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// enrichSingleTransaction enriches a single transaction with metadata and operation details
+func (uc *UseCase) enrichSingleTransaction(ctx context.Context, tran *transaction.Transaction, metadataMap map[string]map[string]any) error {
+	source, destination, operationIDs := uc.processTransactionOperations(tran.Operations)
+
+	tran.Source = source
+	tran.Destination = destination
+
+	if data, ok := metadataMap[tran.ID]; ok {
+		tran.Metadata = data
+	}
+
+	if len(operationIDs) == 0 {
+		return nil
+	}
+
+	return uc.enrichTransactionOperationsMetadata(ctx, tran.Operations, operationIDs)
 }
 
 // processTransactionOperations processes operations and extracts sources, destinations and IDs
@@ -165,8 +164,8 @@ func (uc *UseCase) processTransactionOperations(operations []*operation.Operatio
 	return source, destination, operationIDs
 }
 
-// enrichOperationsWithMetadata retrieves and assigns metadata to operations
-func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
+// enrichTransactionOperationsMetadata retrieves and assigns metadata to operations
+func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
@@ -233,4 +232,17 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	tran.Operations = operations
 
 	return tran, nil
+}
+
+// setTransactionDefaults ensures transactions have non-nil metadata and operations slices
+func setTransactionDefaults(trans []*transaction.Transaction) {
+	for i := range trans {
+		if trans[i].Metadata == nil {
+			trans[i].Metadata = map[string]any{}
+		}
+
+		if trans[i].Operations == nil {
+			trans[i].Operations = make([]*operation.Operation, 0)
+		}
+	}
 }

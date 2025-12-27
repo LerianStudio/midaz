@@ -53,15 +53,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	uc.populateTransactionSourcesAndMetadata(trans, metadataMap)
 
-	for i := range trans {
-		if trans[i].Metadata == nil {
-			trans[i].Metadata = map[string]any{}
-		}
-
-		if trans[i].Operations == nil {
-			trans[i].Operations = make([]*operation.Operation, 0)
-		}
-	}
+	setTransactionDefaults(trans)
 
 	return trans, cur, nil
 }
@@ -162,7 +154,29 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions_enrich_operations")
 	defer span.End()
 
+	operationIDs := collectAllOperationIDs(trans)
+	if len(operationIDs) == 0 {
+		return nil
+	}
+
+	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+		logger.Warnf("Error getting operation metadata: %v", err)
+
+		return pkg.ValidateInternalError(err, "Operation")
+	}
+
+	opMetadataMap := buildOperationMetadataMap(operationMetadata)
+	applyOperationMetadata(trans, opMetadataMap)
+
+	return nil
+}
+
+// collectAllOperationIDs collects all operation IDs from transactions
+func collectAllOperationIDs(trans []*transaction.Transaction) []string {
 	var totalOps int
+
 	for _, t := range trans {
 		totalOps += len(t.Operations)
 	}
@@ -171,35 +185,35 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 		return nil
 	}
 
-	operationIDsAll := make([]string, 0, totalOps)
+	operationIDs := make([]string, 0, totalOps)
 
 	for _, t := range trans {
 		for _, op := range t.Operations {
-			operationIDsAll = append(operationIDsAll, op.ID)
+			operationIDs = append(operationIDs, op.ID)
 		}
 	}
 
-	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDsAll)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+	return operationIDs
+}
 
-		logger.Warnf("Error getting operation metadata: %v", err)
+// buildOperationMetadataMap builds a map of operation ID to metadata
+func buildOperationMetadataMap(metadata []*mongodb.Metadata) map[string]map[string]any {
+	opMetadataMap := make(map[string]map[string]any, len(metadata))
 
-		return pkg.ValidateInternalError(err, "Operation")
-	}
-
-	opMetadataMap := make(map[string]map[string]any, len(operationMetadata))
-	for _, meta := range operationMetadata {
+	for _, meta := range metadata {
 		opMetadataMap[meta.EntityID] = meta.Data
 	}
 
-	for i := range trans {
-		for _, op := range trans[i].Operations {
-			if data, ok := opMetadataMap[op.ID]; ok {
+	return opMetadataMap
+}
+
+// applyOperationMetadata applies metadata from the map to operations in transactions
+func applyOperationMetadata(trans []*transaction.Transaction, metadataMap map[string]map[string]any) {
+	for _, t := range trans {
+		for _, op := range t.Operations {
+			if data, ok := metadataMap[op.ID]; ok {
 				op.Metadata = data
 			}
 		}
 	}
-
-	return nil
 }

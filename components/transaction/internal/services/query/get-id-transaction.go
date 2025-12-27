@@ -5,10 +5,13 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // GetTransactionByID gets data in the repository.
@@ -23,29 +26,17 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	tran, err := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction on repo by id", err)
-
 		logger.Errorf("Error getting transaction: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
-	if tran != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
+	if tran == nil {
+		return nil, nil
+	}
 
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
-
-			return nil, pkg.ValidateInternalError(err, "Transaction")
-		}
-
-		if metadata != nil {
-			tran.Metadata = metadata.Data
-		}
-
-		if tran.Metadata == nil {
-			tran.Metadata = map[string]any{}
-		}
+	if err := uc.enrichTransactionMetadata(ctx, &span, logger, tran, transactionID); err != nil {
+		return nil, err
 	}
 
 	return tran, nil
@@ -63,30 +54,42 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 	tran, err := uc.TransactionRepo.FindWithOperations(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction on repo by id", err)
-
 		logger.Errorf("Error getting transaction: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
-	if tran != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
+	if tran == nil {
+		return nil, nil
+	}
 
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
-
-			return nil, pkg.ValidateInternalError(err, "Transaction")
-		}
-
-		if metadata != nil {
-			tran.Metadata = metadata.Data
-		}
-
-		if tran.Metadata == nil {
-			tran.Metadata = map[string]any{}
-		}
+	if err := uc.enrichTransactionMetadata(ctx, &span, logger, tran, transactionID); err != nil {
+		return nil, err
 	}
 
 	return tran, nil
+}
+
+// enrichTransactionMetadata fetches and applies metadata to a transaction.
+func (uc *UseCase) enrichTransactionMetadata(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, transactionID uuid.UUID) error {
+	metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
+		logger.Errorf("Error get metadata on mongodb account: %v", err)
+
+		return pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	tran.Metadata = extractMetadataData(metadata)
+
+	return nil
+}
+
+// extractMetadataData extracts metadata data or returns an empty map.
+func extractMetadataData(metadata *mongodb.Metadata) map[string]any {
+	if metadata != nil && metadata.Data != nil {
+		return metadata.Data
+	}
+
+	return map[string]any{}
 }

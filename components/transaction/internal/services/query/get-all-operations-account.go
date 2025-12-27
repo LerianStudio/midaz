@@ -2,16 +2,10 @@ package query
 
 import (
 	"context"
-	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 )
@@ -28,62 +22,16 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		return uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
 	})
 	if err != nil {
-		if errors.Is(err, ErrOperationsWaitTimeout) {
-			logger.Warnf("Operations polling timed out, async operations may still be processing: %v", err)
-			return op, cur, nil
-		}
-
-		logger.Errorf("Error getting operations on repo: %v", err)
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", businessErr)
-
-			logger.Warnf("Error getting operations on repo: %v", businessErr)
-
-			return nil, libHTTP.CursorPagination{}, businessErr
-		}
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
-
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Operation")
-	}
-
-	if op == nil {
-		op = make([]*operation.Operation, 0)
+		return uc.handleOperationsFetchResult(logger, &span, op, cur, err)
 	}
 
 	if len(op) == 0 {
-		return op, cur, nil
+		return ensureNonNilOperations(op), cur, nil
 	}
 
-	operationIDs := make([]string, len(op))
-	for i, o := range op {
-		operationIDs[i] = o.ID
-	}
-
-	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
-	if err != nil {
-		businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", businessErr)
-
-		logger.Warnf("Error getting metadata on mongodb operation: %v", businessErr)
-
-		return nil, libHTTP.CursorPagination{}, businessErr
-	}
-
-	metadataMap := make(map[string]map[string]any, len(metadata))
-
-	for _, meta := range metadata {
-		metadataMap[meta.EntityID] = meta.Data
-	}
-
-	for i := range op {
-		if data, ok := metadataMap[op[i].ID]; ok {
-			op[i].Metadata = data
-		}
+	if err := uc.enrichOperationsWithMetadata(ctx, &span, op); err != nil {
+		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	return op, cur, nil
