@@ -1,3 +1,6 @@
+// Package redis provides Redis adapter implementations for caching and queue operations.
+// It contains repository implementations for managing balances, transactions,
+// and message queues using Redis as the underlying data store.
 package redis
 
 import (
@@ -45,6 +48,7 @@ var getBalancesNearExpirationLua string
 //go:embed scripts/unschedule_synced_balance.lua
 var unscheduleSyncedBalanceLua string
 
+// TransactionBackupQueue is the Redis key for the transaction backup queue.
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisRepository provides an interface for redis.
@@ -89,6 +93,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	}
 }
 
+// Set stores a key-value pair in Redis with the specified time-to-live duration.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -114,6 +119,8 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// SetNX stores a key-value pair only if the key does not already exist (atomic set-if-not-exists).
+// Returns true if the key was set, false if the key already existed.
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -139,6 +146,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	return isLocked, nil
 }
 
+// Get retrieves the value associated with the given key from Redis.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -228,6 +236,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	return out, nil
 }
 
+// Del removes the specified key from Redis.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -253,6 +262,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }
 
+// Incr atomically increments the integer value of a key by one and returns the new value.
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -271,6 +281,8 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// AddSumBalancesRedis executes a Lua script to atomically update balance amounts in Redis.
+// It handles both pending and committed transaction states.
 func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -492,6 +504,7 @@ func mapBalanceKeys(m map[string]*mmodel.Balance) []string {
 	return keys
 }
 
+// SetBytes stores binary data in Redis with the specified time-to-live duration.
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -517,6 +530,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	return nil
 }
 
+// GetBytes retrieves binary data associated with the given key from Redis.
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -697,7 +711,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	return out, nil
 }
 
-// RemoveScheduledMember removes a single scheduled member from the ZSET.
+// RemoveBalanceSyncKey removes a single scheduled member from the balance sync ZSET
+// and its associated lock key using an atomic Lua script.
 func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, member string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -725,6 +740,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	return nil
 }
 
+// ListBalanceByKey retrieves a balance from Redis using the organization, ledger, and balance key.
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

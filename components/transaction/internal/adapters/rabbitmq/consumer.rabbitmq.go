@@ -1,3 +1,6 @@
+// Package rabbitmq provides RabbitMQ adapter implementations for message queue operations.
+// It contains consumer implementations for processing transaction-related messages
+// from RabbitMQ queues with retry and dead-letter queue support.
 package rabbitmq
 
 import (
