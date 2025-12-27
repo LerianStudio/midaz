@@ -98,7 +98,12 @@ func InitServiceOrError() (mbootstrap.Service, error) {
 // Returns OnboardingService which provides access to route registration.
 func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	if opts == nil {
-		return bootstrap.InitServersWithOptions(nil)
+		service, err := bootstrap.InitServersWithOptions(nil)
+		if err != nil {
+			return nil, pkg.ValidateInternalError(err, "Onboarding")
+		}
+
+		return service, nil
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {
