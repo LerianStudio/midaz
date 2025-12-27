@@ -71,7 +71,11 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.Created(c, out); err != nil {
@@ -126,7 +130,11 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.OK(c, alias); err != nil {
@@ -193,7 +201,11 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.OK(c, alias); err != nil {
@@ -247,7 +259,11 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.NoContent(c); err != nil {
@@ -293,26 +309,17 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
-
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		return writeCRMError(c, err)
 	}
 
-	var holderID uuid.UUID
-	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
-		holderID, err = uuid.Parse(*headerParams.HolderID)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID", err)
+	holderID, hasHolderID, err := parseOptionalHolderID(headerParams.HolderID)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID", err)
+		logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
 
-			logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
-
-			return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
-		}
-		// NOTE: After successful Parse, holderID is guaranteed to be a valid UUID.
-		// It could be uuid.Nil (all zeros) only if the input was "00000000-0000-0000-0000-000000000000".
-		// This is a valid UUID per RFC 4122, so we don't assert against uuid.Nil.
-		// The service layer handles the semantic meaning of nil vs non-nil holder IDs.
+		return writeCRMError(c, err)
 	}
 
 	pagination := libPostgres.Pagination{
@@ -324,17 +331,16 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	organizationID := c.Get("X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
-	span.SetAttributes(
+	attrs := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.Bool("app.request.include_deleted", includeDeleted),
-	)
-
-	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
-		span.SetAttributes(
-			attribute.String("app.request.holder_id", holderID.String()),
-		)
 	}
+	if hasHolderID {
+		attrs = append(attrs, attribute.String("app.request.holder_id", holderID.String()))
+	}
+
+	span.SetAttributes(attrs...)
 
 	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
@@ -344,10 +350,9 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	aliases, err := handler.Service.GetAllAliases(ctx, organizationID, holderID, *headerParams, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get all aliases", err)
-
 		logger.Errorf("Failed to get all aliases, Error: %v", err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		return writeCRMError(c, err)
 	}
 
 	pagination.SetItems(aliases)
@@ -357,4 +362,26 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	}
 
 	return nil
+}
+
+func writeCRMError(c *fiber.Ctx, err error) error {
+	if httpErr := http.WithError(c, err); httpErr != nil {
+		return httpErr
+	}
+
+	return nil
+}
+
+func parseOptionalHolderID(holderID *string) (uuid.UUID, bool, error) {
+	if libCommons.IsNilOrEmpty(holderID) {
+		return uuid.UUID{}, false, nil
+	}
+
+	parsedHolderID, err := uuid.Parse(*holderID)
+	if err != nil {
+		//nolint:wrapcheck // Error is handled at the HTTP layer via http.WithError.
+		return uuid.UUID{}, false, err
+	}
+
+	return parsedHolderID, true, nil
 }

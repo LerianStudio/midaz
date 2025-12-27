@@ -59,7 +59,11 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to create holder: %v", err)
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.Created(c, out); err != nil {
@@ -111,7 +115,11 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.OK(c, holder); err != nil {
@@ -175,7 +183,11 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.OK(c, holder); err != nil {
@@ -226,7 +238,11 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	if err := http.NoContent(c); err != nil {
@@ -267,10 +283,13 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
-
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	pagination := libPostgres.Pagination{
@@ -296,10 +315,13 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	holders, err := handler.Service.GetAllHolders(ctx, organizationID, *headerParams, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get all holders", err)
-
 		logger.Errorf("Failed to get all holders, Error: %v", err.Error())
 
-		return pkg.ValidateInternalError(http.WithError(c, err), "CRM")
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
 	}
 
 	pagination.SetItems(holders)
