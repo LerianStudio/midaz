@@ -34,7 +34,7 @@ func waitForOperations(ctx context.Context, fetch func(context.Context) ([]*oper
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ops, cur, nil
+			return ops, cur, ctx.Err()
 		case <-time.After(operationsWaitPollBackoff):
 		}
 
