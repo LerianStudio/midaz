@@ -513,3 +513,113 @@ func TestIntegration_AddSumBalancesRedis_NonNegativeBalance_BoundaryConditions(t
 		})
 	}
 }
+
+func TestIntegration_AddSumBalancesRedis_OperationsSumEqualsBalance(t *testing.T) {
+	// Validates invariant: Σ(operations) == balance.Available
+	// Uses sequence of CREDIT/DEBIT ops and verifies Redis state after each
+
+	client, cleanup := setupRedisContainer(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	addr := client.Options().Addr
+	conn := createTestRedisConnection(t, addr)
+
+	repo := &RedisConsumerRepository{
+		conn:               conn,
+		balanceSyncEnabled: false,
+	}
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	// Fixed account for the sequence
+	alias := "@ops-sum-account"
+	initialBalance := decimal.NewFromInt(1000)
+
+	// Create initial balance in Redis
+	balanceOp := createTestBalanceOperationWithAvailable(
+		organizationID, ledgerID, alias, "USD",
+		constant.CREDIT, decimal.Zero, // Initial credit of 0 just to set up
+		initialBalance, "deposit",
+	)
+	internalKey := balanceOp.InternalKey
+
+	// Sequence of operations to apply
+	operations := []struct {
+		name      string
+		operation string
+		amount    decimal.Decimal
+	}{
+		{"credit 500", constant.CREDIT, decimal.NewFromInt(500)},
+		{"debit 200", constant.DEBIT, decimal.NewFromInt(200)},
+		{"credit 150", constant.CREDIT, decimal.NewFromInt(150)},
+		{"debit 450", constant.DEBIT, decimal.NewFromInt(450)},
+		{"credit 1000", constant.CREDIT, decimal.NewFromInt(1000)},
+	}
+
+	expectedSum := initialBalance
+
+	for _, op := range operations {
+		t.Run(op.name, func(t *testing.T) {
+			// Calculate expected sum before operation
+			if op.operation == constant.CREDIT {
+				expectedSum = expectedSum.Add(op.amount)
+			} else {
+				expectedSum = expectedSum.Sub(op.amount)
+			}
+
+			// Create balance operation with current expected sum as available
+			// (simulating the balance state before this operation)
+			currentAvailable := expectedSum
+			if op.operation == constant.CREDIT {
+				currentAvailable = expectedSum.Sub(op.amount) // Before credit
+			} else {
+				currentAvailable = expectedSum.Add(op.amount) // Before debit
+			}
+
+			balanceOp := createTestBalanceOperationWithAvailable(
+				organizationID, ledgerID, alias, "USD",
+				op.operation, op.amount, currentAvailable, "deposit",
+			)
+			// Use same internal key for consistency
+			balanceOp.InternalKey = internalKey
+			balanceOp.Balance.Key = "default"
+
+			transactionID := libCommons.GenerateUUIDv7()
+			balances, err := repo.AddSumBalancesRedis(
+				ctx, organizationID, ledgerID, transactionID,
+				constant.CREATED, false, []mmodel.BalanceOperation{balanceOp},
+			)
+
+			require.NoError(t, err, "AddSumBalancesRedis should not error for %s", op.name)
+			require.Len(t, balances, 1)
+
+			// Verify Redis state matches expected sum
+			val, err := client.Get(ctx, internalKey).Result()
+			require.NoError(t, err, "balance key should exist in Redis")
+
+			var stored mmodel.BalanceRedis
+			require.NoError(t, json.Unmarshal([]byte(val), &stored), "should unmarshal balance")
+
+			assert.True(t, stored.Available.Equal(expectedSum),
+				"After %s: expected=%s got=%s", op.name, expectedSum, stored.Available)
+		})
+	}
+
+	// Final assertion: verify cumulative sum matches Redis state after all operations
+	// Expected: 1000 + 500 - 200 + 150 - 450 + 1000 = 2000
+	finalExpected := decimal.NewFromInt(2000)
+	require.True(t, expectedSum.Equal(finalExpected),
+		"Final expectedSum should be 2000, got %s", expectedSum)
+
+	val, err := client.Get(ctx, internalKey).Result()
+	require.NoError(t, err, "balance key should exist after all operations")
+
+	var finalStored mmodel.BalanceRedis
+	require.NoError(t, json.Unmarshal([]byte(val), &finalStored), "should unmarshal final balance")
+
+	assert.True(t, finalStored.Available.Equal(finalExpected),
+		"Final Redis balance should equal cumulative sum: expected=%s got=%s",
+		finalExpected, finalStored.Available)
+}
