@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -93,13 +94,14 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		// CRITICAL: Do NOT return success when all balances are skipped!
 		// This was the root cause of 82-97% data loss in chaos tests.
 		// Transaction/operations are created but balance never persisted.
-		logger.Errorf("CRITICAL: All %d balances are stale, returning error to trigger retry. "+
-			"org=%s ledger=%s balance_count=%d",
-			len(newBalances), organizationID, ledgerID, len(newBalances))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "All balances stale - data integrity risk", nil)
-
-		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+		//
+		// The assertion below makes this failure loud and immediate rather than
+		// returning an error that might be silently swallowed upstream.
+		assert.Never("all balances stale - data integrity violation",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String(),
+			"original_balance_count", len(newBalances),
+			"balances_to_update", len(balancesToUpdate))
 	}
 
 	logger.Infof("DB_UPDATE_START: Updating %d balances in PostgreSQL (org=%s, ledger=%s)",
