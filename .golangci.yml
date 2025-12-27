@@ -106,14 +106,78 @@ linters:
       forbid:
         - pattern: '^mruntime\.SafeGoWithContext$'
           message: 'use mruntime.SafeGoWithContextAndComponent(ctx, logger, "<component>", name, policy, fn) for better observability'
+        # Enforce errors.Is() for sentinel error comparisons
+        - pattern: '==\s*sql\.ErrNoRows'
+          message: 'use errors.Is(err, sql.ErrNoRows) instead of == comparison for proper error chain support'
+        - pattern: '!=\s*sql\.ErrNoRows'
+          message: 'use !errors.Is(err, sql.ErrNoRows) instead of != comparison for proper error chain support'
     depguard:
       rules:
         main:
           deny:
             - pkg: io/ioutil
               desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
+        # ===========================================
+        # Hexagonal Architecture Boundary Enforcement
+        # ===========================================
+        # HTTP handlers must use service interfaces, not data adapters directly
+        http-handlers-boundary:
+          list-mode: lax
+          files:
+            - "**/adapters/http/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb"
+              desc: "Hexagonal violation: HTTP handlers must use services, not mongodb adapters directly"
+        # gRPC handlers must also use service interfaces
+        grpc-handlers-boundary:
+          list-mode: lax
+          files:
+            - "**/adapters/grpc/in/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres"
+              desc: "Hexagonal violation: gRPC handlers must use services, not postgres adapters directly"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres"
+              desc: "Hexagonal violation: gRPC handlers must use services, not postgres adapters directly"
+        # Cross-component isolation: prevent direct internal imports between components
+        cross-component-onboarding:
+          list-mode: lax
+          files:
+            - "**/components/onboarding/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
+        cross-component-transaction:
+          list-mode: lax
+          files:
+            - "**/components/transaction/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
+        cross-component-crm:
+          list-mode: lax
+          files:
+            - "**/components/crm/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal"
+              desc: "Cross-component violation: use gRPC ports or pkg/mbootstrap interfaces for inter-component communication"
     gocyclo:
-      min-complexity: 18
+      min-complexity: 15  # Lowered from 18 for better maintainability
+    goconst:
+      min-len: 3            # Minimum string length to consider
+      min-occurrences: 3    # Minimum occurrences before flagging
+      ignore-tests: true    # Don't flag test files
+    nestif:
+      min-complexity: 4     # Flag functions with >4 levels of nesting
     wrapcheck:
       # Ignore internal error helper functions that already wrap errors with typed structs
       ignore-sigs:
@@ -150,6 +214,49 @@ linters:
           disabled: false
         - name: use-any
           severity: warning
+          disabled: false
+        # Additional rules for code quality enforcement
+        - name: package-comments
+          severity: warning
+          disabled: false
+        - name: context-as-argument
+          severity: error
+          disabled: false
+        - name: error-return
+          severity: warning
+          disabled: false
+        - name: error-naming
+          severity: warning
+          disabled: false
+        - name: exported
+          severity: warning
+          disabled: false
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+        - name: unexported-return
+          severity: warning
+          disabled: false
+        - name: indent-error-flow
+          severity: warning
+          disabled: false
+        - name: range
+          severity: warning
+          disabled: false
+        - name: receiver-naming
+          severity: warning
+          disabled: false
+        - name: time-naming
+          severity: warning
+          disabled: false
+        - name: var-declaration
+          severity: warning
+          disabled: false
+        - name: unconditional-recursion
+          severity: error
+          disabled: false
+        - name: waitgroup-by-value
+          severity: error
           disabled: false
     # ===========================================
     # Custom Module Plugins (panicguard)
@@ -201,15 +308,9 @@ linters:
           - gosec
         text: 'G306: Expect WriteFile permissions to be 0600 or less'
       - linters:
-          - revive
-        text: 'package-comments: should have a package comment'
-      - linters:
           - errcheck
           - gosec
         path: _test\.go
-      - linters:
-          - staticcheck
-        text: 'ST1000: at least one file in a package should have a package comment'
       - linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
