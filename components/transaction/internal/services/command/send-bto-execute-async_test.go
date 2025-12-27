@@ -53,21 +53,14 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 	// Using the correct struct for transaction data
 	parseDSL := &pkgTransaction.Transaction{}
 
-	validate := &pkgTransaction.Responses{
-		Aliases: []string{"alias1", "alias2"},
-		From: map[string]pkgTransaction.Amount{
-			"alias1": {
-				Asset: "USD",
-				Value: decimal.NewFromInt(50), // Value should be an int64
-			},
+	validate := pkgTransaction.NewTestResponses(
+		map[string]pkgTransaction.Amount{
+			"alias1": pkgTransaction.NewTestDebitAmount("USD", decimal.NewFromInt(50)),
 		},
-		To: map[string]pkgTransaction.Amount{
-			"alias2": {
-				Asset: "EUR",
-				Value: decimal.NewFromInt(40), // Value should be an int64
-			},
+		map[string]pkgTransaction.Amount{
+			"alias2": pkgTransaction.NewTestCreditAmount("EUR", decimal.NewFromInt(40)),
 		},
-	}
+	)
 
 	balances := []*mmodel.Balance{
 		{
