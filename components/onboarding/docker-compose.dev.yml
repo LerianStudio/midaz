@@ -10,6 +10,7 @@ services:
     environment:
       - ENV_NAME=development
       - CGO_ENABLED=0
+      - TRANSACTION_GRPC_ADDRESS=midaz-transaction-dev
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
