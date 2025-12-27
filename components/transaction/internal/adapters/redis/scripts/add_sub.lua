@@ -13,6 +13,7 @@ TRANSACTION STATE MACHINE:
     - CANCELED + RELEASE : Unlocks funds (OnHold -= amount, Available += amount)
     - APPROVED + DEBIT   : Finalizes send (OnHold -= amount)
     - APPROVED + CREDIT  : Finalizes receive (Available += amount)
+    - NOTED    + any     : No balance change (audit/informational record only)
 
 KEYS (passed via Redis KEYS array):
     KEYS[1] = backup_queue:{transactions}    -- Hash storing transaction snapshots for crash recovery
@@ -44,9 +45,14 @@ BALANCE OPERATION FIELDS (16 fields per balance, groupSize=16):
     [i+15] = Key               -- Composite key for balance lookup
 
 ERROR CODES RETURNED:
-    0018 = Internal accounts cannot have negative balance (insufficient funds)
-    0098 = External accounts cannot use ON_HOLD operations (business rule)
+    0018 = Internal accounts cannot have negative Available balance (insufficient funds)
     0061 = Balance cache corruption detected (data integrity failure)
+    0098 = External accounts cannot use ON_HOLD operations (business rule)
+    0130 = OnHold balance cannot go negative (data integrity - more released than held)
+
+DEPENDENCIES:
+    This script uses the built-in 'cjson' module provided by Redis for all Lua scripts.
+    No external dependencies are required.
 
 TIMING PARAMETERS:
     TTL        = 3600 seconds (1 hour cache lifetime)
@@ -1047,7 +1053,7 @@ local function main()
             return redis.error_reply("0098")
         end
 
-        -- BUSINESS RULE: Internal accounts cannot have negative balance
+        -- BUSINESS RULE: Internal accounts cannot have negative Available balance
         -- WHY: Internal accounts represent real funds on the ledger;
         --      negative balance would mean "money from nowhere" which
         --      violates double-entry accounting principles
@@ -1056,9 +1062,24 @@ local function main()
             -- WHY: Atomicity requirement - insufficient funds means
             --      the entire transaction must be rejected
             rollback(rollbackBalances, ttl)
-            -- Return error code 0018: Insufficient funds (negative balance)
+            -- Return error code 0018: Insufficient funds (negative Available balance)
             -- WHY: Standard error code for insufficient funds condition
             return redis.error_reply("0018")
+        end
+
+        -- BUSINESS RULE: OnHold balance cannot go negative
+        -- WHY: OnHold represents funds locked by pending transactions. If OnHold goes
+        --      negative, it means more funds are being released than were ever held,
+        --      indicating a data integrity issue (e.g., duplicate RELEASE, race condition,
+        --      or mismatch between ON_HOLD and RELEASE amounts).
+        if startsWithMinus(resultOnHold) then
+            -- Rollback all changes made so far in this transaction
+            -- WHY: Atomicity requirement - OnHold inconsistency indicates
+            --      a serious data integrity problem that must be rejected
+            rollback(rollbackBalances, ttl)
+            -- Return error code 0130: OnHold insufficient (negative OnHold)
+            -- WHY: Distinct from 0018 to differentiate between Available vs OnHold issues
+            return redis.error_reply("0130")
         end
 
         -- Clear any lowercase alias field that might exist from cache
