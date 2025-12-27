@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -20,6 +21,12 @@ import (
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
 func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *pkgTransaction.Transaction, validate pkgTransaction.Responses, result chan []*operation.Operation, err chan error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	// Validate channels before any operation - writing to nil channel panics
+	assert.NotNil(result, "result channel must not be nil",
+		"transaction_id", transactionID)
+	assert.NotNil(err, "error channel must not be nil",
+		"transaction_id", transactionID)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation")
 	defer span.End()
