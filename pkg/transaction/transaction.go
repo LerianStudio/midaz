@@ -32,6 +32,7 @@ type Balance struct {
 	Metadata       map[string]any  `json:"metadata,omitempty"`
 } // @name Balance
 
+// Responses holds the computed transaction response including totals, amounts, and routing information.
 type Responses struct {
 	Total               decimal.Decimal
 	Asset               string

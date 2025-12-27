@@ -114,7 +114,7 @@ func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledge
 	return code, body, err
 }
 
-// CreateOrganization creates an organization and returns its ID.
+// SetupOrganization creates an organization and returns its ID.
 func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[string]string, name string) (string, error) {
 	payload := OrgPayload(name, RandString(setupRandStringLength))
 
@@ -135,7 +135,7 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 	return org.ID, nil
 }
 
-// CreateLedger creates a ledger under the given organization and returns its ID.
+// SetupLedger creates a ledger under the given organization and returns its ID.
 func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, name string) (string, error) {
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers", headers, map[string]any{"name": name})
 	if err != nil || code != setupHTTPStatusCreated {
@@ -154,7 +154,7 @@ func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]st
 	return ledger.ID, nil
 }
 
-// CreateAccount creates an account with alias and asset code (type=deposit) and returns its ID.
+// SetupAccount creates an account with alias and asset code (type=deposit) and returns its ID.
 func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, alias, assetCode string) (string, error) {
 	payload := map[string]any{
 		"name":      "Test Account",

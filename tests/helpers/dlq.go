@@ -1,4 +1,4 @@
-// File: tests/helpers/dlq.go
+// Package helpers provides test utilities for the Midaz integration test suite.
 package helpers
 
 import (

@@ -386,6 +386,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	return fileString, nil
 }
 
+// ToOffsetPagination converts QueryHeader to an offset-based Pagination struct.
 func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -396,6 +397,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	}
 }
 
+// ToCursorPagination converts QueryHeader to a cursor-based Pagination struct.
 func (qh *QueryHeader) ToCursorPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -406,6 +408,7 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 	}
 }
 
+// GetBooleanParam extracts a boolean query parameter from the request context.
 func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
 	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
 }

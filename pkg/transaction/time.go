@@ -39,6 +39,7 @@ var transactionDateFormats = []string{
 	"2006-01-02",
 }
 
+// UnmarshalJSON parses JSON data into a TransactionDate, supporting multiple ISO 8601 formats.
 func (td *TransactionDate) UnmarshalJSON(data []byte) error {
 	str := strings.Trim(string(data), `"`)
 
@@ -65,6 +66,7 @@ func (td *TransactionDate) UnmarshalJSON(data []byte) error {
 	return TimeError{Message: "invalid date format: " + str}
 }
 
+// MarshalJSON serializes TransactionDate to JSON in RFC3339 format with optional milliseconds.
 func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	if td.IsZero() {
 		return []byte("null"), nil
@@ -89,14 +91,17 @@ func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	return result, nil
 }
 
+// Time returns the underlying time.Time value of TransactionDate.
 func (td TransactionDate) Time() time.Time {
 	return time.Time(td)
 }
 
+// IsZero reports whether the TransactionDate represents the zero time instant.
 func (td TransactionDate) IsZero() bool {
 	return time.Time(td).IsZero()
 }
 
+// After reports whether the TransactionDate is after the given time.
 func (td TransactionDate) After(t time.Time) bool {
 	return time.Time(td).After(t)
 }

@@ -1,3 +1,6 @@
+// Package mmodel provides core domain models for the Midaz financial system,
+// including data structures for organizations, ledgers, accounts, assets,
+// portfolios, segments, holders, transactions, and related input/output types.
 package mmodel
 
 import (

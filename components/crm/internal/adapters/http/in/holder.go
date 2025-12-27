@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// HolderHandler handles HTTP requests for holder operations.
 type HolderHandler struct {
 	Service *services.UseCase
 }

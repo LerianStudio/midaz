@@ -1,3 +1,6 @@
+// Package bootstrap provides initialization and configuration for the unified
+// ledger component, composing both onboarding and transaction modules into
+// a single service with shared telemetry and logging infrastructure.
 package bootstrap
 
 import (
@@ -11,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// ApplicationName defines the identifier for the unified ledger component
+// used in logging, telemetry, and service discovery.
 const ApplicationName = "ledger"
 
 // Config is the top level configuration struct for the unified ledger component.

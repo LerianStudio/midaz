@@ -83,7 +83,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 		ErrBalanceChangeTimeout, snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
 }
 
-// TrackOperationBalance tracks balance changes during an operation
+// OperationTracker tracks balance changes during an operation.
 type OperationTracker struct {
 	OrgID           string
 	LedgerID        string

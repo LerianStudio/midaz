@@ -1,3 +1,4 @@
+// Package in provides HTTP handlers for incoming requests to the CRM service.
 package in
 
 import (
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// AliasHandler handles HTTP requests for alias operations.
 type AliasHandler struct {
 	Service *services.UseCase
 }

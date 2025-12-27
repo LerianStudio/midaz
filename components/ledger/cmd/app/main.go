@@ -1,3 +1,5 @@
+// Package main provides the entry point for the Midaz Ledger service,
+// which is a unified component combining onboarding and transaction functionality.
 package main
 
 import (

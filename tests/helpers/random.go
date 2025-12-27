@@ -8,6 +8,7 @@ import (
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
+// RandString generates a random alphanumeric string of length n.
 func RandString(n int) string {
 	b := make([]rune, n)
 
@@ -25,6 +26,7 @@ func RandString(n int) string {
 	return string(b)
 }
 
+// RandHex generates a random hex string from n random bytes.
 func RandHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {

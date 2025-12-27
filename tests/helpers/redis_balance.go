@@ -246,8 +246,8 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergenceWithHTTP(
 	return redisBalance, nil
 }
 
-// CompareRedisPostgres compares Redis balance with PostgreSQL balance
-// Returns the difference (Redis - PostgreSQL) and both values
+// BalanceComparison compares Redis balance with PostgreSQL balance.
+// It returns the difference (Redis - PostgreSQL) and both values.
 type BalanceComparison struct {
 	RedisAvailable    decimal.Decimal
 	PostgresAvailable decimal.Decimal

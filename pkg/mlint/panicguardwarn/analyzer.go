@@ -1,3 +1,4 @@
+// Package panicguardwarn provides golangci-lint plugin for panic guard warnings.
 package panicguardwarn
 
 import (

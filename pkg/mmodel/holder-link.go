@@ -18,7 +18,8 @@ const (
 	LinkTypeResponsibleParty LinkType = "RESPONSIBLE_PARTY"
 )
 
-// TpVincMapping maps LinkType to its numeric TpVinc value
+// ValidLinkTypeMapping maps each LinkType to a boolean indicating validity,
+// used to validate holder-alias relationship types.
 var ValidLinkTypeMapping = map[LinkType]bool{
 	LinkTypePrimaryHolder:       true,
 	LinkTypeLegalRepresentative: true,
