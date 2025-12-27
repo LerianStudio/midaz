@@ -156,6 +156,12 @@ func (uc *UseCase) createAliasWithHolderLink(ctx context.Context, span *trace.Sp
 
 	updatedAccount, err := uc.updateAliasWithHolderLink(ctx, span, logger, organizationID, holderID, createdAccount, alias, createdHolderLink)
 	if err != nil {
+		assert.NotNil(createdHolderLink, "createdHolderLink must not be nil for rollback",
+			"organization_id", organizationID,
+			"holder_id", holderID.String())
+		assert.NotNil(createdHolderLink.ID, "createdHolderLink.ID must not be nil for rollback",
+			"organization_id", organizationID,
+			"holder_id", holderID.String())
 		uc.rollbackHolderLinkCreation(ctx, logger, organizationID, *createdHolderLink.ID)
 		return nil, err
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -298,4 +299,50 @@ func TestCreateAlias(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateAliasWithHolderLink_NilCreatedAccount_Panics verifies that passing
+// nil createdAccount causes a panic with context rather than a cryptic nil pointer error.
+func TestCreateAliasWithHolderLink_NilCreatedAccount_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	ctx := context.Background()
+	holderID := libCommons.GenerateUUIDv7()
+	linkType := string(mmodel.LinkTypePrimaryHolder)
+
+	require.Panics(t, func() {
+		_, _ = uc.createAliasWithHolderLink(
+			ctx,
+			nil, // span
+			nil, // logger
+			"org-123",
+			holderID,
+			&mmodel.CreateAliasInput{LinkType: &linkType},
+			&mmodel.Alias{}, // alias
+			nil,             // createdAccount is nil - should panic
+		)
+	}, "createAliasWithHolderLink should panic when createdAccount is nil")
+}
+
+// TestCreateAliasWithHolderLink_NilCreatedAccountID_Panics verifies that passing
+// createdAccount with nil ID causes a panic with context rather than a cryptic nil pointer error.
+func TestCreateAliasWithHolderLink_NilCreatedAccountID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	ctx := context.Background()
+	holderID := libCommons.GenerateUUIDv7()
+	linkType := string(mmodel.LinkTypePrimaryHolder)
+
+	require.Panics(t, func() {
+		_, _ = uc.createAliasWithHolderLink(
+			ctx,
+			nil, // span
+			nil, // logger
+			"org-123",
+			holderID,
+			&mmodel.CreateAliasInput{LinkType: &linkType},
+			&mmodel.Alias{},          // alias
+			&mmodel.Alias{ID: nil},   // createdAccount with nil ID - should panic
+		)
+	}, "createAliasWithHolderLink should panic when createdAccount.ID is nil")
 }
