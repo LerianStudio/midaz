@@ -142,3 +142,88 @@ func NewTestResponsesWithTotal(total decimal.Decimal, asset string, from, to map
 
 	return resp
 }
+
+// NewTestBalance creates a fully-initialized Balance struct for testing.
+// This constructor sets sensible defaults for testing scenarios.
+//
+// Parameters:
+//   - id: The balance ID (UUID string)
+//   - alias: The account alias (e.g., "@account1")
+//   - assetCode: The asset code (e.g., "USD")
+//   - available: The available balance amount
+//
+// Example:
+//
+//	balance := NewTestBalance(uuid.New().String(), "@account1", "USD", decimal.NewFromInt(1000))
+func NewTestBalance(id, alias, assetCode string, available decimal.Decimal) *Balance {
+	return &Balance{
+		ID:             id,
+		Alias:          alias,
+		Key:            "default",
+		AssetCode:      assetCode,
+		Available:      available,
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+}
+
+// NewTestBalanceWithOrg creates a Balance with organization and ledger IDs.
+// Use this when tests require full organizational context.
+//
+// Parameters:
+//   - id: The balance ID (UUID string)
+//   - organizationID: The organization UUID string
+//   - ledgerID: The ledger UUID string
+//   - accountID: The account UUID string
+//   - alias: The account alias (e.g., "@account1")
+//   - assetCode: The asset code (e.g., "USD")
+//   - available: The available balance amount
+//
+// Example:
+//
+//	balance := NewTestBalanceWithOrg(
+//	    uuid.New().String(),
+//	    orgID.String(),
+//	    ledgerID.String(),
+//	    accountID.String(),
+//	    "@account1",
+//	    "USD",
+//	    decimal.NewFromInt(1000),
+//	)
+func NewTestBalanceWithOrg(id, organizationID, ledgerID, accountID, alias, assetCode string, available decimal.Decimal) *Balance {
+	balance := NewTestBalance(id, alias, assetCode, available)
+	balance.OrganizationID = organizationID
+	balance.LedgerID = ledgerID
+	balance.AccountID = accountID
+
+	return balance
+}
+
+// NewTestExternalBalance creates a Balance for an external account type.
+// External accounts have special validation rules in the transaction system.
+//
+// Parameters:
+//   - id: The balance ID (UUID string)
+//   - alias: The account alias (e.g., "@external/BRL")
+//   - assetCode: The asset code (e.g., "USD")
+//
+// Example:
+//
+//	balance := NewTestExternalBalance(uuid.New().String(), "@external/BRL", "BRL")
+func NewTestExternalBalance(id, alias, assetCode string) *Balance {
+	return &Balance{
+		ID:             id,
+		Alias:          alias,
+		Key:            "default",
+		AssetCode:      assetCode,
+		Available:      decimal.Zero, // External accounts typically have zero or negative balance
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    constant.ExternalAccountType,
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+}
