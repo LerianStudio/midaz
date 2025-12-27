@@ -128,6 +128,7 @@ func TestNewTestReleaseAmount(t *testing.T) {
 	assert.Equal(t, constant.CANCELED, amount.TransactionType)
 }
 
+// TODO(review): Consider adding test cases for empty from/to maps (reported by code-reviewer on 2025-12-26, severity: Low)
 func TestNewTestResponses(t *testing.T) {
 	t.Parallel()
 

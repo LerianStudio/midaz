@@ -1,6 +1,12 @@
+// Package transaction provides types and utilities for transaction processing.
+//
+// TODO(review): Standardize documentation format across all test constructors - some use full Parameters
+// section while others use abbreviated Example-only format (reported by code-reviewer on 2025-12-26, severity: Low)
 package transaction
 
 import (
+	"fmt"
+
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/shopspring/decimal"
 )
@@ -19,6 +25,10 @@ import (
 //
 //	amount := NewTestAmount("USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED)
 func NewTestAmount(asset string, value decimal.Decimal, operation, transactionType string) Amount {
+	if asset == "" {
+		panic("asset must not be empty for test Amount")
+	}
+
 	return Amount{
 		Asset:           asset,
 		Value:           value,
@@ -67,6 +77,7 @@ func NewTestCreditAmount(asset string, value decimal.Decimal) Amount {
 
 // NewTestResponses creates a fully-initialized Responses struct for testing.
 // This constructor ensures From and To maps are properly initialized.
+// Panics if amounts have inconsistent assets.
 //
 // Parameters:
 //   - from: Map of account aliases/keys to their debit Amounts
@@ -79,32 +90,32 @@ func NewTestCreditAmount(asset string, value decimal.Decimal) Amount {
 //	    map[string]Amount{"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100))},
 //	)
 func NewTestResponses(from, to map[string]Amount) *Responses {
-	// Extract aliases from maps
+	// Extract aliases from maps and validate asset consistency
 	aliases := make([]string, 0, len(from)+len(to))
 	sources := make([]string, 0, len(from))
 	destinations := make([]string, 0, len(to))
 
-	for k := range from {
+	var asset string
+
+	for k, v := range from {
 		aliases = append(aliases, k)
 		sources = append(sources, k)
+
+		if asset == "" {
+			asset = v.Asset
+		} else if asset != v.Asset {
+			panic(fmt.Sprintf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset))
+		}
 	}
 
-	for k := range to {
+	for k, v := range to {
 		aliases = append(aliases, k)
 		destinations = append(destinations, k)
-	}
 
-	// Determine asset from first Amount (assumes all amounts use same asset)
-	var asset string
-	for _, v := range from {
-		asset = v.Asset
-		break
-	}
-
-	if asset == "" {
-		for _, v := range to {
+		if asset == "" {
 			asset = v.Asset
-			break
+		} else if asset != v.Asset {
+			panic(fmt.Sprintf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset))
 		}
 	}
 
@@ -157,13 +168,14 @@ func NewTestResponsesWithTotal(total decimal.Decimal, asset string, from, to map
 //	balance := NewTestBalance(uuid.New().String(), "@account1", "USD", decimal.NewFromInt(1000))
 func NewTestBalance(id, alias, assetCode string, available decimal.Decimal) *Balance {
 	return &Balance{
-		ID:             id,
-		Alias:          alias,
-		Key:            "default",
-		AssetCode:      assetCode,
-		Available:      available,
-		OnHold:         decimal.Zero,
-		Version:        1,
+		ID:        id,
+		Alias:     alias,
+		Key:       "default",
+		AssetCode: assetCode,
+		Available: available,
+		OnHold:    decimal.Zero,
+		Version:   1,
+		// TODO(review): Consider using a constant for "deposit" account type (reported by code-reviewer on 2025-12-26, severity: Low)
 		AccountType:    "deposit",
 		AllowSending:   true,
 		AllowReceiving: true,
@@ -172,6 +184,8 @@ func NewTestBalance(id, alias, assetCode string, available decimal.Decimal) *Bal
 
 // NewTestBalanceWithOrg creates a Balance with organization and ledger IDs.
 // Use this when tests require full organizational context.
+//
+// TODO(review): Consider using options struct pattern to prevent parameter confusion (reported by code-reviewer on 2025-12-26, severity: Low)
 //
 // Parameters:
 //   - id: The balance ID (UUID string)
