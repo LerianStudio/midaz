@@ -26,18 +26,6 @@ import (
 	"github.com/lib/pq"
 )
 
-var accountTypeColumnList = []string{
-	"id",
-	"organization_id",
-	"ledger_id",
-	"name",
-	"description",
-	"key_value",
-	"created_at",
-	"updated_at",
-	"deleted_at",
-}
-
 const (
 	// argsOffsetForWhereClause represents the offset for WHERE clause arguments in SQL queries
 	argsOffsetForWhereClause = 2

@@ -186,7 +186,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 		spanQuery.End()
 
-		return false, err
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -335,7 +335,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -408,7 +408,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)

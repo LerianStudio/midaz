@@ -188,7 +188,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		spanQuery.End()
 
-		return false, err
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -332,7 +332,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -400,7 +400,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)

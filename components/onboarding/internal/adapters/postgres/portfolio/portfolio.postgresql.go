@@ -192,7 +192,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -345,7 +345,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -413,7 +413,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)

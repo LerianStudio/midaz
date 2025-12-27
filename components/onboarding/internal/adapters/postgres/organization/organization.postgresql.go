@@ -321,7 +321,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -477,7 +477,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)

@@ -183,7 +183,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -261,7 +261,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)

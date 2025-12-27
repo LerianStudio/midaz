@@ -179,7 +179,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -309,7 +309,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 		spanQuery.End()
 
-		return false, err
+		return false, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -372,7 +372,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)

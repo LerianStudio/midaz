@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -415,7 +416,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(Transaction{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -519,7 +520,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(Transaction{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -609,7 +610,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(Transaction{}).Name())
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -826,7 +827,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
 	}
 
-	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
+	selectColumns := slices.Concat(transactionColumnListPrefixed, operationColumnListPrefixed)
 
 	findWithOps := squirrel.Select(selectColumns...).
 		From(r.tableName + " t").
@@ -843,7 +844,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(Transaction{}).Name())
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -1192,7 +1193,7 @@ func buildTransactionWithOperationsQuery(r *TransactionPostgreSQLRepository, org
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
 	}
 
-	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
+	selectColumns := slices.Concat(transactionColumnListPrefixed, operationColumnListPrefixed)
 
 	findAll := squirrel.
 		Select(selectColumns...).

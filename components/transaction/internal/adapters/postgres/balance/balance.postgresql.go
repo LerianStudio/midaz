@@ -217,7 +217,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
@@ -527,7 +527,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
@@ -865,7 +865,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	row := db.QueryRowContext(ctx, sqlQuery, args...)
@@ -1423,7 +1423,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
