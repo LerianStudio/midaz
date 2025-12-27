@@ -227,3 +227,63 @@ func NewTestExternalBalance(id, alias, assetCode string) *Balance {
 		AllowReceiving: true,
 	}
 }
+
+// NewTestPendingDebitAmount creates a DEBIT Amount with PENDING transaction type.
+// Use for testing pending/on-hold transactions.
+//
+// Example:
+//
+//	amount := NewTestPendingDebitAmount("USD", decimal.NewFromInt(100))
+func NewTestPendingDebitAmount(asset string, value decimal.Decimal) Amount {
+	return Amount{
+		Asset:           asset,
+		Value:           value,
+		Operation:       constant.DEBIT,
+		TransactionType: constant.PENDING,
+	}
+}
+
+// NewTestPendingCreditAmount creates a CREDIT Amount with PENDING transaction type.
+// Use for testing pending transactions.
+//
+// Example:
+//
+//	amount := NewTestPendingCreditAmount("USD", decimal.NewFromInt(100))
+func NewTestPendingCreditAmount(asset string, value decimal.Decimal) Amount {
+	return Amount{
+		Asset:           asset,
+		Value:           value,
+		Operation:       constant.CREDIT,
+		TransactionType: constant.PENDING,
+	}
+}
+
+// NewTestOnHoldAmount creates an ONHOLD Amount for pending source transactions.
+// The ONHOLD operation is used when a pending transaction holds funds.
+//
+// Example:
+//
+//	amount := NewTestOnHoldAmount("USD", decimal.NewFromInt(100))
+func NewTestOnHoldAmount(asset string, value decimal.Decimal) Amount {
+	return Amount{
+		Asset:           asset,
+		Value:           value,
+		Operation:       constant.ONHOLD,
+		TransactionType: constant.PENDING,
+	}
+}
+
+// NewTestReleaseAmount creates a RELEASE Amount for canceled transactions.
+// The RELEASE operation is used when releasing held funds.
+//
+// Example:
+//
+//	amount := NewTestReleaseAmount("USD", decimal.NewFromInt(100))
+func NewTestReleaseAmount(asset string, value decimal.Decimal) Amount {
+	return Amount{
+		Asset:           asset,
+		Value:           value,
+		Operation:       constant.RELEASE,
+		TransactionType: constant.CANCELED,
+	}
+}
