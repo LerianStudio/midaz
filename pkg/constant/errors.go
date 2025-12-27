@@ -138,6 +138,8 @@ var (
 	ErrInvalidDatetimeFormat                    = errors.New("0128")
 	ErrStaleBalanceUpdateSkipped                = errors.New("0129")
 	ErrOnHoldInsufficient                       = errors.New("0130")
+	ErrRefreshTransactionOperations             = errors.New("0131")
+	ErrPersistAsyncTransaction                  = errors.New("0132")
 
 	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
