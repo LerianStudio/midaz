@@ -50,15 +50,24 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return pkg.ValidateInternalError(err, "CRM")
 	}
 
+	var firstErr error
+
 	for _, holderLink := range holderLinks {
-		err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
+		deleteErr := uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
+		if deleteErr != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", deleteErr)
+			logger.Errorf("Failed to delete holder link id %s: %v", holderLink.ID.String(), deleteErr)
 
-			logger.Errorf("Failed to delete holder link by id: %v", err)
+			if firstErr == nil {
+				firstErr = deleteErr
+			}
 
-			return pkg.ValidateInternalError(err, "CRM")
+			continue
 		}
+	}
+
+	if firstErr != nil {
+		return pkg.ValidateInternalError(firstErr, "CRM")
 	}
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
