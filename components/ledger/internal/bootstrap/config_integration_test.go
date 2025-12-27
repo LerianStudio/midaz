@@ -39,9 +39,9 @@ type ContainerAddresses struct {
 	RedisPort string
 
 	// RabbitMQ
-	RabbitMQHost         string
-	RabbitMQPort         string
-	RabbitMQMgmtPort     string
+	RabbitMQHost     string
+	RabbitMQPort     string
+	RabbitMQMgmtPort string
 }
 
 // setupAllContainers starts all required containers for ledger integration tests.
@@ -286,7 +286,6 @@ func changeToProjectRoot(t *testing.T) func() {
 	}
 }
 
-
 // setEnvFromContainers configures environment variables from running containers.
 // Uses t.Setenv for automatic cleanup after test.
 func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
@@ -353,7 +352,7 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 // - Redis connection for caching
 // - RabbitMQ connection for async processing
 // - Service composition (onboarding + transaction)
-func TestInitServers_WithAllDependencies_Succeeds(t *testing.T) {
+func TestIntegration_InitServers_WithAllDependencies_Succeeds(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -394,7 +393,7 @@ func TestInitServers_WithAllDependencies_Succeeds(t *testing.T) {
 //
 // NOTE: Actual use case tests (CreateAccount creates Balance, DeleteAccount
 // deletes Balances) should be implemented in services/command/ when ready.
-func TestInitServers_BalancePortWiring(t *testing.T) {
+func TestIntegration_InitServers_BalancePortWiring(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -434,7 +433,7 @@ func TestInitServers_BalancePortWiring(t *testing.T) {
 // - Server startup without errors
 // - All expected runnables are collected
 // - Graceful behavior (we don't actually run the full launcher in test)
-func TestService_Run_StartsAllServers(t *testing.T) {
+func TestIntegration_Service_Run_StartsAllServers(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -482,4 +481,3 @@ func TestService_Run_StartsAllServers(t *testing.T) {
 
 	t.Logf("Service correctly composed with %d total runnables", totalRunnables)
 }
-

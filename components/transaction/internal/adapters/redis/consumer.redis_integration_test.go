@@ -8,10 +8,10 @@ import (
 	"time"
 
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -107,7 +107,7 @@ func createTestBalanceOperation(organizationID, ledgerID uuid.UUID, alias, asset
 			UpdatedAt:      time.Now(),
 		},
 		Alias: alias,
-		Amount: libTransaction.Amount{
+		Amount: pkgTransaction.Amount{
 			Asset:     assetCode,
 			Value:     amount,
 			Operation: operation,
@@ -116,7 +116,7 @@ func createTestBalanceOperation(organizationID, ledgerID uuid.UUID, alias, asset
 	}
 }
 
-func TestAddSumBalancesRedis_WithSyncEnabled_SchedulesBalanceSync(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_WithSyncEnabled_SchedulesBalanceSync(t *testing.T) {
 	// Arrange
 	client, cleanup := setupRedisContainer(t)
 	defer cleanup()
@@ -161,7 +161,7 @@ func TestAddSumBalancesRedis_WithSyncEnabled_SchedulesBalanceSync(t *testing.T) 
 	assert.Contains(t, members, balanceOp.InternalKey, "schedule should contain the balance internal key")
 }
 
-func TestAddSumBalancesRedis_WithSyncDisabled_DoesNotScheduleBalanceSync(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_WithSyncDisabled_DoesNotScheduleBalanceSync(t *testing.T) {
 	// Arrange
 	client, cleanup := setupRedisContainer(t)
 	defer cleanup()
@@ -201,7 +201,7 @@ func TestAddSumBalancesRedis_WithSyncDisabled_DoesNotScheduleBalanceSync(t *test
 	assert.Equal(t, int64(0), count, "schedule key should have 0 members when sync is disabled")
 }
 
-func TestAddSumBalancesRedis_ProcessesBalancesCorrectly_RegardlessOfSyncFlag(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_ProcessesBalancesCorrectly_RegardlessOfSyncFlag(t *testing.T) {
 	testCases := []struct {
 		name               string
 		balanceSyncEnabled bool
@@ -258,7 +258,7 @@ func TestAddSumBalancesRedis_ProcessesBalancesCorrectly_RegardlessOfSyncFlag(t *
 	}
 }
 
-func TestAddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnabled(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnabled(t *testing.T) {
 	// Arrange
 	client, cleanup := setupRedisContainer(t)
 	defer cleanup()
@@ -299,7 +299,7 @@ func TestAddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnabled(t *testi
 	assert.Equal(t, int64(2), count, "schedule key should have 2 members for 2 operations")
 }
 
-func TestAddSumBalancesRedis_NotedStatus_SkipsLuaScript(t *testing.T) {
+func TestIntegration_AddSumBalancesRedis_NotedStatus_SkipsLuaScript(t *testing.T) {
 	// Arrange
 	client, cleanup := setupRedisContainer(t)
 	defer cleanup()
