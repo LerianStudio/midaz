@@ -52,7 +52,7 @@ func TestNewTestAmount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			amount := NewTestAmount(tt.asset, tt.value, tt.operation, tt.transactionType)
+			amount := NewTestAmount(t, tt.asset, tt.value, tt.operation, tt.transactionType)
 
 			assert.Equal(t, tt.asset, amount.Asset)
 			assert.True(t, tt.value.Equal(amount.Value))
@@ -139,7 +139,7 @@ func TestNewTestResponses(t *testing.T) {
 		"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100)),
 	}
 
-	responses := NewTestResponses(from, to)
+	responses := NewTestResponses(t, from, to)
 
 	assert.NotNil(t, responses)
 	assert.Equal(t, "USD", responses.Asset)
@@ -161,7 +161,7 @@ func TestNewTestResponsesWithTotal(t *testing.T) {
 		"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100)),
 	}
 
-	responses := NewTestResponsesWithTotal(decimal.NewFromInt(100), "USD", from, to)
+	responses := NewTestResponsesWithTotal(t, decimal.NewFromInt(100), "USD", from, to)
 
 	assert.NotNil(t, responses)
 	assert.True(t, decimal.NewFromInt(100).Equal(responses.Total))

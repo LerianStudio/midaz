@@ -5,7 +5,7 @@
 package transaction
 
 import (
-	"fmt"
+	"testing"
 
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/shopspring/decimal"
@@ -16,6 +16,7 @@ import (
 // in applyBalanceOperation caused by missing TransactionType.
 //
 // Parameters:
+//   - t: The testing.T instance for error reporting
 //   - asset: The asset code (e.g., "USD", "BRL", "EUR")
 //   - value: The decimal value of the amount
 //   - operation: The operation type (constant.DEBIT, constant.CREDIT, constant.ONHOLD, constant.RELEASE)
@@ -23,11 +24,12 @@ import (
 //
 // Example:
 //
-//	amount := NewTestAmount("USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED)
-func NewTestAmount(asset string, value decimal.Decimal, operation, transactionType string) Amount {
+//	amount := NewTestAmount(t, "USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED)
+func NewTestAmount(t testing.TB, asset string, value decimal.Decimal, operation, transactionType string) Amount {
+	t.Helper()
+
 	if asset == "" {
-		//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
-		panic("asset must not be empty for test Amount")
+		t.Fatal("asset must not be empty for test Amount")
 	}
 
 	return Amount{
@@ -78,19 +80,22 @@ func NewTestCreditAmount(asset string, value decimal.Decimal) Amount {
 
 // NewTestResponses creates a fully-initialized Responses struct for testing.
 // This constructor ensures From and To maps are properly initialized.
-// Panics if amounts have inconsistent assets.
+// Fails the test if amounts have inconsistent assets.
 //
 // Parameters:
+//   - t: The testing.T instance for error reporting
 //   - from: Map of account aliases/keys to their debit Amounts
 //   - to: Map of account aliases/keys to their credit Amounts
 //
 // Example:
 //
-//	responses := NewTestResponses(
+//	responses := NewTestResponses(t,
 //	    map[string]Amount{"@account1": NewTestDebitAmount("USD", decimal.NewFromInt(100))},
 //	    map[string]Amount{"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100))},
 //	)
-func NewTestResponses(from, to map[string]Amount) *Responses {
+func NewTestResponses(t testing.TB, from, to map[string]Amount) *Responses {
+	t.Helper()
+
 	// Extract aliases from maps and validate asset consistency
 	aliases := make([]string, 0, len(from)+len(to))
 	sources := make([]string, 0, len(from))
@@ -105,8 +110,7 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
-			//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
-			panic(fmt.Sprintf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset))
+			t.Fatalf("inconsistent asset in from[%s]: expected %s, got %s", k, asset, v.Asset)
 		}
 	}
 
@@ -117,8 +121,7 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 		if asset == "" {
 			asset = v.Asset
 		} else if asset != v.Asset {
-			//nolint:panicguardwarn // Test utility: panic is intentional to fail tests fast on invalid input
-			panic(fmt.Sprintf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset))
+			t.Fatalf("inconsistent asset in to[%s]: expected %s, got %s", k, asset, v.Asset)
 		}
 	}
 
@@ -136,6 +139,7 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 // Use this when you need to specify a total that differs from the sum of amounts.
 //
 // Parameters:
+//   - t: The testing.T instance for error reporting
 //   - total: The total transaction amount
 //   - asset: The asset code
 //   - from: Map of account aliases/keys to their debit Amounts
@@ -143,14 +147,16 @@ func NewTestResponses(from, to map[string]Amount) *Responses {
 //
 // Example:
 //
-//	responses := NewTestResponsesWithTotal(
+//	responses := NewTestResponsesWithTotal(t,
 //	    decimal.NewFromInt(100),
 //	    "USD",
 //	    map[string]Amount{"@account1": NewTestDebitAmount("USD", decimal.NewFromInt(100))},
 //	    map[string]Amount{"@account2": NewTestCreditAmount("USD", decimal.NewFromInt(100))},
 //	)
-func NewTestResponsesWithTotal(total decimal.Decimal, asset string, from, to map[string]Amount) *Responses {
-	resp := NewTestResponses(from, to)
+func NewTestResponsesWithTotal(t testing.TB, total decimal.Decimal, asset string, from, to map[string]Amount) *Responses {
+	t.Helper()
+
+	resp := NewTestResponses(t, from, to)
 	resp.Total = total
 	resp.Asset = asset
 
@@ -311,10 +317,12 @@ func NewTestReleaseAmount(asset string, value decimal.Decimal) Amount {
 // Example:
 //
 //	fromTo := FromTo{
-//	    Amount: NewTestAmountPtr("USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED),
+//	    Amount: NewTestAmountPtr(t, "USD", decimal.NewFromInt(100), constant.DEBIT, constant.CREATED),
 //	}
-func NewTestAmountPtr(asset string, value decimal.Decimal, operation, transactionType string) *Amount {
-	amount := NewTestAmount(asset, value, operation, transactionType)
+func NewTestAmountPtr(t testing.TB, asset string, value decimal.Decimal, operation, transactionType string) *Amount {
+	t.Helper()
+
+	amount := NewTestAmount(t, asset, value, operation, transactionType)
 	return &amount
 }
 

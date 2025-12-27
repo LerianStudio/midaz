@@ -53,12 +53,12 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 	// Using the correct struct for transaction data
 	parseDSL := &pkgTransaction.Transaction{}
 
-	validate := pkgTransaction.NewTestResponses(
+	validate := pkgTransaction.NewTestResponses(t,
 		map[string]pkgTransaction.Amount{
 			"alias1": pkgTransaction.NewTestDebitAmount("USD", decimal.NewFromInt(50)),
 		},
 		map[string]pkgTransaction.Amount{
-			"alias2": pkgTransaction.NewTestCreditAmount("EUR", decimal.NewFromInt(40)),
+			"alias2": pkgTransaction.NewTestCreditAmount("USD", decimal.NewFromInt(50)),
 		},
 	)
 
@@ -88,7 +88,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			AccountType:    "deposit",
 			AllowSending:   true,
 			AllowReceiving: true,
-			AssetCode:      "EUR",
+			AssetCode:      "USD",
 		},
 	}
 
