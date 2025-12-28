@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -780,6 +781,8 @@ func (r *BalancePostgreSQLRepository) processBalanceUpdates(ctx context.Context,
 }
 
 // BalancesUpdate updates the balances in the database.
+// If a transaction is present in context, it participates in that transaction.
+// Otherwise, it creates its own transaction for atomicity.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -792,6 +795,22 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		return pkg.ValidateInternalError(err, "Balance")
 	}
 
+	// Check if we're already in a transaction from context
+	if tx := dbtx.TxFromContext(ctx); tx != nil {
+		// Use existing transaction - no commit/rollback here, managed by caller
+		successCount, err := r.processBalanceUpdates(ctx, tx, organizationID, ledgerID, balances)
+		if err != nil {
+			return err
+		}
+
+		if successCount == 0 && len(balances) > 0 {
+			return pkg.ValidateInternalError(ErrNoBalancesUpdated, "Balance")
+		}
+
+		return nil
+	}
+
+	// No external transaction - create our own
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
