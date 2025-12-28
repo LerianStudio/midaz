@@ -371,7 +371,13 @@ func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
 	// Assert
 	require.NoError(t, err, "Delete should not return error")
 
-	// Balance should not be findable anymore
+	// Verify deleted_at is actually set in DB
+	var deletedAt *time.Time
+	err = container.DB.QueryRow(`SELECT deleted_at FROM balance WHERE id = $1`, balanceID).Scan(&deletedAt)
+	require.NoError(t, err, "should be able to query balance directly")
+	require.NotNil(t, deletedAt, "deleted_at should be set")
+
+	// Balance should not be findable anymore via repository
 	found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
 	require.Error(t, err, "Find should return error after delete")
 	assert.Nil(t, found, "deleted balance should not be returned")
@@ -421,10 +427,18 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Get original balance to compare updated_at
+	original, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+	originalUpdatedAt := original.UpdatedAt
+
+	// Small delay to ensure updated_at differs
+	time.Sleep(10 * time.Millisecond)
+
 	// Act
 	newSending := false
 	newReceiving := false
-	err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+	err = repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 		AllowSending:   &newSending,
 		AllowReceiving: &newReceiving,
 	})
@@ -436,6 +450,7 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found.AllowSending, "allow_sending should be updated to false")
 	assert.False(t, found.AllowReceiving, "allow_receiving should be updated to false")
+	assert.True(t, found.UpdatedAt.After(originalUpdatedAt), "updated_at should be changed after update")
 }
 
 // ============================================================================
@@ -462,6 +477,7 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	params2.Alias = "@bob"
 	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
 
+	// Create @charlie to verify it's excluded from results
 	params3 := pgtestutil.DefaultBalanceParams()
 	params3.Alias = "@charlie"
 	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params3)
@@ -473,13 +489,14 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 
 	// Assert
 	require.NoError(t, err, "ListByAliases should not return error")
-	assert.Len(t, balances, 2, "should return 2 balances matching aliases")
+	assert.Len(t, balances, 2, "should return only 2 balances matching requested aliases")
 
 	aliases := make([]string, len(balances))
 	for i, b := range balances {
 		aliases[i] = b.Alias
 	}
 	assert.ElementsMatch(t, []string{"@alice", "@bob"}, aliases)
+	assert.NotContains(t, aliases, "@charlie", "should not include unrequested alias")
 }
 
 // ============================================================================
@@ -628,6 +645,200 @@ func TestIntegration_BalanceRepository_Sync_IgnoresOlderVersion(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found.Available.Equal(decimal.NewFromInt(1000)), "available should be unchanged")
 	assert.Equal(t, int64(10), found.Version, "version should be unchanged")
+}
+
+// ============================================================================
+// ListAll Tests (covers date filtering and pagination)
+// ============================================================================
+
+func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID1 := createTestAccountID()
+	accountID2 := createTestAccountID()
+
+	// Create balances for different accounts in same ledger
+	params1 := pgtestutil.DefaultBalanceParams()
+	params1.Alias = "@alice"
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params1)
+
+	params2 := pgtestutil.DefaultBalanceParams()
+	params2.Alias = "@bob"
+	params2.Available = decimal.NewFromInt(2000)
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
+
+	ctx := context.Background()
+
+	// Act
+	balances, cur, err := repo.ListAll(ctx, orgID, ledgerID, defaultPagination())
+
+	// Assert
+	require.NoError(t, err, "ListAll should not return error")
+	assert.Len(t, balances, 2, "should return 2 balances")
+	assert.Empty(t, cur.Next, "should not have next cursor with only 2 items")
+}
+
+func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create a balance (created today)
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@date-test"
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	ctx := context.Background()
+
+	// Act 1: Query with past-only window (should return 0 items)
+	pastFilter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(0, 0, -10),
+		EndDate:   time.Now().AddDate(0, 0, -9),
+	}
+	balancesPast, _, err := repo.ListAll(ctx, orgID, ledgerID, pastFilter)
+	require.NoError(t, err)
+	assert.Empty(t, balancesPast, "past-only window should return 0 items")
+
+	// Act 2: Query with today's window (should return 1 item)
+	// Use day-based range since NormalizeDateTime normalizes to day boundaries
+	todayFilter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(0, 0, -1), // yesterday (covers timezone edge cases)
+		EndDate:   time.Now().AddDate(0, 0, 1),  // tomorrow
+	}
+	balancesToday, _, err := repo.ListAll(ctx, orgID, ledgerID, todayFilter)
+	require.NoError(t, err)
+	assert.Len(t, balancesToday, 1, "today's window should return 1 item")
+}
+
+func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	// Create 7 balances
+	for i := 0; i < 7; i++ {
+		accountID := createTestAccountID()
+		params := pgtestutil.DefaultBalanceParams()
+		params.Alias = "@pg" + string(rune('a'+i))
+		params.Available = decimal.NewFromInt(int64(i * 100))
+		pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+	}
+
+	ctx := context.Background()
+
+	// Page 1: limit=3
+	page1Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page1, cur1, err := repo.ListAll(ctx, orgID, ledgerID, page1Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page1, 3, "page 1 should have 3 items")
+	assert.NotEmpty(t, cur1.Next, "page 1 should have next cursor")
+
+	// Page 2: using next cursor
+	page2Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		Cursor:    cur1.Next,
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page2, cur2, err := repo.ListAll(ctx, orgID, ledgerID, page2Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page2, 3, "page 2 should have 3 items")
+	assert.NotEmpty(t, cur2.Prev, "page 2 should have prev cursor")
+
+	// Page 3: last page with 1 item
+	page3Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		Cursor:    cur2.Next,
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page3, cur3, err := repo.ListAll(ctx, orgID, ledgerID, page3Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page3, 1, "page 3 should have 1 item")
+	assert.Empty(t, cur3.Next, "page 3 should not have next cursor")
+	assert.NotEmpty(t, cur3.Prev, "page 3 should have prev cursor")
+}
+
+func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Act
+	balances, _, err := repo.ListAll(ctx, orgID, nonExistentLedgerID, defaultPagination())
+
+	// Assert
+	require.NoError(t, err, "should not error for empty result")
+	assert.Empty(t, balances, "should return empty slice")
+}
+
+func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+	balanceID := libCommons.GenerateUUIDv7()
+
+	// Insert balance with very large precision values
+	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
+	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, "@large-precision", "default", "USD",
+		largeAvail, largeHold, 1, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	balances, _, err := repo.ListAll(ctx, orgID, ledgerID, defaultPagination())
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, balances, 1)
+	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
 }
 
 // ============================================================================
