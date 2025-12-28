@@ -329,6 +329,38 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	return nil
 }
 
+// handleCorruptedUUID handles corrupted UUID detection with metrics, logging, and strict mode check.
+// Returns (shouldTerminate, error). If shouldTerminate is true, the caller should return the error (which may be nil in lenient mode).
+func (uc *UseCase) handleCorruptedUUID(ctx context.Context, organizationID, ledgerID uuid.UUID, currentID string, parseErr error, span *trace.Span) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	_, _, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+
+	// Always emit metric for observability regardless of mode
+	if metricFactory != nil {
+		metricFactory.Counter(utils.ParentUUIDCorruption).
+			WithLabels(map[string]string{
+				"organization_id": organizationID.String(),
+				"ledger_id":       ledgerID.String(),
+			}).
+			AddOne(ctx)
+	}
+
+	// Always log with full error details for incident tracking
+	logger.Warnf("DATA_CORRUPTION: Invalid UUID in parent account chain: %s, parse_error: %v, organization_id: %s, ledger_id: %s",
+		currentID, parseErr, organizationID.String(), ledgerID.String())
+
+	// Check strict mode configuration
+	if strings.EqualFold(os.Getenv("STRICT_PARENT_UUID_VALIDATION"), "true") {
+		err := pkg.ValidateBusinessError(constant.ErrCorruptedParentAccountUUID, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Corrupted UUID detected in parent account chain (strict mode)", err)
+
+		return err
+	}
+
+	// Lenient mode: defensive termination - treat as end of chain (nil error signals safe termination)
+	return nil
+}
+
 // detectCycleInHierarchy checks if setting parentAccountID as parent of a new account
 // would create a circular reference. It traverses up the hierarchy from parentAccountID
 // with a depth limit to prevent DoS attacks.
@@ -343,7 +375,7 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 // - ErrCorruptedParentAccountUUID: Invalid UUID detected (strict mode only)
 // - Other errors: Database or validation errors
 func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, ledgerID uuid.UUID, parentAccountID string) error {
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.detect_cycle_in_hierarchy")
 	defer span.End()
@@ -376,60 +408,19 @@ func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, l
 		visited[currentID] = true
 
 		// Safe UUID parsing - handles corrupted database data based on strictMode configuration.
-		// When strictMode is enabled (STRICT_PARENT_UUID_VALIDATION=true), parse failures
-		// return an error to fail the operation fast.
-		// When strictMode is disabled (default), we treat corrupted UUIDs as end-of-chain
-		// to prevent cascading failures from bad data while still allowing the operation.
-		// In both cases, a metric is emitted and the error is logged for incident tracking.
 		parsedID, parseErr := uuid.Parse(currentID)
 		if parseErr != nil {
-			// Always emit metric for observability regardless of mode
-			if metricFactory != nil {
-				metricFactory.Counter(utils.ParentUUIDCorruption).
-					WithLabels(map[string]string{
-						"organization_id": organizationID.String(),
-						"ledger_id":       ledgerID.String(),
-					}).
-					AddOne(ctx)
-			}
-
-			// Always log with full error details for incident tracking
-			logger.Warnf("DATA_CORRUPTION: Invalid UUID in parent account chain: %s, parse_error: %v, organization_id: %s, ledger_id: %s",
-				currentID, parseErr, organizationID.String(), ledgerID.String())
-
-			// Check strict mode configuration
-			strictMode := strings.EqualFold(os.Getenv("STRICT_PARENT_UUID_VALIDATION"), "true")
-			if strictMode {
-				err := pkg.ValidateBusinessError(constant.ErrCorruptedParentAccountUUID, reflect.TypeOf(mmodel.Account{}).Name())
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Corrupted UUID detected in parent account chain (strict mode)", err)
-
-				return err
-			}
-
-			// Lenient mode: defensive termination - treat as end of chain
-			return nil
+			return uc.handleCorruptedUUID(ctx, organizationID, ledgerID, currentID, parseErr, &span)
 		}
 
 		// Fetch the current account to get its parent
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, parsedID)
 		if err != nil {
-			// Check if it's a "not found" error using the correct error type
-			// AccountRepo.Find returns pkg.EntityNotFoundError, not services.ErrDatabaseItemNotFound
-			var entityNotFoundErr pkg.EntityNotFoundError
-			if errors.As(err, &entityNotFoundErr) {
-				logger.Infof("Account %s not found, end of hierarchy chain", currentID)
-				return nil
-			}
-			// Propagate real database errors
-			libOpentelemetry.HandleSpanError(&span, "Database error during hierarchy check", err)
-			logger.Errorf("Error fetching account %s during hierarchy check: %v", currentID, err)
-
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
+			return uc.handleAccountFetchError(ctx, err, currentID, &span)
 		}
 
-		// Move to parent
+		// Move to parent - empty parent means we reached root
 		if acc.ParentAccountID == nil || *acc.ParentAccountID == "" {
-			// Reached root, no cycle
 			return nil
 		}
 
@@ -437,4 +428,23 @@ func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, l
 	}
 
 	return nil
+}
+
+// handleAccountFetchError handles errors from fetching an account during hierarchy traversal.
+func (uc *UseCase) handleAccountFetchError(ctx context.Context, err error, currentID string, span *trace.Span) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	// Check if it's a "not found" error using the correct error type
+	// AccountRepo.Find returns pkg.EntityNotFoundError, not services.ErrDatabaseItemNotFound
+	var entityNotFoundErr pkg.EntityNotFoundError
+	if errors.As(err, &entityNotFoundErr) {
+		logger.Infof("Account %s not found, end of hierarchy chain", currentID)
+		return nil
+	}
+
+	// Propagate real database errors
+	libOpentelemetry.HandleSpanError(span, "Database error during hierarchy check", err)
+	logger.Errorf("Error fetching account %s during hierarchy check: %v", currentID, err)
+
+	return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 }
