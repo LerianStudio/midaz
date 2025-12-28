@@ -560,6 +560,25 @@ func TestOperateBalances(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "unknown operation - returns balance unchanged without version increment",
+			amount: Amount{
+				Value:           decimal.NewFromInt(50),
+				Operation:       "UNKNOWN",
+				TransactionType: "UNKNOWN",
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(10),
+				Version:   5,
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(100), // unchanged
+				OnHold:    decimal.NewFromInt(10),  // unchanged
+				Version:   5,                       // unchanged (no increment for unknown ops)
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -572,6 +591,12 @@ func TestOperateBalances(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected.Available.String(), result.Available.String())
 				assert.Equal(t, tt.expected.OnHold.String(), result.OnHold.String())
+
+				// For unknown operation, verify version is unchanged
+				if tt.expected.Version > 0 {
+					assert.Equal(t, tt.expected.Version, result.Version,
+						"version should match expected value")
+				}
 			}
 		})
 	}
