@@ -65,8 +65,9 @@ type dbProviderAdapter struct {
 func (a *dbProviderAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbtx.Tx, error) {
 	tx, err := a.db.BeginTx(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err) //nolint:wrapcheck // BeginTx is infrastructure-level, context added via fmt.Errorf
 	}
+
 	return &dbTxAdapter{tx}, nil
 }
 
