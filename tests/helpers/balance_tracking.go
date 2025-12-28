@@ -9,7 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-
 // ErrBalanceChangeTimeout indicates timeout waiting for balance change
 var ErrBalanceChangeTimeout = errors.New("timeout waiting for balance change")
 

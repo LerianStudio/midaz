@@ -12,10 +12,10 @@ import (
 // WithError returns an error with the given status code and message.
 //
 // DESIGN NOTE: No assertions on c or err parameters.
-// - c (fiber.Ctx): Fiber guarantees non-nil context when calling handlers.
-//   If we receive nil, Fiber itself is broken - panic is appropriate.
-// - err: May be nil in edge cases (defensive callers). We handle this gracefully
-//   in handleUnknownError rather than asserting.
+//   - c (fiber.Ctx): Fiber guarantees non-nil context when calling handlers.
+//     If we receive nil, Fiber itself is broken - panic is appropriate.
+//   - err: May be nil in edge cases (defensive callers). We handle this gracefully
+//     in handleUnknownError rather than asserting.
 //
 // The current behavior (implicit nil dereference for c, graceful handling for err)
 // is intentional and appropriate for this HTTP boundary.

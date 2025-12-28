@@ -15,14 +15,14 @@ type Service struct {
 	Logger libLog.Logger
 
 	// Route registration dependencies (for unified ledger mode)
-	auth               *middleware.AuthClient
-	accountHandler     *httpin.AccountHandler
-	portfolioHandler   *httpin.PortfolioHandler
-	ledgerHandler      *httpin.LedgerHandler
-	assetHandler       *httpin.AssetHandler
+	auth                *middleware.AuthClient
+	accountHandler      *httpin.AccountHandler
+	portfolioHandler    *httpin.PortfolioHandler
+	ledgerHandler       *httpin.LedgerHandler
+	assetHandler        *httpin.AssetHandler
 	organizationHandler *httpin.OrganizationHandler
-	segmentHandler     *httpin.SegmentHandler
-	accountTypeHandler *httpin.AccountTypeHandler
+	segmentHandler      *httpin.SegmentHandler
+	accountTypeHandler  *httpin.AccountTypeHandler
 }
 
 // Run starts the application.

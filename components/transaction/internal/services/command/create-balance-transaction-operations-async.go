@@ -89,7 +89,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		return nil
 	})
-
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAtomic, "Atomic transaction failed", err)
 		logger.Errorf("Atomic transaction failed: %v", err.Error())

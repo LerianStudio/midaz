@@ -341,8 +341,8 @@ func TestCreateAliasWithHolderLink_NilCreatedAccountID_Panics(t *testing.T) {
 			"org-123",
 			holderID,
 			&mmodel.CreateAliasInput{LinkType: &linkType},
-			&mmodel.Alias{},          // alias
-			&mmodel.Alias{ID: nil},   // createdAccount with nil ID - should panic
+			&mmodel.Alias{},        // alias
+			&mmodel.Alias{ID: nil}, // createdAccount with nil ID - should panic
 		)
 	}, "createAliasWithHolderLink should panic when createdAccount.ID is nil")
 }

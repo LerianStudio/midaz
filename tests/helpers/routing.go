@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	operationTypeSource      = "source"
-	operationTypeDestination = "destination"
-	routingHTTPStatusCreated = 201
-	routingHTTPStatusOK      = 200
+	operationTypeSource        = "source"
+	operationTypeDestination   = "destination"
+	routingHTTPStatusCreated   = 201
+	routingHTTPStatusOK        = 200
 	routingHTTPStatusNoContent = 204
 )
 
