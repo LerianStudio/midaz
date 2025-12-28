@@ -39,7 +39,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/bxcodec/dbresolver/v2 v2.2.1 // indirect
+	github.com/bxcodec/dbresolver/v2 v2.2.1
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect

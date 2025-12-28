@@ -27,16 +27,46 @@ If step 3 failed after step 2 succeeded, an orphan transaction was created.
 
 The atomicity fix wraps steps 1-3 in a single database transaction using `dbtx.RunInTransaction`. Now if any step fails, all changes are rolled back.
 
+### Known Limitation: Cross-Database Metadata Consistency
+
+⚠️ **Important:** MongoDB metadata creation happens **after** the PostgreSQL transaction commits. This creates a potential consistency gap:
+
+```
+✅ PostgreSQL (ATOMIC):    ❌ MongoDB (EVENTUAL):
+   - Balance update           - Transaction metadata ← Can fail
+   - Transaction create       - Operation metadata   ← Can fail
+   - Operation create
+```
+
+**Why metadata is outside the transaction:**
+- MongoDB cannot participate in PostgreSQL transactions
+- Creating metadata **inside** the PG transaction risks orphaned MongoDB data if PG rolls back
+- Creating metadata **outside** the PG transaction risks missing MongoDB data if metadata creation fails
+
+**Chosen trade-off:** Prioritize PostgreSQL consistency (financial records) over MongoDB consistency (supplementary metadata). If metadata creation fails, the transaction is still valid and can be reconciled later.
+
+**Reconciliation:** Use `scripts/reconciliation/postgresql/06_metadata_orphan_detection.sql` and `scripts/reconciliation/mongodb/01_metadata_sync.js` to detect and repair missing metadata.
+
+**Future improvement:** Consider implementing an **outbox pattern** where metadata creation requests are stored in PostgreSQL and processed asynchronously with retry logic.
+
 ## Detection
 
-### Using SQL Queries
+### Using Reconciliation Scripts
 
-Run the queries in `scripts/orphan-detection.sql` to identify orphans:
+Orphan detection is integrated into the daily reconciliation process:
 
 ```bash
-# Connect to the transaction database and run:
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/orphan-detection.sql
+# Run all reconciliation checks (includes orphan detection)
+./scripts/reconciliation/run_reconciliation.sh
+
+# Or run orphan detection specifically:
+docker exec midaz-postgres-primary psql -U midaz -d transaction \
+  -f /scripts/reconciliation/postgresql/05_orphan_transactions.sql
 ```
+
+**Related Scripts:**
+- `scripts/reconciliation/postgresql/02_double_entry_validation.sql` - Includes orphan count in summary
+- `scripts/reconciliation/postgresql/05_orphan_transactions.sql` - Detailed orphan detection queries
 
 ### Quick Health Check
 
