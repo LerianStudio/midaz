@@ -175,14 +175,16 @@ func TestIntegration_CRM_HolderLegalPerson(t *testing.T) {
 
 	t.Logf("Created legal person holder: ID=%s Name=%s CNPJ=%s", createdHolder.ID, createdHolder.Name, createdHolder.Document)
 
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
+			t.Logf("Warning: cleanup delete holder failed: %v", err)
+		}
+	})
+
 	// Verify holder type
 	if createdHolder.Type != "LEGAL_PERSON" {
 		t.Errorf("holder type mismatch: got %q, want %q", createdHolder.Type, "LEGAL_PERSON")
-	}
-
-	// Cleanup
-	if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
-		t.Logf("Warning: cleanup delete holder failed: %v", err)
 	}
 
 	t.Log("Legal person holder test completed successfully")
@@ -197,6 +199,9 @@ func TestIntegration_CRM_HolderValidation(t *testing.T) {
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
+	// Generate valid CPFs for tests that should fail on other validations
+	validCPF := h.GenerateValidCPF()
+
 	// Test missing required fields
 	testCases := []struct {
 		name    string
@@ -204,11 +209,11 @@ func TestIntegration_CRM_HolderValidation(t *testing.T) {
 	}{
 		{
 			name:    "missing type",
-			payload: map[string]any{"name": "Test", "document": "12345678901"},
+			payload: map[string]any{"name": "Test", "document": validCPF},
 		},
 		{
 			name:    "missing name",
-			payload: map[string]any{"type": "NATURAL_PERSON", "document": "12345678901"},
+			payload: map[string]any{"type": "NATURAL_PERSON", "document": validCPF},
 		},
 		{
 			name:    "missing document",
@@ -216,21 +221,23 @@ func TestIntegration_CRM_HolderValidation(t *testing.T) {
 		},
 		{
 			name:    "invalid type",
-			payload: map[string]any{"type": "INVALID_TYPE", "name": "Test", "document": "12345678901"},
+			payload: map[string]any{"type": "INVALID_TYPE", "name": "Test", "document": validCPF},
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, tc.payload)
 			if err != nil {
 				t.Logf("Request error (expected for validation): %v", err)
 			}
 			// Expect 400 Bad Request for validation errors
-			if code == 201 {
-				t.Errorf("expected validation error for %s, but got 201 Created: body=%s", tc.name, string(body))
+			if code != 400 {
+				t.Errorf("expected 400 Bad Request for %s, but got %d: body=%s", tc.name, code, string(body))
 			}
-			t.Logf("Validation test %s: code=%d (expected non-201)", tc.name, code)
+			t.Logf("Validation test %s: code=%d (expected 400)", tc.name, code)
 		})
 	}
 }
@@ -263,6 +270,13 @@ func TestIntegration_CRM_HolderDuplicateDocument(t *testing.T) {
 	}
 	t.Logf("Created first holder: ID=%s CPF=%s", holder1.ID, sharedCPF)
 
+	// Register cleanup for first holder
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, holder1.ID); err != nil {
+			t.Logf("Warning: cleanup first holder failed: %v", err)
+		}
+	})
+
 	// Attempt to create second holder with SAME CPF - should fail
 	holder2Name := fmt.Sprintf("Second Holder %s", h.RandString(6))
 	holder2Payload := h.CreateNaturalPersonPayload(holder2Name, sharedCPF)
@@ -278,16 +292,274 @@ func TestIntegration_CRM_HolderDuplicateDocument(t *testing.T) {
 		// Cleanup the accidentally created holder
 		var holder2 h.HolderResponse
 		if json.Unmarshal(body, &holder2) == nil && holder2.ID != "" {
-			_ = h.DeleteHolder(ctx, crm, headers, holder2.ID)
+			if delErr := h.DeleteHolder(ctx, crm, headers, holder2.ID); delErr != nil {
+				t.Logf("Warning: cleanup delete accidental holder failed: %v", delErr)
+			}
 		}
 	} else {
 		t.Logf("Duplicate CPF correctly rejected: code=%d", code)
 	}
 
-	// Cleanup first holder
-	if err := h.DeleteHolder(ctx, crm, headers, holder1.ID); err != nil {
-		t.Logf("Warning: cleanup first holder failed: %v", err)
+	t.Log("Duplicate document validation test completed")
+}
+
+// TestIntegration_CRM_HolderWithAddresses tests creating a holder with addresses.
+func TestIntegration_CRM_HolderWithAddresses(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	holderName := fmt.Sprintf("Holder With Addresses %s", h.RandString(6))
+	holderCPF := h.GenerateValidCPF()
+
+	// Create payload with addresses array
+	createPayload := map[string]any{
+		"type":     "NATURAL_PERSON",
+		"name":     holderName,
+		"document": holderCPF,
+		"addresses": []map[string]any{
+			{
+				"type":        "residential",
+				"street":      "123 Main Street",
+				"number":      "456",
+				"complement":  "Apt 789",
+				"city":        "San Francisco",
+				"state":       "CA",
+				"postalCode":  "94102",
+				"country":     "USA",
+				"isDefault":   true,
+			},
+			{
+				"type":        "commercial",
+				"street":      "789 Business Ave",
+				"number":      "100",
+				"city":        "San Francisco",
+				"state":       "CA",
+				"postalCode":  "94105",
+				"country":     "USA",
+				"isDefault":   false,
+			},
+		},
+		"metadata": map[string]any{"environment": "test"},
 	}
 
-	t.Log("Duplicate document validation test completed")
+	code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE holder with addresses failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdHolder h.HolderResponse
+	if err := json.Unmarshal(body, &createdHolder); err != nil || createdHolder.ID == "" {
+		t.Fatalf("parse created holder: %v body=%s", err, string(body))
+	}
+
+	t.Logf("Created holder with addresses: ID=%s Name=%s", createdHolder.ID, createdHolder.Name)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
+			t.Logf("Warning: cleanup delete holder failed: %v", err)
+		}
+	})
+
+	// Verify holder was created correctly
+	if createdHolder.Name != holderName {
+		t.Errorf("holder name mismatch: got %q, want %q", createdHolder.Name, holderName)
+	}
+
+	// Fetch and verify addresses persist
+	fetchedHolder, err := h.GetHolder(ctx, crm, headers, createdHolder.ID)
+	if err != nil {
+		t.Fatalf("GET holder failed: %v", err)
+	}
+
+	if fetchedHolder.ID != createdHolder.ID {
+		t.Errorf("fetched holder ID mismatch: got %q, want %q", fetchedHolder.ID, createdHolder.ID)
+	}
+
+	t.Log("Holder with addresses test completed successfully")
+}
+
+// TestIntegration_CRM_HolderWithContactInfo tests creating a holder with contact information.
+func TestIntegration_CRM_HolderWithContactInfo(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	holderName := fmt.Sprintf("Holder With Contact %s", h.RandString(6))
+	holderCPF := h.GenerateValidCPF()
+
+	// Create payload with contact information
+	createPayload := map[string]any{
+		"type":     "NATURAL_PERSON",
+		"name":     holderName,
+		"document": holderCPF,
+		"contact": map[string]any{
+			"email":    fmt.Sprintf("test-%s@example.com", h.RandString(6)),
+			"phone":    "+1-555-123-4567",
+			"mobile":   "+1-555-987-6543",
+		},
+		"metadata": map[string]any{"environment": "test"},
+	}
+
+	code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE holder with contact info failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdHolder h.HolderResponse
+	if err := json.Unmarshal(body, &createdHolder); err != nil || createdHolder.ID == "" {
+		t.Fatalf("parse created holder: %v body=%s", err, string(body))
+	}
+
+	t.Logf("Created holder with contact info: ID=%s Name=%s", createdHolder.ID, createdHolder.Name)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
+			t.Logf("Warning: cleanup delete holder failed: %v", err)
+		}
+	})
+
+	// Verify holder was created correctly
+	if createdHolder.Name != holderName {
+		t.Errorf("holder name mismatch: got %q, want %q", createdHolder.Name, holderName)
+	}
+
+	t.Log("Holder with contact info test completed successfully")
+}
+
+// TestIntegration_CRM_NaturalPersonExtendedFields tests creating a natural person holder with extended fields.
+func TestIntegration_CRM_NaturalPersonExtendedFields(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	holderName := fmt.Sprintf("Natural Person Extended %s", h.RandString(6))
+	holderCPF := h.GenerateValidCPF()
+
+	// Create payload with NaturalPerson-specific fields
+	createPayload := map[string]any{
+		"type":     "NATURAL_PERSON",
+		"name":     holderName,
+		"document": holderCPF,
+		"naturalPerson": map[string]any{
+			"birthDate":    "1990-05-15",
+			"nationality":  "Brazilian",
+			"motherName":   "Maria Silva",
+			"fatherName":   "Jose Silva",
+			"occupation":   "Software Engineer",
+			"gender":       "M",
+			"maritalStatus": "single",
+		},
+		"contact": map[string]any{
+			"email": fmt.Sprintf("natural-%s@example.com", h.RandString(6)),
+		},
+		"metadata": map[string]any{"environment": "test", "personType": "natural"},
+	}
+
+	code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE natural person with extended fields failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdHolder h.HolderResponse
+	if err := json.Unmarshal(body, &createdHolder); err != nil || createdHolder.ID == "" {
+		t.Fatalf("parse created holder: %v body=%s", err, string(body))
+	}
+
+	t.Logf("Created natural person with extended fields: ID=%s Name=%s Type=%s", createdHolder.ID, createdHolder.Name, createdHolder.Type)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
+			t.Logf("Warning: cleanup delete holder failed: %v", err)
+		}
+	})
+
+	// Verify holder was created as NATURAL_PERSON
+	if createdHolder.Type != "NATURAL_PERSON" {
+		t.Errorf("holder type mismatch: got %q, want %q", createdHolder.Type, "NATURAL_PERSON")
+	}
+
+	t.Log("Natural person extended fields test completed successfully")
+}
+
+// TestIntegration_CRM_LegalPersonExtendedFields tests creating a legal person holder with extended fields.
+func TestIntegration_CRM_LegalPersonExtendedFields(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	companyName := fmt.Sprintf("Legal Person Extended %s LTDA", h.RandString(6))
+	companyCNPJ := h.GenerateValidCNPJ()
+
+	// Create payload with LegalPerson-specific fields
+	createPayload := map[string]any{
+		"type":     "LEGAL_PERSON",
+		"name":     companyName,
+		"document": companyCNPJ,
+		"legalPerson": map[string]any{
+			"tradeName":         fmt.Sprintf("Trade %s", h.RandString(4)),
+			"foundationDate":    "2015-01-20",
+			"registrationNumber": fmt.Sprintf("REG%s", h.RandString(8)),
+			"legalNature":       "LTDA",
+			"businessActivity":  "Technology Services",
+		},
+		"contact": map[string]any{
+			"email": fmt.Sprintf("company-%s@example.com", h.RandString(6)),
+			"phone": "+1-555-COMPANY",
+		},
+		"addresses": []map[string]any{
+			{
+				"type":       "headquarters",
+				"street":     "Corporate Blvd",
+				"number":     "1000",
+				"city":       "New York",
+				"state":      "NY",
+				"postalCode": "10001",
+				"country":    "USA",
+				"isDefault":  true,
+			},
+		},
+		"metadata": map[string]any{"environment": "test", "personType": "legal"},
+	}
+
+	code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE legal person with extended fields failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdHolder h.HolderResponse
+	if err := json.Unmarshal(body, &createdHolder); err != nil || createdHolder.ID == "" {
+		t.Fatalf("parse created holder: %v body=%s", err, string(body))
+	}
+
+	t.Logf("Created legal person with extended fields: ID=%s Name=%s Type=%s", createdHolder.ID, createdHolder.Name, createdHolder.Type)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteHolder(ctx, crm, headers, createdHolder.ID); err != nil {
+			t.Logf("Warning: cleanup delete holder failed: %v", err)
+		}
+	})
+
+	// Verify holder was created as LEGAL_PERSON
+	if createdHolder.Type != "LEGAL_PERSON" {
+		t.Errorf("holder type mismatch: got %q, want %q", createdHolder.Type, "LEGAL_PERSON")
+	}
+
+	t.Log("Legal person extended fields test completed successfully")
 }

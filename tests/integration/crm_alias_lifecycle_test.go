@@ -301,7 +301,118 @@ func TestIntegration_CRM_MultipleAliasesPerHolder(t *testing.T) {
 	t.Logf("Multiple aliases test passed: holder has %d aliases", len(aliasList.Items))
 
 	// Cleanup
-	_ = h.DeleteAlias(ctx, crm, headers, holderID, alias1ID)
-	_ = h.DeleteAlias(ctx, crm, headers, holderID, alias2ID)
-	_ = h.DeleteHolder(ctx, crm, headers, holderID)
+	if err := h.DeleteAlias(ctx, crm, headers, holderID, alias1ID); err != nil {
+		t.Logf("Warning: cleanup delete alias1 failed: %v", err)
+	}
+	if err := h.DeleteAlias(ctx, crm, headers, holderID, alias2ID); err != nil {
+		t.Logf("Warning: cleanup delete alias2 failed: %v", err)
+	}
+	if err := h.DeleteHolder(ctx, crm, headers, holderID); err != nil {
+		t.Logf("Warning: cleanup delete holder failed: %v", err)
+	}
+}
+
+// TestIntegration_CRM_AliasWithBankingDetails tests creating an alias with banking details.
+func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Organization -> Ledger -> Asset -> Account
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Banking Details Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+	t.Logf("Created organization: ID=%s", orgID)
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Banking Details Ledger %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup ledger failed: %v", err)
+	}
+	t.Logf("Created ledger: ID=%s", ledgerID)
+
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+		t.Fatalf("create USD asset failed: %v", err)
+	}
+	t.Log("Created USD asset")
+
+	accountAlias := fmt.Sprintf("banking-account-%s", h.RandString(6))
+	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, accountAlias, "USD")
+	if err != nil {
+		t.Fatalf("setup account failed: %v", err)
+	}
+	t.Logf("Created account: ID=%s Alias=%s", accountID, accountAlias)
+
+	// Create Holder
+	holderName := fmt.Sprintf("Banking Details Holder %s", h.RandString(6))
+	holderCPF := h.GenerateValidCPF()
+	holderID, err := h.SetupHolder(ctx, crm, headers, holderName, holderCPF, "NATURAL_PERSON")
+	if err != nil {
+		t.Fatalf("setup holder failed: %v", err)
+	}
+	t.Logf("Created holder: ID=%s Name=%s", holderID, holderName)
+
+	// Create alias with banking details
+	createPayload := map[string]any{
+		"ledgerId":  ledgerID,
+		"accountId": accountID,
+		"bankingDetails": map[string]any{
+			"bankCode":      "001",
+			"bankName":      "Test Bank",
+			"branchCode":    "1234",
+			"accountNumber": "12345678-9",
+			"accountType":   "checking",
+			"ispb":          "00000000",
+		},
+		"metadata": map[string]any{
+			"environment": "test",
+			"hasBanking":  true,
+		},
+	}
+
+	path := fmt.Sprintf("/v1/holders/%s/aliases", holderID)
+	code, body, err := crm.Request(ctx, "POST", path, headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE alias with banking details failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdAlias h.AliasResponse
+	if err := json.Unmarshal(body, &createdAlias); err != nil || createdAlias.ID == "" {
+		t.Fatalf("parse created alias: %v body=%s", err, string(body))
+	}
+
+	t.Logf("Created alias with banking details: ID=%s HolderID=%s AccountID=%s",
+		createdAlias.ID, createdAlias.HolderID, createdAlias.AccountID)
+
+	// Verify alias was created correctly
+	if createdAlias.HolderID != holderID {
+		t.Errorf("alias holder ID mismatch: got %q, want %q", createdAlias.HolderID, holderID)
+	}
+	if createdAlias.AccountID != accountID {
+		t.Errorf("alias account ID mismatch: got %q, want %q", createdAlias.AccountID, accountID)
+	}
+
+	// Fetch alias and verify it persists
+	fetchedAlias, err := h.GetAlias(ctx, crm, headers, holderID, createdAlias.ID)
+	if err != nil {
+		t.Fatalf("GET alias failed: %v", err)
+	}
+
+	if fetchedAlias.ID != createdAlias.ID {
+		t.Errorf("fetched alias ID mismatch: got %q, want %q", fetchedAlias.ID, createdAlias.ID)
+	}
+
+	// Cleanup
+	if err := h.DeleteAlias(ctx, crm, headers, holderID, createdAlias.ID); err != nil {
+		t.Logf("Warning: cleanup delete alias failed: %v", err)
+	}
+	if err := h.DeleteHolder(ctx, crm, headers, holderID); err != nil {
+		t.Logf("Warning: cleanup delete holder failed: %v", err)
+	}
+
+	t.Log("Alias with banking details test completed successfully")
 }
