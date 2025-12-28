@@ -345,6 +345,145 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAcc
 	assert.Empty(t, balances, "should return empty slice")
 }
 
+func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create a balance (created today)
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@date-account-test"
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	ctx := context.Background()
+
+	// Act 1: Query with past-only window (should return 0 items)
+	pastFilter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(0, 0, -10),
+		EndDate:   time.Now().AddDate(0, 0, -9),
+	}
+	balancesPast, _, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, pastFilter)
+	require.NoError(t, err)
+	assert.Empty(t, balancesPast, "past-only window should return 0 items")
+
+	// Act 2: Query with today's window (should return 1 item)
+	todayFilter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(0, 0, -1),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	balancesToday, _, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, todayFilter)
+	require.NoError(t, err)
+	assert.Len(t, balancesToday, 1, "today's window should return 1 item")
+}
+
+func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create 7 balances with different keys for the same account
+	for i := 0; i < 7; i++ {
+		params := pgtestutil.DefaultBalanceParams()
+		params.Alias = "@pagination-account"
+		params.Key = "key-" + string(rune('a'+i))
+		params.Available = decimal.NewFromInt(int64(i * 100))
+		pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+	}
+
+	ctx := context.Background()
+
+	// Page 1: limit=3
+	page1Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page1, cur1, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, page1Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page1, 3, "page 1 should have 3 items")
+	assert.NotEmpty(t, cur1.Next, "page 1 should have next cursor")
+
+	// Page 2: using next cursor
+	page2Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		Cursor:    cur1.Next,
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page2, cur2, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, page2Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page2, 3, "page 2 should have 3 items")
+	assert.NotEmpty(t, cur2.Prev, "page 2 should have prev cursor")
+
+	// Page 3: last page with 1 item
+	page3Filter := http.Pagination{
+		Limit:     3,
+		SortOrder: "DESC",
+		Cursor:    cur2.Next,
+		StartDate: time.Now().AddDate(-1, 0, 0),
+		EndDate:   time.Now().AddDate(0, 0, 1),
+	}
+	page3, cur3, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, page3Filter)
+
+	require.NoError(t, err)
+	assert.Len(t, page3, 1, "page 3 should have 1 item")
+	assert.Empty(t, cur3.Next, "page 3 should not have next cursor")
+	assert.NotEmpty(t, cur3.Prev, "page 3 should have prev cursor")
+}
+
+func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecision(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+	balanceID := libCommons.GenerateUUIDv7()
+
+	// Insert balance with very large precision values
+	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
+	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, "@large-precision-account", "default", "USD",
+		largeAvail, largeHold, 1, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	balances, _, err := repo.ListAllByAccountID(ctx, orgID, ledgerID, accountID, defaultPagination())
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, balances, 1)
+	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
+}
+
 // ============================================================================
 // Delete Tests
 // ============================================================================
