@@ -4,6 +4,7 @@ package balance
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -458,19 +459,9 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecisio
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := createTestAccountID()
-	balanceID := libCommons.GenerateUUIDv7()
 
-	// Insert balance with very large precision values
-	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
-	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
-	now := time.Now().Truncate(time.Microsecond)
-
-	_, err := container.DB.Exec(`
-		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`, balanceID, orgID, ledgerID, accountID, "@large-precision-account", "default", "USD",
-		largeAvail, largeHold, 1, "deposit", true, true, now, now)
-	require.NoError(t, err)
+	// Use shared helper to create balance with large precision values
+	testData := createLargePrecisionBalance(t, container, orgID, ledgerID, accountID, "@large-precision-account")
 
 	ctx := context.Background()
 
@@ -480,8 +471,8 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecisio
 	// Assert
 	require.NoError(t, err)
 	require.Len(t, balances, 1)
-	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
-	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
+	assert.True(t, balances[0].Available.Equal(testData.LargeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(testData.LargeHold), "on_hold should preserve large precision")
 }
 
 // ============================================================================
@@ -647,19 +638,9 @@ func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := createTestAccountID()
-	balanceID := libCommons.GenerateUUIDv7()
 
-	// Insert balance with very large precision values
-	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
-	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
-	now := time.Now().Truncate(time.Microsecond)
-
-	_, err := container.DB.Exec(`
-		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`, balanceID, orgID, ledgerID, accountID, "@large-precision-alias", "default", "USD",
-		largeAvail, largeHold, 1, "deposit", true, true, now, now)
-	require.NoError(t, err)
+	// Use shared helper to create balance with large precision values
+	testData := createLargePrecisionBalance(t, container, orgID, ledgerID, accountID, "@large-precision-alias")
 
 	ctx := context.Background()
 
@@ -669,8 +650,8 @@ func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *
 	// Assert
 	require.NoError(t, err)
 	require.Len(t, balances, 1)
-	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
-	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
+	assert.True(t, balances[0].Available.Equal(testData.LargeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(testData.LargeHold), "on_hold should preserve large precision")
 }
 
 func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t *testing.T) {
@@ -1008,19 +989,9 @@ func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testin
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := createTestAccountID()
-	balanceID := libCommons.GenerateUUIDv7()
 
-	// Insert balance with very large precision values
-	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
-	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
-	now := time.Now().Truncate(time.Microsecond)
-
-	_, err := container.DB.Exec(`
-		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`, balanceID, orgID, ledgerID, accountID, "@large-precision", "default", "USD",
-		largeAvail, largeHold, 1, "deposit", true, true, now, now)
-	require.NoError(t, err)
+	// Use shared helper to create balance with large precision values
+	testData := createLargePrecisionBalance(t, container, orgID, ledgerID, accountID, "@large-precision")
 
 	ctx := context.Background()
 
@@ -1030,8 +1001,8 @@ func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testin
 	// Assert
 	require.NoError(t, err)
 	require.Len(t, balances, 1)
-	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
-	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
+	assert.True(t, balances[0].Available.Equal(testData.LargeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(testData.LargeHold), "on_hold should preserve large precision")
 }
 
 // ============================================================================
@@ -1044,5 +1015,313 @@ func defaultPagination() http.Pagination {
 		SortOrder: "DESC",
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
 		EndDate:   time.Now().AddDate(0, 0, 1),  // 1 day ahead
+	}
+}
+
+// largePrecisionTestData holds the expected values for large precision tests.
+type largePrecisionTestData struct {
+	BalanceID  uuid.UUID
+	LargeAvail decimal.Decimal
+	LargeHold  decimal.Decimal
+}
+
+// createLargePrecisionBalance inserts a balance with very large precision values
+// for testing decimal precision preservation across different query methods.
+func createLargePrecisionBalance(t *testing.T, container *pgtestutil.ContainerResult, orgID, ledgerID, accountID uuid.UUID, alias string) largePrecisionTestData {
+	t.Helper()
+
+	balanceID := libCommons.GenerateUUIDv7()
+	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
+	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, alias, "default", "USD",
+		largeAvail, largeHold, 1, "deposit", true, true, now, now)
+	require.NoError(t, err, "failed to insert large precision balance")
+
+	return largePrecisionTestData{
+		BalanceID:  balanceID,
+		LargeAvail: largeAvail,
+		LargeHold:  largeHold,
+	}
+}
+
+// ============================================================================
+// Optimistic Locking Tests - Core Concurrency Mechanism
+// ============================================================================
+
+func TestIntegration_BalancesUpdate_OptimisticLock_HighestVersionWins(t *testing.T) {
+	// This test verifies that when multiple goroutines try to update the same
+	// balance with different versions, the highest version wins.
+	// Each goroutine sets Available = version * 100, so we can verify
+	// which version actually got persisted by checking the final Available value.
+
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create balance with version 5 directly
+	balanceID := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, "@highest-version-test", "default", "USD",
+		decimal.NewFromInt(1000), decimal.Zero, 5, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Launch 10 goroutines with different versions (6-15)
+	// Each sets Available = version * 100 to identify the winner
+	const goroutines = 10
+	const baseVersion = 6
+	var wg sync.WaitGroup
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			version := int64(baseVersion + idx) // versions 6, 7, 8, ..., 15
+
+			balance := &mmodel.Balance{
+				ID:        balanceID.String(),
+				Available: decimal.NewFromInt(version * 100), // 600, 700, 800, ..., 1500
+				OnHold:    decimal.Zero,
+				Version:   version,
+			}
+
+			_ = repo.BalancesUpdate(ctx, orgID, ledgerID, []*mmodel.Balance{balance})
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify final state - highest version (15) should have won
+	found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+
+	const highestVersion = baseVersion + goroutines - 1           // 15
+	expectedAvailable := decimal.NewFromInt(highestVersion * 100) // 1500
+
+	assert.Equal(t, int64(highestVersion), found.Version,
+		"highest version (%d) should win", highestVersion)
+	assert.True(t, found.Available.Equal(expectedAvailable),
+		"available should be %s (from version %d), got %s",
+		expectedAvailable.String(), highestVersion, found.Available.String())
+
+	t.Logf("Highest version wins: %d goroutines competed with versions %d-%d, winner: version=%d, Available=%s",
+		goroutines, baseVersion, highestVersion, found.Version, found.Available.String())
+}
+
+func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing.T) {
+	// This test verifies that parallel updates to DIFFERENT balances
+	// do not interfere with each other.
+
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Create 10 different balances
+	const numBalances = 10
+	balanceIDs := make([]uuid.UUID, numBalances)
+	accountIDs := make([]uuid.UUID, numBalances)
+
+	for i := 0; i < numBalances; i++ {
+		accountIDs[i] = createTestAccountID()
+		params := pgtestutil.BalanceParams{
+			Alias:          "@parallel-" + string(rune('a'+i)),
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(1000),
+			OnHold:         decimal.Zero,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+		balanceIDs[i] = pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountIDs[i], params)
+	}
+
+	// Update all balances in parallel
+	var wg sync.WaitGroup
+	errors := make([]error, numBalances)
+
+	for i := 0; i < numBalances; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			balance := &mmodel.Balance{
+				ID:        balanceIDs[idx].String(),
+				Available: decimal.NewFromInt(int64(2000 + idx*100)),
+				OnHold:    decimal.NewFromInt(int64(idx * 10)),
+				Version:   1,
+			}
+
+			errors[idx] = repo.BalancesUpdate(ctx, orgID, ledgerID, []*mmodel.Balance{balance})
+		}(i)
+	}
+
+	wg.Wait()
+
+	// All updates should succeed
+	for i, err := range errors {
+		assert.NoError(t, err, "update %d should succeed", i)
+	}
+
+	// Verify all balances were updated correctly
+	for i := 0; i < numBalances; i++ {
+		found, err := repo.Find(ctx, orgID, ledgerID, balanceIDs[i])
+		require.NoError(t, err)
+		expectedAvailable := decimal.NewFromInt(int64(2000 + i*100))
+		expectedOnHold := decimal.NewFromInt(int64(i * 10))
+		assert.True(t, found.Available.Equal(expectedAvailable), "balance %d available should match", i)
+		assert.True(t, found.OnHold.Equal(expectedOnHold), "balance %d on_hold should match", i)
+		assert.Equal(t, int64(1), found.Version, "balance %d version should be 1", i)
+	}
+}
+
+func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
+	// This test verifies that sequential updates with incrementing versions work correctly.
+
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	params := pgtestutil.BalanceParams{
+		Alias:          "@sequential-test",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(1000),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	ctx := context.Background()
+
+	// Perform 5 sequential updates with incrementing versions
+	for v := int64(1); v <= 5; v++ {
+		balance := &mmodel.Balance{
+			ID:        balanceID.String(),
+			Available: decimal.NewFromInt(1000 - v*100),
+			OnHold:    decimal.NewFromInt(v * 10),
+			Version:   v,
+		}
+
+		err := repo.BalancesUpdate(ctx, orgID, ledgerID, []*mmodel.Balance{balance})
+		require.NoError(t, err, "update with version %d should succeed", v)
+
+		// Verify after each update
+		found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+		require.NoError(t, err)
+		assert.Equal(t, v, found.Version, "version should be %d", v)
+	}
+
+	// Final state
+	found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+	assert.True(t, found.Available.Equal(decimal.NewFromInt(500)), "final available should be 500")
+	assert.True(t, found.OnHold.Equal(decimal.NewFromInt(50)), "final on_hold should be 50")
+	assert.Equal(t, int64(5), found.Version, "final version should be 5")
+}
+
+// ============================================================================
+// BalancesUpdate Edge Cases
+// ============================================================================
+
+func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
+	// Verify that updating with an empty slice doesn't cause errors
+
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	err := repo.BalancesUpdate(ctx, orgID, ledgerID, []*mmodel.Balance{})
+	assert.NoError(t, err, "empty slice should not cause error")
+}
+
+func TestIntegration_BalancesUpdate_BatchUpdate_AllSucceed(t *testing.T) {
+	// Test batch update of multiple balances in a single call
+
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Create 5 balances
+	const numBalances = 5
+	balanceIDs := make([]uuid.UUID, numBalances)
+
+	for i := 0; i < numBalances; i++ {
+		accountID := createTestAccountID()
+		params := pgtestutil.BalanceParams{
+			Alias:          "@batch-" + string(rune('a'+i)),
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(1000),
+			OnHold:         decimal.Zero,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+		balanceIDs[i] = pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+	}
+
+	// Update all in a single batch
+	balancesToUpdate := make([]*mmodel.Balance, numBalances)
+	for i := 0; i < numBalances; i++ {
+		balancesToUpdate[i] = &mmodel.Balance{
+			ID:        balanceIDs[i].String(),
+			Available: decimal.NewFromInt(int64(500 + i*100)),
+			OnHold:    decimal.NewFromInt(int64(i * 10)),
+			Version:   1,
+		}
+	}
+
+	err := repo.BalancesUpdate(ctx, orgID, ledgerID, balancesToUpdate)
+	require.NoError(t, err, "batch update should succeed")
+
+	// Verify all were updated
+	for i := 0; i < numBalances; i++ {
+		found, err := repo.Find(ctx, orgID, ledgerID, balanceIDs[i])
+		require.NoError(t, err)
+		expectedAvailable := decimal.NewFromInt(int64(500 + i*100))
+		assert.True(t, found.Available.Equal(expectedAvailable), "balance %d should be updated", i)
+		assert.Equal(t, int64(1), found.Version, "balance %d version should be 1", i)
 	}
 }

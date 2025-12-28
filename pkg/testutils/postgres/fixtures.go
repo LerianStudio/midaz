@@ -178,7 +178,7 @@ func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`, id, orgID, ledgerID, accountID, params.Alias, params.Key, params.AssetCode,
-		params.Available, params.OnHold, 1, params.AccountType,
+		params.Available, params.OnHold, 0, params.AccountType, // version=0 matches schema default
 		params.AllowSending, params.AllowReceiving, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to insert test balance")
 
