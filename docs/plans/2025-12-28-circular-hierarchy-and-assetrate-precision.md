@@ -13,6 +13,8 @@ This plan was revised based on code review feedback addressing:
 - Correct understanding of scaled-integer semantic model
 - JSON/API backward compatibility
 
+**Update 2025-12-28:** Corrected error codes (0133→0134, 0134→0135) and migration number (000009→000018) to reflect current codebase state.
+
 ## Architecture Overview
 
 ```
@@ -53,21 +55,21 @@ Issue 2: AssetRate Precision (Decimal Model)
 
 **Description:** Add new error codes for circular hierarchy and depth limit.
 
-**Find this line (around line 142):**
+**Find this line (around line 143):**
 ```go
-	ErrPersistAsyncTransaction                  = errors.New("0132")
+	ErrInvalidCodeLength                        = errors.New("0133")
 ```
 
 **Add after it:**
 ```go
-	ErrCircularAccountHierarchy                 = errors.New("0133")
-	ErrAccountHierarchyTooDeep                  = errors.New("0134")
+	ErrCircularAccountHierarchy                 = errors.New("0134")
+	ErrAccountHierarchyTooDeep                  = errors.New("0135")
 ```
 
 **Verification:**
 ```bash
 grep -n "ErrCircularAccountHierarchy\|ErrAccountHierarchyTooDeep" pkg/constant/errors.go
-# Expected: Two lines with error codes 0133 and 0134
+# Expected: Two lines with error codes 0134 and 0135
 ```
 
 ---
@@ -477,7 +479,7 @@ grep -n "decimal.Decimal.*json" pkg/mmodel/assetrate.go
 ---
 
 ### Task 2.2: Create Database Migration for AssetRate
-**File:** `components/transaction/migrations/000009_alter_asset_rate_to_decimal.up.sql` (new file)
+**File:** `components/transaction/migrations/000018_alter_asset_rate_to_decimal.up.sql` (new file)
 **Estimated Time:** 5 minutes
 **Recommended Agent:** `devops-engineer`
 
@@ -497,7 +499,7 @@ COMMENT ON COLUMN asset_rate.rate IS 'Direct decimal rate value (e.g., 5.25). Pr
 ```
 
 **Create down migration:**
-**File:** `components/transaction/migrations/000009_alter_asset_rate_to_decimal.down.sql`
+**File:** `components/transaction/migrations/000018_alter_asset_rate_to_decimal.down.sql`
 ```sql
 -- Rollback: Change asset_rate.rate from NUMERIC back to BIGINT
 -- WARNING: This will truncate decimal values to integers
@@ -508,7 +510,7 @@ ALTER TABLE asset_rate
 
 **Verification:**
 ```bash
-ls -la components/transaction/migrations/000009_alter_asset_rate_to_decimal.*
+ls -la components/transaction/migrations/000018_alter_asset_rate_to_decimal.*
 # Expected: Both .up.sql and .down.sql files exist
 ```
 
@@ -990,7 +992,7 @@ The current implementation provides reasonable protection for normal usage. The 
 ### If circular hierarchy test fails:
 1. Check `MaxAccountHierarchyDepth` constant value
 2. Verify `pkg.EntityNotFoundError` is used with `errors.As()` pattern
-3. Ensure error code 0133/0134 are properly mapped
+3. Ensure error code 0134/0135 are properly mapped
 
 ### If AssetRate test fails:
 1. Verify `Rate decimal.Decimal` type in both model and DB model
