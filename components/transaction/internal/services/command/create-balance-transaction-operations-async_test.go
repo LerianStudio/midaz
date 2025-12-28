@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -14,8 +15,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
@@ -51,6 +54,24 @@ func (m *MockLogger) Sync() error                                              {
 func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
 func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
 
+// mockDBProvider implements dbtx.TxBeginner for testing
+type mockDBProvider struct {
+	db *sql.DB
+}
+
+func (m *mockDBProvider) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbtx.Tx, error) {
+	tx, err := m.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &mockTxAdapter{tx}, nil
+}
+
+// mockTxAdapter wraps *sql.Tx to implement dbtx.Tx
+type mockTxAdapter struct {
+	*sql.Tx
+}
+
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -63,6 +84,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -71,6 +104,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -203,9 +237,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err)
+		assert.NoError(t, callErr)
 	})
 
 	t.Run("error_update_balances", func(t *testing.T) {
@@ -219,6 +253,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider with rollback expectation
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectRollback() // Expect rollback due to balance update failure
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with mock repositories
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -227,6 +273,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -316,14 +363,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		assert.Error(t, callErr)
 		var internalErr pkg.InternalServerError
-		if errors.As(err, &internalErr) {
+		if errors.As(callErr, &internalErr) {
 			assert.Contains(t, internalErr.Err.Error(), "failed to update balances")
 		} else {
-			assert.Contains(t, err.Error(), "failed to update balances")
+			assert.Contains(t, callErr.Error(), "failed to update balances")
 		}
 	})
 
@@ -338,6 +385,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -346,6 +405,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -451,9 +511,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.NoError(t, callErr) // Duplicate key errors are handled gracefully
 	})
 
 	t.Run("success_with_multiple_operations", func(t *testing.T) {
@@ -467,6 +527,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -475,6 +547,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -673,9 +746,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err)
+		assert.NoError(t, callErr)
 	})
 
 	t.Run("error_creating_operation", func(t *testing.T) {
@@ -689,6 +762,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider - expect rollback due to operation creation failure
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectRollback() // Expect rollback when operation creation fails
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -697,6 +782,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -837,14 +923,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		assert.Error(t, callErr)
 		var internalErr pkg.InternalServerError
 		if errors.As(err, &internalErr) {
 			assert.Contains(t, internalErr.Err.Error(), "failed to create operation")
 		} else {
-			assert.Contains(t, err.Error(), "failed to create operation")
+			assert.Contains(t, callErr.Error(), "failed to create operation")
 		}
 	})
 
@@ -859,6 +945,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -867,6 +965,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -1031,9 +1130,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.NoError(t, callErr) // Duplicate key errors are handled gracefully
 	})
 
 	t.Run("error_creating_operation_metadata", func(t *testing.T) {
@@ -1047,6 +1146,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+		// Create mock DB and DBProvider
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create sqlmock: %v", err)
+		}
+		defer db.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		dbProvider := &mockDBProvider{db: db}
+
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -1055,6 +1166,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			DBProvider:      dbProvider,
 		}
 
 		ctx := context.Background()
@@ -1171,6 +1283,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
+		// With the atomicity fix, metadata failures no longer cause transaction rollback
 		metadataError := errors.New("failed to create operation metadata")
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1178,15 +1291,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
-		var internalErr pkg.InternalServerError
-		if errors.As(err, &internalErr) {
-			assert.Contains(t, internalErr.Err.Error(), "failed to create operation metadata")
-		} else {
-			assert.Contains(t, err.Error(), "failed to create operation metadata")
-		}
+		// After atomicity fix: metadata failures are logged but don't fail the operation
+		// The core transaction (PostgreSQL) was already committed successfully
+		assert.NoError(t, callErr, "metadata failure should not cause transaction to fail")
 	})
 }
 
@@ -1223,13 +1332,13 @@ func TestCreateMetadataAsync(t *testing.T) {
 			Return(errors.New("failed to create metadata")).
 			Times(1)
 
-		err := uc.CreateMetadataAsync(ctx, logger, metadata, ID, collection)
-		assert.Error(t, err)
+		callErr := uc.CreateMetadataAsync(ctx, logger, metadata, ID, collection)
+		assert.Error(t, callErr)
 		var internalErr pkg.InternalServerError
-		if errors.As(err, &internalErr) {
+		if errors.As(callErr, &internalErr) {
 			assert.Contains(t, internalErr.Err.Error(), "failed to create metadata")
 		} else {
-			assert.Contains(t, err.Error(), "failed to create metadata")
+			assert.Contains(t, callErr.Error(), "failed to create metadata")
 		}
 	})
 }
