@@ -37,59 +37,92 @@ Proceeding with standard planning approach.
 ### Task 1.1: Create metadata_outbox table migration (UP)
 
 **Files:**
-- Create: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.up.sql`
+- Create: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.up.sql`
 
 **Prerequisites:**
 - Existing migrations in `components/transaction/migrations/`
-- Latest migration is `000017_fix_balance_affected.up.sql`
+- Latest migration is `000018_alter_asset_rate_to_decimal.up.sql`
 
 **Step 1: Create the UP migration file**
 
-Create file at `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.up.sql`:
+Create file at `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.up.sql`:
 
 ```sql
 -- Metadata Outbox table for reliable MongoDB metadata creation
 -- Entries are created atomically with PostgreSQL transactions and processed asynchronously
+--
+-- Status transitions:
+--   PENDING -> PROCESSING (worker claims entry)
+--   PROCESSING -> PUBLISHED (success)
+--   PROCESSING -> FAILED (error, will retry if retry_count < max_retries)
+--   FAILED -> PROCESSING (retry attempt)
+--   FAILED -> DLQ (max retries exceeded, requires manual intervention)
 CREATE TABLE IF NOT EXISTS metadata_outbox (
-    id                  UUID PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
-    entity_id           TEXT NOT NULL,                    -- ID of the entity (transaction/operation)
-    entity_type         TEXT NOT NULL,                    -- Type: 'Transaction' or 'Operation'
-    metadata            JSONB NOT NULL,                   -- The metadata to create in MongoDB
-    status              TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING, PROCESSING, PUBLISHED, FAILED
-    retry_count         INTEGER NOT NULL DEFAULT 0,       -- Number of retry attempts
-    max_retries         INTEGER NOT NULL DEFAULT 10,      -- Maximum retry attempts before DLQ
-    next_retry_at       TIMESTAMP WITH TIME ZONE,         -- When to retry next (for backoff)
-    last_error          TEXT,                             -- Last error message
-    created_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-    processed_at        TIMESTAMP WITH TIME ZONE          -- When successfully processed
+    id                    UUID PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+    entity_id             TEXT NOT NULL,                    -- ID of the entity (transaction/operation)
+    entity_type           TEXT NOT NULL CHECK (entity_type IN ('Transaction', 'Operation')), -- Validated entity types
+    metadata              JSONB NOT NULL,                   -- The metadata to create in MongoDB
+    status                TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'DLQ')),
+    retry_count           INTEGER NOT NULL DEFAULT 0,       -- Number of retry attempts
+    max_retries           INTEGER NOT NULL DEFAULT 10,      -- Maximum retry attempts before DLQ
+    next_retry_at         TIMESTAMP WITH TIME ZONE,         -- When to retry next (for backoff)
+    processing_started_at TIMESTAMP WITH TIME ZONE,         -- When processing began (for stale detection)
+    last_error            TEXT,                             -- Last error message (sanitized, no PII)
+    created_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    processed_at          TIMESTAMP WITH TIME ZONE,         -- When successfully processed
+    -- Limit metadata size to 64KB to prevent DoS via large payloads
+    CONSTRAINT chk_metadata_size CHECK (pg_column_size(metadata) <= 65536)
 );
 
--- Index for polling pending entries efficiently
-CREATE INDEX idx_metadata_outbox_pending ON metadata_outbox (status, next_retry_at)
-    WHERE status IN ('PENDING', 'FAILED') AND (next_retry_at IS NULL OR next_retry_at <= now());
+-- Index for polling pending entries efficiently (fixed: removed now() from predicate)
+-- Includes PROCESSING entries older than threshold for stale recovery
+CREATE INDEX idx_metadata_outbox_pending ON metadata_outbox (status, next_retry_at NULLS FIRST, created_at)
+    WHERE status IN ('PENDING', 'FAILED');
 
--- Index for finding entries by entity
+-- Separate index for stale PROCESSING detection
+CREATE INDEX idx_metadata_outbox_stale_processing ON metadata_outbox (processing_started_at)
+    WHERE status = 'PROCESSING';
+
+-- Unique constraint to prevent duplicate pending entries for same entity
+-- NOTE: Excludes FAILED status intentionally - if a transaction is replayed from queue while
+-- a FAILED entry exists, we allow a new PENDING entry. The new entry takes precedence and
+-- the old FAILED entry will be cleaned up after retention period. This is expected behavior.
+CREATE UNIQUE INDEX idx_metadata_outbox_entity_pending
+    ON metadata_outbox (entity_id, entity_type)
+    WHERE status IN ('PENDING', 'PROCESSING');
+
+-- Index for finding entries by entity (for idempotency checks)
 CREATE INDEX idx_metadata_outbox_entity ON metadata_outbox (entity_id, entity_type);
 
 -- Index for cleanup of old processed entries
 CREATE INDEX idx_metadata_outbox_processed ON metadata_outbox (processed_at)
     WHERE status = 'PUBLISHED';
 
+-- Index for DLQ cleanup
+CREATE INDEX idx_metadata_outbox_dlq ON metadata_outbox (updated_at)
+    WHERE status = 'DLQ';
+
+-- Access control: restrict to transaction service role only
+REVOKE ALL ON metadata_outbox FROM PUBLIC;
+-- Note: GRANT should be added in deployment scripts for specific role
+
 COMMENT ON TABLE metadata_outbox IS 'Outbox pattern table for reliable MongoDB metadata creation';
-COMMENT ON COLUMN metadata_outbox.status IS 'PENDING=new, PROCESSING=being processed, PUBLISHED=done, FAILED=exceeded retries';
+COMMENT ON COLUMN metadata_outbox.status IS 'PENDING=new, PROCESSING=claimed by worker, PUBLISHED=success, FAILED=retriable error, DLQ=permanent failure';
+COMMENT ON COLUMN metadata_outbox.processing_started_at IS 'Set when worker claims entry; used to detect stale PROCESSING entries from crashed workers';
+COMMENT ON COLUMN metadata_outbox.last_error IS 'Sanitized error message - must NOT contain PII or sensitive data';
 ```
 
 **Step 2: Verify file exists and syntax is valid**
 
-Run: `cat /Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.up.sql | head -20`
+Run: `cat /Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.up.sql | head -20`
 
 **Expected output:**
 ```
 -- Metadata Outbox table for reliable MongoDB metadata creation
 -- Entries are created atomically with PostgreSQL transactions and processed asynchronously
-CREATE TABLE IF NOT EXISTS metadata_outbox (
-    id                  UUID PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+--
+-- Status transitions:
 ```
 
 ---
@@ -97,14 +130,14 @@ CREATE TABLE IF NOT EXISTS metadata_outbox (
 ### Task 1.2: Create metadata_outbox table migration (DOWN)
 
 **Files:**
-- Create: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.down.sql`
+- Create: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.down.sql`
 
 **Prerequisites:**
 - Task 1.1 completed
 
 **Step 1: Create the DOWN migration file**
 
-Create file at `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.down.sql`:
+Create file at `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.down.sql`:
 
 ```sql
 DROP TABLE IF EXISTS metadata_outbox;
@@ -112,7 +145,7 @@ DROP TABLE IF EXISTS metadata_outbox;
 
 **Step 2: Verify file exists**
 
-Run: `cat /Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000018_create_metadata_outbox_table.down.sql`
+Run: `cat /Users/fredamaral/repos/lerianstudio/midaz/components/transaction/migrations/000019_create_metadata_outbox_table.down.sql`
 
 **Expected output:**
 ```
@@ -122,7 +155,7 @@ DROP TABLE IF EXISTS metadata_outbox;
 **Step 3: Commit Phase 1**
 
 ```bash
-git add components/transaction/migrations/000018_create_metadata_outbox_table.up.sql components/transaction/migrations/000018_create_metadata_outbox_table.down.sql
+git add components/transaction/migrations/000019_create_metadata_outbox_table.up.sql components/transaction/migrations/000019_create_metadata_outbox_table.down.sql
 git commit -m "$(cat <<'EOF'
 feat(transaction): add metadata_outbox table for reliable metadata creation
 
@@ -178,12 +211,21 @@ package outbox
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 // OutboxStatus represents the processing status of an outbox entry.
+//
+// Status transitions:
+//   PENDING -> PROCESSING (worker claims entry)
+//   PROCESSING -> PUBLISHED (success)
+//   PROCESSING -> FAILED (error, will retry if retry_count < max_retries)
+//   FAILED -> PROCESSING (retry attempt)
+//   FAILED -> DLQ (max retries exceeded, requires manual intervention)
 type OutboxStatus string
 
 const (
@@ -193,40 +235,75 @@ const (
 	StatusProcessing OutboxStatus = "PROCESSING"
 	// StatusPublished indicates the entry was successfully processed.
 	StatusPublished OutboxStatus = "PUBLISHED"
-	// StatusFailed indicates the entry exceeded max retries.
+	// StatusFailed indicates the entry failed but can be retried.
 	StatusFailed OutboxStatus = "FAILED"
+	// StatusDLQ indicates the entry permanently failed after max retries (Dead Letter Queue).
+	StatusDLQ OutboxStatus = "DLQ"
 )
+
+// Entity type constants - use these instead of reflection for type safety.
+const (
+	EntityTypeTransaction = "Transaction"
+	EntityTypeOperation   = "Operation"
+)
+
+// Validation constants
+const (
+	// MaxMetadataSize is the maximum allowed size for metadata in bytes (64KB).
+	MaxMetadataSize = 64 * 1024
+	// MaxEntityIDLength is the maximum allowed length for entity IDs (UUID is 36 chars).
+	MaxEntityIDLength = 255
+	// DefaultMaxRetries is the default number of retry attempts before DLQ.
+	DefaultMaxRetries = 10
+)
+
+// Errors for validation
+var (
+	ErrInvalidEntityType  = errors.New("invalid entity type: must be 'Transaction' or 'Operation'")
+	ErrMetadataTooLarge   = errors.New("metadata exceeds maximum size limit")
+	ErrMetadataNil        = errors.New("metadata cannot be nil")
+	ErrEntityIDEmpty      = errors.New("entity ID cannot be empty")
+	ErrEntityIDTooLong    = errors.New("entity ID exceeds maximum length")
+)
+
+// allowedEntityTypes defines valid entity types for validation.
+var allowedEntityTypes = map[string]bool{
+	EntityTypeTransaction: true,
+	EntityTypeOperation:   true,
+}
 
 // MetadataOutbox represents a pending metadata creation request.
 type MetadataOutbox struct {
-	ID          uuid.UUID         `json:"id"`
-	EntityID    string            `json:"entity_id"`
-	EntityType  string            `json:"entity_type"`
-	Metadata    map[string]any    `json:"metadata"`
-	Status      OutboxStatus      `json:"status"`
-	RetryCount  int               `json:"retry_count"`
-	MaxRetries  int               `json:"max_retries"`
-	NextRetryAt *time.Time        `json:"next_retry_at,omitempty"`
-	LastError   *string           `json:"last_error,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	ProcessedAt *time.Time        `json:"processed_at,omitempty"`
+	ID                  uuid.UUID         `json:"id"`
+	EntityID            string            `json:"entity_id"`
+	EntityType          string            `json:"entity_type"`
+	Metadata            map[string]any    `json:"metadata"`
+	Status              OutboxStatus      `json:"status"`
+	RetryCount          int               `json:"retry_count"`
+	MaxRetries          int               `json:"max_retries"`
+	NextRetryAt         *time.Time        `json:"next_retry_at,omitempty"`
+	ProcessingStartedAt *time.Time        `json:"processing_started_at,omitempty"`
+	LastError           *string           `json:"last_error,omitempty"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
+	ProcessedAt         *time.Time        `json:"processed_at,omitempty"`
 }
 
 // MetadataOutboxPostgreSQLModel is the database representation.
 type MetadataOutboxPostgreSQLModel struct {
-	ID          string         `db:"id"`
-	EntityID    string         `db:"entity_id"`
-	EntityType  string         `db:"entity_type"`
-	Metadata    []byte         `db:"metadata"`
-	Status      string         `db:"status"`
-	RetryCount  int            `db:"retry_count"`
-	MaxRetries  int            `db:"max_retries"`
-	NextRetryAt sql.NullTime   `db:"next_retry_at"`
-	LastError   sql.NullString `db:"last_error"`
-	CreatedAt   time.Time      `db:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at"`
-	ProcessedAt sql.NullTime   `db:"processed_at"`
+	ID                  string         `db:"id"`
+	EntityID            string         `db:"entity_id"`
+	EntityType          string         `db:"entity_type"`
+	Metadata            []byte         `db:"metadata"`
+	Status              string         `db:"status"`
+	RetryCount          int            `db:"retry_count"`
+	MaxRetries          int            `db:"max_retries"`
+	NextRetryAt         sql.NullTime   `db:"next_retry_at"`
+	ProcessingStartedAt sql.NullTime   `db:"processing_started_at"`
+	LastError           sql.NullString `db:"last_error"`
+	CreatedAt           time.Time      `db:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at"`
+	ProcessedAt         sql.NullTime   `db:"processed_at"`
 }
 
 // FromEntity converts a domain entity to the database model.
@@ -248,6 +325,10 @@ func (m *MetadataOutboxPostgreSQLModel) FromEntity(e *MetadataOutbox) error {
 
 	if e.NextRetryAt != nil {
 		m.NextRetryAt = sql.NullTime{Time: *e.NextRetryAt, Valid: true}
+	}
+
+	if e.ProcessingStartedAt != nil {
+		m.ProcessingStartedAt = sql.NullTime{Time: *e.ProcessingStartedAt, Valid: true}
 	}
 
 	if e.LastError != nil {
@@ -289,6 +370,10 @@ func (m *MetadataOutboxPostgreSQLModel) ToEntity() (*MetadataOutbox, error) {
 		e.NextRetryAt = &m.NextRetryAt.Time
 	}
 
+	if m.ProcessingStartedAt.Valid {
+		e.ProcessingStartedAt = &m.ProcessingStartedAt.Time
+	}
+
 	if m.LastError.Valid {
 		e.LastError = &m.LastError.String
 	}
@@ -301,7 +386,37 @@ func (m *MetadataOutboxPostgreSQLModel) ToEntity() (*MetadataOutbox, error) {
 }
 
 // NewMetadataOutbox creates a new outbox entry for metadata creation.
-func NewMetadataOutbox(entityID, entityType string, metadata map[string]any) *MetadataOutbox {
+// Returns error if validation fails (invalid entity type, entity ID, or metadata too large).
+func NewMetadataOutbox(entityID, entityType string, metadata map[string]any) (*MetadataOutbox, error) {
+	// Validate entityID is not empty
+	if entityID == "" {
+		return nil, ErrEntityIDEmpty
+	}
+
+	// Validate entityID length to prevent resource exhaustion
+	if len(entityID) > MaxEntityIDLength {
+		return nil, fmt.Errorf("%w: length %d exceeds max %d", ErrEntityIDTooLong, len(entityID), MaxEntityIDLength)
+	}
+
+	// Validate entity type
+	if !allowedEntityTypes[entityType] {
+		return nil, fmt.Errorf("%w: got '%s'", ErrInvalidEntityType, entityType)
+	}
+
+	// Validate metadata is not nil
+	if metadata == nil {
+		return nil, ErrMetadataNil
+	}
+
+	// Validate metadata size
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	if len(metadataJSON) > MaxMetadataSize {
+		return nil, fmt.Errorf("%w: size %d exceeds max %d bytes", ErrMetadataTooLarge, len(metadataJSON), MaxMetadataSize)
+	}
+
 	return &MetadataOutbox{
 		ID:         uuid.New(),
 		EntityID:   entityID,
@@ -309,10 +424,10 @@ func NewMetadataOutbox(entityID, entityType string, metadata map[string]any) *Me
 		Metadata:   metadata,
 		Status:     StatusPending,
 		RetryCount: 0,
-		MaxRetries: 10,
+		MaxRetries: DefaultMaxRetries,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-	}
+	}, nil
 }
 ```
 
@@ -347,8 +462,12 @@ package outbox
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"errors"
+	"regexp"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -357,14 +476,17 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
-	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 )
 
 // Default constants for outbox processing
 const (
-	DefaultMaxRetries     = 10
-	DefaultBatchSize      = 100
-	DefaultLockTimeoutSec = 30
+	DefaultBatchSize             = 100
+	DefaultLockTimeoutSec        = 30
+	// StaleProcessingThreshold is how long an entry can be in PROCESSING before being reclaimed.
+	StaleProcessingThreshold     = 5 * time.Minute
+	// MaxErrorMessageLength limits error message size to prevent PII leakage.
+	MaxErrorMessageLength        = 500
 )
 
 // Static errors for outbox operations
@@ -373,6 +495,16 @@ var (
 	ErrOutboxUpdateFailed  = errors.New("outbox update failed: no rows affected")
 )
 
+// piiPatterns defines patterns to sanitize from error messages
+var piiPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`),            // email
+	regexp.MustCompile(`\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}`), // phone (international)
+	regexp.MustCompile(`\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b`),                 // credit card (with separators)
+	regexp.MustCompile(`\b\d{4}[-\s]?\d{6}[-\s]?\d{5}\b`),                            // Amex (15 digits)
+	regexp.MustCompile(`\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b`),                            // SSN (with separators)
+	regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`),                                // IPv4 address
+}
+
 // Repository provides an interface for outbox operations.
 //
 //go:generate mockgen --destination=outbox.postgresql_mock.go --package=outbox . Repository
@@ -380,23 +512,50 @@ type Repository interface {
 	// Create inserts a new outbox entry (participates in existing transaction if present).
 	Create(ctx context.Context, entry *MetadataOutbox) error
 
-	// FindPendingBatch retrieves a batch of pending entries ready for processing.
-	FindPendingBatch(ctx context.Context, batchSize int) ([]*MetadataOutbox, error)
+	// ClaimPendingBatch atomically retrieves and marks entries as PROCESSING.
+	// Uses FOR UPDATE SKIP LOCKED to prevent race conditions between workers.
+	ClaimPendingBatch(ctx context.Context, batchSize int) ([]*MetadataOutbox, error)
 
-	// MarkProcessing atomically marks an entry as being processed (with row lock).
-	MarkProcessing(ctx context.Context, id string) error
+	// FindByEntityID checks if an entry exists for the given entity (for idempotency).
+	FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error)
 
 	// MarkPublished marks an entry as successfully processed.
 	MarkPublished(ctx context.Context, id string) error
 
 	// MarkFailed increments retry count and schedules next retry with backoff.
+	// Error message is sanitized to remove PII before storage.
 	MarkFailed(ctx context.Context, id string, errMsg string, nextRetryAt time.Time) error
 
-	// MarkPermanentlyFailed marks an entry as failed (exceeded max retries).
-	MarkPermanentlyFailed(ctx context.Context, id string, errMsg string) error
+	// MarkDLQ marks an entry as permanently failed (Dead Letter Queue).
+	MarkDLQ(ctx context.Context, id string, errMsg string) error
 
-	// DeleteProcessed removes old processed entries (for cleanup).
-	DeleteProcessed(ctx context.Context, olderThan time.Time) (int64, error)
+	// DeleteOldEntries removes old processed and DLQ entries (for cleanup).
+	DeleteOldEntries(ctx context.Context, olderThan time.Time) (int64, error)
+}
+
+// sanitizeErrorMessage removes PII and truncates error messages for safe storage/logging.
+func sanitizeErrorMessage(errMsg string) string {
+	sanitized := errMsg
+	for _, pattern := range piiPatterns {
+		sanitized = pattern.ReplaceAllString(sanitized, "[REDACTED]")
+	}
+	// Truncate to max length
+	if len(sanitized) > MaxErrorMessageLength {
+		sanitized = sanitized[:MaxErrorMessageLength] + "...[truncated]"
+	}
+	// Remove any potential stack traces
+	if idx := strings.Index(sanitized, "\n"); idx > 0 {
+		sanitized = sanitized[:idx]
+	}
+	return sanitized
+}
+
+// SecureRandomFloat64 returns a cryptographically secure random float64 in [0,1).
+// Exported for use by worker backoff calculation.
+func SecureRandomFloat64() float64 {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return float64(binary.BigEndian.Uint64(b[:])) / float64(^uint64(0))
 }
 
 // OutboxPostgreSQLRepository is a PostgreSQL implementation of the Repository.
@@ -480,11 +639,13 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 	return nil
 }
 
-// FindPendingBatch retrieves a batch of pending entries ready for processing.
-func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batchSize int) ([]*MetadataOutbox, error) {
+// ClaimPendingBatch atomically retrieves and marks entries as PROCESSING.
+// Uses FOR UPDATE SKIP LOCKED to prevent race conditions between concurrent workers.
+// Also reclaims stale PROCESSING entries (older than StaleProcessingThreshold).
+func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batchSize int) ([]*MetadataOutbox, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.outbox.find_pending_batch")
+	ctx, span := tracer.Start(ctx, "postgres.outbox.claim_pending_batch")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -495,29 +656,45 @@ func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batch
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	query := squirrel.Select("id", "entity_id", "entity_type", "metadata", "status", "retry_count", "max_retries", "next_retry_at", "last_error", "created_at", "updated_at", "processed_at").
-		From(r.tableName).
-		Where(squirrel.Or{
-			squirrel.Eq{"status": string(StatusPending)},
-			squirrel.And{
-				squirrel.Eq{"status": string(StatusFailed)},
-				squirrel.LtOrEq{"next_retry_at": time.Now()},
-				squirrel.Expr("retry_count < max_retries"),
-			},
-		}).
-		OrderBy("created_at ASC").
-		Limit(uint64(batchSize)).
-		PlaceholderFormat(squirrel.Dollar)
-
-	sqlQuery, args, err := query.ToSql()
+	// Start transaction for atomic select + update
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
-		logger.Errorf("Failed to build query: %v", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+		logger.Errorf("Failed to begin transaction: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
 
-	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	now := time.Now()
+	staleThreshold := now.Add(-StaleProcessingThreshold)
+
+	// Select entries with FOR UPDATE SKIP LOCKED to atomically claim them
+	// Includes: PENDING, retriable FAILED, and stale PROCESSING entries
+	query := `
+		SELECT id, entity_id, entity_type, metadata, status, retry_count, max_retries,
+		       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
+		FROM metadata_outbox
+		WHERE (status = $1)
+		   OR (status = $2 AND next_retry_at <= $3 AND retry_count < max_retries)
+		   OR (status = $4 AND processing_started_at < $5)
+		ORDER BY created_at ASC
+		LIMIT $6
+		FOR UPDATE SKIP LOCKED
+	`
+
+	rows, err := tx.QueryContext(ctx, query,
+		string(StatusPending),
+		string(StatusFailed),
+		now,
+		string(StatusProcessing),
+		staleThreshold,
+		batchSize,
+	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to query pending entries", err)
 		logger.Errorf("Failed to query pending entries: %v", err)
@@ -527,6 +704,7 @@ func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batch
 	defer rows.Close()
 
 	var entries []*MetadataOutbox
+	var ids []string
 
 	for rows.Next() {
 		var model MetadataOutboxPostgreSQLModel
@@ -539,6 +717,7 @@ func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batch
 			&model.RetryCount,
 			&model.MaxRetries,
 			&model.NextRetryAt,
+			&model.ProcessingStartedAt,
 			&model.LastError,
 			&model.CreatedAt,
 			&model.UpdatedAt,
@@ -559,6 +738,7 @@ func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batch
 		}
 
 		entries = append(entries, entry)
+		ids = append(ids, model.ID)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -568,55 +748,96 @@ func (r *OutboxPostgreSQLRepository) FindPendingBatch(ctx context.Context, batch
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
+	// If no entries found, commit empty transaction and return
+	if len(entries) == 0 {
+		if err := tx.Commit(); err != nil {
+			logger.Errorf("Failed to commit empty transaction: %v", err)
+		}
+		return entries, nil
+	}
+
+	// Atomically mark all selected entries as PROCESSING within the same transaction
+	// Increment retry_count for stale PROCESSING entries (they failed implicitly due to worker crash)
+	updateQuery := `
+		UPDATE metadata_outbox
+		SET status = $1,
+		    processing_started_at = $2,
+		    updated_at = $2,
+		    retry_count = CASE WHEN status = 'PROCESSING' THEN retry_count + 1 ELSE retry_count END
+		WHERE id = ANY($3)
+	`
+	if _, err := tx.ExecContext(ctx, updateQuery, string(StatusProcessing), now, pq.Array(ids)); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to mark entries as processing", err)
+		logger.Errorf("Failed to mark entries as processing: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
+		logger.Errorf("Failed to commit transaction: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	logger.Infof("Claimed %d outbox entries for processing", len(entries))
+
 	return entries, nil
 }
 
-// MarkProcessing atomically marks an entry as being processed.
-func (r *OutboxPostgreSQLRepository) MarkProcessing(ctx context.Context, id string) error {
+// FindByEntityID checks if an entry exists for the given entity (for idempotency checks).
+func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_processing")
+	ctx, span := tracer.Start(ctx, "postgres.outbox.find_by_entity_id")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
 	query := `
-		UPDATE metadata_outbox
-		SET status = $1, updated_at = $2
-		WHERE id = $3 AND status IN ($4, $5)
+		SELECT id, entity_id, entity_type, metadata, status, retry_count, max_retries,
+		       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
+		FROM metadata_outbox
+		WHERE entity_id = $1 AND entity_type = $2
+		ORDER BY created_at DESC
+		LIMIT 1
 	`
 
-	result, err := db.ExecContext(ctx, query,
-		string(StatusProcessing),
-		time.Now(),
-		id,
-		string(StatusPending),
-		string(StatusFailed),
+	var model MetadataOutboxPostgreSQLModel
+	err = db.QueryRowContext(ctx, query, entityID, entityType).Scan(
+		&model.ID,
+		&model.EntityID,
+		&model.EntityType,
+		&model.Metadata,
+		&model.Status,
+		&model.RetryCount,
+		&model.MaxRetries,
+		&model.NextRetryAt,
+		&model.ProcessingStartedAt,
+		&model.LastError,
+		&model.CreatedAt,
+		&model.UpdatedAt,
+		&model.ProcessedAt,
 	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil // Not found is not an error for idempotency checks
+	}
+
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as processing", err)
-		logger.Errorf("Failed to mark entry as processing: %v", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find entry by entity ID", err)
+		logger.Errorf("Failed to find entry by entity ID: %v", err)
 
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
-	}
-
-	if rowsAffected == 0 {
-		return pkg.ValidateInternalError(ErrOutboxUpdateFailed, "MetadataOutbox")
-	}
-
-	return nil
+	return model.ToEntity()
 }
 
 // MarkPublished marks an entry as successfully processed.
@@ -665,6 +886,7 @@ func (r *OutboxPostgreSQLRepository) MarkPublished(ctx context.Context, id strin
 }
 
 // MarkFailed increments retry count and schedules next retry.
+// Error message is sanitized to remove PII before storage.
 func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, errMsg string, nextRetryAt time.Time) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -678,6 +900,9 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
+	// Sanitize error message to remove PII before storing
+	sanitizedErr := sanitizeErrorMessage(errMsg)
+
 	query := `
 		UPDATE metadata_outbox
 		SET status = $1, retry_count = retry_count + 1, last_error = $2, next_retry_at = $3, updated_at = $4
@@ -686,7 +911,7 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 
 	result, err := db.ExecContext(ctx, query,
 		string(StatusFailed),
-		errMsg,
+		sanitizedErr,
 		nextRetryAt,
 		time.Now(),
 		id,
@@ -709,16 +934,18 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
 
-	logger.Warnf("Marked outbox entry as failed: id=%s, error=%s, next_retry=%v", id, errMsg, nextRetryAt)
+	// Log with correlation ID only, not the error message (to avoid PII in logs)
+	logger.Warnf("Marked outbox entry as failed: id=%s, next_retry=%v", id, nextRetryAt)
 
 	return nil
 }
 
-// MarkPermanentlyFailed marks an entry as permanently failed (DLQ).
-func (r *OutboxPostgreSQLRepository) MarkPermanentlyFailed(ctx context.Context, id string, errMsg string) error {
+// MarkDLQ marks an entry as permanently failed (Dead Letter Queue).
+// Error message is sanitized to remove PII before storage.
+func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, errMsg string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_permanently_failed")
+	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_dlq")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -728,6 +955,9 @@ func (r *OutboxPostgreSQLRepository) MarkPermanentlyFailed(ctx context.Context, 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
+	// Sanitize error message to remove PII before storing
+	sanitizedErr := sanitizeErrorMessage(errMsg)
+
 	query := `
 		UPDATE metadata_outbox
 		SET status = $1, last_error = $2, updated_at = $3
@@ -735,14 +965,14 @@ func (r *OutboxPostgreSQLRepository) MarkPermanentlyFailed(ctx context.Context, 
 	`
 
 	result, err := db.ExecContext(ctx, query,
-		string(StatusFailed),
-		errMsg,
+		string(StatusDLQ),
+		sanitizedErr,
 		time.Now(),
 		id,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as permanently failed", err)
-		logger.Errorf("Failed to mark entry as permanently failed: %v", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as DLQ", err)
+		logger.Errorf("Failed to mark entry as DLQ: %v", err)
 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
@@ -758,16 +988,18 @@ func (r *OutboxPostgreSQLRepository) MarkPermanentlyFailed(ctx context.Context, 
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
 
-	logger.Errorf("Marked outbox entry as PERMANENTLY FAILED (DLQ): id=%s, error=%s", id, errMsg)
+	// Log DLQ event for alerting (no PII in message)
+	logger.Errorf("METADATA_OUTBOX_DLQ: Entry moved to Dead Letter Queue: id=%s", id)
 
 	return nil
 }
 
-// DeleteProcessed removes old processed entries for cleanup.
-func (r *OutboxPostgreSQLRepository) DeleteProcessed(ctx context.Context, olderThan time.Time) (int64, error) {
+// DeleteOldEntries removes old processed and DLQ entries for cleanup.
+// Cleans up both PUBLISHED (successful) and DLQ (permanently failed) entries.
+func (r *OutboxPostgreSQLRepository) DeleteOldEntries(ctx context.Context, olderThan time.Time) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.outbox.delete_processed")
+	ctx, span := tracer.Start(ctx, "postgres.outbox.delete_old_entries")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -777,12 +1009,17 @@ func (r *OutboxPostgreSQLRepository) DeleteProcessed(ctx context.Context, olderT
 		return 0, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	query := `DELETE FROM metadata_outbox WHERE status = $1 AND processed_at < $2`
+	// Delete both PUBLISHED and DLQ entries older than threshold
+	query := `
+		DELETE FROM metadata_outbox
+		WHERE (status = $1 AND processed_at < $3)
+		   OR (status = $2 AND updated_at < $3)
+	`
 
-	result, err := db.ExecContext(ctx, query, string(StatusPublished), olderThan)
+	result, err := db.ExecContext(ctx, query, string(StatusPublished), string(StatusDLQ), olderThan)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete processed entries", err)
-		logger.Errorf("Failed to delete processed entries: %v", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete old entries", err)
+		logger.Errorf("Failed to delete old entries: %v", err)
 
 		return 0, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
@@ -795,7 +1032,7 @@ func (r *OutboxPostgreSQLRepository) DeleteProcessed(ctx context.Context, olderT
 	}
 
 	if rowsAffected > 0 {
-		logger.Infof("Deleted %d processed outbox entries older than %v", rowsAffected, olderThan)
+		logger.Infof("Deleted %d old outbox entries (PUBLISHED/DLQ) older than %v", rowsAffected, olderThan)
 	}
 
 	return rowsAffected, nil
@@ -899,41 +1136,55 @@ Add to imports section (after `"github.com/LerianStudio/midaz/v3/components/tran
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 ```
 
-**Step 2: Replace metadata creation code (lines 102-121)**
+**Step 2: Modify the transaction callback to include outbox writes (INSIDE transaction)**
 
-Replace the entire block from line 102 (`// Create transaction metadata`) to line 121 (closing brace of the for loop) with:
+**CRITICAL:** The outbox entries MUST be written inside the `dbtx.RunInTransaction` callback to ensure atomicity. This is the core guarantee of the outbox pattern.
+
+Find the `dbtx.RunInTransaction` callback (around line 58-94) and add outbox writes at the end of the callback, BEFORE the `return nil`.
+
+**NOTE:** The pseudocode below shows the STRUCTURE of the change. Steps 1-3 represent the existing code and should remain UNCHANGED - only add Step 4 (the outbox writes). The actual function signatures in Steps 1-3 may differ; refer to the existing implementation.
 
 ```go
-	// Add metadata creation requests to outbox (processed asynchronously by worker)
-	// This is done after PostgreSQL transaction commits to ensure atomicity
-	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.queue_metadata")
-	defer spanCreateMetadata.End()
+	err := dbtx.RunInTransaction(ctx, uc.DBProvider, func(txCtx context.Context) error {
+		// Steps 1-3: EXISTING CODE - DO NOT MODIFY
+		// These steps handle: balance updates, transaction creation, operation creation
+		// Keep the existing implementation as-is
 
-	// Queue transaction metadata to outbox
-	if tran.Metadata != nil {
-		entry := outbox.NewMetadataOutbox(tran.ID, reflect.TypeOf(transaction.Transaction{}).Name(), tran.Metadata)
-		if err := uc.OutboxRepo.Create(ctxProcessMetadata, entry); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to queue transaction metadata to outbox", err)
-			logger.Errorf("Failed to queue transaction metadata to outbox: %v", err)
-			// Don't fail the operation - transaction is committed, metadata will be reconciled
-		} else {
-			logger.Infof("Queued transaction metadata to outbox: transaction_id=%s", tran.ID)
-		}
-	}
+		// ... existing balance update code ...
+		// ... existing transaction creation code ...
+		// ... existing operations creation code ...
 
-	// Queue operation metadata to outbox
-	for _, oper := range tran.Operations {
-		if oper.Metadata != nil {
-			entry := outbox.NewMetadataOutbox(oper.ID, reflect.TypeOf(operation.Operation{}).Name(), oper.Metadata)
-			if err := uc.OutboxRepo.Create(ctxProcessMetadata, entry); err != nil {
-				logger.Errorf("Failed to queue operation metadata to outbox: operation_id=%s, error=%v", oper.ID, err)
-				// Don't fail - metadata will be reconciled by worker
-			} else {
-				logger.Infof("Queued operation metadata to outbox: operation_id=%s", oper.ID)
+		// Step 4: ADD THIS - Queue metadata to outbox (INSIDE transaction for atomicity)
+		// If outbox write fails, entire transaction rolls back - metadata won't be orphaned
+		if tran.Metadata != nil {
+			entry, err := outbox.NewMetadataOutbox(tran.ID, outbox.EntityTypeTransaction, tran.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to create outbox entry for transaction: %w", err)
+			}
+			if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
+				return fmt.Errorf("failed to queue transaction metadata to outbox: %w", err)
 			}
 		}
-	}
+
+		for _, oper := range tran.Operations {
+			if oper.Metadata != nil {
+				entry, err := outbox.NewMetadataOutbox(oper.ID, outbox.EntityTypeOperation, oper.Metadata)
+				if err != nil {
+					return fmt.Errorf("failed to create outbox entry for operation: %w", err)
+				}
+				if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
+					return fmt.Errorf("failed to queue operation metadata to outbox: %w", err)
+				}
+			}
+		}
+
+		return nil
+	})
 ```
+
+**Step 3: Remove the old metadata creation code (lines 102-121)**
+
+Delete the entire block from line 102 (`// Create transaction metadata`) to line 121 (closing brace of the for loop). This code is now replaced by the outbox writes inside the transaction
 
 **Step 3: Verify file compiles**
 
@@ -950,9 +1201,10 @@ feat(transaction): integrate outbox pattern for metadata creation
 
 Replace direct MongoDB metadata creation with outbox writes:
 - Add OutboxRepo to UseCase struct
-- Queue transaction metadata to outbox after commit
-- Queue operation metadata to outbox after commit
+- Queue transaction metadata to outbox INSIDE transaction (atomicity)
+- Queue operation metadata to outbox INSIDE transaction (atomicity)
 - Metadata will be processed asynchronously by dedicated worker
+- Outbox write failure causes transaction rollback (no orphaned data)
 EOF
 )"
 ```
@@ -1015,6 +1267,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -1038,8 +1291,8 @@ const (
 	// metadataOutboxCleanupInterval is how often to clean up old processed entries.
 	metadataOutboxCleanupInterval = 1 * time.Hour
 
-	// metadataOutboxRetentionDays is how long to keep processed entries.
-	metadataOutboxRetentionDays = 7
+	// defaultMetadataOutboxRetentionDays is the default retention period for processed/DLQ entries.
+	defaultMetadataOutboxRetentionDays = 7
 )
 
 // ErrMetadataOutboxPanicRecovered is returned when a panic is recovered during processing.
@@ -1047,12 +1300,13 @@ var ErrMetadataOutboxPanicRecovered = errors.New("panic recovered during metadat
 
 // MetadataOutboxWorker processes pending metadata creation requests from the outbox.
 type MetadataOutboxWorker struct {
-	logger       libLog.Logger
-	outboxRepo   outbox.Repository
-	metadataRepo mongodb.Repository
-	postgresConn *libPostgres.PostgresConnection
-	mongoConn    *libMongo.MongoConnection
-	maxWorkers   int
+	logger        libLog.Logger
+	outboxRepo    outbox.Repository
+	metadataRepo  mongodb.Repository
+	postgresConn  *libPostgres.PostgresConnection
+	mongoConn     *libMongo.MongoConnection
+	maxWorkers    int
+	retentionDays int // Configurable retention period for cleanup
 }
 
 // NewMetadataOutboxWorker creates a new MetadataOutboxWorker.
@@ -1063,18 +1317,23 @@ func NewMetadataOutboxWorker(
 	postgresConn *libPostgres.PostgresConnection,
 	mongoConn *libMongo.MongoConnection,
 	maxWorkers int,
+	retentionDays int,
 ) *MetadataOutboxWorker {
 	if maxWorkers <= 0 {
 		maxWorkers = 5
 	}
+	if retentionDays <= 0 {
+		retentionDays = defaultMetadataOutboxRetentionDays
+	}
 
 	return &MetadataOutboxWorker{
-		logger:       logger,
-		outboxRepo:   outboxRepo,
-		metadataRepo: metadataRepo,
-		postgresConn: postgresConn,
-		mongoConn:    mongoConn,
-		maxWorkers:   maxWorkers,
+		logger:        logger,
+		outboxRepo:    outboxRepo,
+		metadataRepo:  metadataRepo,
+		postgresConn:  postgresConn,
+		mongoConn:     mongoConn,
+		maxWorkers:    maxWorkers,
+		retentionDays: retentionDays,
 	}
 }
 
@@ -1116,10 +1375,11 @@ func (w *MetadataOutboxWorker) processPendingEntries(ctx context.Context) {
 		return
 	}
 
-	// Fetch pending entries
-	entries, err := w.outboxRepo.FindPendingBatch(ctx, metadataOutboxBatchSize)
+	// Atomically claim pending entries (uses FOR UPDATE SKIP LOCKED internally)
+	// Entries are already marked as PROCESSING after this call
+	entries, err := w.outboxRepo.ClaimPendingBatch(ctx, metadataOutboxBatchSize)
 	if err != nil {
-		w.logger.Errorf("MetadataOutboxWorker: Failed to fetch pending entries: %v", err)
+		w.logger.Errorf("MetadataOutboxWorker: Failed to claim pending entries: %v", err)
 
 		return
 	}
@@ -1128,7 +1388,7 @@ func (w *MetadataOutboxWorker) processPendingEntries(ctx context.Context) {
 		return
 	}
 
-	w.logger.Infof("MetadataOutboxWorker: Processing %d pending entries", len(entries))
+	w.logger.Infof("MetadataOutboxWorker: Processing %d claimed entries", len(entries))
 
 	// Process entries with worker pool
 	sem := make(chan struct{}, w.maxWorkers)
@@ -1211,9 +1471,21 @@ func (w *MetadataOutboxWorker) processEntry(ctx context.Context, entry *outbox.M
 		}
 	}()
 
-	// Try to mark as processing (atomic claim)
-	if err := w.outboxRepo.MarkProcessing(ctx, entry.ID.String()); err != nil {
-		logger.Debugf("Entry already being processed by another worker: %v", err)
+	// Entry is already marked as PROCESSING by ClaimPendingBatch (atomic claim)
+
+	// Idempotency check: See if metadata already exists in MongoDB
+	// This handles the case where MongoDB insert succeeded but MarkPublished failed
+	existing, err := w.metadataRepo.FindByEntity(ctx, entry.EntityType, entry.EntityID)
+	if err != nil {
+		logger.Warnf("Failed to check existing metadata (proceeding with create): %v", err)
+		// Continue with create - MongoDB will handle duplicate key if it exists
+	}
+	if existing != nil {
+		// Metadata already exists - mark as published and return
+		logger.Infof("Metadata already exists for entity %s, marking as published", entry.EntityID)
+		if err := w.outboxRepo.MarkPublished(ctx, entry.ID.String()); err != nil {
+			logger.Errorf("Failed to mark existing entry as published: %v", err)
+		}
 
 		return
 	}
@@ -1236,7 +1508,7 @@ func (w *MetadataOutboxWorker) processEntry(ctx context.Context, entry *outbox.M
 	// Mark as published
 	if err := w.outboxRepo.MarkPublished(ctx, entry.ID.String()); err != nil {
 		logger.Errorf("Failed to mark entry as published: %v", err)
-		// Entry is processed in MongoDB but not marked - will be retried and deduplicated
+		// Entry is processed in MongoDB - will be detected by idempotency check on retry
 
 		return
 	}
@@ -1249,14 +1521,15 @@ func (w *MetadataOutboxWorker) handleProcessingError(ctx context.Context, logger
 	newRetryCount := entry.RetryCount + 1
 
 	if newRetryCount >= entry.MaxRetries {
-		// Exceeded max retries - mark as permanently failed (DLQ)
+		// Exceeded max retries - move to Dead Letter Queue
 		errMsg := fmt.Sprintf("max retries exceeded (%d/%d): %v", newRetryCount, entry.MaxRetries, err)
-		if markErr := w.outboxRepo.MarkPermanentlyFailed(ctx, entry.ID.String(), errMsg); markErr != nil {
-			logger.Errorf("Failed to mark entry as permanently failed: %v", markErr)
+		if markErr := w.outboxRepo.MarkDLQ(ctx, entry.ID.String(), errMsg); markErr != nil {
+			logger.Errorf("Failed to mark entry as DLQ: %v", markErr)
 		}
 
-		logger.Errorf("METADATA_OUTBOX_DLQ: Entry permanently failed after %d retries: entity_id=%s, entity_type=%s, error=%v",
-			newRetryCount, entry.EntityID, entry.EntityType, err)
+		// Log DLQ event (without error details to avoid PII in logs)
+		logger.Errorf("METADATA_OUTBOX_DLQ: Entry moved to DLQ after %d retries: id=%s, entity_id=%s",
+			newRetryCount, entry.ID.String(), entry.EntityID)
 
 		return
 	}
@@ -1271,11 +1544,12 @@ func (w *MetadataOutboxWorker) handleProcessingError(ctx context.Context, logger
 		return
 	}
 
-	logger.Warnf("Metadata creation failed, scheduled retry: entity_id=%s, retry=%d/%d, next_retry=%v, error=%v",
-		entry.EntityID, newRetryCount, entry.MaxRetries, nextRetry, err)
+	// Log without error details to avoid PII
+	logger.Warnf("Metadata creation failed, scheduled retry: id=%s, retry=%d/%d, next_retry=%v",
+		entry.ID.String(), newRetryCount, entry.MaxRetries, nextRetry)
 }
 
-// calculateMetadataOutboxBackoff calculates exponential backoff with jitter.
+// calculateMetadataOutboxBackoff calculates exponential backoff with cryptographically secure jitter.
 func calculateMetadataOutboxBackoff(retryCount int) time.Duration {
 	if retryCount <= 0 {
 		return metadataOutboxInitialBackoff
@@ -1289,8 +1563,8 @@ func calculateMetadataOutboxBackoff(retryCount int) time.Duration {
 		backoff = float64(metadataOutboxMaxBackoff)
 	}
 
-	// Add jitter (0-25%)
-	jitter := backoff * 0.25 * (float64(time.Now().UnixNano()%100) / 100)
+	// Add jitter (0-25%) using cryptographically secure random
+	jitter := backoff * 0.25 * outbox.SecureRandomFloat64()
 
 	return time.Duration(backoff + jitter)
 }
@@ -1316,7 +1590,7 @@ func (w *MetadataOutboxWorker) isInfrastructureHealthy(ctx context.Context) bool
 		}
 	}
 
-	// Check MongoDB
+	// Check MongoDB with explicit read preference
 	if w.mongoConn != nil {
 		db, err := w.mongoConn.GetDB(healthCtx)
 		if err != nil {
@@ -1325,7 +1599,7 @@ func (w *MetadataOutboxWorker) isInfrastructureHealthy(ctx context.Context) bool
 			return false
 		}
 
-		if err := db.Ping(healthCtx, nil); err != nil {
+		if err := db.Ping(healthCtx, readpref.Primary()); err != nil {
 			w.logger.Warnf("MetadataOutboxWorker: MongoDB unhealthy: %v", err)
 
 			return false
@@ -1335,11 +1609,11 @@ func (w *MetadataOutboxWorker) isInfrastructureHealthy(ctx context.Context) bool
 	return true
 }
 
-// cleanupOldEntries removes old processed entries.
+// cleanupOldEntries removes old processed and DLQ entries.
 func (w *MetadataOutboxWorker) cleanupOldEntries(ctx context.Context) {
-	cutoff := time.Now().AddDate(0, 0, -metadataOutboxRetentionDays)
+	cutoff := time.Now().AddDate(0, 0, -w.retentionDays)
 
-	deleted, err := w.outboxRepo.DeleteProcessed(ctx, cutoff)
+	deleted, err := w.outboxRepo.DeleteOldEntries(ctx, cutoff)
 	if err != nil {
 		w.logger.Errorf("MetadataOutboxWorker: Failed to cleanup old entries: %v", err)
 
@@ -1347,7 +1621,7 @@ func (w *MetadataOutboxWorker) cleanupOldEntries(ctx context.Context) {
 	}
 
 	if deleted > 0 {
-		w.logger.Infof("MetadataOutboxWorker: Cleaned up %d old processed entries", deleted)
+		w.logger.Infof("MetadataOutboxWorker: Cleaned up %d old entries (PUBLISHED/DLQ)", deleted)
 	}
 }
 
@@ -1393,6 +1667,7 @@ Add after `DLQConsumerEnabled` field (line 152):
 ```go
 	MetadataOutboxWorkerEnabled bool `env:"METADATA_OUTBOX_WORKER_ENABLED"`
 	MetadataOutboxMaxWorkers    int  `env:"METADATA_OUTBOX_MAX_WORKERS"`
+	MetadataOutboxRetentionDays int  `env:"METADATA_OUTBOX_RETENTION_DAYS"`
 ```
 
 **Step 2: Add import for outbox package**
@@ -1427,11 +1702,19 @@ Add after the DLQ Consumer section (after line 423, before the return statement)
 	// Metadata Outbox Worker - processes pending metadata creation from outbox
 	var metadataOutboxWorker *MetadataOutboxWorker
 
-	const defaultMetadataOutboxMaxWorkers = 5
+	const (
+		defaultMetadataOutboxMaxWorkers    = 5
+		defaultMetadataOutboxRetentionDays = 7
+	)
 
 	metadataOutboxMaxWorkers := cfg.MetadataOutboxMaxWorkers
 	if metadataOutboxMaxWorkers <= 0 {
 		metadataOutboxMaxWorkers = defaultMetadataOutboxMaxWorkers
+	}
+
+	metadataOutboxRetentionDays := cfg.MetadataOutboxRetentionDays
+	if metadataOutboxRetentionDays <= 0 {
+		metadataOutboxRetentionDays = defaultMetadataOutboxRetentionDays
 	}
 
 	if cfg.MetadataOutboxWorkerEnabled {
@@ -1442,8 +1725,10 @@ Add after the DLQ Consumer section (after line 423, before the return statement)
 			postgresConnection,
 			mongoConnection,
 			metadataOutboxMaxWorkers,
+			metadataOutboxRetentionDays,
 		)
-		logger.Infof("MetadataOutboxWorker enabled with %d max workers.", metadataOutboxMaxWorkers)
+		logger.Infof("MetadataOutboxWorker enabled with %d max workers, %d days retention.",
+			metadataOutboxMaxWorkers, metadataOutboxRetentionDays)
 	} else {
 		logger.Info("MetadataOutboxWorker disabled (set METADATA_OUTBOX_WORKER_ENABLED=true to enable)")
 	}
@@ -1641,6 +1926,7 @@ Create file at `/Users/fredamaral/repos/lerianstudio/midaz/components/transactio
 package outbox
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -1649,29 +1935,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewMetadataOutbox(t *testing.T) {
+func TestNewMetadataOutbox_Success(t *testing.T) {
 	entityID := uuid.New().String()
-	entityType := "Transaction"
+	entityType := EntityTypeTransaction
 	metadata := map[string]any{"key": "value"}
 
-	entry := NewMetadataOutbox(entityID, entityType, metadata)
+	entry, err := NewMetadataOutbox(entityID, entityType, metadata)
 
+	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, entry.ID)
 	assert.Equal(t, entityID, entry.EntityID)
 	assert.Equal(t, entityType, entry.EntityType)
 	assert.Equal(t, metadata, entry.Metadata)
 	assert.Equal(t, StatusPending, entry.Status)
 	assert.Equal(t, 0, entry.RetryCount)
-	assert.Equal(t, 10, entry.MaxRetries)
+	assert.Equal(t, DefaultMaxRetries, entry.MaxRetries)
 	assert.False(t, entry.CreatedAt.IsZero())
 	assert.False(t, entry.UpdatedAt.IsZero())
 }
 
+func TestNewMetadataOutbox_EmptyEntityID(t *testing.T) {
+	metadata := map[string]any{"key": "value"}
+
+	entry, err := NewMetadataOutbox("", EntityTypeTransaction, metadata)
+
+	assert.Nil(t, entry)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrEntityIDEmpty)
+}
+
+func TestNewMetadataOutbox_EntityIDTooLong(t *testing.T) {
+	longID := strings.Repeat("a", MaxEntityIDLength+1)
+	metadata := map[string]any{"key": "value"}
+
+	entry, err := NewMetadataOutbox(longID, EntityTypeTransaction, metadata)
+
+	assert.Nil(t, entry)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrEntityIDTooLong)
+}
+
+func TestNewMetadataOutbox_InvalidEntityType(t *testing.T) {
+	entityID := uuid.New().String()
+	metadata := map[string]any{"key": "value"}
+
+	entry, err := NewMetadataOutbox(entityID, "InvalidType", metadata)
+
+	assert.Nil(t, entry)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidEntityType)
+}
+
+func TestNewMetadataOutbox_NilMetadata(t *testing.T) {
+	entityID := uuid.New().String()
+
+	entry, err := NewMetadataOutbox(entityID, EntityTypeTransaction, nil)
+
+	assert.Nil(t, entry)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrMetadataNil)
+}
+
+func TestNewMetadataOutbox_MetadataTooLarge(t *testing.T) {
+	entityID := uuid.New().String()
+	// Create metadata larger than 64KB
+	largeValue := strings.Repeat("A", MaxMetadataSize+1)
+	metadata := map[string]any{"data": largeValue}
+
+	entry, err := NewMetadataOutbox(entityID, EntityTypeOperation, metadata)
+
+	assert.Nil(t, entry)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrMetadataTooLarge)
+}
+
 func TestMetadataOutboxPostgreSQLModel_FromEntity(t *testing.T) {
-	entry := NewMetadataOutbox("test-entity-id", "Transaction", map[string]any{"foo": "bar"})
+	entry, err := NewMetadataOutbox("test-entity-id", EntityTypeTransaction, map[string]any{"foo": "bar"})
+	require.NoError(t, err)
 
 	model := &MetadataOutboxPostgreSQLModel{}
-	err := model.FromEntity(entry)
+	err = model.FromEntity(entry)
 
 	require.NoError(t, err)
 	assert.Equal(t, entry.ID.String(), model.ID)
@@ -1685,7 +2028,7 @@ func TestMetadataOutboxPostgreSQLModel_ToEntity(t *testing.T) {
 	model := &MetadataOutboxPostgreSQLModel{
 		ID:         uuid.New().String(),
 		EntityID:   "test-entity-id",
-		EntityType: "Operation",
+		EntityType: EntityTypeOperation,
 		Metadata:   []byte(`{"key":"value"}`),
 		Status:     string(StatusPending),
 		RetryCount: 2,
@@ -1709,6 +2052,77 @@ func TestOutboxStatus_Values(t *testing.T) {
 	assert.Equal(t, OutboxStatus("PROCESSING"), StatusProcessing)
 	assert.Equal(t, OutboxStatus("PUBLISHED"), StatusPublished)
 	assert.Equal(t, OutboxStatus("FAILED"), StatusFailed)
+	assert.Equal(t, OutboxStatus("DLQ"), StatusDLQ)
+}
+
+func TestSanitizeErrorMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "sanitize email",
+			input:    "Error for user: test@example.com",
+			expected: "Error for user: [REDACTED]",
+		},
+		{
+			name:     "sanitize US phone",
+			input:    "Contact: 555-123-4567",
+			expected: "Contact: [REDACTED]",
+		},
+		{
+			name:     "sanitize international phone",
+			input:    "Contact: +44 20 7123 4567",
+			expected: "Contact: [REDACTED]",
+		},
+		{
+			name:     "sanitize credit card with dashes",
+			input:    "Payment failed for card: 4111-1111-1111-1111",
+			expected: "Payment failed for card: [REDACTED]",
+		},
+		{
+			name:     "sanitize credit card with spaces",
+			input:    "Card number: 4111 1111 1111 1111",
+			expected: "Card number: [REDACTED]",
+		},
+		{
+			name:     "sanitize IPv4 address",
+			input:    "Connection from: 192.168.1.100",
+			expected: "Connection from: [REDACTED]",
+		},
+		{
+			name:     "sanitize SSN with dashes",
+			input:    "SSN: 123-45-6789",
+			expected: "SSN: [REDACTED]",
+		},
+		{
+			name:     "truncate long message",
+			input:    strings.Repeat("A", 600),
+			expected: strings.Repeat("A", MaxErrorMessageLength) + "...[truncated]",
+		},
+		{
+			name:     "remove stack trace",
+			input:    "error occurred\ngoroutine 1 [running]:\nmain.main()",
+			expected: "error occurred",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeErrorMessage(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSecureRandomFloat64(t *testing.T) {
+	// Test that it returns values in [0, 1)
+	for i := 0; i < 100; i++ {
+		val := SecureRandomFloat64()
+		assert.GreaterOrEqual(t, val, 0.0)
+		assert.Less(t, val, 1.0)
+	}
 }
 ```
 
@@ -1823,6 +2237,7 @@ The following environment variables have been added:
 |----------|-------------|---------|----------|
 | `METADATA_OUTBOX_WORKER_ENABLED` | Enable/disable the metadata outbox worker | `false` | No |
 | `METADATA_OUTBOX_MAX_WORKERS` | Maximum concurrent workers for processing | `5` | No |
+| `METADATA_OUTBOX_RETENTION_DAYS` | Days to keep processed/DLQ entries before cleanup | `7` | No |
 
 **Step 2: Example deployment configuration**
 
@@ -1832,6 +2247,7 @@ transaction:
   environment:
     METADATA_OUTBOX_WORKER_ENABLED: "true"
     METADATA_OUTBOX_MAX_WORKERS: "5"
+    METADATA_OUTBOX_RETENTION_DAYS: "7"
 ```
 
 **Step 3: Final commit**
@@ -1844,6 +2260,7 @@ docs(transaction): document metadata outbox configuration
 Environment variables:
 - METADATA_OUTBOX_WORKER_ENABLED: Enable async metadata processing
 - METADATA_OUTBOX_MAX_WORKERS: Concurrent worker count (default: 5)
+- METADATA_OUTBOX_RETENTION_DAYS: Cleanup retention period (default: 7)
 EOF
 )"
 ```
@@ -1876,19 +2293,32 @@ Run: `cd /Users/fredamaral/repos/lerianstudio/midaz && make lint`
 
 ## Summary
 
-This plan implements a PostgreSQL-based outbox pattern for MongoDB metadata creation with:
+This plan implements a PostgreSQL-based outbox pattern for MongoDB metadata creation with comprehensive security and reliability features:
 
-1. **Atomic writes:** Metadata requests stored in PostgreSQL atomically with transactions
-2. **Reliable processing:** Dedicated worker with health checks and retry logic
-3. **Exponential backoff:** Configurable retry delays with jitter
-4. **DLQ routing:** Failed entries after max retries are logged for investigation
-5. **Observability:** Metrics and tracing throughout
-6. **Cleanup:** Automatic removal of old processed entries
+### Core Features
+1. **Atomic writes:** Metadata requests stored in PostgreSQL atomically INSIDE the transaction (not after commit)
+2. **Reliable processing:** Dedicated worker with health checks, retry logic, and stale entry recovery
+3. **Concurrent safety:** FOR UPDATE SKIP LOCKED prevents race conditions between workers
+4. **Idempotency:** Worker checks for existing metadata before insert to handle retry scenarios
+5. **Exponential backoff:** Cryptographically secure jitter for retry delays
+6. **DLQ management:** Separate DLQ status with automatic cleanup after retention period
 7. **Zero downtime:** Worker can be enabled/disabled via configuration
 
+### Security Features
+- Metadata size limits (64KB) to prevent DoS attacks
+- Entity type validation (allowlist) to prevent injection
+- Error message sanitization (PII removal) before logging/storage
+- Database access control (REVOKE ALL from PUBLIC)
+- Cryptographically secure random for jitter calculations
+
+### Data Integrity
+- Unique constraint prevents duplicate pending entries for same entity
+- Stale PROCESSING detection recovers entries from crashed workers (5-minute timeout)
+- Transaction rollback on outbox write failure (no orphaned transactions)
+
 **Files Created:**
-- `migrations/000018_create_metadata_outbox_table.up.sql`
-- `migrations/000018_create_metadata_outbox_table.down.sql`
+- `migrations/000019_create_metadata_outbox_table.up.sql`
+- `migrations/000019_create_metadata_outbox_table.down.sql`
 - `adapters/postgres/outbox/outbox.go`
 - `adapters/postgres/outbox/outbox.postgresql.go`
 - `adapters/postgres/outbox/outbox.postgresql_test.go`
