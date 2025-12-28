@@ -150,6 +150,10 @@ func (uc *UseCase) createOperationForBalance(
 		AccountAlias:    blc.Alias,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
+		// BalanceAffected: true because this code path (async queue processing) is ONLY
+		// used for balance-affecting transactions. Annotation transactions (status='NOTED')
+		// use the HTTP handler path which sets BalanceAffected based on isAnnotation param.
+		BalanceAffected: true,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
