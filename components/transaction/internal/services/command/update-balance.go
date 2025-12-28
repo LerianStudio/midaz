@@ -132,7 +132,8 @@ func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID,
 	usedCache := false
 
 	if skippedCount > 0 {
-		logger.Warnf("STALE_BALANCE_DETECTED: %d stale balances found, refreshing from cache before DB update (org=%s, ledger=%s)",
+		// Stale balances are expected during concurrent processing - part of normal optimistic locking flow
+		logger.Debugf("STALE_BALANCE_DETECTED: %d stale balances found, refreshing from cache before DB update (org=%s, ledger=%s)",
 			skippedCount, organizationID, ledgerID)
 
 		refreshedBalances, err := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, newBalances, logger)
@@ -162,7 +163,8 @@ func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, orga
 	}
 
 	if usedCache {
-		logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already up to date after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
+		// Successful outcome - balances are current, no update needed
+		logger.Infof("BALANCE_UPDATE_SKIPPED: balances already up to date after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
 		return nil
 	}
 
@@ -188,7 +190,8 @@ func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organ
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctx, organizationID, ledgerID, refreshedBalances); err != nil {
 		if errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
-			logger.Warnf("BALANCE_UPDATE_SKIPPED: balances already current after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
+			// Successful outcome - balances are current, no update needed
+			logger.Infof("BALANCE_UPDATE_SKIPPED: balances already current after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
 			return nil
 		}
 
@@ -234,10 +237,10 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 		}
 
 		if cachedBalance != nil && cachedBalance.Version > balance.Version {
-			// Cache has a newer version, skip this update
+			// Cache has a newer version, skip this update - expected during concurrent processing
 			skippedCount++
 
-			logger.Warnf("STALE_BALANCE_SKIP: balance_id=%s, alias=%s, key=%s, msg_version=%d, cache_version=%d, gap=%d",
+			logger.Debugf("STALE_BALANCE_SKIP: balance_id=%s, alias=%s, key=%s, msg_version=%d, cache_version=%d, gap=%d",
 				balance.ID, balance.Alias, balanceKey, balance.Version, cachedBalance.Version, cachedBalance.Version-balance.Version)
 
 			continue
@@ -256,7 +259,8 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 	)
 
 	if skippedCount > 0 {
-		logger.Warnf("BALANCE_FILTER_SUMMARY: total=%d, skipped=%d, updating=%d, org=%s, ledger=%s",
+		// Informational summary of filtering - expected during concurrent processing
+		logger.Debugf("BALANCE_FILTER_SUMMARY: total=%d, skipped=%d, updating=%d, org=%s, ledger=%s",
 			totalCount, skippedCount, len(result), organizationID, ledgerID)
 	}
 

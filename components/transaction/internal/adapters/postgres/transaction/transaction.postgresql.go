@@ -149,9 +149,9 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction query", err)
-
-			logger.Errorf("Failed to execute insert transaction query: %v", err)
+			// Duplicate key is expected in async mode where ensureAsyncTransactionVisibility
+			// intentionally retries insert. Log at debug level to avoid alert noise.
+			logger.Debugf("Transaction insert skipped (duplicate key - expected in async/retry scenarios): %v", err)
 
 			return nil, pkg.ValidateInternalError(err, "Transaction")
 		}

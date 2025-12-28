@@ -770,7 +770,8 @@ func (r *BalancePostgreSQLRepository) processBalanceUpdates(ctx context.Context,
 		if result.updated {
 			successCount++
 		} else {
-			logger.Warnf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_database, concurrent_update, replay_protection]",
+			// Stale version skips are expected during concurrent processing - log at debug level
+			logger.Debugf("Balance update skipped (stale version): balance_id=%s, attempted_version=%d, possible_causes=[newer_version_in_database, concurrent_update, replay_protection]",
 				balance.ID, balance.Version)
 		}
 	}
