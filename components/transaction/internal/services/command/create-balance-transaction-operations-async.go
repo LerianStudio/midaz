@@ -82,8 +82,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			return err
 		}
 
-		// Step 3: Create operations
-		if err := uc.createOperations(txCtx, logger, tracer, tran.Operations); err != nil {
+		// Step 3: Create operations (PostgreSQL only - metadata moved outside transaction)
+		if err := uc.createOperationsWithoutMetadata(txCtx, logger, tracer, tran.Operations); err != nil {
 			return err
 		}
 
@@ -96,17 +96,28 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	// Metadata creation is done outside the transaction since it's MongoDB (different database)
+	// All MongoDB metadata creation happens after PostgreSQL transaction commits.
+	// This prevents orphaned metadata in MongoDB if the PostgreSQL transaction rolls back.
+	// If metadata creation fails, the core transaction is already committed successfully.
+
+	// Create transaction metadata
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
-	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
-	if err != nil {
+	if err := uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
-		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
-		// Note: Transaction is already committed, but metadata creation failed.
-		// This is acceptable because metadata is supplementary and the core transaction is atomic.
-		return err
+		// Transaction is already committed - log warning but don't fail the operation
+		logger.Warnf("Transaction %s committed successfully but metadata creation failed: %v", tran.ID, err)
+		// TODO(review): Consider adding to retry queue or reconciliation job
+	}
+
+	// Create operation metadata
+	for _, oper := range tran.Operations {
+		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
+			// Log warning but don't fail - core operation is already committed
+			logger.Warnf("Operation %s committed successfully but metadata creation failed: %v", oper.ID, err)
+			// TODO(review): Consider adding to retry queue or reconciliation job
+		}
 	}
 
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
@@ -259,8 +270,9 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 	}
 }
 
-// createOperations creates all operations for a transaction
-func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
+// createOperationsWithoutMetadata creates operation records in PostgreSQL without metadata.
+// Metadata creation is handled separately outside the database transaction.
+func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
 
@@ -282,12 +294,24 @@ func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, t
 
 			return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 		}
+	}
 
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
+	return nil
+}
+
+// createOperations creates all operations for a transaction including metadata.
+// This is the legacy method that includes metadata creation inline.
+// Use createOperationsWithoutMetadata for transaction-aware operations.
+func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
+	// First create PostgreSQL operation records
+	if err := uc.createOperationsWithoutMetadata(ctx, logger, tracer, operations); err != nil {
+		return err
+	}
+
+	// Then create MongoDB metadata
+	for _, oper := range operations {
+		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
 			logger.Errorf("Failed to create metadata on operation: %v", err)
-
 			return err
 		}
 	}
