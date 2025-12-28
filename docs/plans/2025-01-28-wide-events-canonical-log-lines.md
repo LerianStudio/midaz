@@ -1,0 +1,1788 @@
+# Wide Events / Canonical Log Lines Implementation Plan
+
+## Goal
+
+Implement the Wide Events pattern in Midaz to emit ONE comprehensive structured log event per HTTP request, containing all context needed for debugging. This is additive - existing logging continues to work.
+
+**Pattern Reference:** https://loggingsucks.com/
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     HTTP Request Flow                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Request In                                                      │
+│      │                                                           │
+│      ▼                                                           │
+│  ┌─────────────────┐                                            │
+│  │ Panic Recovery  │  (existing)                                │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────┐                                            │
+│  │   Telemetry     │  (existing - creates spans)                │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────┐                                            │
+│  │  Wide Event MW  │  ◄── NEW: Initialize event, emit at end   │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────┐                                            │
+│  │     CORS        │  (existing)                                │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────┐                                            │
+│  │  HTTP Logging   │  (existing - lib-commons)                  │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌─────────────────┐                                            │
+│  │  Route Handler  │  Enriches event via c.Locals("wide_event") │
+│  └────────┬────────┘                                            │
+│           │                                                      │
+│           ▼                                                      │
+│  Response Out (Wide Event emitted in deferred middleware)        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Tech Stack
+
+- **Language:** Go 1.24+
+- **HTTP Framework:** Fiber v2
+- **Logging:** Uber Zap via lib-commons wrapper
+- **Tracing:** OpenTelemetry
+- **Pattern:** Wide Events / Canonical Log Lines
+
+## Prerequisites
+
+- [ ] Midaz codebase cloned and buildable
+- [ ] Go 1.24+ installed
+- [ ] Understanding of Fiber middleware chain
+
+## Constraints (lib-commons limitations)
+
+- Cannot modify lib-commons library
+- Logger interface: `WithFields(key, value...)` available
+- Cannot add custom span processors
+- Cannot change what HTTP logging middleware captures
+
+---
+
+## Task Breakdown
+
+### Batch 1: Core Wide Event Infrastructure (pkg/mlog)
+
+#### Task 1.1: Create Wide Event Package Structure
+
+**File:** `pkg/mlog/doc.go`
+
+**Action:** Create new file
+
+```go
+// Package mlog provides wide event / canonical log line utilities for Midaz.
+//
+// Wide Events Pattern:
+// Instead of scattered log statements throughout a request lifecycle,
+// emit ONE comprehensive structured event per request containing all
+// context needed for debugging.
+//
+// Benefits:
+//   - Single queryable event per request
+//   - All business context in one place
+//   - Supports queries like "show failed transactions for premium users"
+//   - Correlates with OpenTelemetry traces via trace_id
+//
+// Usage:
+//
+//	// In middleware - initialize and defer emission
+//	event := mlog.NewWideEvent(c)
+//	defer event.Emit(logger)
+//
+//	// In handlers - enrich with business context
+//	event := mlog.GetWideEvent(c)
+//	event.SetTransaction(txnID, amount, assetCode)
+//	event.SetUser(userID, orgID, role)
+//
+// Reference: https://loggingsucks.com/
+package mlog
+```
+
+**Verification:**
+```bash
+cat /Users/fredamaral/repos/lerianstudio/midaz/pkg/mlog/doc.go
+# Expected: Package documentation displayed
+```
+
+---
+
+#### Task 1.2: Create Wide Event Types
+
+**File:** `pkg/mlog/wide_event.go`
+
+**Action:** Create new file
+
+```go
+package mlog
+
+import (
+	"sync"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// WideEventKey is the key used to store the wide event in Fiber locals.
+const WideEventKey = "wide_event"
+
+// WideEvent represents a canonical log line with all request context.
+// It accumulates context throughout the request lifecycle and is
+// emitted once at request completion.
+type WideEvent struct {
+	mu sync.RWMutex
+
+	// Request context (set by middleware)
+	RequestID     string    `json:"request_id,omitempty"`
+	TraceID       string    `json:"trace_id,omitempty"`
+	SpanID        string    `json:"span_id,omitempty"`
+	Method        string    `json:"method"`
+	Path          string    `json:"path"`
+	Route         string    `json:"route,omitempty"` // Pattern like /v1/organizations/:org_id/...
+	QueryParams   string    `json:"query_params,omitempty"`
+	ContentType   string    `json:"content_type,omitempty"`
+	ContentLength int64     `json:"content_length,omitempty"`
+	UserAgent     string    `json:"user_agent,omitempty"`
+	ClientIP      string    `json:"client_ip,omitempty"`
+	StartTime     time.Time `json:"start_time"`
+
+	// Response context (set at completion)
+	StatusCode   int           `json:"status_code"`
+	DurationMS   int64         `json:"duration_ms"`
+	ResponseSize int           `json:"response_size,omitempty"`
+	Outcome      string        `json:"outcome"` // "success", "error", "panic"
+
+	// Service context (set by middleware)
+	Service     string `json:"service"`
+	Version     string `json:"version,omitempty"`
+	Environment string `json:"environment,omitempty"`
+
+	// Business context - IDs (set by handlers)
+	OrganizationID string `json:"organization_id,omitempty"`
+	LedgerID       string `json:"ledger_id,omitempty"`
+	TransactionID  string `json:"transaction_id,omitempty"`
+	AccountID      string `json:"account_id,omitempty"`
+	BalanceID      string `json:"balance_id,omitempty"`
+	OperationID    string `json:"operation_id,omitempty"`
+	AssetCode      string `json:"asset_code,omitempty"`
+
+	// Business context - Transaction details (set by handlers)
+	TransactionType     string `json:"transaction_type,omitempty"`      // "json", "dsl"
+	TransactionAmount   string `json:"transaction_amount,omitempty"`    // String to preserve precision
+	TransactionCurrency string `json:"transaction_currency,omitempty"`
+	OperationCount      int    `json:"operation_count,omitempty"`
+	SourceCount         int    `json:"source_count,omitempty"`
+	DestinationCount    int    `json:"destination_count,omitempty"`
+
+	// User/Auth context (set by auth middleware or handlers)
+	UserID       string `json:"user_id,omitempty"`
+	UserRole     string `json:"user_role,omitempty"`
+	AuthMethod   string `json:"auth_method,omitempty"` // "api_key", "jwt", "oauth"
+
+	// Error context (set on error)
+	ErrorOccurred bool   `json:"error_occurred"`
+	ErrorType     string `json:"error_type,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	ErrorRetryable bool  `json:"error_retryable,omitempty"`
+
+	// Performance context (set by handlers)
+	DBQueryCount      int   `json:"db_query_count,omitempty"`
+	DBQueryTimeMS     int64 `json:"db_query_time_ms,omitempty"`
+	CacheHits         int   `json:"cache_hits,omitempty"`
+	CacheMisses       int   `json:"cache_misses,omitempty"`
+	ExternalCallCount int   `json:"external_call_count,omitempty"`
+	ExternalCallTimeMS int64 `json:"external_call_time_ms,omitempty"`
+
+	// Idempotency context
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	IdempotencyHit bool   `json:"idempotency_hit,omitempty"`
+
+	// Custom fields for extensibility
+	Custom map[string]any `json:"custom,omitempty"`
+}
+
+// NewWideEvent creates a new wide event initialized with request context.
+func NewWideEvent(c *fiber.Ctx, serviceName string) *WideEvent {
+	event := &WideEvent{
+		RequestID:     c.Get("X-Request-Id"),
+		Method:        c.Method(),
+		Path:          c.Path(),
+		Route:         c.Route().Path,
+		QueryParams:   string(c.Request().URI().QueryString()),
+		ContentType:   c.Get("Content-Type"),
+		ContentLength: int64(len(c.Body())),
+		UserAgent:     c.Get("User-Agent"),
+		ClientIP:      c.IP(),
+		StartTime:     time.Now(),
+		Service:       serviceName,
+		Custom:        make(map[string]any),
+	}
+
+	// Extract trace context if available
+	ctx := c.UserContext()
+	span := trace.SpanFromContext(ctx)
+	if span.SpanContext().IsValid() {
+		event.TraceID = span.SpanContext().TraceID().String()
+		event.SpanID = span.SpanContext().SpanID().String()
+	}
+
+	return event
+}
+
+// SetOrganization sets organization context.
+func (e *WideEvent) SetOrganization(orgID uuid.UUID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if orgID != uuid.Nil {
+		e.OrganizationID = orgID.String()
+	}
+}
+
+// SetLedger sets ledger context.
+func (e *WideEvent) SetLedger(ledgerID uuid.UUID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ledgerID != uuid.Nil {
+		e.LedgerID = ledgerID.String()
+	}
+}
+
+// SetTransaction sets transaction context.
+func (e *WideEvent) SetTransaction(txnID uuid.UUID, txnType string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if txnID != uuid.Nil {
+		e.TransactionID = txnID.String()
+	}
+	e.TransactionType = txnType
+}
+
+// SetTransactionDetails sets detailed transaction information.
+func (e *WideEvent) SetTransactionDetails(amount, currency string, opCount, srcCount, destCount int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.TransactionAmount = amount
+	e.TransactionCurrency = currency
+	e.OperationCount = opCount
+	e.SourceCount = srcCount
+	e.DestinationCount = destCount
+}
+
+// SetAccount sets account context.
+func (e *WideEvent) SetAccount(accountID uuid.UUID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if accountID != uuid.Nil {
+		e.AccountID = accountID.String()
+	}
+}
+
+// SetBalance sets balance context.
+func (e *WideEvent) SetBalance(balanceID uuid.UUID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if balanceID != uuid.Nil {
+		e.BalanceID = balanceID.String()
+	}
+}
+
+// SetOperation sets operation context.
+func (e *WideEvent) SetOperation(operationID uuid.UUID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if operationID != uuid.Nil {
+		e.OperationID = operationID.String()
+	}
+}
+
+// SetAsset sets asset context.
+func (e *WideEvent) SetAsset(assetCode string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.AssetCode = assetCode
+}
+
+// SetUser sets user/auth context.
+func (e *WideEvent) SetUser(userID, role, authMethod string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.UserID = userID
+	e.UserRole = role
+	e.AuthMethod = authMethod
+}
+
+// SetError sets error context.
+func (e *WideEvent) SetError(errType, errCode, errMessage string, retryable bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ErrorOccurred = true
+	e.ErrorType = errType
+	e.ErrorCode = errCode
+	e.ErrorMessage = errMessage
+	e.ErrorRetryable = retryable
+}
+
+// SetDBStats sets database performance stats.
+func (e *WideEvent) SetDBStats(queryCount int, queryTimeMS int64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.DBQueryCount = queryCount
+	e.DBQueryTimeMS = queryTimeMS
+}
+
+// SetCacheStats sets cache performance stats.
+func (e *WideEvent) SetCacheStats(hits, misses int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.CacheHits = hits
+	e.CacheMisses = misses
+}
+
+// SetIdempotency sets idempotency context.
+func (e *WideEvent) SetIdempotency(key string, hit bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.IdempotencyKey = key
+	e.IdempotencyHit = hit
+}
+
+// SetCustom sets a custom field.
+func (e *WideEvent) SetCustom(key string, value any) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.Custom == nil {
+		e.Custom = make(map[string]any)
+	}
+	e.Custom[key] = value
+}
+
+// Complete finalizes the event with response data.
+func (e *WideEvent) Complete(statusCode int, responseSize int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.StatusCode = statusCode
+	e.ResponseSize = responseSize
+	e.DurationMS = time.Since(e.StartTime).Milliseconds()
+
+	// Determine outcome
+	switch {
+	case statusCode >= 500:
+		e.Outcome = "error"
+	case statusCode >= 400:
+		e.Outcome = "client_error"
+	default:
+		e.Outcome = "success"
+	}
+}
+
+// SetPanic marks the event as a panic recovery.
+func (e *WideEvent) SetPanic(panicValue string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.Outcome = "panic"
+	e.ErrorOccurred = true
+	e.ErrorType = "panic"
+	e.ErrorMessage = panicValue
+}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./pkg/mlog/...
+# Expected: No errors
+```
+
+---
+
+#### Task 1.3: Create Wide Event Emission Logic
+
+**File:** `pkg/mlog/emitter.go`
+
+**Action:** Create new file
+
+```go
+package mlog
+
+import (
+	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+)
+
+// GetWideEvent retrieves the wide event from Fiber context.
+// Returns nil if no wide event is set (middleware not active).
+func GetWideEvent(c *fiber.Ctx) *WideEvent {
+	if event, ok := c.Locals(WideEventKey).(*WideEvent); ok {
+		return event
+	}
+	return nil
+}
+
+// SetWideEvent stores the wide event in Fiber context.
+func SetWideEvent(c *fiber.Ctx, event *WideEvent) {
+	c.Locals(WideEventKey, event)
+}
+
+// Emit logs the wide event as a single structured log line.
+// This should be called once at the end of request processing.
+func (e *WideEvent) Emit(logger libLog.Logger) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	// Build field slice for WithFields
+	fields := e.toFields()
+
+	// Emit single canonical log line
+	logger.WithFields(fields...).Info("wide_event")
+}
+
+// toFields converts the wide event to a slice of key-value pairs
+// compatible with lib-commons logger.WithFields().
+func (e *WideEvent) toFields() []any {
+	fields := make([]any, 0, 80) // Pre-allocate for performance
+
+	// Request context
+	appendIfNotEmpty(&fields, "request_id", e.RequestID)
+	appendIfNotEmpty(&fields, "trace_id", e.TraceID)
+	appendIfNotEmpty(&fields, "span_id", e.SpanID)
+	fields = append(fields, "method", e.Method)
+	fields = append(fields, "path", e.Path)
+	appendIfNotEmpty(&fields, "route", e.Route)
+	appendIfNotEmpty(&fields, "query_params", e.QueryParams)
+	appendIfNotEmpty(&fields, "content_type", e.ContentType)
+	if e.ContentLength > 0 {
+		fields = append(fields, "content_length", e.ContentLength)
+	}
+	appendIfNotEmpty(&fields, "user_agent", e.UserAgent)
+	appendIfNotEmpty(&fields, "client_ip", e.ClientIP)
+
+	// Response context
+	fields = append(fields, "status_code", e.StatusCode)
+	fields = append(fields, "duration_ms", e.DurationMS)
+	if e.ResponseSize > 0 {
+		fields = append(fields, "response_size", e.ResponseSize)
+	}
+	fields = append(fields, "outcome", e.Outcome)
+
+	// Service context
+	fields = append(fields, "service", e.Service)
+	appendIfNotEmpty(&fields, "version", e.Version)
+	appendIfNotEmpty(&fields, "environment", e.Environment)
+
+	// Business context - IDs
+	appendIfNotEmpty(&fields, "organization_id", e.OrganizationID)
+	appendIfNotEmpty(&fields, "ledger_id", e.LedgerID)
+	appendIfNotEmpty(&fields, "transaction_id", e.TransactionID)
+	appendIfNotEmpty(&fields, "account_id", e.AccountID)
+	appendIfNotEmpty(&fields, "balance_id", e.BalanceID)
+	appendIfNotEmpty(&fields, "operation_id", e.OperationID)
+	appendIfNotEmpty(&fields, "asset_code", e.AssetCode)
+
+	// Business context - Transaction details
+	appendIfNotEmpty(&fields, "transaction_type", e.TransactionType)
+	appendIfNotEmpty(&fields, "transaction_amount", e.TransactionAmount)
+	appendIfNotEmpty(&fields, "transaction_currency", e.TransactionCurrency)
+	if e.OperationCount > 0 {
+		fields = append(fields, "operation_count", e.OperationCount)
+	}
+	if e.SourceCount > 0 {
+		fields = append(fields, "source_count", e.SourceCount)
+	}
+	if e.DestinationCount > 0 {
+		fields = append(fields, "destination_count", e.DestinationCount)
+	}
+
+	// User/Auth context
+	appendIfNotEmpty(&fields, "user_id", e.UserID)
+	appendIfNotEmpty(&fields, "user_role", e.UserRole)
+	appendIfNotEmpty(&fields, "auth_method", e.AuthMethod)
+
+	// Error context
+	if e.ErrorOccurred {
+		fields = append(fields, "error_occurred", true)
+		appendIfNotEmpty(&fields, "error_type", e.ErrorType)
+		appendIfNotEmpty(&fields, "error_code", e.ErrorCode)
+		appendIfNotEmpty(&fields, "error_message", e.ErrorMessage)
+		if e.ErrorRetryable {
+			fields = append(fields, "error_retryable", true)
+		}
+	}
+
+	// Performance context
+	if e.DBQueryCount > 0 {
+		fields = append(fields, "db_query_count", e.DBQueryCount)
+		fields = append(fields, "db_query_time_ms", e.DBQueryTimeMS)
+	}
+	if e.CacheHits > 0 || e.CacheMisses > 0 {
+		fields = append(fields, "cache_hits", e.CacheHits)
+		fields = append(fields, "cache_misses", e.CacheMisses)
+	}
+	if e.ExternalCallCount > 0 {
+		fields = append(fields, "external_call_count", e.ExternalCallCount)
+		fields = append(fields, "external_call_time_ms", e.ExternalCallTimeMS)
+	}
+
+	// Idempotency context
+	appendIfNotEmpty(&fields, "idempotency_key", e.IdempotencyKey)
+	if e.IdempotencyHit {
+		fields = append(fields, "idempotency_hit", true)
+	}
+
+	// Custom fields
+	for k, v := range e.Custom {
+		fields = append(fields, "custom."+k, v)
+	}
+
+	return fields
+}
+
+// appendIfNotEmpty adds a field only if the value is not empty.
+func appendIfNotEmpty(fields *[]any, key, value string) {
+	if value != "" {
+		*fields = append(*fields, key, value)
+	}
+}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./pkg/mlog/...
+# Expected: No errors
+```
+
+---
+
+#### Task 1.4: Create Wide Event Middleware
+
+**File:** `pkg/mlog/middleware.go`
+
+**Action:** Create new file
+
+```go
+package mlog
+
+import (
+	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+)
+
+// Config holds configuration for the wide event middleware.
+type Config struct {
+	// ServiceName is the name of the service (e.g., "transaction", "ledger").
+	ServiceName string
+
+	// Version is the service version.
+	Version string
+
+	// Environment is the deployment environment (e.g., "production", "staging").
+	Environment string
+
+	// Logger is the logger instance to use for emitting events.
+	Logger libLog.Logger
+
+	// Skip defines a function to skip middleware for certain requests.
+	// Return true to skip wide event logging for a request.
+	Skip func(c *fiber.Ctx) bool
+}
+
+// DefaultSkipPaths returns paths that should skip wide event logging.
+func DefaultSkipPaths() func(c *fiber.Ctx) bool {
+	skipPaths := map[string]bool{
+		"/health":  true,
+		"/version": true,
+		"/metrics": true,
+		"/swagger": true,
+	}
+
+	return func(c *fiber.Ctx) bool {
+		path := c.Path()
+		if skipPaths[path] {
+			return true
+		}
+		// Skip swagger paths
+		if len(path) >= 8 && path[:8] == "/swagger" {
+			return true
+		}
+		return false
+	}
+}
+
+// NewWideEventMiddleware creates Fiber middleware that implements wide events.
+// It initializes a WideEvent at request start and emits it at request end.
+func NewWideEventMiddleware(cfg Config) fiber.Handler {
+	// Set defaults
+	if cfg.Skip == nil {
+		cfg.Skip = DefaultSkipPaths()
+	}
+
+	return func(c *fiber.Ctx) error {
+		// Check if we should skip this request
+		if cfg.Skip(c) {
+			return c.Next()
+		}
+
+		// Initialize wide event
+		event := NewWideEvent(c, cfg.ServiceName)
+		event.Version = cfg.Version
+		event.Environment = cfg.Environment
+
+		// Store in context for handlers to enrich
+		SetWideEvent(c, event)
+
+		// Process request
+		err := c.Next()
+
+		// Complete the event with response data
+		event.Complete(c.Response().StatusCode(), len(c.Response().Body()))
+
+		// If there was an error, capture it
+		if err != nil {
+			// Try to extract error details
+			if fiberErr, ok := err.(*fiber.Error); ok {
+				event.SetError("fiber_error", "", fiberErr.Message, false)
+			} else {
+				event.SetError("handler_error", "", err.Error(), false)
+			}
+		}
+
+		// Emit the wide event
+		event.Emit(cfg.Logger)
+
+		return err
+	}
+}
+
+// EnrichFromLocals extracts common IDs from Fiber locals and adds them to the event.
+// Call this in handlers after ParseUUIDPathParameters middleware has run.
+func EnrichFromLocals(c *fiber.Ctx) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	// Extract UUIDs that may have been set by ParseUUIDPathParameters
+	if orgID, ok := c.Locals("organization_id").(interface{ String() string }); ok {
+		event.mu.Lock()
+		event.OrganizationID = orgID.String()
+		event.mu.Unlock()
+	}
+
+	if ledgerID, ok := c.Locals("ledger_id").(interface{ String() string }); ok {
+		event.mu.Lock()
+		event.LedgerID = ledgerID.String()
+		event.mu.Unlock()
+	}
+
+	if txnID, ok := c.Locals("transaction_id").(interface{ String() string }); ok {
+		event.mu.Lock()
+		event.TransactionID = txnID.String()
+		event.mu.Unlock()
+	}
+
+	if accountID, ok := c.Locals("account_id").(interface{ String() string }); ok {
+		event.mu.Lock()
+		event.AccountID = accountID.String()
+		event.mu.Unlock()
+	}
+
+	if balanceID, ok := c.Locals("balance_id").(interface{ String() string }); ok {
+		event.mu.Lock()
+		event.BalanceID = balanceID.String()
+		event.mu.Unlock()
+	}
+}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./pkg/mlog/...
+# Expected: No errors
+```
+
+---
+
+### ✅ Code Review Checkpoint 1
+
+**After completing Batch 1, run:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+
+# Build the new package
+go build ./pkg/mlog/...
+
+# Run any tests
+go test ./pkg/mlog/... -v
+
+# Check for linting issues
+golangci-lint run ./pkg/mlog/...
+```
+
+**Expected:** All commands pass with no errors.
+
+**Review Focus:**
+- Thread safety (mutex usage)
+- Field naming consistency
+- Logger interface compatibility
+
+**Severity Handling:**
+- Critical (build fails): Fix before proceeding
+- High (lint errors): Fix before proceeding
+- Medium (style issues): Note and continue
+- Low (suggestions): Optional
+
+---
+
+### Batch 2: Unit Tests for Wide Event Package
+
+#### Task 2.1: Create Wide Event Unit Tests
+
+**File:** `pkg/mlog/wide_event_test.go`
+
+**Action:** Create new file
+
+```go
+package mlog
+
+import (
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestWideEvent_SetOrganization(t *testing.T) {
+	event := &WideEvent{}
+	orgID := uuid.New()
+
+	event.SetOrganization(orgID)
+
+	assert.Equal(t, orgID.String(), event.OrganizationID)
+}
+
+func TestWideEvent_SetOrganization_Nil(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetOrganization(uuid.Nil)
+
+	assert.Empty(t, event.OrganizationID)
+}
+
+func TestWideEvent_SetLedger(t *testing.T) {
+	event := &WideEvent{}
+	ledgerID := uuid.New()
+
+	event.SetLedger(ledgerID)
+
+	assert.Equal(t, ledgerID.String(), event.LedgerID)
+}
+
+func TestWideEvent_SetTransaction(t *testing.T) {
+	event := &WideEvent{}
+	txnID := uuid.New()
+
+	event.SetTransaction(txnID, "json")
+
+	assert.Equal(t, txnID.String(), event.TransactionID)
+	assert.Equal(t, "json", event.TransactionType)
+}
+
+func TestWideEvent_SetTransactionDetails(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetTransactionDetails("1000.50", "USD", 5, 2, 3)
+
+	assert.Equal(t, "1000.50", event.TransactionAmount)
+	assert.Equal(t, "USD", event.TransactionCurrency)
+	assert.Equal(t, 5, event.OperationCount)
+	assert.Equal(t, 2, event.SourceCount)
+	assert.Equal(t, 3, event.DestinationCount)
+}
+
+func TestWideEvent_SetUser(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetUser("user-123", "admin", "jwt")
+
+	assert.Equal(t, "user-123", event.UserID)
+	assert.Equal(t, "admin", event.UserRole)
+	assert.Equal(t, "jwt", event.AuthMethod)
+}
+
+func TestWideEvent_SetError(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetError("ValidationError", "INVALID_AMOUNT", "Amount must be positive", true)
+
+	assert.True(t, event.ErrorOccurred)
+	assert.Equal(t, "ValidationError", event.ErrorType)
+	assert.Equal(t, "INVALID_AMOUNT", event.ErrorCode)
+	assert.Equal(t, "Amount must be positive", event.ErrorMessage)
+	assert.True(t, event.ErrorRetryable)
+}
+
+func TestWideEvent_SetDBStats(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetDBStats(5, 150)
+
+	assert.Equal(t, 5, event.DBQueryCount)
+	assert.Equal(t, int64(150), event.DBQueryTimeMS)
+}
+
+func TestWideEvent_SetCacheStats(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetCacheStats(10, 2)
+
+	assert.Equal(t, 10, event.CacheHits)
+	assert.Equal(t, 2, event.CacheMisses)
+}
+
+func TestWideEvent_SetIdempotency(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetIdempotency("idem-key-123", true)
+
+	assert.Equal(t, "idem-key-123", event.IdempotencyKey)
+	assert.True(t, event.IdempotencyHit)
+}
+
+func TestWideEvent_SetCustom(t *testing.T) {
+	event := &WideEvent{Custom: make(map[string]any)}
+
+	event.SetCustom("custom_field", "custom_value")
+	event.SetCustom("custom_number", 42)
+
+	assert.Equal(t, "custom_value", event.Custom["custom_field"])
+	assert.Equal(t, 42, event.Custom["custom_number"])
+}
+
+func TestWideEvent_SetCustom_NilMap(t *testing.T) {
+	event := &WideEvent{} // Custom is nil
+
+	event.SetCustom("key", "value")
+
+	require.NotNil(t, event.Custom)
+	assert.Equal(t, "value", event.Custom["key"])
+}
+
+func TestWideEvent_Complete_Success(t *testing.T) {
+	event := &WideEvent{StartTime: time.Now().Add(-100 * time.Millisecond)}
+
+	event.Complete(200, 1024)
+
+	assert.Equal(t, 200, event.StatusCode)
+	assert.Equal(t, 1024, event.ResponseSize)
+	assert.Equal(t, "success", event.Outcome)
+	assert.GreaterOrEqual(t, event.DurationMS, int64(100))
+}
+
+func TestWideEvent_Complete_ClientError(t *testing.T) {
+	event := &WideEvent{StartTime: time.Now()}
+
+	event.Complete(400, 100)
+
+	assert.Equal(t, "client_error", event.Outcome)
+}
+
+func TestWideEvent_Complete_ServerError(t *testing.T) {
+	event := &WideEvent{StartTime: time.Now()}
+
+	event.Complete(500, 50)
+
+	assert.Equal(t, "error", event.Outcome)
+}
+
+func TestWideEvent_SetPanic(t *testing.T) {
+	event := &WideEvent{}
+
+	event.SetPanic("runtime error: nil pointer dereference")
+
+	assert.Equal(t, "panic", event.Outcome)
+	assert.True(t, event.ErrorOccurred)
+	assert.Equal(t, "panic", event.ErrorType)
+	assert.Equal(t, "runtime error: nil pointer dereference", event.ErrorMessage)
+}
+
+func TestWideEvent_ToFields_MinimalEvent(t *testing.T) {
+	event := &WideEvent{
+		Method:     "GET",
+		Path:       "/test",
+		StatusCode: 200,
+		DurationMS: 50,
+		Outcome:    "success",
+		Service:    "test-service",
+	}
+
+	fields := event.toFields()
+
+	// Convert to map for easier assertion
+	fieldMap := make(map[string]any)
+	for i := 0; i < len(fields); i += 2 {
+		key := fields[i].(string)
+		fieldMap[key] = fields[i+1]
+	}
+
+	assert.Equal(t, "GET", fieldMap["method"])
+	assert.Equal(t, "/test", fieldMap["path"])
+	assert.Equal(t, 200, fieldMap["status_code"])
+	assert.Equal(t, int64(50), fieldMap["duration_ms"])
+	assert.Equal(t, "success", fieldMap["outcome"])
+	assert.Equal(t, "test-service", fieldMap["service"])
+}
+
+func TestWideEvent_ToFields_FullEvent(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txnID := uuid.New()
+
+	event := &WideEvent{
+		RequestID:           "req-123",
+		TraceID:             "trace-456",
+		Method:              "POST",
+		Path:                "/v1/transactions",
+		StatusCode:          201,
+		DurationMS:          150,
+		Outcome:             "success",
+		Service:             "transaction",
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		TransactionID:       txnID.String(),
+		TransactionType:     "json",
+		TransactionAmount:   "1000.00",
+		TransactionCurrency: "USD",
+		OperationCount:      3,
+		DBQueryCount:        5,
+		DBQueryTimeMS:       45,
+		Custom:              map[string]any{"extra": "value"},
+	}
+
+	fields := event.toFields()
+
+	// Convert to map
+	fieldMap := make(map[string]any)
+	for i := 0; i < len(fields); i += 2 {
+		key := fields[i].(string)
+		fieldMap[key] = fields[i+1]
+	}
+
+	assert.Equal(t, "req-123", fieldMap["request_id"])
+	assert.Equal(t, "trace-456", fieldMap["trace_id"])
+	assert.Equal(t, orgID.String(), fieldMap["organization_id"])
+	assert.Equal(t, ledgerID.String(), fieldMap["ledger_id"])
+	assert.Equal(t, txnID.String(), fieldMap["transaction_id"])
+	assert.Equal(t, "json", fieldMap["transaction_type"])
+	assert.Equal(t, "1000.00", fieldMap["transaction_amount"])
+	assert.Equal(t, "USD", fieldMap["transaction_currency"])
+	assert.Equal(t, 3, fieldMap["operation_count"])
+	assert.Equal(t, 5, fieldMap["db_query_count"])
+	assert.Equal(t, int64(45), fieldMap["db_query_time_ms"])
+	assert.Equal(t, "value", fieldMap["custom.extra"])
+}
+
+func TestWideEvent_ConcurrentAccess(t *testing.T) {
+	event := &WideEvent{Custom: make(map[string]any)}
+
+	// Simulate concurrent access from multiple goroutines
+	done := make(chan bool)
+
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			event.SetOrganization(uuid.New())
+			event.SetLedger(uuid.New())
+			event.SetTransaction(uuid.New(), "json")
+			event.SetError("test", "CODE", "message", false)
+			event.SetCustom("key", id)
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Should not panic - just verify we got through safely
+	assert.NotEmpty(t, event.OrganizationID)
+}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go test ./pkg/mlog/... -v -race
+# Expected: All tests pass, no race conditions detected
+```
+
+---
+
+### ✅ Code Review Checkpoint 2
+
+**After completing Batch 2, run:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+
+# Run tests with race detection
+go test ./pkg/mlog/... -v -race -coverprofile=coverage.out
+
+# Check coverage
+go tool cover -func=coverage.out | grep total
+```
+
+**Expected:**
+- All tests pass
+- No race conditions
+- Coverage > 70%
+
+---
+
+### Batch 3: Integrate Wide Events into Transaction Component
+
+#### Task 3.1: Add Wide Event Middleware to Transaction Routes
+
+**File:** `components/transaction/internal/adapters/http/in/routes.go`
+
+**Action:** Modify existing file
+
+**Find this section (around line 3-20):**
+```go
+import (
+	"fmt"
+	"runtime/debug"
+	"time"
+```
+
+**Add import:**
+```go
+import (
+	"fmt"
+	"runtime/debug"
+	"time"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
+```
+
+**Find this section (around line 78-82):**
+```go
+	// HTTP logging (with custom logger)
+	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+```
+
+**Add BEFORE that line (so wide event middleware runs after telemetry but before HTTP logging):**
+```go
+	// Wide event middleware - emits ONE canonical log line per request
+	f.Use(mlog.NewWideEventMiddleware(mlog.Config{
+		ServiceName: "transaction",
+		Version:     version,
+		Environment: envName,
+		Logger:      lg,
+		Skip:        mlog.DefaultSkipPaths(),
+	}))
+
+	// HTTP logging (with custom logger)
+	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+```
+
+**Note:** You'll need to pass `version` and `envName` to the `NewRouter` function.
+
+**Update the NewRouter signature (around line 37):**
+
+**Find:**
+```go
+func NewRouter(
+	lg libLog.Logger,
+	tl *libOpentelemetry.Telemetry,
+```
+
+**Add parameters:**
+```go
+func NewRouter(
+	lg libLog.Logger,
+	tl *libOpentelemetry.Telemetry,
+	version string,
+	envName string,
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: Build errors due to missing parameters - we fix in next task
+```
+
+---
+
+#### Task 3.2: Update Bootstrap to Pass Version and Environment
+
+**File:** `components/transaction/internal/bootstrap/service.go`
+
+**Action:** Modify existing file
+
+**Find where NewRouter is called (search for `NewRouter(`):**
+
+**Update the call to include version and environment:**
+```go
+app := in.NewRouter(
+	logger,
+	telemetry,
+	cfg.Version,      // Add this
+	cfg.EnvName,      // Add this
+	auth,
+	th,
+	oh,
+	ah,
+	bh,
+	rh,
+)
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+#### Task 3.3: Enrich Wide Events in Transaction Handler
+
+**File:** `components/transaction/internal/adapters/http/in/transaction.go`
+
+**Action:** Modify existing file
+
+**Add import (around line 3-15):**
+```go
+import (
+	// ... existing imports ...
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
+)
+```
+
+**Find the CreateTransactionJSON handler (search for `func (handler *TransactionHandler) CreateTransactionJSON`).**
+
+**After the line that extracts organizationID and ledgerID, add wide event enrichment:**
+
+**Find pattern like:**
+```go
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+```
+
+**Add after:**
+```go
+	// Enrich wide event with business context
+	if event := mlog.GetWideEvent(c); event != nil {
+		event.SetOrganization(organizationID)
+		event.SetLedger(ledgerID)
+		event.SetCustom("handler", "create_transaction_json")
+	}
+```
+
+**After parsing the payload, add transaction details:**
+
+**Find pattern like:**
+```go
+	payload := http.Payload[*mmodel.CreateTransactionInput](c, p)
+```
+
+**Add after:**
+```go
+	// Enrich wide event with transaction details
+	if event := mlog.GetWideEvent(c); event != nil {
+		event.SetTransaction(uuid.Nil, "json") // ID not known yet
+		// Count operations from payload if available
+		if payload.Send != nil {
+			srcCount := 0
+			destCount := 0
+			if payload.Send.Source != nil && payload.Send.Source.From != nil {
+				srcCount = len(payload.Send.Source.From)
+			}
+			if payload.Send.Distribute != nil && payload.Send.Distribute.To != nil {
+				destCount = len(payload.Send.Distribute.To)
+			}
+			event.SetTransactionDetails("", payload.Send.Asset, 0, srcCount, destCount)
+		}
+	}
+```
+
+**After successfully creating the transaction, update with the ID:**
+
+**Find the success response pattern, usually near:**
+```go
+	return http.Created(c, result)
+```
+
+**Add before the return:**
+```go
+	// Update wide event with created transaction ID
+	if event := mlog.GetWideEvent(c); event != nil {
+		event.SetTransaction(result.ID, "json")
+		event.SetCustom("transaction_status", result.Status)
+	}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+#### Task 3.4: Enrich Wide Events on Error Paths
+
+**File:** `components/transaction/internal/adapters/http/in/transaction.go`
+
+**Action:** Modify existing file
+
+**Find error handling patterns in CreateTransactionJSON, typically:**
+```go
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction", err)
+		logger.Errorf("Failed to create transaction: %v", err)
+		return http.ErrorDispatcher(c, err)
+	}
+```
+
+**Add wide event error enrichment before the return:**
+```go
+	if err != nil {
+		// Enrich wide event with error context
+		if event := mlog.GetWideEvent(c); event != nil {
+			errType := fmt.Sprintf("%T", err)
+			event.SetError(errType, "", err.Error(), false)
+		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction", err)
+		logger.Errorf("Failed to create transaction: %v", err)
+		return http.ErrorDispatcher(c, err)
+	}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+### ✅ Code Review Checkpoint 3
+
+**After completing Batch 3, run:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+
+# Build entire project
+go build ./...
+
+# Run transaction component tests
+go test ./components/transaction/... -v
+
+# Start the service locally and make a test request
+# (This requires the full infrastructure - optional)
+```
+
+**Expected:**
+- Build succeeds
+- Existing tests pass
+- No regressions
+
+**Review Focus:**
+- Middleware ordering correct
+- Wide event not breaking existing functionality
+- Error paths properly enriched
+
+---
+
+### Batch 4: Add Wide Event Helper for Common Patterns
+
+#### Task 4.1: Create Handler Helpers
+
+**File:** `pkg/mlog/helpers.go`
+
+**Action:** Create new file
+
+```go
+package mlog
+
+import (
+	"fmt"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+)
+
+// EnrichTransaction is a convenience function to enrich wide event with transaction context.
+// Call this at the start of transaction handlers after extracting IDs.
+func EnrichTransaction(c *fiber.Ctx, orgID, ledgerID uuid.UUID, txnType string) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.SetOrganization(orgID)
+	event.SetLedger(ledgerID)
+	event.SetTransaction(uuid.Nil, txnType)
+}
+
+// EnrichTransactionResult updates the wide event with the created/updated transaction.
+func EnrichTransactionResult(c *fiber.Ctx, txnID uuid.UUID, status string, opCount int) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.mu.Lock()
+	defer event.mu.Unlock()
+
+	if txnID != uuid.Nil {
+		event.TransactionID = txnID.String()
+	}
+	event.OperationCount = opCount
+	event.Custom["transaction_status"] = status
+}
+
+// EnrichAccount is a convenience function to enrich wide event with account context.
+func EnrichAccount(c *fiber.Ctx, orgID, ledgerID, accountID uuid.UUID) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.SetOrganization(orgID)
+	event.SetLedger(ledgerID)
+	event.SetAccount(accountID)
+}
+
+// EnrichBalance is a convenience function to enrich wide event with balance context.
+func EnrichBalance(c *fiber.Ctx, orgID, ledgerID, accountID, balanceID uuid.UUID) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.SetOrganization(orgID)
+	event.SetLedger(ledgerID)
+	event.SetAccount(accountID)
+	event.SetBalance(balanceID)
+}
+
+// EnrichOperation is a convenience function to enrich wide event with operation context.
+func EnrichOperation(c *fiber.Ctx, orgID, ledgerID, txnID, opID uuid.UUID) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.SetOrganization(orgID)
+	event.SetLedger(ledgerID)
+	event.SetTransaction(txnID, "")
+	event.SetOperation(opID)
+}
+
+// EnrichError adds error context to the wide event.
+// Call this before returning an error response.
+func EnrichError(c *fiber.Ctx, err error, retryable bool) {
+	event := GetWideEvent(c)
+	if event == nil || err == nil {
+		return
+	}
+
+	errType := fmt.Sprintf("%T", err)
+	event.SetError(errType, "", err.Error(), retryable)
+}
+
+// EnrichErrorWithCode adds error context with a specific code.
+func EnrichErrorWithCode(c *fiber.Ctx, err error, code string, retryable bool) {
+	event := GetWideEvent(c)
+	if event == nil || err == nil {
+		return
+	}
+
+	errType := fmt.Sprintf("%T", err)
+	event.SetError(errType, code, err.Error(), retryable)
+}
+
+// SetHandler sets a custom field indicating which handler processed the request.
+func SetHandler(c *fiber.Ctx, handlerName string) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.SetCustom("handler", handlerName)
+}
+
+// TrackDBQuery increments the DB query counter.
+// Call this after each database operation for performance tracking.
+func TrackDBQuery(c *fiber.Ctx, durationMS int64) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.mu.Lock()
+	defer event.mu.Unlock()
+	event.DBQueryCount++
+	event.DBQueryTimeMS += durationMS
+}
+
+// TrackCacheAccess records cache hit/miss.
+func TrackCacheAccess(c *fiber.Ctx, hit bool) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.mu.Lock()
+	defer event.mu.Unlock()
+	if hit {
+		event.CacheHits++
+	} else {
+		event.CacheMisses++
+	}
+}
+
+// TrackExternalCall tracks external service calls.
+func TrackExternalCall(c *fiber.Ctx, durationMS int64) {
+	event := GetWideEvent(c)
+	if event == nil {
+		return
+	}
+
+	event.mu.Lock()
+	defer event.mu.Unlock()
+	event.ExternalCallCount++
+	event.ExternalCallTimeMS += durationMS
+}
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./pkg/mlog/...
+# Expected: No build errors
+```
+
+---
+
+#### Task 4.2: Simplify Handler Enrichment Using Helpers
+
+**File:** `components/transaction/internal/adapters/http/in/transaction.go`
+
+**Action:** Modify existing file
+
+**Replace the verbose enrichment code added in Task 3.3 with the helper functions:**
+
+**Find:**
+```go
+	// Enrich wide event with business context
+	if event := mlog.GetWideEvent(c); event != nil {
+		event.SetOrganization(organizationID)
+		event.SetLedger(ledgerID)
+		event.SetCustom("handler", "create_transaction_json")
+	}
+```
+
+**Replace with:**
+```go
+	// Enrich wide event with business context
+	mlog.EnrichTransaction(c, organizationID, ledgerID, "json")
+	mlog.SetHandler(c, "create_transaction_json")
+```
+
+**Find:**
+```go
+	// Update wide event with created transaction ID
+	if event := mlog.GetWideEvent(c); event != nil {
+		event.SetTransaction(result.ID, "json")
+		event.SetCustom("transaction_status", result.Status)
+	}
+```
+
+**Replace with:**
+```go
+	// Update wide event with created transaction ID
+	mlog.EnrichTransactionResult(c, result.ID, string(result.Status), len(result.Operations))
+```
+
+**Find:**
+```go
+		// Enrich wide event with error context
+		if event := mlog.GetWideEvent(c); event != nil {
+			errType := fmt.Sprintf("%T", err)
+			event.SetError(errType, "", err.Error(), false)
+		}
+```
+
+**Replace with:**
+```go
+		// Enrich wide event with error context
+		mlog.EnrichError(c, err, false)
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+### ✅ Code Review Checkpoint 4
+
+**After completing Batch 4, run:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+
+# Full build
+go build ./...
+
+# Run all tests
+go test ./... -v -short
+
+# Lint
+golangci-lint run ./pkg/mlog/... ./components/transaction/...
+```
+
+**Expected:**
+- All builds pass
+- All tests pass
+- No lint errors
+
+---
+
+### Batch 5: Apply to Additional Handlers and Components
+
+#### Task 5.1: Add Wide Events to Balance Handler
+
+**File:** `components/transaction/internal/adapters/http/in/balance.go`
+
+**Action:** Modify existing file
+
+**Add import:**
+```go
+import (
+	// ... existing imports ...
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
+)
+```
+
+**In GetAllBalances handler, after extracting IDs:**
+```go
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+
+	// Enrich wide event
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_all_balances")
+```
+
+**In GetBalanceByID handler, after extracting IDs:**
+```go
+	organizationID := http.LocalUUID(c, "organization_id")
+	ledgerID := http.LocalUUID(c, "ledger_id")
+	accountID := http.LocalUUID(c, "account_id")
+	balanceID := http.LocalUUID(c, "balance_id")
+
+	// Enrich wide event
+	mlog.EnrichBalance(c, organizationID, ledgerID, accountID, balanceID)
+	mlog.SetHandler(c, "get_balance_by_id")
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+#### Task 5.2: Add Wide Events to Account Handler
+
+**File:** `components/transaction/internal/adapters/http/in/account.go`
+
+**Action:** Modify existing file
+
+**Add import:**
+```go
+import (
+	// ... existing imports ...
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
+)
+```
+
+**In each handler, after extracting IDs, add:**
+```go
+	// Enrich wide event
+	mlog.EnrichAccount(c, organizationID, ledgerID, accountID)
+	mlog.SetHandler(c, "handler_name")
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+#### Task 5.3: Add Wide Events to Operation Handler
+
+**File:** `components/transaction/internal/adapters/http/in/operation.go`
+
+**Action:** Modify existing file
+
+**Add import:**
+```go
+import (
+	// ... existing imports ...
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
+)
+```
+
+**In each handler, after extracting IDs, add:**
+```go
+	// Enrich wide event
+	mlog.EnrichOperation(c, organizationID, ledgerID, transactionID, operationID)
+	mlog.SetHandler(c, "handler_name")
+```
+
+**Verification:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transaction/...
+# Expected: No build errors
+```
+
+---
+
+### ✅ Code Review Checkpoint 5 (Final)
+
+**After completing all batches, run:**
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+
+# Full build
+go build ./...
+
+# Run all tests with race detection
+go test ./... -race -short
+
+# Full lint check
+golangci-lint run ./...
+
+# Check for any TODO or FIXME comments added
+rg "TODO|FIXME" pkg/mlog/ components/transaction/internal/adapters/http/in/
+```
+
+**Expected:**
+- All builds pass
+- All tests pass with no race conditions
+- No lint errors
+- No unresolved TODOs
+
+---
+
+## Verification Commands Summary
+
+### Build Verification
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+go build ./...
+```
+
+### Test Verification
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+go test ./pkg/mlog/... -v -race -coverprofile=coverage.out
+go tool cover -func=coverage.out | grep total
+```
+
+### Lint Verification
+```bash
+cd /Users/fredamaral/repos/lerianstudio/midaz
+golangci-lint run ./pkg/mlog/... ./components/transaction/...
+```
+
+### Integration Test (Manual)
+```bash
+# Start the transaction service
+cd /Users/fredamaral/repos/lerianstudio/midaz
+make run-transaction
+
+# In another terminal, make a test request
+curl -X POST http://localhost:3002/v1/organizations/{org_id}/ledgers/{ledger_id}/transactions/json \
+  -H "Content-Type: application/json" \
+  -H "X-Request-Id: test-123" \
+  -d '{"send": {"asset": "USD", "value": "100.00", ...}}'
+
+# Check logs for wide_event entries
+# Expected: Single log line with all context fields
+```
+
+---
+
+## Failure Recovery
+
+### Build Fails
+
+1. Check import paths are correct (v3 module path)
+2. Ensure all new files are created in correct locations
+3. Run `go mod tidy` to resolve dependency issues
+
+### Tests Fail
+
+1. Check test assertions match actual struct field names
+2. Ensure mutex is properly used for concurrent tests
+3. Run tests individually to isolate failures: `go test ./pkg/mlog/... -run TestName -v`
+
+### Lint Fails
+
+1. Run `gofmt -w pkg/mlog/` to fix formatting
+2. Address any unused variable/import warnings
+3. Check for missing error handling
+
+### Wide Events Not Appearing in Logs
+
+1. Verify middleware is added in correct order (after telemetry, before HTTP logging)
+2. Check that `DefaultSkipPaths()` is not skipping your test path
+3. Ensure logger is properly passed to middleware config
+4. Verify handler is calling enrichment functions
+
+---
+
+## Agent Recommendations
+
+| Task Batch | Recommended Agent |
+|------------|-------------------|
+| Batch 1: Core Infrastructure | `backend-engineer-golang` |
+| Batch 2: Unit Tests | `qa-analyst` |
+| Batch 3: Integration | `backend-engineer-golang` |
+| Batch 4: Helpers | `backend-engineer-golang` |
+| Batch 5: Rollout | `backend-engineer-golang` |
+| Code Review | `code-reviewer` + `business-logic-reviewer` (parallel) |
+
+---
+
+## Future Enhancements (Out of Scope)
+
+1. **Tail Sampling** - Implement sampling logic to reduce log volume while keeping all errors
+2. **Onboarding/Ledger Components** - Apply same pattern to other services
+3. **OTLP Collector Integration** - Export wide events to observability platform
+4. **Dashboard Queries** - Create example queries for common debugging scenarios
+5. **lib-commons Enhancement** - PR to add span processor registration API
