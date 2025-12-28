@@ -143,8 +143,8 @@ func FuzzTransactionDateMarshalJSON(f *testing.F) {
 	f.Add(int64(-9223372036854775808)) // min int64
 	f.Add(int64(9223372036854775807))  // max int64
 
-	// Seed: nanosecond variations
-	f.Add(int64(1704067200) + 1)        // With nanoseconds
+	// Seed: additional timestamp values (varied seconds, nanoseconds handled by UnmarshalJSON test)
+	f.Add(int64(1704067200) + 1)
 	f.Add(int64(1704067200) + 999999999)
 
 	f.Fuzz(func(t *testing.T, unixSeconds int64) {
@@ -167,13 +167,14 @@ func FuzzTransactionDateMarshalJSON(f *testing.F) {
 			// Verify it's valid JSON string
 			var checkStr string
 			if jsonErr := json.Unmarshal(data, &checkStr); jsonErr != nil && string(data) != "null" {
-				t.Logf("MarshalJSON produced invalid JSON string: unix=%d output=%s",
-					unixSeconds, string(data))
+				t.Errorf("MarshalJSON produced invalid JSON string: unix=%d output=%s err=%v",
+					unixSeconds, string(data), jsonErr)
 			}
 		}
 	})
 }
 
+// TODO(review): Consider rune-based truncation for multi-byte UTF-8
 // truncateDateStr safely truncates a string for logging
 func truncateDateStr(s string, maxLen int) string {
 	if len(s) <= maxLen {
