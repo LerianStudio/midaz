@@ -5,49 +5,135 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-// TestDeleteBalanceSuccess is responsible to test DeleteBalanceSuccess with success
-func TestDeleteBalanceSuccess(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+func TestDeleteBalance(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New()
 
-	uc := UseCase{
-		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
-	}
+	t.Run("find balance error", func(t *testing.T) {
+		uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
+		expectedErr := errors.New("database connection error")
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(nil).
-		Times(1)
-	err := uc.BalanceRepo.Delete(context.TODO(), organizationID, ledgerID, balanceID)
+		mockBalanceRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(nil, expectedErr)
 
-	assert.Nil(t, err)
+		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+
+	t.Run("balance with funds cannot be deleted", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			available decimal.Decimal
+			onHold    decimal.Decimal
+		}{
+			{"available only", decimal.NewFromInt(100), decimal.Zero},
+			{"on-hold only", decimal.Zero, decimal.NewFromInt(50)},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
+				bal := &mmodel.Balance{
+					ID:        balanceID.String(),
+					Available: tc.available,
+					OnHold:    tc.onHold,
+				}
+
+				mockBalanceRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, balanceID).
+					Return(bal, nil)
+
+				err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
+				var validationErr midazpkg.ValidationError
+				assert.True(t, errors.As(err, &validationErr))
+				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+			})
+		}
+	})
+
+	t.Run("delete error", func(t *testing.T) {
+		uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
+		zeroBalance := &mmodel.Balance{
+			ID:        balanceID.String(),
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
+		expectedErr := errors.New("delete failed")
+
+		mockBalanceRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(zeroBalance, nil)
+		mockBalanceRepo.EXPECT().
+			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(expectedErr)
+
+		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+	})
+
+	t.Run("nil balance proceeds to delete", func(t *testing.T) {
+		uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
+
+		mockBalanceRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(nil, nil)
+		mockBalanceRepo.EXPECT().
+			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(nil)
+
+		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("deletes balance with zero funds", func(t *testing.T) {
+		uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
+		zeroBalance := &mmodel.Balance{
+			ID:        balanceID.String(),
+			Available: decimal.Zero,
+			OnHold:    decimal.Zero,
+		}
+
+		mockBalanceRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(zeroBalance, nil)
+		mockBalanceRepo.EXPECT().
+			Delete(gomock.Any(), organizationID, ledgerID, balanceID).
+			Return(nil)
+
+		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
+		assert.NoError(t, err)
+	})
 }
 
-// TestDeleteBalanceError is responsible to test DeleteBalanceError with error
-func TestDeleteBalanceError(t *testing.T) {
-	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+func setupDeleteBalanceUseCase(t *testing.T) (*UseCase, *balance.MockRepository) {
+	t.Helper()
 
-	uc := UseCase{
-		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
-	}
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(errors.New(errMSG))
-	err := uc.BalanceRepo.Delete(context.TODO(), organizationID, ledgerID, balanceID)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+	return &UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}, mockBalanceRepo
 }

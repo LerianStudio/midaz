@@ -22,10 +22,13 @@ func TestGetTransactionByID(t *testing.T) {
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 
-	baseTran := &transaction.Transaction{
-		ID:             transactionID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
+	// Helper to create a fresh transaction instance for each test case
+	newBaseTran := func() *transaction.Transaction {
+		return &transaction.Transaction{
+			ID:             transactionID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+		}
 	}
 
 	testMetadata := map[string]any{"key": "value", "env": "test"}
@@ -42,7 +45,7 @@ func TestGetTransactionByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(baseTran, nil)
+					Return(newBaseTran(), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(nil, nil)
@@ -56,7 +59,7 @@ func TestGetTransactionByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(baseTran, nil)
+					Return(newBaseTran(), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(&mongodb.Metadata{EntityID: transactionID.String(), Data: testMetadata}, nil)
@@ -92,7 +95,7 @@ func TestGetTransactionByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(baseTran, nil)
+					Return(newBaseTran(), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(nil, errors.New("mongodb connection error"))
@@ -156,11 +159,14 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 
-	baseTran := &transaction.Transaction{
-		ID:             transactionID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Operations:     []*operation.Operation{{ID: "op1"}, {ID: "op2"}},
+	// Helper to create a fresh transaction instance for each test case
+	newBaseTran := func(ops []*operation.Operation) *transaction.Transaction {
+		return &transaction.Transaction{
+			ID:             transactionID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Operations:     ops,
+		}
 	}
 
 	testMetadata := map[string]any{"key": "value", "env": "test"}
@@ -178,7 +184,7 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(baseTran, nil)
+					Return(newBaseTran([]*operation.Operation{{ID: "op1"}, {ID: "op2"}}), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(nil, nil)
@@ -191,15 +197,9 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 		{
 			name: "with metadata",
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
-				tranWithOps := &transaction.Transaction{
-					ID:             transactionID.String(),
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					Operations:     []*operation.Operation{{ID: "op1"}},
-				}
 				mockTxRepo.EXPECT().
 					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(tranWithOps, nil)
+					Return(newBaseTran([]*operation.Operation{{ID: "op1"}}), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(&mongodb.Metadata{EntityID: transactionID.String(), Data: testMetadata}, nil)
@@ -238,7 +238,7 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(baseTran, nil)
+					Return(newBaseTran([]*operation.Operation{{ID: "op1"}, {ID: "op2"}}), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
 					Return(nil, errors.New("mongodb connection error"))
