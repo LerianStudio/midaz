@@ -125,9 +125,10 @@ func TestProperty_BalanceConsistency_API(t *testing.T) {
 			if e != nil {
 				continue
 			}
-			if op.Type == "CREDIT" {
+			switch op.Type {
+			case "CREDIT":
 				expectedFromOps = expectedFromOps.Add(amt)
-			} else if op.Type == "DEBIT" {
+			case "DEBIT":
 				expectedFromOps = expectedFromOps.Sub(amt)
 			}
 		}

@@ -133,9 +133,10 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 				if err != nil {
 					continue
 				}
-				if op.Type == "CREDIT" {
+				switch op.Type {
+				case "CREDIT":
 					opsSum = opsSum.Add(amount)
-				} else if op.Type == "DEBIT" {
+				case "DEBIT":
 					opsSum = opsSum.Sub(amount)
 				}
 			}
