@@ -31,7 +31,7 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())

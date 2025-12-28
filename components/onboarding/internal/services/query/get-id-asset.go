@@ -32,7 +32,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 			logger.Warn("No asset found")
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)

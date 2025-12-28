@@ -32,7 +32,7 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 
 			logger.Warn("No account found")
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by id", err)

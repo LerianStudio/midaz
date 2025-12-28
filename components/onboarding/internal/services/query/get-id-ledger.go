@@ -32,7 +32,7 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 
 			logger.Warn("No ledger found")
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger on repo by id", err)

@@ -28,7 +28,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 		var entityNotFound *pkg.EntityNotFoundError
 		if errors.As(err, &entityNotFound) {
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())

@@ -32,7 +32,7 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 
 			logger.Warn("No portfolio found")
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolio on repo by id", err)

@@ -7,6 +7,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -23,8 +24,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 	logger.Infof("Remove portfolio for id: %s", id.String())
 
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		var entityNotFound *pkg.EntityNotFoundError
-		if errors.As(err, &entityNotFound) {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Warnf("Portfolio ID not found: %s", id.String())
 
 			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())

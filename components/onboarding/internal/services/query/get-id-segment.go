@@ -33,7 +33,7 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 			logger.Warn("No segment found")
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
