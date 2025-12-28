@@ -9,6 +9,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,4 +89,61 @@ func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, port
 	require.NoError(t, err, "failed to insert test account")
 
 	return id
+}
+
+// BalanceParams holds parameters for creating a test balance.
+type BalanceParams struct {
+	Alias          string
+	Key            string
+	AssetCode      string
+	Available      decimal.Decimal
+	OnHold         decimal.Decimal
+	AccountType    string
+	AllowSending   bool
+	AllowReceiving bool
+	DeletedAt      *time.Time
+}
+
+// DefaultBalanceParams returns default parameters for creating a test balance.
+func DefaultBalanceParams() BalanceParams {
+	return BalanceParams{
+		Alias:          "@test-balance",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(1000),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+}
+
+// CreateTestBalance inserts a balance directly into DB for test setup.
+// Uses transaction component's balance table schema.
+func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, params BalanceParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	`, id, orgID, ledgerID, accountID, params.Alias, params.Key, params.AssetCode,
+		params.Available, params.OnHold, 1, params.AccountType,
+		params.AllowSending, params.AllowReceiving, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to insert test balance")
+
+	return id
+}
+
+// CreateTestBalanceSimple is a convenience wrapper that creates a balance with default params.
+func CreateTestBalanceSimple(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, alias, assetCode string) uuid.UUID {
+	t.Helper()
+
+	params := DefaultBalanceParams()
+	params.Alias = alias
+	params.AssetCode = assetCode
+
+	return CreateTestBalance(t, db, orgID, ledgerID, accountID, params)
 }
