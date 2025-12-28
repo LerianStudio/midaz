@@ -46,6 +46,14 @@ const (
 	metadataOutboxJitterFactor = 0.25
 )
 
+// Metric names for observability (for future Prometheus integration)
+const (
+	MetricMetadataOutboxProcessed    = "metadata_outbox_processed_total"
+	MetricMetadataOutboxFailed       = "metadata_outbox_failed_total"
+	MetricMetadataOutboxDLQ          = "metadata_outbox_dlq_total"
+	MetricMetadataOutboxProcessingMs = "metadata_outbox_processing_duration_ms"
+)
+
 // ErrMetadataOutboxPanicRecovered is returned when a panic is recovered during outbox processing.
 var ErrMetadataOutboxPanicRecovered = fmt.Errorf("panic recovered during metadata outbox processing")
 
