@@ -3,108 +3,296 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetTransactionByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	t.Parallel()
 
-	tran := &transaction.Transaction{
-		ID:             ID.String(),
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	baseTran := &transaction.Transaction{
+		ID:             transactionID.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 	}
 
-	uc := UseCase{
-		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),
+	testMetadata := map[string]any{"key": "value", "env": "test"}
+
+	tests := []struct {
+		name            string
+		setupMocks      func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository)
+		expectedErr     error
+		expectNilResult bool
+		expectedMeta    map[string]any
+	}{
+		{
+			name: "without metadata",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(baseTran, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(nil, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: false,
+			expectedMeta:    nil,
+		},
+		{
+			name: "with metadata",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(baseTran, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(&mongodb.Metadata{EntityID: transactionID.String(), Data: testMetadata}, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: false,
+			expectedMeta:    testMetadata,
+		},
+		{
+			name: "transaction not found",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(nil, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: true,
+			expectedMeta:    nil,
+		},
+		{
+			name: "transaction repo error",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(nil, errors.New("database connection error"))
+			},
+			expectedErr:     errors.New("database connection error"),
+			expectNilResult: true,
+			expectedMeta:    nil,
+		},
+		{
+			name: "metadata repo error",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(baseTran, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(nil, errors.New("mongodb connection error"))
+			},
+			expectedErr:     errors.New("mongodb connection error"),
+			expectNilResult: true,
+			expectedMeta:    nil,
+		},
 	}
 
-	uc.TransactionRepo.(*transaction.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(tran, nil).
-		Times(1)
-	res, err := uc.TransactionRepo.Find(context.TODO(), organizationID, ledgerID, ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	assert.Equal(t, tran, res)
-	assert.Nil(t, err)
-}
+			mockTxRepo := transaction.NewMockRepository(ctrl)
+			mockMetaRepo := mongodb.NewMockRepository(ctrl)
 
-func TestGetTransactionByIDError(t *testing.T) {
-	errMSG := "err to create account on database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+			tt.setupMocks(mockTxRepo, mockMetaRepo)
 
-	uc := UseCase{
-		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),
+			uc := &UseCase{
+				TransactionRepo: mockTxRepo,
+				MetadataRepo:    mockMetaRepo,
+			}
+
+			result, err := uc.GetTransactionByID(context.Background(), organizationID, ledgerID, transactionID)
+
+			if tt.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if tt.expectNilResult {
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NotNil(t, result)
+			assert.Equal(t, transactionID.String(), result.ID)
+			assert.Equal(t, organizationID.String(), result.OrganizationID)
+			assert.Equal(t, ledgerID.String(), result.LedgerID)
+
+			if tt.expectedMeta != nil {
+				assert.Equal(t, tt.expectedMeta, result.Metadata)
+			} else {
+				assert.Nil(t, result.Metadata)
+			}
+		})
 	}
-
-	uc.TransactionRepo.(*transaction.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.TransactionRepo.Find(context.TODO(), organizationID, ledgerID, ID)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }
 
 func TestGetTransactionWithOperationsByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	t.Parallel()
 
-	tran := &transaction.Transaction{
-		ID:             ID.String(),
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	baseTran := &transaction.Transaction{
+		ID:             transactionID.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
-		Operations:     make([]*operation.Operation, 1),
+		Operations:     []*operation.Operation{{ID: "op1"}, {ID: "op2"}},
 	}
 
-	uc := UseCase{
-		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),
+	testMetadata := map[string]any{"key": "value", "env": "test"}
+
+	tests := []struct {
+		name            string
+		setupMocks      func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository)
+		expectedErr     error
+		expectNilResult bool
+		expectedMeta    map[string]any
+		expectedOpCount int
+	}{
+		{
+			name: "without metadata",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(baseTran, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(nil, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: false,
+			expectedMeta:    nil,
+			expectedOpCount: 2,
+		},
+		{
+			name: "with metadata",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				tranWithOps := &transaction.Transaction{
+					ID:             transactionID.String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					Operations:     []*operation.Operation{{ID: "op1"}},
+				}
+				mockTxRepo.EXPECT().
+					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(tranWithOps, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(&mongodb.Metadata{EntityID: transactionID.String(), Data: testMetadata}, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: false,
+			expectedMeta:    testMetadata,
+			expectedOpCount: 1,
+		},
+		{
+			name: "transaction not found",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(nil, nil)
+			},
+			expectedErr:     nil,
+			expectNilResult: true,
+			expectedMeta:    nil,
+			expectedOpCount: 0,
+		},
+		{
+			name: "transaction repo error",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(nil, errors.New("database connection error"))
+			},
+			expectedErr:     errors.New("database connection error"),
+			expectNilResult: true,
+			expectedMeta:    nil,
+			expectedOpCount: 0,
+		},
+		{
+			name: "metadata repo error",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(baseTran, nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(nil, errors.New("mongodb connection error"))
+			},
+			expectedErr:     errors.New("mongodb connection error"),
+			expectNilResult: true,
+			expectedMeta:    nil,
+			expectedOpCount: 0,
+		},
 	}
 
-	uc.TransactionRepo.(*transaction.MockRepository).
-		EXPECT().
-		FindWithOperations(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(tran, nil).
-		Times(1)
-	res, err := uc.TransactionRepo.FindWithOperations(context.TODO(), organizationID, ledgerID, ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	assert.Equal(t, tran, res)
-	assert.Nil(t, err)
-}
+			mockTxRepo := transaction.NewMockRepository(ctrl)
+			mockMetaRepo := mongodb.NewMockRepository(ctrl)
 
-func TestGetTransactionWithOperationsByIDError(t *testing.T) {
-	errMSG := "err to get transaction with operations from database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+			tt.setupMocks(mockTxRepo, mockMetaRepo)
 
-	uc := UseCase{
-		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),
+			uc := &UseCase{
+				TransactionRepo: mockTxRepo,
+				MetadataRepo:    mockMetaRepo,
+			}
+
+			result, err := uc.GetTransactionWithOperationsByID(context.Background(), organizationID, ledgerID, transactionID)
+
+			if tt.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if tt.expectNilResult {
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NotNil(t, result)
+			assert.Equal(t, transactionID.String(), result.ID)
+			assert.Equal(t, organizationID.String(), result.OrganizationID)
+			assert.Equal(t, ledgerID.String(), result.LedgerID)
+			assert.Len(t, result.Operations, tt.expectedOpCount)
+
+			if tt.expectedMeta != nil {
+				assert.Equal(t, tt.expectedMeta, result.Metadata)
+			} else {
+				assert.Nil(t, result.Metadata)
+			}
+		})
 	}
-
-	uc.TransactionRepo.(*transaction.MockRepository).
-		EXPECT().
-		FindWithOperations(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.TransactionRepo.FindWithOperations(context.TODO(), organizationID, ledgerID, ID)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }
