@@ -182,8 +182,8 @@ func TestIntegration_GetAllBalancesByAccount_FilteringByDate(t *testing.T) {
 	}
 
 	// Past-only window: expect zero items
-	pastStart := time.Now().AddDate(0, 0, -10).Format("2006-01-02")
-	pastEnd := time.Now().AddDate(0, 0, -9).Format("2006-01-02")
+	pastStart := time.Now().UTC().AddDate(0, 0, -10).Format("2006-01-02")
+	pastEnd := time.Now().UTC().AddDate(0, 0, -9).Format("2006-01-02")
 	pathPast := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances?start_date=%s&end_date=%s", orgID, ledgerID, accountID, pastStart, pastEnd)
 	if code, b, err := trans.Request(ctx, "GET", pathPast, headers, nil); err != nil || code != 200 {
 		t.Fatalf("past window request failed: code=%d err=%v body=%s", code, err, string(b))
@@ -203,7 +203,7 @@ func TestIntegration_GetAllBalancesByAccount_FilteringByDate(t *testing.T) {
 	}
 
 	// Today's window: expect items present
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().UTC().Format("2006-01-02")
 	pathToday := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances?start_date=%s&end_date=%s", orgID, ledgerID, accountID, today, today)
 	code, b, err := trans.Request(ctx, "GET", pathToday, headers, nil)
 	if err != nil || code != 200 {
