@@ -164,11 +164,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			}).
 			Times(1)
 
-		mockMetadataRepo.EXPECT().
-			FindByEntity(gomock.Any(), "AssetRate", existingID).
-			Return(nil, nil).
-			Times(1)
-
+		// When metadata input is nil, UpdateMetadata only calls Update (not FindByEntity)
 		mockMetadataRepo.EXPECT().
 			Update(gomock.Any(), "AssetRate", existingID, gomock.Any()).
 			Return(nil).
@@ -509,11 +505,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			}).
 			Times(1)
 
-		mockMetadataRepo.EXPECT().
-			FindByEntity(gomock.Any(), "AssetRate", existingID).
-			Return(nil, nil).
-			Times(1)
-
+		// When metadata input is nil, UpdateMetadata only calls Update (not FindByEntity)
 		mockMetadataRepo.EXPECT().
 			Update(gomock.Any(), "AssetRate", existingID, gomock.Any()).
 			Return(nil).
