@@ -1288,6 +1288,18 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(metadataError).
 			Times(1)
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
+		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
