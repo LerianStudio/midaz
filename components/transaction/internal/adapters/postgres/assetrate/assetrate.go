@@ -6,7 +6,6 @@ package assetrate
 import (
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -61,7 +60,7 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *mmodel.AssetRate {
 // FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel
 func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *mmodel.AssetRate) {
 	*a = AssetRatePostgreSQLModel{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             assetRate.ID,
 		OrganizationID: assetRate.OrganizationID,
 		LedgerID:       assetRate.LedgerID,
 		ExternalID:     assetRate.ExternalID,
