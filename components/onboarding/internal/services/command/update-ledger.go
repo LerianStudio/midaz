@@ -34,9 +34,9 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-
 			logger.Warnf("Ledger ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger on repo by id", err)
 

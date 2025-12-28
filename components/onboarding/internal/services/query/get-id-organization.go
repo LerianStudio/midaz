@@ -5,13 +5,13 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetOrganizationByID fetch a new organization from the repository
@@ -27,9 +27,8 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 	if err != nil {
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organization on repo by id", err)
 
 			logger.Warn("No organization found")

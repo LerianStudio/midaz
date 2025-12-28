@@ -5,13 +5,13 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetSegmentByID get a Segment from the repository by given id.
@@ -27,9 +27,8 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 	if err != nil {
 		logger.Errorf("Error getting segment on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
 
 			logger.Warn("No segment found")

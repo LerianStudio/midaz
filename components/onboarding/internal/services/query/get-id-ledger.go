@@ -7,7 +7,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -27,9 +26,8 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 	if err != nil {
 		logger.Errorf("Error getting ledger on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger on repo by id", err)
 
 			logger.Warn("No ledger found")

@@ -28,8 +28,17 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 		logger.Errorf("Error getting account type on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
+			logger.Warn("Account type not found")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account type on repo by id", err)
+
+			return nil, err
+		}
+
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account type on repo by id", err)
 
 			logger.Warn("No account type found")

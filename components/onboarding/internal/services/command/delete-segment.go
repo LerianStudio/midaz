@@ -25,16 +25,16 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 
 	if err := uc.SegmentRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
-
 			logger.Warnf("Segment ID not found: %s", id.String())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete segment on repo by id", err)
+			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Segment{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Segment not found on repo by id", err)
+
+			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete segment on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete segment on repo by id: "+err.Error(), err)
 
 		logger.Errorf("Error deleting segment: %v", err)
 

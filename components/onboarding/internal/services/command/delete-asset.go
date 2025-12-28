@@ -27,13 +27,13 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
 			logger.Warnf("Asset ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
@@ -71,13 +71,13 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 	if err := uc.AssetRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
 			logger.Warnf("Asset ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset on repo by id", err)
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset on repo by id", err)

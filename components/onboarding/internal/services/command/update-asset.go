@@ -33,9 +33,9 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error updating asset on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
 			logger.Warnf("Asset ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 

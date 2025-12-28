@@ -55,9 +55,9 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
 			logger.Warnf("Account ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 

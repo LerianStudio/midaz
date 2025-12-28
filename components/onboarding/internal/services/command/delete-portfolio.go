@@ -7,7 +7,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,14 +23,15 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 	logger.Infof("Remove portfolio for id: %s", id.String())
 
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			logger.Warnf("Portfolio ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)

@@ -34,9 +34,9 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating account type on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
-
 			logger.Warnf("Account type ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 

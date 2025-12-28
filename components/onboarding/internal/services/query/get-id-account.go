@@ -6,9 +6,7 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -28,8 +26,9 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 		logger.Errorf("Error getting account on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
+			return nil, err
 		}
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())

@@ -33,9 +33,9 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating segment on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
-
 			logger.Warnf("Segment ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment on repo by id", err)
 

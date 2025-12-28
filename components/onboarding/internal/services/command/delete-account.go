@@ -67,13 +67,13 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
 			logger.Warnf("Account ID not found: %s", id.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)

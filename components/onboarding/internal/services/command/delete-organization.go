@@ -25,13 +25,13 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 
 	if err := uc.OrganizationRepo.Delete(ctx, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
 			logger.Warnf("Organization ID not found: %s", id.String())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)
+			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Organization not found for deletion", err)
+
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)

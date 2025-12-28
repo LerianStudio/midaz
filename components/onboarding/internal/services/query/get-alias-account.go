@@ -7,9 +7,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -27,9 +25,8 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 	if err != nil {
 		logger.Errorf("Error getting account on repo by alias: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			logger.Warnf("No accounts found for alias: %s", alias)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)

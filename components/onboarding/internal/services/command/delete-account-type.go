@@ -28,13 +28,13 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
-
 			logger.Warnf("Account Type ID not found: %s", id.String())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", businessErr)
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			return businessErr
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account Type not found", err)
+
+			return err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
