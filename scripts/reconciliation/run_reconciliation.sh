@@ -156,17 +156,6 @@ run_mongosh() {
 log "Starting Midaz Reconciliation..."
 log "Output directory: $OUTPUT_DIR"
 
-# Initialize report
-cat > "$REPORT_FILE" << EOF
-{
-  "reconciliation_report": {
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "version": "1.0.0",
-    "checks": {}
-  }
-}
-EOF
-
 # ----------------------------------------------------------------------------
 # Check 1: PostgreSQL Entity Counts
 # ----------------------------------------------------------------------------
@@ -208,7 +197,7 @@ WITH balance_calc AS (
 )
 SELECT json_build_object(
     'total_balances', COUNT(*),
-    'discrepancies', SUM(CASE WHEN ABS(current_balance - expected) > 0.01 THEN 1 ELSE 0 END),
+    'discrepancies', SUM(CASE WHEN ABS(current_balance - expected) > 0 THEN 1 ELSE 0 END),
     'total_discrepancy_amount', COALESCE(SUM(ABS(current_balance - expected)), 0)
 )
 FROM balance_calc;")
@@ -348,11 +337,7 @@ else
     log "Report saved to: $REPORT_FILE"
     echo ""
     echo "=== RECONCILIATION SUMMARY ==="
-    if command -v jq &> /dev/null; then
-        jq '.reconciliation_report.summary' "$REPORT_FILE"
-    else
-        cat "$REPORT_FILE"
-    fi
+    jq '.reconciliation_report.summary' "$REPORT_FILE"
 fi
 
 exit 0

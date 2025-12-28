@@ -177,8 +177,10 @@ docker exec midaz-mongodb mongosh --port 5703 transaction
 ### Local Clients
 
 ```bash
-# PostgreSQL
-PGPASSWORD=midaz psql -h localhost -p 5701 -U midaz -d onboarding
+# PostgreSQL (use .pgpass file for secure password handling)
+# Create ~/.pgpass with: localhost:5701:*:midaz:<password>
+# Then: chmod 600 ~/.pgpass
+psql -h localhost -p 5701 -U midaz -d onboarding
 
 # MongoDB
 mongosh --host localhost --port 5703 onboarding
