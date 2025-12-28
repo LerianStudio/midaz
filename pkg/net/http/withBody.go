@@ -902,8 +902,9 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 // findNilFields recursively traverses the map and returns the paths
 // of the fields whose value is nil.
 // The prefix parameter is used to build the complete path (e.g., "object.field").
+// Always returns a non-nil slice (empty slice if no nil fields found).
 func findNilFields(data map[string]any, prefix string) []string {
-	var nilFields []string
+	nilFields := make([]string, 0)
 
 	for key, value := range data {
 		var fullPath string
