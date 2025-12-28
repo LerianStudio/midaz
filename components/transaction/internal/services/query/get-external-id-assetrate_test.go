@@ -11,6 +11,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
@@ -29,8 +30,8 @@ func TestGetAssetRateByID(t *testing.T) {
 		ExternalID:     exID.String(),
 		From:           "USD",
 		To:             "BRL",
-		Rate:           100,
-		Scale:          libPointers.Float64(2),
+		Rate:           decimal.NewFromInt(100),
+		Scale:          2,
 		Source:         libPointers.String("External System"),
 		TTL:            3600,
 	}
@@ -89,8 +90,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 		ExternalID:     exID.String(),
 		From:           "USD",
 		To:             "BRL",
-		Rate:           100,
-		Scale:          libPointers.Float64(2),
+		Rate:           decimal.NewFromInt(100),
+		Scale:          2,
 		Source:         libPointers.String("External System"),
 		TTL:            3600,
 	}
@@ -150,8 +151,8 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 				ExternalID:     exID.String(),
 				From:           "USD",
 				To:             "BRL",
-				Rate:           100,
-				Scale:          libPointers.Float64(2),
+				Rate:           decimal.NewFromInt(100),
+				Scale:          2,
 				Source:         libPointers.String("External System"),
 				TTL:            3600,
 				Metadata: map[string]interface{}{

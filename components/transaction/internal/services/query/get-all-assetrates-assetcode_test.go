@@ -11,6 +11,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -41,8 +42,8 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 		ExternalID:     libCommons.GenerateUUIDv7().String(),
 		From:           fromAssetCode,
 		To:             filter.ToAssetCodes[0],
-		Rate:           100,
-		Scale:          libPointers.Float64(2),
+		Rate:           decimal.NewFromInt(100),
+		Scale:          2,
 		Source:         libPointers.String("External System"),
 		TTL:            3600,
 	}

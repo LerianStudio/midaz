@@ -99,12 +99,12 @@ type Balance struct {
 	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
 	// example: 1500
 	// minimum: 0
-	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+	Available decimal.Decimal `json:"available" example:"1500" minimum:"0" swaggertype:"string"`
 
 	// Amount currently on hold and unavailable for transactions
 	// example: 500
 	// minimum: 0
-	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0" swaggertype:"string"`
 
 	// Optimistic concurrency control version
 	// example: 1

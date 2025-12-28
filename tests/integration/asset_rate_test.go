@@ -62,7 +62,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	createPayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       550, // 5.50 BRL per 1 USD (rate=550, scale=2 means 5.50)
+		"rate":       "5.50", // 5.50 BRL per 1 USD (direct decimal value)
 		"scale":      2,
 		"source":     "Integration Test",
 		"externalId": externalID,
@@ -83,7 +83,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 		t.Fatalf("parse created asset rate: %v body=%s", err, string(body))
 	}
 
-	t.Logf("Created asset rate: ID=%s From=%s To=%s Rate=%.2f Scale=%.0f",
+	t.Logf("Created asset rate: ID=%s From=%s To=%s Rate=%s Scale=%d",
 		createdRate.ID, createdRate.From, createdRate.To, createdRate.Rate, createdRate.Scale)
 
 	// Verify created rate fields
@@ -93,11 +93,11 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	if createdRate.To != "BRL" {
 		t.Errorf("asset rate 'to' mismatch: got %q, want %q", createdRate.To, "BRL")
 	}
-	if createdRate.Rate != 550 {
-		t.Errorf("asset rate 'rate' mismatch: got %.2f, want %.2f", createdRate.Rate, 550.0)
+	if createdRate.Rate != "5.5" {
+		t.Errorf("asset rate 'rate' mismatch: got %q, want %q", createdRate.Rate, "5.5")
 	}
 	if createdRate.Scale != 2 {
-		t.Errorf("asset rate 'scale' mismatch: got %.0f, want %.0f", createdRate.Scale, 2.0)
+		t.Errorf("asset rate 'scale' mismatch: got %d, want %d", createdRate.Scale, 2)
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 		t.Errorf("fetched rate currency pair mismatch: got %s->%s, want USD->BRL", fetchedRate.From, fetchedRate.To)
 	}
 
-	t.Logf("Fetched asset rate: ExternalID=%s Rate=%.2f", fetchedRate.ExternalID, fetchedRate.Rate)
+	t.Logf("Fetched asset rate: ExternalID=%s Rate=%s", fetchedRate.ExternalID, fetchedRate.Rate)
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// 3) LIST - Get All Asset Rates from USD
@@ -144,7 +144,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	updatePayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       560, // Updated rate: 5.60 BRL per 1 USD
+		"rate":       "5.60", // Updated rate: 5.60 BRL per 1 USD
 		"scale":      2,
 		"source":     "Integration Test - Updated",
 		"externalId": externalID,
@@ -165,19 +165,19 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 		t.Fatalf("parse updated asset rate: %v", err)
 	}
 
-	if updatedRate.Rate != 560 {
-		t.Errorf("updated rate mismatch: got %.2f, want %.2f", updatedRate.Rate, 560.0)
+	if updatedRate.Rate != "5.6" {
+		t.Errorf("updated rate mismatch: got %q, want %q", updatedRate.Rate, "5.6")
 	}
 
-	t.Logf("Updated asset rate: ExternalID=%s NewRate=%.2f", updatedRate.ExternalID, updatedRate.Rate)
+	t.Logf("Updated asset rate: ExternalID=%s NewRate=%s", updatedRate.ExternalID, updatedRate.Rate)
 
 	// Verify update persisted
 	verifyRate, err := h.GetAssetRateByExternalID(ctx, trans, headers, orgID, ledgerID, externalID)
 	if err != nil {
 		t.Fatalf("GET asset rate after update failed: %v", err)
 	}
-	if verifyRate.Rate != 560 {
-		t.Errorf("persisted rate mismatch: got %.2f, want %.2f", verifyRate.Rate, 560.0)
+	if verifyRate.Rate != "5.6" {
+		t.Errorf("persisted rate mismatch: got %q, want %q", verifyRate.Rate, "5.6")
 	}
 
 	t.Log("Asset Rate CRUD lifecycle completed successfully")
@@ -228,13 +228,12 @@ func TestIntegration_AssetRate_MultipleCurrencyPairs(t *testing.T) {
 	// Create asset rates from USD to other currencies
 	ratePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", orgID, ledgerID)
 	rates := []struct {
-		to    string
-		rate  int
-		scale int
+		to   string
+		rate string
 	}{
-		{"EUR", 92, 2},    // 0.92 EUR per USD
-		{"GBP", 79, 2},    // 0.79 GBP per USD
-		{"JPY", 15000, 2}, // 150.00 JPY per USD
+		{"EUR", "0.92"},   // 0.92 EUR per USD
+		{"GBP", "0.79"},   // 0.79 GBP per USD
+		{"JPY", "150.00"}, // 150.00 JPY per USD
 	}
 
 	for _, r := range rates {
@@ -242,14 +241,13 @@ func TestIntegration_AssetRate_MultipleCurrencyPairs(t *testing.T) {
 			"from":       "USD",
 			"to":         r.to,
 			"rate":       r.rate,
-			"scale":      r.scale,
 			"externalId": h.RandUUID(), // ExternalID must be UUID format per API spec
 		}
 		code, body, err := trans.Request(ctx, "PUT", ratePath, headers, payload)
 		if err != nil || (code != 200 && code != 201) {
 			t.Fatalf("create USD->%s rate failed: code=%d err=%v body=%s", r.to, code, err, string(body))
 		}
-		t.Logf("Created rate: USD -> %s = %d (scale=%d)", r.to, r.rate, r.scale)
+		t.Logf("Created rate: USD -> %s = %s", r.to, r.rate)
 	}
 
 	// List all rates from USD
@@ -306,23 +304,23 @@ func TestIntegration_AssetRate_Validation(t *testing.T) {
 	}{
 		{
 			name:    "missing from",
-			payload: map[string]any{"to": "BRL", "rate": 550, "scale": 2},
+			payload: map[string]any{"to": "BRL", "rate": "5.50"},
 		},
 		{
 			name:    "missing to",
-			payload: map[string]any{"from": "USD", "rate": 550, "scale": 2},
+			payload: map[string]any{"from": "USD", "rate": "5.50"},
 		},
 		{
 			name:    "missing rate",
-			payload: map[string]any{"from": "USD", "to": "BRL", "scale": 2},
+			payload: map[string]any{"from": "USD", "to": "BRL"},
 		},
 		{
 			name:    "from code too short",
-			payload: map[string]any{"from": "U", "to": "BRL", "rate": 550, "scale": 2},
+			payload: map[string]any{"from": "U", "to": "BRL", "rate": "5.50"},
 		},
 		{
 			name:    "to code too long",
-			payload: map[string]any{"from": "USD", "to": "VERYLONGCODE", "rate": 550, "scale": 2},
+			payload: map[string]any{"from": "USD", "to": "VERYLONGCODE", "rate": "5.50"},
 		},
 	}
 

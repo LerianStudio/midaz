@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/shopspring/decimal"
 )
 
 // Type aliases for backward compatibility with code that imports from this package.
@@ -26,11 +27,11 @@ type AssetRatePostgreSQLModel struct {
 	OrganizationID string         // Organization that owns this asset rate
 	LedgerID       string         // Ledger containing this asset rate
 	ExternalID     string         // External identifier for integration
-	From           string         // Source asset code
-	To             string         // Target asset code
-	Rate           float64        // Conversion rate value
-	RateScale      float64        // Decimal places for the rate
-	Source         *string        // Source of rate information (e.g., "External System")
+	From           string          // Source asset code
+	To             string          // Target asset code
+	Rate           decimal.Decimal // Conversion rate value
+	RateScale      int             // Decimal places for the rate
+	Source         *string         // Source of rate information (e.g., "External System")
 	TTL            int            // Time-to-live in seconds
 	CreatedAt      time.Time      // Timestamp when created
 	UpdatedAt      time.Time      // Timestamp when last updated
@@ -47,7 +48,7 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *mmodel.AssetRate {
 		From:           a.From,
 		To:             a.To,
 		Rate:           a.Rate,
-		Scale:          &a.RateScale,
+		Scale:          a.RateScale,
 		Source:         a.Source,
 		TTL:            a.TTL,
 		CreatedAt:      a.CreatedAt,
@@ -67,7 +68,7 @@ func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *mmodel.AssetRate) {
 		From:           assetRate.From,
 		To:             assetRate.To,
 		Rate:           assetRate.Rate,
-		RateScale:      *assetRate.Scale,
+		RateScale:      assetRate.Scale,
 		Source:         assetRate.Source,
 		TTL:            assetRate.TTL,
 		CreatedAt:      assetRate.CreatedAt,

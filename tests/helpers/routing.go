@@ -288,8 +288,8 @@ type AssetRateResponse struct {
 	ExternalID     string         `json:"externalId,omitempty"`
 	From           string         `json:"from"`
 	To             string         `json:"to"`
-	Rate           float64        `json:"rate"`
-	Scale          float64        `json:"scale,omitempty"`
+	Rate           string         `json:"rate"`
+	Scale          int            `json:"scale,omitempty"`
 	Source         string         `json:"source,omitempty"`
 	TTL            int            `json:"ttl,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
@@ -303,18 +303,17 @@ type AssetRateListResponse struct {
 }
 
 // CreateAssetRatePayload returns a valid asset rate creation payload.
-func CreateAssetRatePayload(from, to string, rate int, scale int) map[string]any {
+func CreateAssetRatePayload(from, to, rate string) map[string]any {
 	return map[string]any{
-		"from":  from,
-		"to":    to,
-		"rate":  rate,
-		"scale": scale,
+		"from": from,
+		"to":   to,
+		"rate": rate,
 	}
 }
 
 // SetupAssetRate creates an asset rate and returns its external ID.
-func SetupAssetRate(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, from, to string, rate, scale int) (string, error) {
-	payload := CreateAssetRatePayload(from, to, rate, scale)
+func SetupAssetRate(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, from, to, rate string) (string, error) {
+	payload := CreateAssetRatePayload(from, to, rate)
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", orgID, ledgerID)
 
 	code, body, err := trans.Request(ctx, "PUT", path, headers, payload)

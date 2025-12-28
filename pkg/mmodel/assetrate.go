@@ -2,6 +2,8 @@ package mmodel
 
 import (
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // AssetRate is a struct designed to encapsulate response payload data.
@@ -41,14 +43,14 @@ type AssetRate struct {
 	// maxLength: 10
 	To string `json:"to" example:"BRL" minLength:"2" maxLength:"10"`
 
-	// Conversion rate value
-	// example: 100
-	Rate float64 `json:"rate" example:"100"`
+	// Conversion rate value (serialized as string for precision)
+	// example: 5.50
+	Rate decimal.Decimal `json:"rate" example:"5.50" swaggertype:"string"`
 
 	// Decimal places for the rate
 	// example: 2
 	// minimum: 0
-	Scale *float64 `json:"scale" example:"2" minimum:"0"`
+	Scale int `json:"scale" example:"2" minimum:"0"`
 
 	// Source of rate information
 	// example: External System
@@ -94,10 +96,10 @@ type CreateAssetRateInput struct {
 	// maxLength: 10
 	To string `json:"to" validate:"required" example:"BRL" minLength:"2" maxLength:"10"`
 
-	// Conversion rate value (required)
-	// example: 100
+	// Conversion rate value (required, serialized as string for precision)
+	// example: 5.50
 	// required: true
-	Rate int `json:"rate" validate:"required" example:"100"`
+	Rate decimal.Decimal `json:"rate" validate:"required" example:"5.50" swaggertype:"string"`
 
 	// Decimal places for the rate (optional)
 	// example: 2

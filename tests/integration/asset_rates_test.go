@@ -19,8 +19,8 @@ type assetRateResponse struct {
 	ExternalID     string         `json:"externalId"`
 	From           string         `json:"from"`
 	To             string         `json:"to"`
-	Rate           float64        `json:"rate"`
-	Scale          *float64       `json:"scale"`
+	Rate           string         `json:"rate"`
+	Scale          *int           `json:"scale"`
 	Source         *string        `json:"source"`
 	TTL            int            `json:"ttl"`
 	CreatedAt      time.Time      `json:"createdAt"`
@@ -87,13 +87,13 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	externalID := uuid.New().String()
 	source := "Integration Test - Create"
-	scale := 2.0
+	scale := 2
 
 	createPayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       550, // 5.50 BRL per 1 USD (rate=550, scale=2)
-		"scale":      int(scale),
+		"rate":       "5.50", // 5.50 BRL per 1 USD (direct decimal value)
+		"scale":      scale,
 		"source":     source,
 		"externalId": externalID,
 		"metadata": map[string]any{
@@ -123,11 +123,11 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	if createdRate.To != "BRL" {
 		t.Errorf("asset rate 'to' mismatch: got %q, want %q", createdRate.To, "BRL")
 	}
-	if createdRate.Rate != 550 {
-		t.Errorf("asset rate 'rate' mismatch: got %.2f, want %.2f", createdRate.Rate, 550.0)
+	if createdRate.Rate != "5.5" {
+		t.Errorf("asset rate 'rate' mismatch: got %q, want %q", createdRate.Rate, "5.5")
 	}
 	if createdRate.Scale == nil || *createdRate.Scale != scale {
-		t.Errorf("asset rate 'scale' mismatch: got %v, want %.0f", createdRate.Scale, scale)
+		t.Errorf("asset rate 'scale' mismatch: got %v, want %d", createdRate.Scale, scale)
 	}
 	if createdRate.ExternalID != externalID {
 		t.Errorf("asset rate 'externalId' mismatch: got %q, want %q", createdRate.ExternalID, externalID)
@@ -136,7 +136,7 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 		t.Errorf("asset rate 'source' mismatch: got %v, want %q", createdRate.Source, source)
 	}
 
-	t.Logf("Created asset rate: ID=%s From=%s To=%s Rate=%.2f ExternalID=%s",
+	t.Logf("Created asset rate: ID=%s From=%s To=%s Rate=%s ExternalID=%s",
 		createdRate.ID, createdRate.From, createdRate.To, createdRate.Rate, createdRate.ExternalID)
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	updatePayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       560, // Updated rate: 5.60 BRL per 1 USD
+		"rate":       "5.60", // Updated rate: 5.60 BRL per 1 USD
 		"scale":      2,
 		"source":     updatedSource,
 		"externalId": externalID,
@@ -168,14 +168,14 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	}
 
 	// Verify updated fields
-	if updatedRate.Rate != 560 {
-		t.Errorf("updated rate mismatch: got %.2f, want %.2f", updatedRate.Rate, 560.0)
+	if updatedRate.Rate != "5.6" {
+		t.Errorf("updated rate mismatch: got %q, want %q", updatedRate.Rate, "5.6")
 	}
 	if updatedRate.Source == nil || *updatedRate.Source != updatedSource {
 		t.Errorf("updated source mismatch: got %v, want %q", updatedRate.Source, updatedSource)
 	}
 
-	t.Logf("Updated asset rate: ID=%s Rate=%.2f Source=%v", updatedRate.ID, updatedRate.Rate, updatedRate.Source)
+	t.Logf("Updated asset rate: ID=%s Rate=%s Source=%v", updatedRate.ID, updatedRate.Rate, updatedRate.Source)
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// TEST 3: Verify update persisted by fetching
@@ -185,8 +185,8 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 		t.Fatalf("GET asset rate after update failed: %v", err)
 	}
 
-	if fetchedRate.Rate != 560 {
-		t.Errorf("persisted rate mismatch after update: got %.2f, want %.2f", fetchedRate.Rate, 560.0)
+	if fetchedRate.Rate != "5.6" {
+		t.Errorf("persisted rate mismatch after update: got %q, want %q", fetchedRate.Rate, "5.6")
 	}
 
 	t.Log("Asset Rate create and update test completed successfully")
@@ -249,7 +249,7 @@ func TestIntegration_AssetRates_GetByExternalID(t *testing.T) {
 	createPayload := map[string]any{
 		"from":       "USD",
 		"to":         "EUR",
-		"rate":       92, // 0.92 EUR per 1 USD
+		"rate":       "0.92", // 0.92 EUR per 1 USD (direct decimal value)
 		"scale":      2,
 		"source":     source,
 		"externalId": externalID,
@@ -295,14 +295,14 @@ func TestIntegration_AssetRates_GetByExternalID(t *testing.T) {
 	if fetchedRate.To != "EUR" {
 		t.Errorf("fetched 'to' mismatch: got %q, want %q", fetchedRate.To, "EUR")
 	}
-	if fetchedRate.Rate != 92 {
-		t.Errorf("fetched rate mismatch: got %.2f, want %.2f", fetchedRate.Rate, 92.0)
+	if fetchedRate.Rate != "0.92" {
+		t.Errorf("fetched rate mismatch: got %q, want %q", fetchedRate.Rate, "0.92")
 	}
 	if fetchedRate.ID != createdRate.ID {
 		t.Errorf("fetched ID mismatch: got %q, want %q", fetchedRate.ID, createdRate.ID)
 	}
 
-	t.Logf("Fetched asset rate: ID=%s ExternalID=%s From=%s To=%s Rate=%.2f",
+	t.Logf("Fetched asset rate: ID=%s ExternalID=%s From=%s To=%s Rate=%s",
 		fetchedRate.ID, fetchedRate.ExternalID, fetchedRate.From, fetchedRate.To, fetchedRate.Rate)
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -384,13 +384,12 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 
 	rates := []struct {
 		to         string
-		rate       int
-		scale      int
+		rate       string
 		externalID string
 	}{
-		{"EUR", 92, 2, uuid.New().String()},  // 0.92 EUR per USD
-		{"BRL", 550, 2, uuid.New().String()}, // 5.50 BRL per USD
-		{"GBP", 79, 2, uuid.New().String()},  // 0.79 GBP per USD
+		{"EUR", "0.92", uuid.New().String()},  // 0.92 EUR per USD
+		{"BRL", "5.50", uuid.New().String()},  // 5.50 BRL per USD
+		{"GBP", "0.79", uuid.New().String()},  // 0.79 GBP per USD
 	}
 
 	createdExternalIDs := make(map[string]bool)
@@ -399,7 +398,6 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 			"from":       "USD",
 			"to":         r.to,
 			"rate":       r.rate,
-			"scale":      r.scale,
 			"externalId": r.externalID,
 			"metadata": map[string]any{
 				"testCase": "get-by-asset-code",
@@ -411,7 +409,7 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 			t.Fatalf("create USD->%s rate failed: code=%d err=%v body=%s", r.to, code, err, string(body))
 		}
 		createdExternalIDs[r.externalID] = true
-		t.Logf("Created rate: USD -> %s = %d (scale=%d) ExternalID=%s", r.to, r.rate, r.scale, r.externalID)
+		t.Logf("Created rate: USD -> %s = %s ExternalID=%s", r.to, r.rate, r.externalID)
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────

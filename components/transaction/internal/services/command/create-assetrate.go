@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -29,6 +30,14 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	if err := uc.validateAssetCodes(&span, cari); err != nil {
 		return nil, err
+	}
+
+	// Validate rate is positive and within reasonable bounds
+	if cari.Rate.LessThanOrEqual(decimal.Zero) {
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidRateValue, reflect.TypeOf(mmodel.AssetRate{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rate must be positive", businessErr)
+
+		return nil, businessErr
 	}
 
 	arFound, err := uc.findExistingAssetRate(ctx, &span, logger, organizationID, ledgerID, cari)
@@ -125,14 +134,8 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 
 // updateAssetRateFields updates asset rate fields from input
 func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel.CreateAssetRateInput) {
-	// WARNING: Converting int64 to float64 loses precision for values > 2^53 (9007199254740992)
-	// TODO(review): Refactor AssetRate.Rate to use decimal.Decimal for full precision
-	// See: tests/fuzzy/assetrate_precision_fuzz_test.go for demonstration of the issue
-	rate := float64(cari.Rate)
-	scale := float64(cari.Scale)
-
-	arFound.Rate = rate
-	arFound.Scale = &scale
+	arFound.Rate = cari.Rate
+	arFound.Scale = cari.Scale
 	arFound.Source = cari.Source
 
 	if cari.TTL != nil {
@@ -158,12 +161,6 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 		externalID = &idStr
 	}
 
-	// WARNING: Converting int64 to float64 loses precision for values > 2^53 (9007199254740992)
-	// TODO(review): Refactor AssetRate.Rate to use decimal.Decimal for full precision
-	// See: tests/fuzzy/assetrate_precision_fuzz_test.go for demonstration of the issue
-	rate := float64(cari.Rate)
-	scale := float64(cari.Scale)
-
 	var ttl int
 	if cari.TTL != nil {
 		ttl = *cari.TTL
@@ -176,8 +173,8 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 		ExternalID:     *externalID,
 		From:           cari.From,
 		To:             cari.To,
-		Rate:           rate,
-		Scale:          &scale,
+		Rate:           cari.Rate,
+		Scale:          cari.Scale,
 		Source:         cari.Source,
 		TTL:            ttl,
 		CreatedAt:      time.Now(),

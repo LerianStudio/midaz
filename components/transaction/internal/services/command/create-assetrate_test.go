@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -37,7 +38,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:   "USD",
 			To:     "BRL",
-			Rate:   500,
+			Rate:   decimal.NewFromInt(500),
 			Scale:  2,
 			Source: libPointers.String("External System"),
 			TTL:    &ttl,
@@ -55,7 +56,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				assert.Equal(t, ledgerID.String(), ar.LedgerID)
 				assert.Equal(t, "USD", ar.From)
 				assert.Equal(t, "BRL", ar.To)
-				assert.Equal(t, float64(500), ar.Rate)
+				assert.True(t, decimal.NewFromInt(500).Equal(ar.Rate))
 				return ar, nil
 			}).
 			Times(1)
@@ -85,7 +86,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:     "EUR",
 			To:       "USD",
-			Rate:     110,
+			Rate:     decimal.NewFromInt(110),
 			Scale:    2,
 			Source:   libPointers.String("External System"),
 			TTL:      &ttl,
@@ -136,15 +137,15 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			From:           "USD",
 			To:             "BRL",
-			Rate:           500,
-			Scale:          libPointers.Float64(2),
+			Rate:           decimal.NewFromInt(500),
+			Scale:          2,
 			TTL:            3600,
 		}
 
 		input := &mmodel.CreateAssetRateInput{
 			From:   "USD",
 			To:     "BRL",
-			Rate:   550,
+			Rate:   decimal.NewFromInt(550),
 			Scale:  2,
 			Source: libPointers.String("Updated System"),
 			TTL:    &ttl,
@@ -158,7 +159,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		mockAssetRateRepo.EXPECT().
 			Update(gomock.Any(), organizationID, ledgerID, gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, _, _ any, id any, ar *mmodel.AssetRate) (*mmodel.AssetRate, error) {
-				assert.Equal(t, float64(550), ar.Rate)
+				assert.True(t, decimal.NewFromInt(550).Equal(ar.Rate))
 				assert.Equal(t, 7200, ar.TTL)
 				return ar, nil
 			}).
@@ -192,7 +193,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:   "usd",
 			To:     "BRL",
-			Rate:   500,
+			Rate:   decimal.NewFromInt(500),
 			Scale:  2,
 			Source: libPointers.String("External System"),
 			TTL:    &ttl,
@@ -222,7 +223,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:   "USD",
 			To:     "BRL123",
-			Rate:   500,
+			Rate:   decimal.NewFromInt(500),
 			Scale:  2,
 			Source: libPointers.String("External System"),
 			TTL:    &ttl,
@@ -252,7 +253,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:   "USD",
 			To:     "BRL",
-			Rate:   500,
+			Rate:   decimal.NewFromInt(500),
 			Scale:  2,
 			Source: libPointers.String("External System"),
 			TTL:    &ttl,
@@ -287,7 +288,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:   "GBP",
 			To:     "EUR",
-			Rate:   115,
+			Rate:   decimal.NewFromInt(115),
 			Scale:  2,
 			Source: libPointers.String("External System"),
 			TTL:    &ttl,
@@ -331,15 +332,15 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			From:           "JPY",
 			To:             "USD",
-			Rate:           100,
-			Scale:          libPointers.Float64(4),
+			Rate:           decimal.NewFromInt(100),
+			Scale:          4,
 			TTL:            3600,
 		}
 
 		input := &mmodel.CreateAssetRateInput{
 			From:   "JPY",
 			To:     "USD",
-			Rate:   110,
+			Rate:   decimal.NewFromInt(110),
 			Scale:  4,
 			Source: libPointers.String("Updated System"),
 			TTL:    &ttl,
@@ -380,7 +381,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:     "CHF",
 			To:       "EUR",
-			Rate:     107,
+			Rate:     decimal.NewFromInt(107),
 			Scale:    2,
 			Source:   libPointers.String("External System"),
 			TTL:      &ttl,
@@ -429,7 +430,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		input := &mmodel.CreateAssetRateInput{
 			From:       "AUD",
 			To:         "NZD",
-			Rate:       108,
+			Rate:       decimal.NewFromInt(108),
 			Scale:      2,
 			Source:     libPointers.String("External System"),
 			TTL:        &ttl,
@@ -477,15 +478,15 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			From:           "CAD",
 			To:             "USD",
-			Rate:           75,
-			Scale:          libPointers.Float64(2),
+			Rate:           decimal.NewFromInt(75),
+			Scale:          2,
 			TTL:            3600,
 		}
 
 		input := &mmodel.CreateAssetRateInput{
 			From:       "CAD",
 			To:         "USD",
-			Rate:       76,
+			Rate:       decimal.NewFromInt(76),
 			Scale:      2,
 			Source:     libPointers.String("Updated System"),
 			TTL:        &ttl,
@@ -537,15 +538,15 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			From:           "SGD",
 			To:             "USD",
-			Rate:           74,
-			Scale:          libPointers.Float64(2),
+			Rate:           decimal.NewFromInt(74),
+			Scale:          2,
 			TTL:            3600,
 		}
 
 		input := &mmodel.CreateAssetRateInput{
 			From:     "SGD",
 			To:       "USD",
-			Rate:     75,
+			Rate:     decimal.NewFromInt(75),
 			Scale:    2,
 			Source:   libPointers.String("Updated System"),
 			TTL:      &ttl,
@@ -592,8 +593,8 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 		ExternalID:     exID.String(),
 		From:           "USD",
 		To:             "BRL",
-		Rate:           100,
-		Scale:          libPointers.Float64(2),
+		Rate:           decimal.NewFromInt(100),
+		Scale:          2,
 		Source:         libPointers.String("External System"),
 		TTL:            3600,
 	}
@@ -617,7 +618,7 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 	assert.Equal(t, assetRateEntity.ExternalID, res.ExternalID)
 	assert.Equal(t, assetRateEntity.From, res.From)
 	assert.Equal(t, assetRateEntity.To, res.To)
-	assert.Equal(t, assetRateEntity.Rate, res.Rate)
+	assert.True(t, assetRateEntity.Rate.Equal(res.Rate))
 	assert.Equal(t, assetRateEntity.Scale, res.Scale)
 	assert.Equal(t, assetRateEntity.Source, res.Source)
 	assert.Equal(t, assetRateEntity.TTL, res.TTL)
@@ -638,7 +639,7 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 	assert.Equal(t, assetRateEntity.ExternalID, res.ExternalID)
 	assert.Equal(t, assetRateEntity.From, res.From)
 	assert.Equal(t, assetRateEntity.To, res.To)
-	assert.Equal(t, assetRateEntity.Rate, res.Rate)
+	assert.True(t, assetRateEntity.Rate.Equal(res.Rate))
 	assert.Equal(t, assetRateEntity.Scale, res.Scale)
 	assert.Equal(t, assetRateEntity.Source, res.Source)
 	assert.Equal(t, assetRateEntity.TTL, res.TTL)
@@ -659,8 +660,8 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 		ExternalID:     exID.String(),
 		From:           "USD",
 		To:             "BRL",
-		Rate:           100,
-		Scale:          libPointers.Float64(2),
+		Rate:           decimal.NewFromInt(100),
+		Scale:          2,
 		Source:         libPointers.String("External System"),
 		TTL:            3600,
 	}
@@ -697,7 +698,7 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 	assert.Equal(t, assetRateEntity.ExternalID, res.ExternalID)
 	assert.Equal(t, assetRateEntity.From, res.From)
 	assert.Equal(t, assetRateEntity.To, res.To)
-	assert.Equal(t, assetRateEntity.Rate, res.Rate)
+	assert.True(t, assetRateEntity.Rate.Equal(res.Rate))
 	assert.Equal(t, assetRateEntity.Scale, res.Scale)
 	assert.Equal(t, assetRateEntity.Source, res.Source)
 	assert.Equal(t, assetRateEntity.TTL, res.TTL)
