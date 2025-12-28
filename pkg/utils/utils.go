@@ -28,6 +28,8 @@ var (
 	ErrCodeMustBeUppercase = ValidationError{Code: "0004"}
 	// ErrInvalidCurrencyCode is returned when currency code is not in ISO 4217 list
 	ErrInvalidCurrencyCode = ValidationError{Code: "0005"}
+	// ErrInvalidCodeLength is returned when code length is not between 2 and 10 characters
+	ErrInvalidCodeLength = ValidationError{Code: "0133"}
 )
 
 // ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
@@ -78,8 +80,12 @@ func ValidateType(t string) error {
 	return nil
 }
 
-// ValidateCode checks that the code contains only uppercase letters.
+// ValidateCode checks that the code contains only uppercase letters and has valid length (2-10 chars).
 func ValidateCode(code string) error {
+	if len(code) < 2 || len(code) > 10 {
+		return ErrInvalidCodeLength
+	}
+
 	for _, r := range code {
 		if !unicode.IsLetter(r) {
 			return ErrCodeMustContainOnlyLetters

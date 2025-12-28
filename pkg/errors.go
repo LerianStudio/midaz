@@ -529,6 +529,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Code Format",
 			Message:    "The 'code' field must be alphanumeric, in upper case, and must contain at least one letter. Please provide a valid code.",
 		},
+		constant.ErrInvalidCodeLength: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidCodeLength.Error(),
+			Title:      "Invalid Code Length",
+			Message:    "The 'code' field must be between 2 and 10 characters. Please provide a valid code.",
+		},
 		constant.ErrAssetCodeNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAssetCodeNotFound.Error(),

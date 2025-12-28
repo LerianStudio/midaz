@@ -140,6 +140,7 @@ var (
 	ErrOnHoldInsufficient                       = errors.New("0130")
 	ErrRefreshTransactionOperations             = errors.New("0131")
 	ErrPersistAsyncTransaction                  = errors.New("0132")
+	ErrInvalidCodeLength                        = errors.New("0133")
 
 	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
