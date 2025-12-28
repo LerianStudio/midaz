@@ -61,7 +61,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	createPayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       550,   // 5.50 BRL per 1 USD (rate=550, scale=2 means 5.50)
+		"rate":       550, // 5.50 BRL per 1 USD (rate=550, scale=2 means 5.50)
 		"scale":      2,
 		"source":     "Integration Test",
 		"externalId": externalID,
@@ -143,7 +143,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	updatePayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
-		"rate":       560,   // Updated rate: 5.60 BRL per 1 USD
+		"rate":       560, // Updated rate: 5.60 BRL per 1 USD
 		"scale":      2,
 		"source":     "Integration Test - Updated",
 		"externalId": externalID,
@@ -231,8 +231,8 @@ func TestIntegration_AssetRate_MultipleCurrencyPairs(t *testing.T) {
 		rate  int
 		scale int
 	}{
-		{"EUR", 92, 2},  // 0.92 EUR per USD
-		{"GBP", 79, 2},  // 0.79 GBP per USD
+		{"EUR", 92, 2},    // 0.92 EUR per USD
+		{"GBP", 79, 2},    // 0.79 GBP per USD
 		{"JPY", 15000, 2}, // 150.00 JPY per USD
 	}
 

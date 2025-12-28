@@ -13,13 +13,13 @@ import (
 func TestProperty_TransactionDateJSONRoundtrip(t *testing.T) {
 	f := func(year, month, day, hour, minute, second, milli uint16) bool {
 		// Constrain to valid ranges
-		year = 1900 + (year % 400)      // Year 1900-2299
-		month = 1 + (month % 12)        // Month 1-12
-		day = 1 + (day % 28)            // Day 1-28 (safe for all months)
-		hour = hour % 24                // Hour 0-23
-		minute = minute % 60            // Minute 0-59
-		second = second % 60            // Second 0-59
-		milli = milli % 1000            // Millisecond 0-999
+		year = 1900 + (year % 400) // Year 1900-2299
+		month = 1 + (month % 12)   // Month 1-12
+		day = 1 + (day % 28)       // Day 1-28 (safe for all months)
+		hour = hour % 24           // Hour 0-23
+		minute = minute % 60       // Minute 0-59
+		second = second % 60       // Second 0-59
+		milli = milli % 1000       // Millisecond 0-999
 
 		// Create a time with millisecond precision
 		original := time.Date(int(year), time.Month(month), int(day),
@@ -75,21 +75,21 @@ func TestProperty_TransactionDateJSONRoundtrip(t *testing.T) {
 func TestProperty_TransactionDateAllFormats(t *testing.T) {
 	f := func(year, month, day, hour, minute, second, milli uint16) bool {
 		// Constrain to valid ranges
-		year = 1900 + (year % 400)      // Year 1900-2299
-		month = 1 + (month % 12)        // Month 1-12
-		day = 1 + (day % 28)            // Day 1-28 (safe for all months)
-		hour = hour % 24                // Hour 0-23
-		minute = minute % 60            // Minute 0-59
-		second = second % 60            // Second 0-59
-		milli = milli % 1000            // Millisecond 0-999
+		year = 1900 + (year % 400) // Year 1900-2299
+		month = 1 + (month % 12)   // Month 1-12
+		day = 1 + (day % 28)       // Day 1-28 (safe for all months)
+		hour = hour % 24           // Hour 0-23
+		minute = minute % 60       // Minute 0-59
+		second = second % 60       // Second 0-59
+		milli = milli % 1000       // Millisecond 0-999
 
 		baseTime := time.Date(int(year), time.Month(month), int(day),
 			int(hour), int(minute), int(second), int(milli)*1e6, time.UTC)
 
 		// All formats that TransactionDate supports
 		formats := []struct {
-			name   string
-			value  string
+			name  string
+			value string
 		}{
 			{"RFC3339Nano", baseTime.Format(time.RFC3339Nano)},
 			{"RFC3339", baseTime.Truncate(time.Second).Format(time.RFC3339)},

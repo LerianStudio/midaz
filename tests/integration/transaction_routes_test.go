@@ -12,15 +12,15 @@ import (
 
 // transactionRouteResponse represents the API response for a transaction route
 type transactionRouteResponse struct {
-	ID              string                     `json:"id"`
-	OrganizationID  string                     `json:"organizationId"`
-	LedgerID        string                     `json:"ledgerId"`
-	Title           string                     `json:"title"`
-	Description     string                     `json:"description"`
-	OperationRoutes []operationRouteEmbedded   `json:"operationRoutes"`
-	Metadata        map[string]any             `json:"metadata"`
-	CreatedAt       time.Time                  `json:"createdAt"`
-	UpdatedAt       time.Time                  `json:"updatedAt"`
+	ID              string                   `json:"id"`
+	OrganizationID  string                   `json:"organizationId"`
+	LedgerID        string                   `json:"ledgerId"`
+	Title           string                   `json:"title"`
+	Description     string                   `json:"description"`
+	OperationRoutes []operationRouteEmbedded `json:"operationRoutes"`
+	Metadata        map[string]any           `json:"metadata"`
+	CreatedAt       time.Time                `json:"createdAt"`
+	UpdatedAt       time.Time                `json:"updatedAt"`
 }
 
 // operationRouteEmbedded represents an embedded operation route in transaction route response

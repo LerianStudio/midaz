@@ -603,8 +603,8 @@ func TestIntegration_OperationRoutes_MetadataHandling(t *testing.T) {
 	getPath := fmt.Sprintf("%s/%s", path, routeID)
 	updatePayload := map[string]any{
 		"metadata": map[string]any{
-			"updated":     true,
-			"new_field":   "new_value",
+			"updated":      true,
+			"new_field":    "new_value",
 			"string_value": "updated_test",
 		},
 	}

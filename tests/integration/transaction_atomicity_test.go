@@ -135,7 +135,7 @@ func TestIntegration_Transaction_Atomicity_NoOrphanTransactions(t *testing.T) {
 		}
 
 		var txWithOps struct {
-			ID         string `json:"id"`
+			ID         string                `json:"id"`
 			Status     struct{ Code string } `json:"status"`
 			Operations []struct {
 				ID   string `json:"id"`
