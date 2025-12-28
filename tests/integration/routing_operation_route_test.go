@@ -467,15 +467,16 @@ func TestIntegration_Routing_OperationTypeImmutability(t *testing.T) {
 
 	t.Logf("After PATCH: ID=%s OperationType=%s", updatedRoute.ID, updatedRoute.OperationType)
 
-	if updatedRoute.OperationType == "source" {
+	switch updatedRoute.OperationType {
+	case "source":
 		// Behavior B: API accepted PATCH but ignored operationType change
 		t.Logf("API behavior: operationType change IGNORED (remained 'source')")
 		t.Log("operationType immutability test completed: operationType is effectively immutable")
-	} else if updatedRoute.OperationType == "destination" {
+	case "destination":
 		// Behavior C: API allowed operationType change
 		t.Logf("API behavior: operationType change ALLOWED (changed to 'destination')")
 		t.Logf("Warning: operationType is mutable - consider if this is desired behavior")
-	} else {
+	default:
 		t.Errorf("unexpected operationType after PATCH: got %q", updatedRoute.OperationType)
 	}
 
@@ -487,4 +488,296 @@ func TestIntegration_Routing_OperationTypeImmutability(t *testing.T) {
 
 	t.Logf("Verified operationType after PATCH: %s", fetchedRoute.OperationType)
 	t.Log("operationType immutability test completed successfully")
+}
+
+// TestIntegration_Routing_EdgeCases tests various edge cases for routing APIs.
+// This covers boundary conditions and error handling scenarios that may not be
+// covered by standard CRUD tests.
+func TestIntegration_Routing_EdgeCases(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// SETUP: Create Organization → Ledger → Operation Routes for testing
+	// ─────────────────────────────────────────────────────────────────────────
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("EdgeCase Test Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+	t.Logf("Created organization: ID=%s", orgID)
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("EdgeCase Test Ledger %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup ledger failed: %v", err)
+	}
+	t.Logf("Created ledger: ID=%s", ledgerID)
+
+	// Create a valid operation route for use in transaction route tests
+	validRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Valid Route %s", h.RandString(4)), "source")
+	if err != nil {
+		t.Fatalf("create valid operation route failed: %v", err)
+	}
+	t.Logf("Created valid operation route: ID=%s", validRouteID)
+
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, validRouteID); err != nil {
+			t.Logf("Warning: cleanup delete valid route failed: %v", err)
+		}
+	})
+
+	opRoutePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", orgID, ledgerID)
+	txRoutePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", orgID, ledgerID)
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Duplicate operation route IDs in transaction route
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("duplicate_operation_route_ids_in_transaction_route", func(t *testing.T) {
+		t.Parallel()
+		createPayload := h.CreateTransactionRoutePayload(
+			fmt.Sprintf("Dup IDs TxRoute %s", h.RandString(6)),
+			[]string{validRouteID, validRouteID}, // Same ID twice
+		)
+		createPayload["description"] = "Transaction route with duplicate operation route IDs"
+
+		code, body, err := trans.Request(ctx, "POST", txRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		// Should fail with 400 Bad Request (duplicate IDs not allowed) or 409 Conflict
+		switch code {
+		case 201:
+			t.Errorf("expected failure for duplicate operation route IDs, but got 201 Created: body=%s", string(body))
+			// Cleanup if accidentally created
+			var created h.TransactionRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteTransactionRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental transaction route failed: %v", delErr)
+				}
+			}
+		case 400, 409, 422:
+			t.Logf("Duplicate operation route IDs correctly rejected with code=%d", code)
+		default:
+			t.Logf("Duplicate operation route IDs returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with invalid validIf type (array instead of string)
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_invalid_validif_type_array", func(t *testing.T) {
+		t.Parallel()
+		// Create operation route with alias rule but array instead of string for validIf
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Invalid ValidIf Type %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"ruleType": "alias",
+				"validIf":  []string{"@treasury", "@fees"}, // Array instead of expected string
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		// Should fail with 400 Bad Request due to invalid type for validIf
+		switch code {
+		case 201:
+			t.Errorf("expected failure for invalid validIf type (array), but got 201 Created: body=%s", string(body))
+			// Cleanup if accidentally created
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		case 400, 422:
+			t.Logf("Invalid validIf type (array) correctly rejected with code=%d", code)
+		default:
+			t.Logf("Invalid validIf type returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with empty validIf string
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_empty_validif", func(t *testing.T) {
+		t.Parallel()
+		// Create operation route with alias rule but empty string for validIf
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Empty ValidIf %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"ruleType": "alias",
+				"validIf":  "", // Empty string
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		// Should fail with 400 Bad Request due to empty validIf
+		switch code {
+		case 201:
+			t.Errorf("expected failure for empty validIf, but got 201 Created: body=%s", string(body))
+			// Cleanup if accidentally created
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		case 400, 422:
+			t.Logf("Empty validIf correctly rejected with code=%d", code)
+		default:
+			t.Logf("Empty validIf returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with invalid ruleType
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_invalid_rule_type", func(t *testing.T) {
+		t.Parallel()
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Invalid RuleType %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"ruleType": "invalid_rule_type", // Invalid rule type
+				"validIf":  "@treasury",
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		switch code {
+		case 201:
+			t.Errorf("expected failure for invalid ruleType, but got 201 Created: body=%s", string(body))
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		case 400, 422:
+			t.Logf("Invalid ruleType correctly rejected with code=%d", code)
+		default:
+			t.Logf("Invalid ruleType returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with null validIf
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_null_validif", func(t *testing.T) {
+		t.Parallel()
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Null ValidIf %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"ruleType": "alias",
+				"validIf":  nil, // Null value
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		if code == 201 {
+			t.Errorf("expected failure for null validIf, but got 201 Created: body=%s", string(body))
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		} else if code == 400 || code == 422 {
+			t.Logf("Null validIf correctly rejected with code=%d", code)
+		} else {
+			t.Logf("Null validIf returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with object instead of string for validIf
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_object_validif", func(t *testing.T) {
+		t.Parallel()
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Object ValidIf %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"ruleType": "alias",
+				"validIf":  map[string]any{"alias": "@treasury"}, // Object instead of string
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		if code == 201 {
+			t.Errorf("expected failure for object validIf, but got 201 Created: body=%s", string(body))
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		} else if code == 400 || code == 422 {
+			t.Logf("Object validIf correctly rejected with code=%d", code)
+		} else {
+			t.Logf("Object validIf returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Edge Case: Account rule with missing ruleType but validIf present
+	// ─────────────────────────────────────────────────────────────────────────
+	t.Run("account_rule_missing_ruletype", func(t *testing.T) {
+		t.Parallel()
+		createPayload := map[string]any{
+			"title":         fmt.Sprintf("Missing RuleType %s", h.RandString(4)),
+			"operationType": "source",
+			"account": map[string]any{
+				"validIf": "@treasury", // ruleType is missing
+			},
+		}
+
+		code, body, err := trans.Request(ctx, "POST", opRoutePath, headers, createPayload)
+		if err != nil {
+			t.Logf("Request error (may be expected): %v", err)
+		}
+
+		if code == 201 {
+			t.Errorf("expected failure for missing ruleType, but got 201 Created: body=%s", string(body))
+			var created h.OperationRouteResponse
+			if json.Unmarshal(body, &created) == nil && created.ID != "" {
+				if delErr := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
+				}
+			}
+		} else if code == 400 || code == 422 {
+			t.Logf("Missing ruleType correctly rejected with code=%d", code)
+		} else {
+			t.Logf("Missing ruleType returned unexpected code=%d body=%s", code, string(body))
+		}
+	})
+
+	t.Log("Edge case tests completed")
 }
