@@ -161,11 +161,11 @@ func TestIntegration_AccountType_CRUDLifecycle(t *testing.T) {
 
 	t.Logf("Deleted account type: ID=%s", accountTypeID)
 
-	// Verify deletion - GET should fail
-	_, err = h.GetAccountType(ctx, onboard, headers, orgID, ledgerID, accountTypeID)
-	if err == nil {
-		t.Errorf("GET deleted account type should fail, but succeeded")
-	}
+	// Verify deletion - GET should fail (with retry for replica lag tolerance)
+	h.WaitForDeletedWithRetry(t, "account type", func() error {
+		_, err := h.GetAccountType(ctx, onboard, headers, orgID, ledgerID, accountTypeID)
+		return err
+	})
 
 	t.Log("Account Type CRUD lifecycle completed successfully")
 }

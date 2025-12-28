@@ -176,18 +176,19 @@ func TestIntegration_AccountTypes_CRUD(t *testing.T) {
 	t.Logf("Deleted account type: ID=%s", accountTypeID)
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 6) VERIFY DELETE - GET should return 404
+	// 6) VERIFY DELETE - GET should return 404 (with retry for replica lag tolerance)
 	// ─────────────────────────────────────────────────────────────────────────
 	getPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types/%s", orgID, ledgerID, accountTypeID)
-	code, body, err = onboard.Request(ctx, "GET", getPath, headers, nil)
-	if err != nil {
-		t.Logf("GET after delete request error (expected): %v", err)
-	}
-	if code != http.StatusNotFound {
-		t.Errorf("GET after delete: expected %d, got %d, body=%s", http.StatusNotFound, code, string(body))
-	} else {
-		t.Logf("GET after delete correctly returned 404")
-	}
+	h.WaitForDeletedWithRetry(t, "account type", func() error {
+		code, _, err := onboard.Request(ctx, "GET", getPath, headers, nil)
+		if err != nil {
+			return err
+		}
+		if code == http.StatusNotFound {
+			return fmt.Errorf("not found")
+		}
+		return nil
+	})
 
 	t.Log("AccountTypes CRUD lifecycle completed successfully")
 }

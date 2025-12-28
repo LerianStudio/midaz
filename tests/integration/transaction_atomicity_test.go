@@ -104,7 +104,7 @@ func TestIntegration_Transaction_Atomicity_NoOrphanTransactions(t *testing.T) {
 		}
 
 		code, body, err := trans.Request(ctx, "POST",
-			fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/transfer", orgID, ledgerID),
+			fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/json", orgID, ledgerID),
 			headers, transferTx)
 		if err != nil || code != 201 {
 			t.Fatalf("transfer %d: code=%d err=%v body=%s", i, code, err, string(body))
@@ -260,7 +260,7 @@ func TestIntegration_Transaction_Atomicity_ConcurrentCreation(t *testing.T) {
 			}
 
 			code, body, err := trans.Request(ctx, "POST",
-				fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/transfer", orgID, ledgerID),
+				fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/json", orgID, ledgerID),
 				headers, transferTx)
 			if err != nil {
 				results <- result{err: fmt.Errorf("request error: %v", err)}

@@ -16,8 +16,19 @@ func TestIntegration_CRM_HolderCRUDLifecycle(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Holder Test Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+	t.Logf("Created organization: ID=%s", orgID)
+
+	// CRM headers need organization ID
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	// Test data
 	holderName := fmt.Sprintf("Test Holder %s", h.RandString(6))
@@ -153,8 +164,17 @@ func TestIntegration_CRM_HolderLegalPerson(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Legal Person Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	// Test data - Legal Person (company)
 	companyName := fmt.Sprintf("Test Company %s LTDA", h.RandString(6))
@@ -196,8 +216,17 @@ func TestIntegration_CRM_HolderValidation(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Validation Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	// Generate valid CPFs for tests that should fail on other validations
 	validCPF := h.GenerateValidCPF()
@@ -249,8 +278,17 @@ func TestIntegration_CRM_HolderDuplicateDocument(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Duplicate Doc Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	// Generate a valid CPF for testing
 	sharedCPF := h.GenerateValidCPF()
@@ -309,38 +347,41 @@ func TestIntegration_CRM_HolderWithAddresses(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Addresses Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	holderName := fmt.Sprintf("Holder With Addresses %s", h.RandString(6))
 	holderCPF := h.GenerateValidCPF()
 
-	// Create payload with addresses array
+	// Create payload with addresses object (API expects named fields, not array)
 	createPayload := map[string]any{
 		"type":     "NATURAL_PERSON",
 		"name":     holderName,
 		"document": holderCPF,
-		"addresses": []map[string]any{
-			{
-				"type":       "residential",
-				"street":     "123 Main Street",
-				"number":     "456",
-				"complement": "Apt 789",
-				"city":       "San Francisco",
-				"state":      "CA",
-				"postalCode": "94102",
-				"country":    "USA",
-				"isDefault":  true,
+		"addresses": map[string]any{
+			"primary": map[string]any{
+				"line1":   "123 Main Street, 456",
+				"line2":   "Apt 789",
+				"city":    "San Francisco",
+				"state":   "CA",
+				"zipCode": "94102",
+				"country": "US",
 			},
-			{
-				"type":       "commercial",
-				"street":     "789 Business Ave",
-				"number":     "100",
-				"city":       "San Francisco",
-				"state":      "CA",
-				"postalCode": "94105",
-				"country":    "USA",
-				"isDefault":  false,
+			"additional1": map[string]any{
+				"line1":   "789 Business Ave, 100",
+				"city":    "San Francisco",
+				"state":   "CA",
+				"zipCode": "94105",
+				"country": "US",
 			},
 		},
 		"metadata": map[string]any{"environment": "test"},
@@ -389,8 +430,17 @@ func TestIntegration_CRM_HolderWithContactInfo(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Contact Info Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	holderName := fmt.Sprintf("Holder With Contact %s", h.RandString(6))
 	holderCPF := h.GenerateValidCPF()
@@ -401,9 +451,9 @@ func TestIntegration_CRM_HolderWithContactInfo(t *testing.T) {
 		"name":     holderName,
 		"document": holderCPF,
 		"contact": map[string]any{
-			"email":  fmt.Sprintf("test-%s@example.com", h.RandString(6)),
-			"phone":  "+1-555-123-4567",
-			"mobile": "+1-555-987-6543",
+			"primaryEmail": fmt.Sprintf("test-%s@example.com", h.RandString(6)),
+			"mobilePhone":  "+15551234567",
+			"otherPhone":   "+15559876543",
 		},
 		"metadata": map[string]any{"environment": "test"},
 	}
@@ -441,8 +491,17 @@ func TestIntegration_CRM_NaturalPersonExtendedFields(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("NaturalPerson Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	holderName := fmt.Sprintf("Natural Person Extended %s", h.RandString(6))
 	holderCPF := h.GenerateValidCPF()
@@ -453,16 +512,15 @@ func TestIntegration_CRM_NaturalPersonExtendedFields(t *testing.T) {
 		"name":     holderName,
 		"document": holderCPF,
 		"naturalPerson": map[string]any{
-			"birthDate":     "1990-05-15",
-			"nationality":   "Brazilian",
-			"motherName":    "Maria Silva",
-			"fatherName":    "Jose Silva",
-			"occupation":    "Software Engineer",
-			"gender":        "M",
-			"maritalStatus": "single",
+			"birthDate":   "1990-05-15",
+			"nationality": "Brazilian",
+			"motherName":  "Maria Silva",
+			"fatherName":  "Jose Silva",
+			"gender":      "Male",
+			"civilStatus": "Single",
 		},
 		"contact": map[string]any{
-			"email": fmt.Sprintf("natural-%s@example.com", h.RandString(6)),
+			"primaryEmail": fmt.Sprintf("natural-%s@example.com", h.RandString(6)),
 		},
 		"metadata": map[string]any{"environment": "test", "personType": "natural"},
 	}
@@ -500,8 +558,17 @@ func TestIntegration_CRM_LegalPersonExtendedFields(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
+
+	// Setup: Create Organization (required for CRM)
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("LegalPerson Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	headers := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
 
 	companyName := fmt.Sprintf("Legal Person Extended %s LTDA", h.RandString(6))
 	companyCNPJ := h.GenerateValidCNPJ()
@@ -512,26 +579,22 @@ func TestIntegration_CRM_LegalPersonExtendedFields(t *testing.T) {
 		"name":     companyName,
 		"document": companyCNPJ,
 		"legalPerson": map[string]any{
-			"tradeName":          fmt.Sprintf("Trade %s", h.RandString(4)),
-			"foundationDate":     "2015-01-20",
-			"registrationNumber": fmt.Sprintf("REG%s", h.RandString(8)),
-			"legalNature":        "LTDA",
-			"businessActivity":   "Technology Services",
+			"tradeName":    fmt.Sprintf("Trade %s", h.RandString(4)),
+			"foundingDate": "2015-01-20",
+			"type":         "LTDA",
+			"activity":     "Technology Services",
 		},
 		"contact": map[string]any{
-			"email": fmt.Sprintf("company-%s@example.com", h.RandString(6)),
-			"phone": "+1-555-COMPANY",
+			"primaryEmail": fmt.Sprintf("company-%s@example.com", h.RandString(6)),
+			"otherPhone":   "+15552667269",
 		},
-		"addresses": []map[string]any{
-			{
-				"type":       "headquarters",
-				"street":     "Corporate Blvd",
-				"number":     "1000",
-				"city":       "New York",
-				"state":      "NY",
-				"postalCode": "10001",
-				"country":    "USA",
-				"isDefault":  true,
+		"addresses": map[string]any{
+			"primary": map[string]any{
+				"line1":   "Corporate Blvd 1000",
+				"city":    "New York",
+				"state":   "NY",
+				"zipCode": "10001",
+				"country": "US",
 			},
 		},
 		"metadata": map[string]any{"environment": "test", "personType": "legal"},

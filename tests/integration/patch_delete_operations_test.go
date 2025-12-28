@@ -337,8 +337,8 @@ func TestIntegration_Asset_Update(t *testing.T) {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 
-	// Create custom asset
-	assetCode := fmt.Sprintf("TST%s", strings.ToUpper(h.RandString(3)))
+	// Create custom asset (use RandLetters since asset codes must be letters-only)
+	assetCode := fmt.Sprintf("TST%s", strings.ToUpper(h.RandLetters(3)))
 	createAssetPayload := map[string]any{
 		"name": "Test Asset",
 		"type": "commodity",
@@ -412,8 +412,8 @@ func TestIntegration_Asset_Delete(t *testing.T) {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 
-	// Create custom asset (not USD to avoid conflicts)
-	assetCode := fmt.Sprintf("DEL%s", strings.ToUpper(h.RandString(3)))
+	// Create custom asset (not USD to avoid conflicts, use RandLetters since asset codes must be letters-only)
+	assetCode := fmt.Sprintf("DEL%s", strings.ToUpper(h.RandLetters(3)))
 	createAssetPayload := map[string]any{
 		"name": "Asset To Delete",
 		"type": "commodity",
@@ -617,8 +617,8 @@ func TestIntegration_Idempotency_DuplicateAssetCreate(t *testing.T) {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 
-	// Generate unique asset code for this test
-	assetCode := fmt.Sprintf("DUP%s", strings.ToUpper(h.RandString(3)))
+	// Generate unique asset code for this test (use RandLetters since asset codes must be letters-only)
+	assetCode := fmt.Sprintf("DUP%s", strings.ToUpper(h.RandLetters(3)))
 	createPayload := map[string]any{
 		"name": "Duplicate Test Asset",
 		"type": "commodity",

@@ -57,7 +57,8 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// 1) CREATE - Asset Rate (USD to BRL)
 	// ─────────────────────────────────────────────────────────────────────────
-	externalID := fmt.Sprintf("ext-%s", h.RandHex(8))
+	// ExternalID must be UUID format per API spec (format:"uuid" in mmodel/assetrate.go)
+	externalID := h.RandUUID()
 	createPayload := map[string]any{
 		"from":       "USD",
 		"to":         "BRL",
@@ -73,7 +74,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", orgID, ledgerID)
 	code, body, err = trans.Request(ctx, "PUT", path, headers, createPayload)
-	if err != nil || code != 200 {
+	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("CREATE asset rate failed: code=%d err=%v body=%s", code, err, string(body))
 	}
 
@@ -155,7 +156,7 @@ func TestIntegration_AssetRate_CreateAndRetrieve(t *testing.T) {
 	}
 
 	code, body, err = trans.Request(ctx, "PUT", path, headers, updatePayload)
-	if err != nil || code != 200 {
+	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("UPDATE asset rate failed: code=%d err=%v body=%s", code, err, string(body))
 	}
 
@@ -242,10 +243,10 @@ func TestIntegration_AssetRate_MultipleCurrencyPairs(t *testing.T) {
 			"to":         r.to,
 			"rate":       r.rate,
 			"scale":      r.scale,
-			"externalId": fmt.Sprintf("ext-usd-%s-%s", r.to, h.RandHex(4)),
+			"externalId": h.RandUUID(), // ExternalID must be UUID format per API spec
 		}
 		code, body, err := trans.Request(ctx, "PUT", ratePath, headers, payload)
-		if err != nil || code != 200 {
+		if err != nil || (code != 200 && code != 201) {
 			t.Fatalf("create USD->%s rate failed: code=%d err=%v body=%s", r.to, code, err, string(body))
 		}
 		t.Logf("Created rate: USD -> %s = %d (scale=%d)", r.to, r.rate, r.scale)

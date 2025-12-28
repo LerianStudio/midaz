@@ -190,11 +190,11 @@ func TestIntegration_Routing_TransactionRouteCRUDLifecycle(t *testing.T) {
 
 	t.Logf("Deleted transaction route: ID=%s", txRouteID)
 
-	// Verify deletion - GET should fail
-	_, err = h.GetTransactionRoute(ctx, trans, headers, orgID, ledgerID, txRouteID)
-	if err == nil {
-		t.Errorf("GET deleted transaction route should fail, but succeeded")
-	}
+	// Verify deletion - GET should fail (with retry for replica lag tolerance)
+	h.WaitForDeletedWithRetry(t, "transaction route", func() error {
+		_, err := h.GetTransactionRoute(ctx, trans, headers, orgID, ledgerID, txRouteID)
+		return err
+	})
 
 	t.Log("Transaction Route CRUD lifecycle completed successfully")
 }

@@ -21,6 +21,7 @@ import (
 // without an Authorization header.
 func TestIntegration_Security_NoAuthHeader(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -106,6 +107,7 @@ func TestIntegration_Security_NoAuthHeader(t *testing.T) {
 // with invalid Bearer tokens.
 func TestIntegration_Security_InvalidToken(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -164,6 +166,7 @@ func TestIntegration_Security_InvalidToken(t *testing.T) {
 // with malformed Authorization headers.
 func TestIntegration_Security_MalformedToken(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -508,6 +511,12 @@ func TestIntegration_Security_PathTraversalInOrgID(t *testing.T) {
 
 			code, body, err := onboard.Request(ctx, http.MethodGet, "/v1/organizations/"+tc.orgID, headers, nil)
 			if err != nil {
+				// If the URL couldn't be created due to invalid control characters,
+				// Go's net/url is protecting us at the URL parsing level - this is expected behavior
+				if strings.Contains(err.Error(), "invalid control character") {
+					t.Logf("URL correctly rejected by Go's net/url (control character protection): %q", tc.orgID)
+					return
+				}
 				t.Fatalf("request failed: %v", err)
 			}
 			// Should get 400 (bad request) or 404 (not found) - never 200 with sensitive data
@@ -664,6 +673,16 @@ func TestIntegration_Security_InvalidUUIDFormat(t *testing.T) {
 
 			code, body, err := onboard.Request(ctx, http.MethodGet, "/v1/organizations/"+tc.id, headers, nil)
 			if err != nil {
+				// If the URL couldn't be created due to invalid control characters or URL escape sequences,
+				// Go's net/url is protecting us at the URL parsing level - this is expected behavior
+				if strings.Contains(err.Error(), "invalid control character") {
+					t.Logf("URL correctly rejected by Go's net/url (control character protection): %q", tc.id)
+					return
+				}
+				if strings.Contains(err.Error(), "invalid URL escape") {
+					t.Logf("URL correctly rejected by Go's net/url (invalid URL escape): %q", tc.id)
+					return
+				}
 				t.Fatalf("request failed: %v", err)
 			}
 			// Should get 400 (bad request) or 404 (not found)

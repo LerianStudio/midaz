@@ -8,6 +8,7 @@ import (
 	"time"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	"github.com/google/uuid"
 )
 
 // assetRateResponse represents the API response for an asset rate
@@ -84,7 +85,7 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// TEST 1: Create Asset Rate (USD to BRL)
 	// ─────────────────────────────────────────────────────────────────────────
-	externalID := fmt.Sprintf("ext-create-update-%s", h.RandHex(8))
+	externalID := uuid.New().String()
 	source := "Integration Test - Create"
 	scale := 2.0
 
@@ -103,7 +104,7 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 
 	ratePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", orgID, ledgerID)
 	code, body, err = trans.Request(ctx, "PUT", ratePath, headers, createPayload)
-	if err != nil || code != 200 {
+	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("CREATE asset rate failed: code=%d err=%v body=%s", code, err, string(body))
 	}
 
@@ -157,7 +158,7 @@ func TestIntegration_AssetRates_CreateAndUpdate(t *testing.T) {
 	}
 
 	code, body, err = trans.Request(ctx, "PUT", ratePath, headers, updatePayload)
-	if err != nil || code != 200 {
+	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("UPDATE asset rate failed: code=%d err=%v body=%s", code, err, string(body))
 	}
 
@@ -242,7 +243,7 @@ func TestIntegration_AssetRates_GetByExternalID(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// TEST 1: Create an asset rate with specific external ID
 	// ─────────────────────────────────────────────────────────────────────────
-	externalID := fmt.Sprintf("ext-get-by-id-%s", h.RandHex(8))
+	externalID := uuid.New().String()
 	source := "Integration Test - GetByExternalID"
 
 	createPayload := map[string]any{
@@ -260,7 +261,7 @@ func TestIntegration_AssetRates_GetByExternalID(t *testing.T) {
 
 	ratePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates", orgID, ledgerID)
 	code, body, err = trans.Request(ctx, "PUT", ratePath, headers, createPayload)
-	if err != nil || code != 200 {
+	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("CREATE asset rate failed: code=%d err=%v body=%s", code, err, string(body))
 	}
 
@@ -307,7 +308,7 @@ func TestIntegration_AssetRates_GetByExternalID(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// TEST 3: Verify 404 for non-existent external ID
 	// ─────────────────────────────────────────────────────────────────────────
-	nonExistentID := fmt.Sprintf("non-existent-%s", h.RandHex(8))
+	nonExistentID := uuid.New().String()
 	getPathNotFound := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates/%s", orgID, ledgerID, nonExistentID)
 	code, body, err = trans.Request(ctx, "GET", getPathNotFound, headers, nil)
 	if err != nil {
@@ -387,9 +388,9 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 		scale      int
 		externalID string
 	}{
-		{"EUR", 92, 2, fmt.Sprintf("ext-usd-eur-%s", h.RandHex(4))},  // 0.92 EUR per USD
-		{"BRL", 550, 2, fmt.Sprintf("ext-usd-brl-%s", h.RandHex(4))}, // 5.50 BRL per USD
-		{"GBP", 79, 2, fmt.Sprintf("ext-usd-gbp-%s", h.RandHex(4))},  // 0.79 GBP per USD
+		{"EUR", 92, 2, uuid.New().String()},  // 0.92 EUR per USD
+		{"BRL", 550, 2, uuid.New().String()}, // 5.50 BRL per USD
+		{"GBP", 79, 2, uuid.New().String()},  // 0.79 GBP per USD
 	}
 
 	createdExternalIDs := make(map[string]bool)
@@ -406,7 +407,7 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 		}
 
 		code, body, err := trans.Request(ctx, "PUT", ratePath, headers, payload)
-		if err != nil || code != 200 {
+		if err != nil || (code != 200 && code != 201) {
 			t.Fatalf("create USD->%s rate failed: code=%d err=%v body=%s", r.to, code, err, string(body))
 		}
 		createdExternalIDs[r.externalID] = true

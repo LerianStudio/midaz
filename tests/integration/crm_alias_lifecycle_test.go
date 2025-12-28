@@ -18,44 +18,47 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// SETUP: Create Organization → Ledger → Asset → Account
 	// ─────────────────────────────────────────────────────────────────────────
 
 	// Create Organization
-	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Alias Test Org %s", h.RandString(5)))
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Alias Test Org %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup organization failed: %v", err)
 	}
 	t.Logf("Created organization: ID=%s", orgID)
 
+	// CRM headers need organization ID
+	crmHeaders := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
+
 	// Create Ledger
-	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Alias Test Ledger %s", h.RandString(5)))
+	ledgerID, err := h.SetupLedger(ctx, onboard, baseHeaders, orgID, fmt.Sprintf("Alias Test Ledger %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 	t.Logf("Created ledger: ID=%s", ledgerID)
 
 	// Create USD Asset
-	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, baseHeaders); err != nil {
 		t.Fatalf("create USD asset failed: %v", err)
 	}
 	t.Log("Created USD asset")
 
 	// Create Account
 	accountAlias := fmt.Sprintf("alias-test-account-%s", h.RandString(6))
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, accountAlias, "USD")
+	accountID, err := h.SetupAccount(ctx, onboard, baseHeaders, orgID, ledgerID, accountAlias, "USD")
 	if err != nil {
 		t.Fatalf("setup account failed: %v", err)
 	}
 	t.Logf("Created account: ID=%s Alias=%s", accountID, accountAlias)
 
-	// Create Holder
+	// Create Holder (using CRM headers with org ID)
 	holderName := fmt.Sprintf("Alias Test Holder %s", h.RandString(6))
 	holderCPF := h.GenerateValidCPF()
-	holderID, err := h.SetupHolder(ctx, crm, headers, holderName, holderCPF, "NATURAL_PERSON")
+	holderID, err := h.SetupHolder(ctx, crm, crmHeaders, holderName, holderCPF, "NATURAL_PERSON")
 	if err != nil {
 		t.Fatalf("setup holder failed: %v", err)
 	}
@@ -68,7 +71,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	createPayload["metadata"] = map[string]any{"environment": "test", "source": "integration"}
 
 	path := fmt.Sprintf("/v1/holders/%s/aliases", holderID)
-	code, body, err := crm.Request(ctx, "POST", path, headers, createPayload)
+	code, body, err := crm.Request(ctx, "POST", path, crmHeaders, createPayload)
 	if err != nil || code != 201 {
 		t.Fatalf("CREATE alias failed: code=%d err=%v body=%s", code, err, string(body))
 	}
@@ -96,7 +99,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// 2) READ - Get Alias by ID
 	// ─────────────────────────────────────────────────────────────────────────
-	fetchedAlias, err := h.GetAlias(ctx, crm, headers, holderID, aliasID)
+	fetchedAlias, err := h.GetAlias(ctx, crm, crmHeaders, holderID, aliasID)
 	if err != nil {
 		t.Fatalf("GET alias by ID failed: %v", err)
 	}
@@ -113,7 +116,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// 3) LIST - Get All Aliases for Holder (verify our alias appears)
 	// ─────────────────────────────────────────────────────────────────────────
-	aliasList, err := h.ListAliases(ctx, crm, headers, holderID)
+	aliasList, err := h.ListAliases(ctx, crm, crmHeaders, holderID)
 	if err != nil {
 		t.Fatalf("LIST aliases failed: %v", err)
 	}
@@ -134,7 +137,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// 4) LIST ALL - Get All Aliases across all Holders
 	// ─────────────────────────────────────────────────────────────────────────
-	allAliases, err := h.ListAllAliases(ctx, crm, headers)
+	allAliases, err := h.ListAllAliases(ctx, crm, crmHeaders)
 	if err != nil {
 		t.Fatalf("LIST all aliases failed: %v", err)
 	}
@@ -164,7 +167,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 		},
 	}
 
-	updatedAlias, err := h.UpdateAlias(ctx, crm, headers, holderID, aliasID, updatePayload)
+	updatedAlias, err := h.UpdateAlias(ctx, crm, crmHeaders, holderID, aliasID, updatePayload)
 	if err != nil {
 		t.Fatalf("UPDATE alias failed: %v", err)
 	}
@@ -180,7 +183,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	t.Logf("Updated alias: ID=%s", updatedAlias.ID)
 
 	// Verify update persisted by fetching again
-	verifyAlias, err := h.GetAlias(ctx, crm, headers, holderID, aliasID)
+	verifyAlias, err := h.GetAlias(ctx, crm, crmHeaders, holderID, aliasID)
 	if err != nil {
 		t.Fatalf("GET alias after update failed: %v", err)
 	}
@@ -191,7 +194,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// 6) DELETE - Remove Alias
 	// ─────────────────────────────────────────────────────────────────────────
-	err = h.DeleteAlias(ctx, crm, headers, holderID, aliasID)
+	err = h.DeleteAlias(ctx, crm, crmHeaders, holderID, aliasID)
 	if err != nil {
 		t.Fatalf("DELETE alias failed: %v", err)
 	}
@@ -199,7 +202,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	t.Logf("Deleted alias: ID=%s", aliasID)
 
 	// Verify deletion - GET should fail
-	_, err = h.GetAlias(ctx, crm, headers, holderID, aliasID)
+	_, err = h.GetAlias(ctx, crm, crmHeaders, holderID, aliasID)
 	if err == nil {
 		t.Errorf("GET deleted alias should fail, but succeeded")
 	}
@@ -207,7 +210,7 @@ func TestIntegration_CRM_AliasCRUDLifecycle(t *testing.T) {
 	// ─────────────────────────────────────────────────────────────────────────
 	// CLEANUP
 	// ─────────────────────────────────────────────────────────────────────────
-	if err := h.DeleteHolder(ctx, crm, headers, holderID); err != nil {
+	if err := h.DeleteHolder(ctx, crm, crmHeaders, holderID); err != nil {
 		t.Logf("Warning: cleanup delete holder failed: %v", err)
 	}
 
@@ -222,56 +225,59 @@ func TestIntegration_CRM_MultipleAliasesPerHolder(t *testing.T) {
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
 
 	// Setup: Organization → Ledger → Asset → 2 Accounts
-	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Multi Alias Org %s", h.RandString(5)))
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Multi Alias Org %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup organization failed: %v", err)
 	}
 
-	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Multi Alias Ledger %s", h.RandString(5)))
+	// CRM headers need organization ID
+	crmHeaders := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, baseHeaders, orgID, fmt.Sprintf("Multi Alias Ledger %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 
-	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, baseHeaders); err != nil {
 		t.Fatalf("create USD asset failed: %v", err)
 	}
 
 	// Create two accounts
-	account1ID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, fmt.Sprintf("account1-%s", h.RandString(6)), "USD")
+	account1ID, err := h.SetupAccount(ctx, onboard, baseHeaders, orgID, ledgerID, fmt.Sprintf("account1-%s", h.RandString(6)), "USD")
 	if err != nil {
 		t.Fatalf("setup account 1 failed: %v", err)
 	}
 
-	account2ID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, fmt.Sprintf("account2-%s", h.RandString(6)), "USD")
+	account2ID, err := h.SetupAccount(ctx, onboard, baseHeaders, orgID, ledgerID, fmt.Sprintf("account2-%s", h.RandString(6)), "USD")
 	if err != nil {
 		t.Fatalf("setup account 2 failed: %v", err)
 	}
 
 	// Create Holder
-	holderID, err := h.SetupHolder(ctx, crm, headers, fmt.Sprintf("Multi Alias Holder %s", h.RandString(6)), h.GenerateValidCPF(), "NATURAL_PERSON")
+	holderID, err := h.SetupHolder(ctx, crm, crmHeaders, fmt.Sprintf("Multi Alias Holder %s", h.RandString(6)), h.GenerateValidCPF(), "NATURAL_PERSON")
 	if err != nil {
 		t.Fatalf("setup holder failed: %v", err)
 	}
 
 	// Create first alias
-	alias1ID, err := h.SetupAlias(ctx, crm, headers, holderID, ledgerID, account1ID)
+	alias1ID, err := h.SetupAlias(ctx, crm, crmHeaders, holderID, ledgerID, account1ID)
 	if err != nil {
 		t.Fatalf("create alias 1 failed: %v", err)
 	}
 	t.Logf("Created alias 1: ID=%s for account %s", alias1ID, account1ID)
 
 	// Create second alias
-	alias2ID, err := h.SetupAlias(ctx, crm, headers, holderID, ledgerID, account2ID)
+	alias2ID, err := h.SetupAlias(ctx, crm, crmHeaders, holderID, ledgerID, account2ID)
 	if err != nil {
 		t.Fatalf("create alias 2 failed: %v", err)
 	}
 	t.Logf("Created alias 2: ID=%s for account %s", alias2ID, account2ID)
 
 	// List aliases for holder - should have both
-	aliasList, err := h.ListAliases(ctx, crm, headers, holderID)
+	aliasList, err := h.ListAliases(ctx, crm, crmHeaders, holderID)
 	if err != nil {
 		t.Fatalf("list aliases failed: %v", err)
 	}
@@ -301,13 +307,13 @@ func TestIntegration_CRM_MultipleAliasesPerHolder(t *testing.T) {
 	t.Logf("Multiple aliases test passed: holder has %d aliases", len(aliasList.Items))
 
 	// Cleanup
-	if err := h.DeleteAlias(ctx, crm, headers, holderID, alias1ID); err != nil {
+	if err := h.DeleteAlias(ctx, crm, crmHeaders, holderID, alias1ID); err != nil {
 		t.Logf("Warning: cleanup delete alias1 failed: %v", err)
 	}
-	if err := h.DeleteAlias(ctx, crm, headers, holderID, alias2ID); err != nil {
+	if err := h.DeleteAlias(ctx, crm, crmHeaders, holderID, alias2ID); err != nil {
 		t.Logf("Warning: cleanup delete alias2 failed: %v", err)
 	}
-	if err := h.DeleteHolder(ctx, crm, headers, holderID); err != nil {
+	if err := h.DeleteHolder(ctx, crm, crmHeaders, holderID); err != nil {
 		t.Logf("Warning: cleanup delete holder failed: %v", err)
 	}
 }
@@ -320,28 +326,31 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	crm := h.NewHTTPClient(env.CRMURL, env.HTTPTimeout)
-	headers := h.AuthHeaders(h.RandHex(8))
+	baseHeaders := h.AuthHeaders(h.RandHex(8))
 
 	// Setup: Organization -> Ledger -> Asset -> Account
-	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Banking Details Org %s", h.RandString(5)))
+	orgID, err := h.SetupOrganization(ctx, onboard, baseHeaders, fmt.Sprintf("Banking Details Org %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup organization failed: %v", err)
 	}
 	t.Logf("Created organization: ID=%s", orgID)
 
-	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Banking Details Ledger %s", h.RandString(5)))
+	// CRM headers need organization ID
+	crmHeaders := h.AuthHeadersWithOrg(h.RandHex(8), orgID)
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, baseHeaders, orgID, fmt.Sprintf("Banking Details Ledger %s", h.RandString(5)))
 	if err != nil {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 	t.Logf("Created ledger: ID=%s", ledgerID)
 
-	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, headers); err != nil {
+	if err := h.CreateUSDAsset(ctx, onboard, orgID, ledgerID, baseHeaders); err != nil {
 		t.Fatalf("create USD asset failed: %v", err)
 	}
 	t.Log("Created USD asset")
 
 	accountAlias := fmt.Sprintf("banking-account-%s", h.RandString(6))
-	accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, accountAlias, "USD")
+	accountID, err := h.SetupAccount(ctx, onboard, baseHeaders, orgID, ledgerID, accountAlias, "USD")
 	if err != nil {
 		t.Fatalf("setup account failed: %v", err)
 	}
@@ -350,7 +359,7 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 	// Create Holder
 	holderName := fmt.Sprintf("Banking Details Holder %s", h.RandString(6))
 	holderCPF := h.GenerateValidCPF()
-	holderID, err := h.SetupHolder(ctx, crm, headers, holderName, holderCPF, "NATURAL_PERSON")
+	holderID, err := h.SetupHolder(ctx, crm, crmHeaders, holderName, holderCPF, "NATURAL_PERSON")
 	if err != nil {
 		t.Fatalf("setup holder failed: %v", err)
 	}
@@ -361,12 +370,12 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 		"ledgerId":  ledgerID,
 		"accountId": accountID,
 		"bankingDetails": map[string]any{
-			"bankCode":      "001",
-			"bankName":      "Test Bank",
-			"branchCode":    "1234",
-			"accountNumber": "12345678-9",
-			"accountType":   "checking",
-			"ispb":          "00000000",
+			"bankId":      "001",
+			"branch":      "1234",
+			"account":     "123456789",
+			"type":        "CACC",
+			"openingDate": "2025-01-01",
+			"countryCode": "US",
 		},
 		"metadata": map[string]any{
 			"environment": "test",
@@ -375,7 +384,7 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 	}
 
 	path := fmt.Sprintf("/v1/holders/%s/aliases", holderID)
-	code, body, err := crm.Request(ctx, "POST", path, headers, createPayload)
+	code, body, err := crm.Request(ctx, "POST", path, crmHeaders, createPayload)
 	if err != nil || code != 201 {
 		t.Fatalf("CREATE alias with banking details failed: code=%d err=%v body=%s", code, err, string(body))
 	}
@@ -397,7 +406,7 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 	}
 
 	// Fetch alias and verify it persists
-	fetchedAlias, err := h.GetAlias(ctx, crm, headers, holderID, createdAlias.ID)
+	fetchedAlias, err := h.GetAlias(ctx, crm, crmHeaders, holderID, createdAlias.ID)
 	if err != nil {
 		t.Fatalf("GET alias failed: %v", err)
 	}
@@ -407,10 +416,10 @@ func TestIntegration_CRM_AliasWithBankingDetails(t *testing.T) {
 	}
 
 	// Cleanup
-	if err := h.DeleteAlias(ctx, crm, headers, holderID, createdAlias.ID); err != nil {
+	if err := h.DeleteAlias(ctx, crm, crmHeaders, holderID, createdAlias.ID); err != nil {
 		t.Logf("Warning: cleanup delete alias failed: %v", err)
 	}
-	if err := h.DeleteHolder(ctx, crm, headers, holderID); err != nil {
+	if err := h.DeleteHolder(ctx, crm, crmHeaders, holderID); err != nil {
 		t.Logf("Warning: cleanup delete holder failed: %v", err)
 	}
 
