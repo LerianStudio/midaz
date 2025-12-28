@@ -189,7 +189,8 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 // fetchExistingTransaction retrieves an existing transaction by ID when a duplicate is detected.
 func (r *TransactionPostgreSQLRepository) fetchExistingTransaction(ctx context.Context, executor dbtx.Executor, record *TransactionPostgreSQLModel, span *trace.Span) (*Transaction, error) {
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = tracer
 
 	existing := &TransactionPostgreSQLModel{}
 

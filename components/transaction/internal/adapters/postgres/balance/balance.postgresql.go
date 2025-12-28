@@ -828,7 +828,8 @@ func (r *BalancePostgreSQLRepository) executeBalancesUpdateWithNewTx(ctx context
 // If a transaction is present in context, it participates in that transaction.
 // Otherwise, it creates its own transaction for atomicity.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger
 
 	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
