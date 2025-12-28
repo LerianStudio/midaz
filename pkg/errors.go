@@ -505,6 +505,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Parent Account ID",
 			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
 		},
+		constant.ErrCircularAccountHierarchy: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCircularAccountHierarchy.Error(),
+			Title:      "Circular Account Hierarchy Detected",
+			Message:    "Setting this parent account would create a circular reference in the account hierarchy.",
+		},
+		constant.ErrAccountHierarchyTooDeep: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountHierarchyTooDeep.Error(),
+			Title:      "Account Hierarchy Too Deep",
+			Message:    fmt.Sprintf("The account hierarchy exceeds the maximum allowed depth of %d levels.", constant.MaxAccountHierarchyDepth),
+		},
+		constant.ErrInvalidRateValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidRateValue.Error(),
+			Title:      "Invalid Rate Value",
+			Message:    "The rate value must be a positive number greater than zero.",
+		},
+		constant.ErrCorruptedParentAccountUUID: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrCorruptedParentAccountUUID.Error(),
+			Title:      "Corrupted Parent Account UUID",
+			Message:    "Data corruption detected: invalid UUID found in parent account chain. Please contact support.",
+		},
 		constant.ErrMismatchedAssetCode: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrMismatchedAssetCode.Error(),

@@ -141,6 +141,10 @@ var (
 	ErrRefreshTransactionOperations             = errors.New("0131")
 	ErrPersistAsyncTransaction                  = errors.New("0132")
 	ErrInvalidCodeLength                        = errors.New("0133")
+	ErrCircularAccountHierarchy                 = errors.New("0134")
+	ErrAccountHierarchyTooDeep                  = errors.New("0135")
+	ErrInvalidRateValue                         = errors.New("0136")
+	ErrCorruptedParentAccountUUID               = errors.New("0137")
 
 	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")

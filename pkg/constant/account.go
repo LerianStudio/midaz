@@ -7,3 +7,7 @@ const (
 	ExternalAccountType               = "external"
 	AccountAliasAcceptedChars         = `^[a-zA-Z0-9@:_-]+$`
 )
+
+// MaxAccountHierarchyDepth limits the depth of parent-child account chains
+// to prevent stack overflow and enforce reasonable hierarchy structures.
+const MaxAccountHierarchyDepth = 100
