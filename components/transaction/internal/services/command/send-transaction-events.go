@@ -25,6 +25,10 @@ const EventType string = "transaction"
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
+	// Precondition: transaction must not be nil (check BEFORE feature flag for consistent behavior)
+	assert.NotNil(tran, "transaction must not be nil for event dispatch",
+		"feature_enabled", isTransactionEventEnabled())
+
 	if !isTransactionEventEnabled() {
 		logger.Infof("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED"))
 		return
@@ -32,9 +36,6 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 
 	ctxSendTransactionEvents, spanTransactionEvents := tracer.Start(ctx, "command.send_transaction_events_async")
 	defer spanTransactionEvents.End()
-
-	// Precondition: transaction must not be nil
-	assert.NotNil(tran, "transaction must not be nil for event dispatch")
 
 	payload, err := json.Marshal(tran)
 	if err != nil {
@@ -53,9 +54,6 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		LedgerID:       tran.LedgerID,
 		Payload:        payload,
 	}
-
-	// Postcondition: event must have required fields
-	assert.NotEmpty(event.Source, "event.Source must not be empty")
 
 	var key strings.Builder
 

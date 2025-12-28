@@ -3,25 +3,30 @@ package query
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetTransactionByID_MetadataPostcondition(t *testing.T) {
-	// Postcondition: tran.Metadata is never nil when tran is returned
-	// The implementation ensures this by initializing to empty map if nil
+func TestExtractMetadataData_Postcondition(t *testing.T) {
+	// Postcondition: extractMetadataData must never return nil
 
-	// This is a documentation test - the actual behavior is tested in
-	// get-id-transaction_test.go. This test documents the invariant.
-	t.Run("metadata initialized to empty map when nil", func(t *testing.T) {
-		// The production code in extractMetadataData ensures:
-		// if metadata != nil && metadata.Data != nil {
-		//     return metadata.Data
-		// }
-		// return map[string]any{}
+	t.Run("returns non-nil map when metadata is nil", func(t *testing.T) {
+		result := extractMetadataData(nil)
+		require.NotNil(t, result, "postcondition: must return non-nil map")
+		require.Empty(t, result)
+	})
 
-		// This guarantees callers can safely iterate over Metadata
-		emptyMap := map[string]any{}
-		require.NotNil(t, emptyMap)
-		require.Empty(t, emptyMap)
+	t.Run("returns non-nil map when metadata.Data is nil", func(t *testing.T) {
+		meta := &mongodb.Metadata{Data: nil}
+		result := extractMetadataData(meta)
+		require.NotNil(t, result, "postcondition: must return non-nil map")
+		require.Empty(t, result)
+	})
+
+	t.Run("returns actual data when present", func(t *testing.T) {
+		expected := map[string]any{"key": "value"}
+		meta := &mongodb.Metadata{Data: expected}
+		result := extractMetadataData(meta)
+		require.Equal(t, expected, result)
 	})
 }
