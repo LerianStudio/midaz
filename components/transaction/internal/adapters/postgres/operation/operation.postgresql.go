@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -88,7 +89,18 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Opera
 	}
 }
 
+// getExecutor returns the appropriate database executor.
+// If a transaction is present in context, it uses that; otherwise uses the DB connection.
+func (r *OperationPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Executor, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+	return dbtx.GetExecutor(ctx, db), nil
+}
+
 // Create a new Operation entity into Postgresql and returns it.
+// If a transaction is present in context, it uses that transaction for atomicity.
 func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *mmodel.Operation) (*mmodel.Operation, error) {
 	assert.NotNil(operation, "operation entity must not be nil for Create",
 		"repository", "OperationPostgreSQLRepository")
@@ -98,12 +110,10 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 	ctx, span := tracer.Start(ctx, "postgres.create_operation")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	executor, err := r.getExecutor(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		logger.Errorf("Failed to get database connection: %v", err)
-
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database executor", err)
+		logger.Errorf("Failed to get database executor: %v", err)
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
@@ -148,13 +158,11 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 	query, args, err := insert.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to build insert query", err)
-
 		logger.Errorf("Failed to build insert query: %v", err)
-
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
-	result, err := db.ExecContext(ctx, query, args...)
+	result, err := executor.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
