@@ -55,6 +55,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	balancesToUpdate := uc.filterStaleBalances(ctxProcessBalances, organizationID, ledgerID, newBalances, logger)
 
 	if len(balancesToUpdate) == 0 {
+		libOpentelemetry.HandleSpanEvent(&spanUpdateBalances, "All balances are stale, skipping database update")
+
 		logger.Info("All balances are stale, skipping database update")
 
 		return nil
