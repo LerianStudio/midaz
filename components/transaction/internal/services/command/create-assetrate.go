@@ -108,6 +108,9 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 
 // updateAssetRateFields updates asset rate fields from input
 func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel.CreateAssetRateInput) {
+	// WARNING: Converting int64 to float64 loses precision for values > 2^53 (9007199254740992)
+	// TODO(review): Refactor AssetRate.Rate to use decimal.Decimal for full precision
+	// See: tests/fuzzy/assetrate_precision_fuzz_test.go for demonstration of the issue
 	rate := float64(cari.Rate)
 	scale := float64(cari.Scale)
 
@@ -132,6 +135,9 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 		externalID = &idStr
 	}
 
+	// WARNING: Converting int64 to float64 loses precision for values > 2^53 (9007199254740992)
+	// TODO(review): Refactor AssetRate.Rate to use decimal.Decimal for full precision
+	// See: tests/fuzzy/assetrate_precision_fuzz_test.go for demonstration of the issue
 	rate := float64(cari.Rate)
 	scale := float64(cari.Scale)
 
