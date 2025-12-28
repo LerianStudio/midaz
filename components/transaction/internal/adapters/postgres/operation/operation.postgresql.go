@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Repository provides an interface for operations related to operation template entities.
@@ -94,8 +96,9 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Opera
 func (r *OperationPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Executor, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err) //nolint:wrapcheck // GetDB returns low-level DB error, context added via fmt.Errorf
 	}
+
 	return dbtx.GetExecutor(ctx, db), nil
 }
 
@@ -114,6 +117,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database executor", err)
 		logger.Errorf("Failed to get database executor: %v", err)
+
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
@@ -160,6 +164,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to build insert query", err)
 		logger.Errorf("Failed to build insert query: %v", err)
+
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
@@ -186,68 +191,77 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 		// Fetch the existing row from DB to return actual persisted values.
 		logger.Infof("Operation already exists (duplicate), fetching existing: %s", record.ID)
 
-		ctx, spanSelect := tracer.Start(ctx, "postgres.create.select_existing")
-
-		selectQuery := squirrel.
-			Select(operationColumnList...).
-			From(r.tableName).
-			Where(squirrel.Eq{"id": record.ID}).
-			PlaceholderFormat(squirrel.Dollar)
-
-		query, args, err := selectQuery.ToSql()
-		if err != nil {
-			spanSelect.End()
-			libOpentelemetry.HandleSpanError(&span, "Failed to build select query for existing operation", err)
-			logger.Errorf("Failed to build select query for existing operation: %v", err)
-			return nil, pkg.ValidateInternalError(err, "Operation")
-		}
-
-		existing := &OperationPostgreSQLModel{}
-		row := executor.QueryRowContext(ctx, query, args...)
-		if err := row.Scan(
-			&existing.ID,
-			&existing.TransactionID,
-			&existing.Description,
-			&existing.Type,
-			&existing.AssetCode,
-			&existing.Amount,
-			&existing.AvailableBalance,
-			&existing.OnHoldBalance,
-			&existing.AvailableBalanceAfter,
-			&existing.OnHoldBalanceAfter,
-			&existing.Status,
-			&existing.StatusDescription,
-			&existing.AccountID,
-			&existing.AccountAlias,
-			&existing.BalanceID,
-			&existing.ChartOfAccounts,
-			&existing.OrganizationID,
-			&existing.LedgerID,
-			&existing.CreatedAt,
-			&existing.UpdatedAt,
-			&existing.DeletedAt,
-			&existing.Route,
-			&existing.BalanceAffected,
-			&existing.BalanceKey,
-			&existing.VersionBalance,
-			&existing.VersionBalanceAfter,
-		); err != nil {
-			spanSelect.End()
-			if errors.Is(err, sql.ErrNoRows) {
-				// Unexpected: conflict detected but row not found, fall back to attempted record
-				logger.Warnf("Operation conflict detected but row not found, returning attempted record: %s", record.ID)
-				return record.ToEntity(), nil
-			}
-			libOpentelemetry.HandleSpanError(&span, "Failed to fetch existing operation", err)
-			logger.Errorf("Failed to fetch existing operation: %v", err)
-			return nil, pkg.ValidateInternalError(err, "Operation")
-		}
-
-		spanSelect.End()
-		return existing.ToEntity(), nil
+		return r.fetchExistingOperation(ctx, executor, record, &span)
 	}
 
 	return record.ToEntity(), nil
+}
+
+// fetchExistingOperation retrieves an existing operation by ID when a duplicate is detected.
+func (r *OperationPostgreSQLRepository) fetchExistingOperation(ctx context.Context, executor dbtx.Executor, record *OperationPostgreSQLModel, span *trace.Span) (*mmodel.Operation, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	selectCtx, spanSelect := tracer.Start(ctx, "postgres.create.select_existing")
+	defer spanSelect.End()
+
+	selectBuilder := squirrel.
+		Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"id": record.ID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	selectSQL, selectArgs, err := selectBuilder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build select query for existing operation", err)
+		logger.Errorf("Failed to build select query for existing operation: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Operation")
+	}
+
+	existing := &OperationPostgreSQLModel{}
+
+	row := executor.QueryRowContext(selectCtx, selectSQL, selectArgs...)
+	if scanErr := row.Scan(
+		&existing.ID,
+		&existing.TransactionID,
+		&existing.Description,
+		&existing.Type,
+		&existing.AssetCode,
+		&existing.Amount,
+		&existing.AvailableBalance,
+		&existing.OnHoldBalance,
+		&existing.AvailableBalanceAfter,
+		&existing.OnHoldBalanceAfter,
+		&existing.Status,
+		&existing.StatusDescription,
+		&existing.AccountID,
+		&existing.AccountAlias,
+		&existing.BalanceID,
+		&existing.ChartOfAccounts,
+		&existing.OrganizationID,
+		&existing.LedgerID,
+		&existing.CreatedAt,
+		&existing.UpdatedAt,
+		&existing.DeletedAt,
+		&existing.Route,
+		&existing.BalanceAffected,
+		&existing.BalanceKey,
+		&existing.VersionBalance,
+		&existing.VersionBalanceAfter,
+	); scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			// Unexpected: conflict detected but row not found, fall back to attempted record
+			logger.Warnf("Operation conflict detected but row not found, returning attempted record: %s", record.ID)
+			return record.ToEntity(), nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to fetch existing operation", scanErr)
+		logger.Errorf("Failed to fetch existing operation: %v", scanErr)
+
+		return nil, pkg.ValidateInternalError(scanErr, "Operation")
+	}
+
+	return existing.ToEntity(), nil
 }
 
 // scanOperationRows scans operation rows from database result set.

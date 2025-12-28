@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -27,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var transactionColumnList = []string{
@@ -109,8 +111,9 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 func (r *TransactionPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Executor, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err) //nolint:wrapcheck // GetDB returns low-level DB error, context added via fmt.Errorf
 	}
+
 	return dbtx.GetExecutor(ctx, db), nil
 }
 
@@ -129,6 +132,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database executor", err)
 		logger.Errorf("Failed to get database executor: %v", err)
+
 		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
@@ -177,62 +181,74 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		// intentionally retries insert. Fetch and return the existing record.
 		logger.Debugf("Transaction insert skipped (duplicate key - expected in async/retry scenarios), fetching existing: id=%s", record.ID)
 
-		existing := &TransactionPostgreSQLModel{}
-		var body *string
-
-		selectQuery := squirrel.
-			Select(transactionColumnList...).
-			From(r.tableName).
-			Where(squirrel.Eq{"id": record.ID}).
-			PlaceholderFormat(squirrel.Dollar)
-
-		query, args, err := selectQuery.ToSql()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to build select query for existing transaction", err)
-			logger.Errorf("Failed to build select query for existing transaction: %v", err)
-			return nil, pkg.ValidateInternalError(err, "Transaction")
-		}
-
-		row := executor.QueryRowContext(ctx, query, args...)
-		if err := row.Scan(
-			&existing.ID,
-			&existing.ParentTransactionID,
-			&existing.Description,
-			&existing.Status,
-			&existing.StatusDescription,
-			&existing.Amount,
-			&existing.AssetCode,
-			&existing.ChartOfAccountsGroupName,
-			&existing.LedgerID,
-			&existing.OrganizationID,
-			&body,
-			&existing.CreatedAt,
-			&existing.UpdatedAt,
-			&existing.DeletedAt,
-			&existing.Route,
-		); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				// Unexpected: conflict detected but row not found, fall back to attempted record
-				logger.Warnf("Transaction conflict detected but row not found, returning attempted record: %s", record.ID)
-				return record.ToEntity(), nil
-			}
-			libOpentelemetry.HandleSpanError(&span, "Failed to fetch existing transaction after conflict", err)
-			logger.Errorf("Failed to fetch existing transaction after conflict: %v", err)
-			return nil, pkg.ValidateInternalError(err, "Transaction")
-		}
-
-		if !libCommons.IsNilOrEmpty(body) {
-			if err := json.Unmarshal([]byte(*body), &existing.Body); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal existing body", err)
-				logger.Errorf("Failed to unmarshal existing body: %v", err)
-				return nil, pkg.ValidateInternalError(err, "Transaction")
-			}
-		}
-
-		return existing.ToEntity(), nil
+		return r.fetchExistingTransaction(ctx, executor, record, &span)
 	}
 
 	return record.ToEntity(), nil
+}
+
+// fetchExistingTransaction retrieves an existing transaction by ID when a duplicate is detected.
+func (r *TransactionPostgreSQLRepository) fetchExistingTransaction(ctx context.Context, executor dbtx.Executor, record *TransactionPostgreSQLModel, span *trace.Span) (*Transaction, error) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	existing := &TransactionPostgreSQLModel{}
+
+	var body *string
+
+	selectBuilder := squirrel.
+		Select(transactionColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"id": record.ID}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	selectSQL, selectArgs, err := selectBuilder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build select query for existing transaction", err)
+		logger.Errorf("Failed to build select query for existing transaction: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	row := executor.QueryRowContext(ctx, selectSQL, selectArgs...)
+	if scanErr := row.Scan(
+		&existing.ID,
+		&existing.ParentTransactionID,
+		&existing.Description,
+		&existing.Status,
+		&existing.StatusDescription,
+		&existing.Amount,
+		&existing.AssetCode,
+		&existing.ChartOfAccountsGroupName,
+		&existing.LedgerID,
+		&existing.OrganizationID,
+		&body,
+		&existing.CreatedAt,
+		&existing.UpdatedAt,
+		&existing.DeletedAt,
+		&existing.Route,
+	); scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			// Unexpected: conflict detected but row not found, fall back to attempted record
+			logger.Warnf("Transaction conflict detected but row not found, returning attempted record: %s", record.ID)
+			return record.ToEntity(), nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to fetch existing transaction after conflict", scanErr)
+		logger.Errorf("Failed to fetch existing transaction after conflict: %v", scanErr)
+
+		return nil, pkg.ValidateInternalError(scanErr, "Transaction")
+	}
+
+	if !libCommons.IsNilOrEmpty(body) {
+		if unmarshalErr := json.Unmarshal([]byte(*body), &existing.Body); unmarshalErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal existing body", unmarshalErr)
+			logger.Errorf("Failed to unmarshal existing body: %v", unmarshalErr)
+
+			return nil, pkg.ValidateInternalError(unmarshalErr, "Transaction")
+		}
+	}
+
+	return existing.ToEntity(), nil
 }
 
 // buildTransactionFindAllQuery constructs the SQL query for finding all transactions
