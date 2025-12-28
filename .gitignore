@@ -89,3 +89,4 @@ postman/backups
 /components/console/tests/storage/
 .windsurfrules
 cert/
+.worktrees/
