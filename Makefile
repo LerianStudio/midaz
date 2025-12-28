@@ -170,6 +170,10 @@ help:
 	@echo "  make migrate-create              - Create new migration files (requires COMPONENT, NAME)"
 	@echo ""
 	@echo ""
+	@echo "Database Commands:"
+	@echo "  make reconcile                   - Run database reconciliation checks and display report"
+	@echo ""
+	@echo ""
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run Go integration tests"
@@ -760,3 +764,109 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
+#-------------------------------------------------------
+# Database Reconciliation Commands
+#-------------------------------------------------------
+
+.PHONY: reconcile
+reconcile:
+	$(call print_title,"Running Database Reconciliation")
+	@command -v jq >/dev/null 2>&1 || { echo "Error: jq is required. Install: brew install jq"; exit 1; }
+	@command -v docker >/dev/null 2>&1 || { echo "Error: docker is required."; exit 1; }
+	@echo "Checking database services..."
+	@docker ps --format '{{.Names}}' | grep -q 'midaz-postgres-primary' || { echo "Error: PostgreSQL container not running. Run 'make up' first."; exit 1; }
+	@docker ps --format '{{.Names}}' | grep -q 'midaz-mongodb' || { echo "Error: MongoDB container not running. Run 'make up' first."; exit 1; }
+	@echo ""
+	@echo "Running reconciliation checks..."
+	@mkdir -p ./scripts/reconciliation/reports
+	@PG_USER=midaz PG_PASSWORD=midaz MONGO_HOST=localhost MONGO_PORT=5703 \
+		/bin/bash ./scripts/reconciliation/run_reconciliation.sh \
+		--docker \
+		--output-dir ./scripts/reconciliation/reports \
+		--json-only >/dev/null 2>&1 || { echo "Error: Reconciliation script failed"; exit 1; }
+	@REPORT=$$(ls -t ./scripts/reconciliation/reports/reconciliation_*.json 2>/dev/null | head -1); \
+	if [ -z "$$REPORT" ]; then \
+		echo "Error: No reconciliation report found"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "╔══════════════════════════════════════════════════════════════════════════════╗"; \
+	echo "║                        DATABASE RECONCILIATION REPORT                        ║"; \
+	echo "╠══════════════════════════════════════════════════════════════════════════════╣"; \
+	echo "║  Generated: $$(jq -r '.reconciliation_report.timestamp' $$REPORT)                              ║"; \
+	echo "╚══════════════════════════════════════════════════════════════════════════════╝"; \
+	echo ""; \
+	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
+	echo "│  ENTITY COUNTS                                                               │"; \
+	echo "├─────────────────────┬─────────────────┬─────────────────┬────────────────────┤"; \
+	echo "│ Entity              │ PostgreSQL      │ MongoDB         │ Difference         │"; \
+	echo "├─────────────────────┼─────────────────┼─────────────────┼────────────────────┤"; \
+	pg_org=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.organization' $$REPORT); \
+	mg_org=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.organization' $$REPORT); \
+	diff_org=$$((mg_org - pg_org)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Organizations" "$$pg_org" "$$mg_org" "$$diff_org"; \
+	pg_ldg=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.ledger' $$REPORT); \
+	mg_ldg=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.ledger' $$REPORT); \
+	diff_ldg=$$((mg_ldg - pg_ldg)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Ledgers" "$$pg_ldg" "$$mg_ldg" "$$diff_ldg"; \
+	pg_ast=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.asset' $$REPORT); \
+	mg_ast=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.asset' $$REPORT); \
+	diff_ast=$$((mg_ast - pg_ast)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Assets" "$$pg_ast" "$$mg_ast" "$$diff_ast"; \
+	pg_acc=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.account' $$REPORT); \
+	mg_acc=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.account' $$REPORT); \
+	diff_acc=$$((mg_acc - pg_acc)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Accounts" "$$pg_acc" "$$mg_acc" "$$diff_acc"; \
+	pg_txn=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.transaction' $$REPORT); \
+	mg_txn=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.transaction.transaction' $$REPORT); \
+	diff_txn=$$((mg_txn - pg_txn)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Transactions" "$$pg_txn" "$$mg_txn" "$$diff_txn"; \
+	pg_ops=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.operation' $$REPORT); \
+	mg_ops=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.transaction.operation' $$REPORT); \
+	diff_ops=$$((mg_ops - pg_ops)); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Operations" "$$pg_ops" "$$mg_ops" "$$diff_ops"; \
+	pg_bal=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.balance' $$REPORT); \
+	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Balances" "$$pg_bal" "-" "-"; \
+	echo "└─────────────────────┴─────────────────┴─────────────────┴────────────────────┘"; \
+	echo ""; \
+	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
+	echo "│  CONSISTENCY CHECKS                                                          │"; \
+	echo "├────────────────────────────────────────────┬─────────────┬───────────────────┤"; \
+	echo "│ Check                                      │ Count       │ Status            │"; \
+	echo "├────────────────────────────────────────────┼─────────────┼───────────────────┤"; \
+	bal_disc=$$(jq -r '.reconciliation_report.checks.balance_consistency.discrepancies' $$REPORT); \
+	if [ "$$bal_disc" = "0" ]; then status="✓ PASS"; else status="✗ ISSUES"; fi; \
+	printf "│ %-42s │ %11s │ %-17s │\n" "Balance discrepancies" "$$bal_disc" "$$status"; \
+	unbal=$$(jq -r '.reconciliation_report.checks.double_entry_validation.unbalanced' $$REPORT); \
+	if [ "$$unbal" = "0" ]; then status="✓ PASS"; else status="✗ CRITICAL"; fi; \
+	printf "│ %-42s │ %11s │ %-17s │\n" "Unbalanced transactions (debits≠credits)" "$$unbal" "$$status"; \
+	orphan_txn=$$(jq -r '.reconciliation_report.checks.double_entry_validation.orphan_transactions' $$REPORT); \
+	if [ "$$orphan_txn" = "0" ]; then status="✓ PASS"; else status="✗ ISSUES"; fi; \
+	printf "│ %-42s │ %11s │ %-17s │\n" "Orphan transactions (no operations)" "$$orphan_txn" "$$status"; \
+	orphan_ldg=$$(jq -r '.reconciliation_report.checks.referential_integrity.onboarding.orphan_ledgers' $$REPORT); \
+	if [ "$$orphan_ldg" = "0" ]; then status="✓ PASS"; else status="✗ ISSUES"; fi; \
+	printf "│ %-42s │ %11s │ %-17s │\n" "Orphan ledgers (missing organization)" "$$orphan_ldg" "$$status"; \
+	orphan_ops=$$(jq -r '.reconciliation_report.checks.referential_integrity.transaction.orphan_operations' $$REPORT); \
+	if [ "$$orphan_ops" = "0" ]; then status="✓ PASS"; else status="✗ ISSUES"; fi; \
+	printf "│ %-42s │ %11s │ %-17s │\n" "Orphan operations (missing transaction)" "$$orphan_ops" "$$status"; \
+	echo "└────────────────────────────────────────────┴─────────────┴───────────────────┘"; \
+	echo ""; \
+	total_issues=$$(jq -r '.reconciliation_report.summary.total_issues' $$REPORT); \
+	overall_status=$$(jq -r '.reconciliation_report.summary.status' $$REPORT); \
+	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
+	if [ "$$overall_status" = "HEALTHY" ]; then \
+		echo "│  ✅ OVERALL STATUS: HEALTHY                                                  │"; \
+		echo "│                                                                              │"; \
+		echo "│  All reconciliation checks passed. Database is consistent.                  │"; \
+	else \
+		echo "│  ⚠️  OVERALL STATUS: ISSUES DETECTED                                         │"; \
+		echo "│                                                                              │"; \
+		printf "│  Total issues found: %-54s │\n" "$$total_issues"; \
+		echo "│                                                                              │"; \
+		echo "│  Review the detailed report for investigation:                              │"; \
+		printf "│    %s\n" "$$REPORT"; \
+	fi; \
+	echo "└──────────────────────────────────────────────────────────────────────────────┘"; \
+	echo ""; \
+	echo "[ok] Reconciliation complete"
