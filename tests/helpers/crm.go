@@ -2,10 +2,8 @@ package helpers
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 )
 
 const (
@@ -265,11 +263,25 @@ func DeleteAlias(ctx context.Context, crm *HTTPClient, headers map[string]string
 	return nil
 }
 
-// GenerateValidCPF returns a valid Brazilian CPF for testing.
-// Uses a calculation-valid CPF format.
+// GenerateValidCPF generates a mathematically valid Brazilian CPF for testing purposes.
+//
+// CPF (Cadastro de Pessoas Fisicas) is the Brazilian individual taxpayer registry identification,
+// similar to the US Social Security Number. It consists of 11 digits in the format XXX.XXX.XXX-YY
+// where the last 2 digits (YY) are verification digits calculated using a modulo-11 algorithm.
+//
+// Why we generate valid CPFs instead of random strings:
+//   - The Midaz CRM service validates CPF checksum digits before accepting holder records
+//   - Using random 11-digit strings would result in ~99% rejection rate due to failed validation
+//   - Valid test data ensures tests exercise the actual business logic, not validation errors
+//
+// Checksum Algorithm:
+//  1. First verification digit (d1): Multiply each of the first 9 digits by weights 10-2,
+//     sum the products, calculate (11 - sum % 11), if >= 10 then d1 = 0
+//  2. Second verification digit (d2): Multiply each of the first 9 digits by weights 11-3,
+//     add d1 * 2, calculate (11 - sum % 11), if >= 10 then d2 = 0
 func GenerateValidCPF() string {
 	// Base CPF digits (first 9 digits) with random variation
-	base := fmt.Sprintf("%09d", crmRandIntN(999999999))
+	base := fmt.Sprintf("%09d", RandIntN(999999999))
 
 	// Calculate first verification digit
 	sum := 0
@@ -298,11 +310,27 @@ func GenerateValidCPF() string {
 	return fmt.Sprintf("%s%d%d", base, d1, d2)
 }
 
-// GenerateValidCNPJ returns a valid Brazilian CNPJ for testing.
-// Uses a calculation-valid CNPJ format.
+// GenerateValidCNPJ generates a mathematically valid Brazilian CNPJ for testing purposes.
+//
+// CNPJ (Cadastro Nacional da Pessoa Juridica) is the Brazilian company taxpayer registry,
+// similar to the US EIN (Employer Identification Number). It consists of 14 digits in the
+// format XX.XXX.XXX/YYYY-ZZ where YYYY is the branch number (0001 for headquarters) and
+// ZZ are verification digits calculated using a weighted modulo-11 algorithm.
+//
+// Why we generate valid CNPJs instead of random strings:
+//   - The Midaz CRM service validates CNPJ checksum digits before accepting legal person records
+//   - Using random 14-digit strings would result in ~99% rejection rate due to failed validation
+//   - Valid test data ensures tests exercise the actual business logic, not validation errors
+//
+// Checksum Algorithm:
+//  1. First verification digit (d1): Multiply each of the first 12 digits by weights
+//     [5,4,3,2,9,8,7,6,5,4,3,2], sum products, calculate (11 - sum % 11), if >= 10 then d1 = 0
+//  2. Second verification digit (d2): Multiply each of the first 12 digits by weights
+//     [6,5,4,3,2,9,8,7,6,5,4,3], add d1 * 2, calculate (11 - sum % 11), if >= 10 then d2 = 0
 func GenerateValidCNPJ() string {
 	// Base CNPJ digits (first 12 digits) with random variation
-	base := fmt.Sprintf("%08d0001", crmRandIntN(99999999))
+	// Format: XXXXXXXX0001 where XXXXXXXX is random and 0001 indicates headquarters
+	base := fmt.Sprintf("%08d0001", RandIntN(99999999))
 
 	// Weights for first digit
 	weights1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
@@ -331,20 +359,4 @@ func GenerateValidCNPJ() string {
 	}
 
 	return fmt.Sprintf("%s%d%d", base, d1, d2)
-}
-
-// crmRandIntN generates a random int in [0, n) using crypto/rand.
-func crmRandIntN(n int) int {
-	if n <= 0 {
-		return 0
-	}
-
-	max := big.NewInt(int64(n))
-	val, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
-		panic("failed to generate random int: " + err.Error())
-	}
-
-	return int(val.Int64())
 }

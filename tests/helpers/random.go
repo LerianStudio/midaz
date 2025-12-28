@@ -37,3 +37,19 @@ func RandHex(n int) string {
 
 	return hex.EncodeToString(b)
 }
+
+// RandIntN generates a random int in [0, n) using crypto/rand.
+func RandIntN(n int) int {
+	if n <= 0 {
+		return 0
+	}
+
+	max := big.NewInt(int64(n))
+	val, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
+		panic("failed to generate random int: " + err.Error())
+	}
+
+	return int(val.Int64())
+}
