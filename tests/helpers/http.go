@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -208,6 +209,22 @@ func isRetryableStatus(code int) bool {
 		code == httpRetryStatusGatewayTimeout
 }
 
+// isRetryableError returns true if the error represents a transient connection issue.
+// These errors typically occur under high load or during server restarts:
+// - EOF: Connection closed prematurely by server
+// - connection reset: TCP reset due to server overload
+// - connection refused: Server temporarily unavailable
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	return strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "connection refused")
+}
+
 // prepareRetryHeaders creates headers for a retry attempt
 func prepareRetryHeaders(headers map[string]string, isRetry bool) map[string]string {
 	retryHeaders := make(map[string]string)
@@ -223,7 +240,7 @@ func prepareRetryHeaders(headers map[string]string, isRetry bool) map[string]str
 }
 
 // RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
-// Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
+// Retries on 429, 502, 503, 504 or network errors (EOF, connection reset/refused) up to attempts with exponential backoff.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
 	if attempts <= 0 {
 		attempts = httpDefaultRetryAttempts
@@ -245,12 +262,31 @@ func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path stri
 		code, b, hdr, err := c.RequestFull(ctx, method, path, retryHeaders, body)
 
 		lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
+
+		// Success: no error and non-retryable status code
 		if err == nil && !isRetryableStatus(code) {
 			return code, b, hdr, nil
 		}
 
-		if i < attempts-1 {
+		// Retry on connection errors (EOF, reset, refused) - common under high test parallelism
+		if err != nil && isRetryableError(err) && i < attempts-1 {
 			time.Sleep(time.Duration(1<<i) * baseBackoff)
+			continue
+		}
+
+		// Retry on specific HTTP status codes (429, 502, 503, 504)
+		if err == nil && isRetryableStatus(code) && i < attempts-1 {
+			time.Sleep(time.Duration(1<<i) * baseBackoff)
+			continue
+		}
+
+		// If we get here and it's not retryable, return immediately
+		if err != nil && !isRetryableError(err) {
+			return code, b, hdr, err
+		}
+
+		if err == nil && !isRetryableStatus(code) {
+			return code, b, hdr, nil
 		}
 	}
 
