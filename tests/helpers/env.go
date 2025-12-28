@@ -32,6 +32,7 @@ var (
 type Environment struct {
 	OnboardingURL  string
 	TransactionURL string
+	CRMURL         string
 	ManageStack    bool // if true, tests may start/stop stack via Makefile
 	HTTPTimeout    time.Duration
 }
@@ -41,6 +42,7 @@ type Environment struct {
 func LoadEnvironment() Environment {
 	onboarding := getenv("ONBOARDING_URL", "http://localhost:3000")
 	transaction := getenv("TRANSACTION_URL", "http://localhost:3001")
+	crm := getenv("CRM_URL", "http://localhost:3002")
 	manage := getenv("MIDAZ_TEST_MANAGE_STACK", "false") == "true"
 	timeoutStr := getenv("MIDAZ_TEST_HTTP_TIMEOUT", "20s")
 
@@ -52,6 +54,7 @@ func LoadEnvironment() Environment {
 	return Environment{
 		OnboardingURL:  onboarding,
 		TransactionURL: transaction,
+		CRMURL:         crm,
 		ManageStack:    manage,
 		HTTPTimeout:    timeout,
 	}
