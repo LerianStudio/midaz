@@ -437,7 +437,6 @@ func TestIntegration_Routing_OperationTypeImmutability(t *testing.T) {
 
 	updatePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", orgID, ledgerID, routeID)
 	code, body, err = trans.Request(ctx, "PATCH", updatePath, headers, updatePayload)
-
 	// The API should either:
 	// A) Reject the update with 400 (operationType is immutable and cannot be changed)
 	// B) Accept the update but ignore the operationType change (operationType remains "source")
@@ -697,7 +696,8 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 			t.Logf("Request error (may be expected): %v", err)
 		}
 
-		if code == 201 {
+		switch code {
+		case 201:
 			t.Errorf("expected failure for null validIf, but got 201 Created: body=%s", string(body))
 			var created h.OperationRouteResponse
 			if json.Unmarshal(body, &created) == nil && created.ID != "" {
@@ -705,9 +705,9 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
 				}
 			}
-		} else if code == 400 || code == 422 {
+		case 400, 422:
 			t.Logf("Null validIf correctly rejected with code=%d", code)
-		} else {
+		default:
 			t.Logf("Null validIf returned unexpected code=%d body=%s", code, string(body))
 		}
 	})
@@ -731,7 +731,8 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 			t.Logf("Request error (may be expected): %v", err)
 		}
 
-		if code == 201 {
+		switch code {
+		case 201:
 			t.Errorf("expected failure for object validIf, but got 201 Created: body=%s", string(body))
 			var created h.OperationRouteResponse
 			if json.Unmarshal(body, &created) == nil && created.ID != "" {
@@ -739,9 +740,9 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
 				}
 			}
-		} else if code == 400 || code == 422 {
+		case 400, 422:
 			t.Logf("Object validIf correctly rejected with code=%d", code)
-		} else {
+		default:
 			t.Logf("Object validIf returned unexpected code=%d body=%s", code, string(body))
 		}
 	})
@@ -764,7 +765,8 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 			t.Logf("Request error (may be expected): %v", err)
 		}
 
-		if code == 201 {
+		switch code {
+		case 201:
 			t.Errorf("expected failure for missing ruleType, but got 201 Created: body=%s", string(body))
 			var created h.OperationRouteResponse
 			if json.Unmarshal(body, &created) == nil && created.ID != "" {
@@ -772,9 +774,9 @@ func TestIntegration_Routing_EdgeCases(t *testing.T) {
 					t.Logf("Warning: cleanup delete accidental operation route failed: %v", delErr)
 				}
 			}
-		} else if code == 400 || code == 422 {
+		case 400, 422:
 			t.Logf("Missing ruleType correctly rejected with code=%d", code)
-		} else {
+		default:
 			t.Logf("Missing ruleType returned unexpected code=%d body=%s", code, string(body))
 		}
 	})
