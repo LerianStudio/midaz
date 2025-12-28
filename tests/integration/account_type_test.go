@@ -208,6 +208,14 @@ func TestIntegration_AccountType_MultipleTypes(t *testing.T) {
 		}
 		createdIDs = append(createdIDs, typeID)
 		t.Logf("Created account type: ID=%s Name=%s KeyValue=%s", typeID, at.name, at.keyValue)
+
+		// Register cleanup for each created type
+		typeIDToCleanup := typeID // capture for closure
+		t.Cleanup(func() {
+			if err := h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, typeIDToCleanup); err != nil {
+				t.Logf("Warning: cleanup delete account type failed: %v", err)
+			}
+		})
 	}
 
 	// List all account types
@@ -236,11 +244,6 @@ func TestIntegration_AccountType_MultipleTypes(t *testing.T) {
 	}
 
 	t.Logf("Multiple account types test passed: created %d types, found %d in list", len(createdIDs), foundCount)
-
-	// Cleanup
-	for _, id := range createdIDs {
-		_ = h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, id)
-	}
 }
 
 // TestIntegration_AccountType_DuplicateKeyValue tests that duplicate keyValues are rejected.
@@ -271,6 +274,13 @@ func TestIntegration_AccountType_DuplicateKeyValue(t *testing.T) {
 	}
 	t.Logf("Created first account type: ID=%s KeyValue=%s", type1ID, sharedKeyValue)
 
+	// Register cleanup for first type
+	t.Cleanup(func() {
+		if err := h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, type1ID); err != nil {
+			t.Logf("Warning: cleanup delete account type failed: %v", err)
+		}
+	})
+
 	// Attempt to create second account type with SAME keyValue - should fail
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/account-types", orgID, ledgerID)
 	duplicatePayload := map[string]any{
@@ -289,14 +299,13 @@ func TestIntegration_AccountType_DuplicateKeyValue(t *testing.T) {
 		// Cleanup the accidentally created type
 		var type2 h.AccountTypeResponse
 		if json.Unmarshal(body, &type2) == nil && type2.ID != "" {
-			_ = h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, type2.ID)
+			if delErr := h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, type2.ID); delErr != nil {
+				t.Logf("Warning: cleanup delete accidental account type failed: %v", delErr)
+			}
 		}
 	} else {
 		t.Logf("Duplicate keyValue correctly rejected: code=%d", code)
 	}
-
-	// Cleanup first type
-	_ = h.DeleteAccountType(ctx, onboard, headers, orgID, ledgerID, type1ID)
 
 	t.Log("Duplicate keyValue validation test completed")
 }
@@ -350,16 +359,18 @@ func TestIntegration_AccountType_Validation(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			code, body, err := onboard.Request(ctx, "POST", path, headers, tc.payload)
 			if err != nil {
 				t.Logf("Request error (expected for validation): %v", err)
 			}
-			// Expect non-201 for validation errors
-			if code == 201 {
-				t.Errorf("expected validation error for %s, but got 201 Created: body=%s", tc.name, string(body))
+			// Expect 400 Bad Request for validation errors
+			if code != 400 {
+				t.Errorf("expected 400 Bad Request for %s, but got %d: body=%s", tc.name, code, string(body))
 			}
-			t.Logf("Validation test %s: code=%d (expected non-201)", tc.name, code)
+			t.Logf("Validation test %s: code=%d (expected 400)", tc.name, code)
 		})
 	}
 }

@@ -326,16 +326,18 @@ func TestIntegration_AssetRate_Validation(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			code, body, err := trans.Request(ctx, "PUT", path, headers, tc.payload)
 			if err != nil {
 				t.Logf("Request error (expected for validation): %v", err)
 			}
-			// Expect non-200 for validation errors
-			if code == 200 {
-				t.Errorf("expected validation error for %s, but got 200: body=%s", tc.name, string(body))
+			// Expect 400 Bad Request for validation errors
+			if code != 400 {
+				t.Errorf("expected 400 Bad Request for %s, but got %d: body=%s", tc.name, code, string(body))
 			}
-			t.Logf("Validation test %s: code=%d (expected non-200)", tc.name, code)
+			t.Logf("Validation test %s: code=%d (expected 400)", tc.name, code)
 		})
 	}
 }
