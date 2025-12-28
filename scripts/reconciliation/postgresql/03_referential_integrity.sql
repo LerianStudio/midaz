@@ -113,6 +113,8 @@ WHERE p.deleted_at IS NULL
 
 -- ----------------------------------------------------------------------------
 -- B1: Operations referencing non-existent transactions
+-- Note: Operations CAN reference soft-deleted transactions (this is expected).
+-- We only flag operations where the transaction record is completely missing.
 -- ----------------------------------------------------------------------------
 SELECT
     '--- B1: ORPHAN OPERATIONS (missing transaction) ---' as report_section;
@@ -126,7 +128,7 @@ SELECT
 FROM operation o
 LEFT JOIN transaction t ON o.transaction_id = t.id
 WHERE o.deleted_at IS NULL
-  AND t.id IS NULL
+  AND t.id IS NULL  -- Transaction record doesn't exist at all
 LIMIT 100;
 
 -- ----------------------------------------------------------------------------
@@ -220,6 +222,13 @@ SELECT
 -- ============================================================================
 -- SECTION 2: Summary Statistics for Telemetry
 -- ============================================================================
+-- NOTE: Run Part A telemetry on onboarding DB, Part B telemetry on transaction DB.
+--       These are separate databases, so run each section against its respective DB.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Part A Telemetry: Run on ONBOARDING database
+-- ----------------------------------------------------------------------------
 SELECT
     '--- INTEGRITY SUMMARY (ONBOARDING) ---' as report_section;
 
@@ -232,11 +241,16 @@ SELECT json_build_object(
     'orphan_portfolios', (SELECT COUNT(*) FROM portfolio p LEFT JOIN ledger l ON p.ledger_id = l.id AND l.deleted_at IS NULL LEFT JOIN organization o ON p.organization_id = o.id AND o.deleted_at IS NULL WHERE p.deleted_at IS NULL AND (l.id IS NULL OR o.id IS NULL))
 ) as telemetry_data;
 
--- Run this on transaction database:
--- SELECT json_build_object(
---     'check_type', 'referential_integrity_transaction',
---     'timestamp', NOW(),
---     'orphan_operations', (SELECT COUNT(*) FROM operation o LEFT JOIN transaction t ON o.transaction_id = t.id WHERE o.deleted_at IS NULL AND t.id IS NULL),
---     'operations_missing_balance', (SELECT COUNT(*) FROM operation o LEFT JOIN balance b ON o.balance_id = b.id WHERE o.deleted_at IS NULL AND o.balance_id IS NOT NULL AND b.id IS NULL),
---     'balance_account_mismatches', (SELECT COUNT(DISTINCT b.id) FROM balance b JOIN operation o ON b.id = o.balance_id AND o.deleted_at IS NULL WHERE b.deleted_at IS NULL AND b.account_id != o.account_id)
--- ) as telemetry_data;
+-- ----------------------------------------------------------------------------
+-- Part B Telemetry: Run on TRANSACTION database
+-- ----------------------------------------------------------------------------
+SELECT
+    '--- INTEGRITY SUMMARY (TRANSACTION) ---' as report_section;
+
+SELECT json_build_object(
+    'check_type', 'referential_integrity_transaction',
+    'timestamp', NOW(),
+    'orphan_operations', (SELECT COUNT(*) FROM operation o LEFT JOIN transaction t ON o.transaction_id = t.id WHERE o.deleted_at IS NULL AND t.id IS NULL),
+    'operations_missing_balance', (SELECT COUNT(*) FROM operation o LEFT JOIN balance b ON o.balance_id = b.id WHERE o.deleted_at IS NULL AND o.balance_id IS NOT NULL AND b.id IS NULL),
+    'balance_account_mismatches', (SELECT COUNT(DISTINCT b.id) FROM balance b JOIN operation o ON b.id = o.balance_id AND o.deleted_at IS NULL WHERE b.deleted_at IS NULL AND b.account_id != o.account_id)
+) as telemetry_data;

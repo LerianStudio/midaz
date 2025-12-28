@@ -8,8 +8,9 @@
 -- ============================================================================
 
 -- Configuration: Set threshold for what constitutes a significant discrepancy
--- Small rounding errors (< 0.01) may be acceptable due to decimal precision
-\set discrepancy_threshold 0.01
+-- For BIGINT arithmetic, any discrepancy indicates a real issue (not floating-point rounding)
+-- NOTE: \set is psql-specific; execute this script with `psql -f`, not `psql -c`
+\set discrepancy_threshold 0
 
 -- ============================================================================
 -- SECTION 1: Summary Statistics
@@ -120,6 +121,7 @@ SELECT
 FROM balance b
 LEFT JOIN operation o ON b.account_id = o.account_id
     AND b.asset_code = o.asset_code
+    AND b.key = o.balance_key
     AND o.deleted_at IS NULL
 WHERE b.deleted_at IS NULL
   AND b.available != 0

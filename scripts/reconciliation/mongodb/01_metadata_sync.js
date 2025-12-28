@@ -52,7 +52,11 @@ for (const [collName, entityName] of Object.entries(onboardingCollections)) {
     }),
     with_metadata: coll.countDocuments({
       deleted_at: null,
-      metadata: { $exists: true, $ne: {}, $ne: null },
+      $and: [
+        { metadata: { $exists: true } },
+        { metadata: { $ne: {} } },
+        { metadata: { $ne: null } }
+      ]
     }),
   };
 
@@ -149,7 +153,11 @@ for (const [collName, entityName] of Object.entries(transactionCollections)) {
     }),
     with_metadata: coll.countDocuments({
       deleted_at: null,
-      metadata: { $exists: true, $ne: {}, $ne: null },
+      $and: [
+        { metadata: { $exists: true } },
+        { metadata: { $ne: {} } },
+        { metadata: { $ne: null } }
+      ]
     }),
   };
 
@@ -214,7 +222,8 @@ for (const [collName] of Object.entries(onboardingCollections)) {
 
   const totalCount = coll.countDocuments();
 
-  print(`${collName}: ${deletedCount} deleted / ${totalCount} total (${((deletedCount / totalCount) * 100).toFixed(2)}%)`);
+  const percentage = totalCount > 0 ? ((deletedCount / totalCount) * 100).toFixed(2) : '0.00';
+  print(`${collName}: ${deletedCount} deleted / ${totalCount} total (${percentage}%)`);
 }
 
 // ============================================================================
