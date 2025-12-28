@@ -408,6 +408,61 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 }
 
+func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Insert 5 accounts
+	for i := 0; i < 5; i++ {
+		alias := fmt.Sprintf("@paginate-%d-%s", i, libCommons.GenerateUUIDv7().String()[:8])
+		pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, fmt.Sprintf("Paginate Account %d", i), alias, "USD", nil)
+	}
+
+	ctx := context.Background()
+	baseFilter := http.Pagination{
+		Limit:     2,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Act - Get all 3 pages
+	baseFilter.Page = 1
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	require.NoError(t, err)
+
+	baseFilter.Page = 2
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	require.NoError(t, err)
+
+	baseFilter.Page = 3
+	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	require.NoError(t, err)
+
+	// Assert - Correct counts per page
+	assert.Len(t, page1, 2, "page 1 should have 2 accounts")
+	assert.Len(t, page2, 2, "page 2 should have 2 accounts")
+	assert.Len(t, page3, 1, "page 3 should have 1 account")
+
+	// Assert - No duplicates across pages
+	seen := make(map[string]int)
+	allAccounts := append(append(page1, page2...), page3...)
+	for _, acc := range allAccounts {
+		seen[acc.ID]++
+	}
+
+	for id, count := range seen {
+		assert.Equal(t, 1, count, "account %s should appear exactly once across all pages", id)
+	}
+	assert.Len(t, seen, 5, "should have 5 unique accounts total")
+}
+
 func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
