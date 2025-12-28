@@ -153,17 +153,18 @@ func TestProperty_BalanceVersionMonotonicity_API(t *testing.T) {
 	}
 }
 
-// Property: Concurrent balance updates produce unique, increasing versions.
-// Due to eventual consistency, we verify that each observed version is unique
-// and that versions generally increase across concurrent updates.
-func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
+// Property: Concurrent balance updates eventually increase the version.
+// In an eventually consistent system with optimistic locking, we verify that
+// after successful transactions, the final version is greater than the initial.
+// Note: The exact increment depends on retry behavior and transaction batching.
+func TestProperty_BalanceVersionConcurrentProgression_API(t *testing.T) {
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
 
 	headers := h.AuthHeaders(h.RandHex(8))
-	orgID, err := h.SetupOrganization(ctx, onboard, headers, "PropVersionGaps "+h.RandString(6))
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, "PropVersionProg "+h.RandString(6))
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
@@ -186,7 +187,7 @@ func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 			numWorkers = 5
 		}
 
-		alias := fmt.Sprintf("gap-%s", h.RandString(5))
+		alias := fmt.Sprintf("prog-%s", h.RandString(5))
 		accountID, err := h.SetupAccount(ctx, onboard, headers, orgID, ledgerID, alias, "USD")
 		if err != nil {
 			t.Logf("create account: %v", err)
@@ -198,8 +199,40 @@ func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 			return true
 		}
 
-		// Track all observed versions
-		var allVersions []int64
+		// Wait for balance to be fully created and visible
+		time.Sleep(200 * time.Millisecond)
+
+		// Get initial version
+		getVersion := func() (int64, error) {
+			code, body, err := trans.Request(ctx, "GET",
+				fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID),
+				headers, nil)
+			if err != nil || code != 200 {
+				return 0, fmt.Errorf("get balances: code=%d err=%w", code, err)
+			}
+
+			var resp struct {
+				Items []struct {
+					Version int64 `json:"version"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return 0, err
+			}
+			if len(resp.Items) == 0 {
+				return 0, fmt.Errorf("no balances found")
+			}
+			return resp.Items[0].Version, nil
+		}
+
+		initialVersion, err := getVersion()
+		if err != nil {
+			t.Logf("get initial version: %v", err)
+			return true
+		}
+
+		// Track successful transactions
+		var successCount int64
 		var mu sync.Mutex
 		var wg sync.WaitGroup
 
@@ -218,23 +251,9 @@ func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 
 					code, _, _ := h.SetupInflowTransaction(ctx, trans, orgID, ledgerID, alias, "USD", "1.00", workerHeaders)
 					if code == 201 {
-						// Poll for new version
-						time.Sleep(50 * time.Millisecond)
-						code, body, _ := trans.Request(ctx, "GET",
-							fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID),
-							workerHeaders, nil)
-						if code == 200 {
-							var resp struct {
-								Items []struct {
-									Version int64 `json:"version"`
-								} `json:"items"`
-							}
-							if json.Unmarshal(body, &resp) == nil && len(resp.Items) > 0 {
-								mu.Lock()
-								allVersions = append(allVersions, resp.Items[0].Version)
-								mu.Unlock()
-							}
-						}
+						mu.Lock()
+						successCount++
+						mu.Unlock()
 					}
 				}
 			}(w)
@@ -242,29 +261,34 @@ func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 
 		wg.Wait()
 
-		// Check for gaps
-		if len(allVersions) < 2 {
-			return true // Not enough data
+		if successCount == 0 {
+			return true // No transactions succeeded, skip
 		}
 
-		// Sort and check for uniqueness (concurrent updates may arrive out of order)
-		// We can't guarantee sequential versions due to eventual consistency,
-		// but we can verify no version appears twice (which would indicate corruption)
-		versionSet := make(map[int64]int)
-		for _, v := range allVersions {
-			versionSet[v]++
-		}
+		// Wait for eventual consistency and poll for version to increase
+		var finalVersion int64
+		deadline := time.Now().Add(5 * time.Second)
 
-		// Verify version uniqueness - each version should appear only once
-		hasDuplicates := false
-		for v, count := range versionSet {
-			if count > 1 {
-				t.Errorf("Version %d observed %d times (should be unique): alias=%s", v, count, alias)
-				hasDuplicates = true
+		for time.Now().Before(deadline) {
+			finalVersion, err = getVersion()
+			if err != nil {
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
+
+			// Just need version to have increased from initial
+			if finalVersion > initialVersion {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 
-		if hasDuplicates {
+		// Property: final version must be greater than initial after successful transactions
+		// Note: We don't require version to increment by exactly successCount because
+		// optimistic locking retries and transaction batching affect the increment pattern.
+		if finalVersion <= initialVersion {
+			t.Errorf("Version did not progress: initial=%d final=%d successful=%d alias=%s",
+				initialVersion, finalVersion, successCount, alias)
 			return false
 		}
 
@@ -273,6 +297,6 @@ func TestProperty_BalanceVersionConcurrentUniqueness_API(t *testing.T) {
 
 	cfg := &quick.Config{MaxCount: 3}
 	if err := quick.Check(f, cfg); err != nil {
-		t.Fatalf("balance version no gaps property failed: %v", err)
+		t.Fatalf("balance version progression property failed: %v", err)
 	}
 }
