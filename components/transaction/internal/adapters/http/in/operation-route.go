@@ -480,9 +480,10 @@ func (handler *OperationRouteHandler) validateAccountRuleType(logger libLog.Logg
 	}
 }
 
-// validateAliasRule validates that validIf is a string for alias rules.
+// validateAliasRule validates that validIf is a non-empty string for alias rules.
 func (handler *OperationRouteHandler) validateAliasRule(logger libLog.Logger, span *trace.Span, validIf any) error {
-	if _, ok := validIf.(string); !ok {
+	str, ok := validIf.(string)
+	if !ok || str == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
 		logger.Warnf("Invalid ValidIf type for alias rule, Error: %s", err.Error())
@@ -493,12 +494,38 @@ func (handler *OperationRouteHandler) validateAliasRule(logger libLog.Logger, sp
 	return nil
 }
 
-// validateAccountTypeRule validates that validIf is a string array for account_type rules.
+// validateAccountTypeRule validates that validIf is a non-empty string array for account_type rules.
 func (handler *OperationRouteHandler) validateAccountTypeRule(logger libLog.Logger, span *trace.Span, validIf any) error {
 	switch v := validIf.(type) {
 	case []string:
+		if len(v) == 0 {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty ValidIf array for account_type rule", err)
+			logger.Warnf("Empty ValidIf array for account_type rule, Error: %s", err.Error())
+
+			return err
+		}
+
+		for _, s := range v {
+			if s == "" {
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty string in ValidIf array for account_type rule", err)
+				logger.Warnf("Empty string in ValidIf array for account_type rule, Error: %s", err.Error())
+
+				return err
+			}
+		}
+
 		return nil
 	case []any:
+		if len(v) == 0 {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty ValidIf array for account_type rule", err)
+			logger.Warnf("Empty ValidIf array for account_type rule, Error: %s", err.Error())
+
+			return err
+		}
+
 		return handler.validateAccountTypeArray(logger, span, v)
 	default:
 		err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
@@ -509,10 +536,11 @@ func (handler *OperationRouteHandler) validateAccountTypeRule(logger libLog.Logg
 	}
 }
 
-// validateAccountTypeArray validates that all elements in the array are strings.
+// validateAccountTypeArray validates that all elements in the array are non-empty strings.
 func (handler *OperationRouteHandler) validateAccountTypeArray(logger libLog.Logger, span *trace.Span, items []any) error {
 	for _, item := range items {
-		if _, ok := item.(string); !ok {
+		str, ok := item.(string)
+		if !ok || str == "" {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
 			logger.Warnf("Invalid ValidIf array element type, Error: %s", err.Error())
