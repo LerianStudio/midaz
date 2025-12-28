@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -330,10 +331,8 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 }
 
 // handleCorruptedUUID handles corrupted UUID detection with metrics, logging, and strict mode check.
-// Returns (shouldTerminate, error). If shouldTerminate is true, the caller should return the error (which may be nil in lenient mode).
-func (uc *UseCase) handleCorruptedUUID(ctx context.Context, organizationID, ledgerID uuid.UUID, currentID string, parseErr error, span *trace.Span) error {
-	logger, tracking := libCommons.NewLoggerFromContext(ctx), libCommons.NewTrackingFromContext(ctx)
-	metricFactory := tracking.MetricFactory
+func (uc *UseCase) handleCorruptedUUID(ctx context.Context, organizationID, ledgerID uuid.UUID, currentID string, parseErr error, span *trace.Span, metricFactory *metrics.MetricsFactory) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	// Always emit metric for observability regardless of mode
 	if metricFactory != nil {
@@ -375,7 +374,7 @@ func (uc *UseCase) handleCorruptedUUID(ctx context.Context, organizationID, ledg
 // - ErrCorruptedParentAccountUUID: Invalid UUID detected (strict mode only)
 // - Other errors: Database or validation errors
 func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, ledgerID uuid.UUID, parentAccountID string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.detect_cycle_in_hierarchy")
 	defer span.End()
@@ -410,7 +409,7 @@ func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, l
 		// Safe UUID parsing - handles corrupted database data based on strictMode configuration.
 		parsedID, parseErr := uuid.Parse(currentID)
 		if parseErr != nil {
-			return uc.handleCorruptedUUID(ctx, organizationID, ledgerID, currentID, parseErr, &span)
+			return uc.handleCorruptedUUID(ctx, organizationID, ledgerID, currentID, parseErr, &span, metricFactory)
 		}
 
 		// Fetch the current account to get its parent
