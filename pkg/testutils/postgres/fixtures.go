@@ -13,29 +13,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// OrganizationParams holds parameters for creating a test organization.
+type OrganizationParams struct {
+	LegalName     string
+	LegalDocument string
+	Status        string
+	DeletedAt     *time.Time
+}
+
+// DefaultOrganizationParams returns default parameters for creating a test organization.
+func DefaultOrganizationParams() OrganizationParams {
+	return OrganizationParams{
+		LegalName:     "Test Org",
+		LegalDocument: "12345678901234",
+		Status:        "ACTIVE",
+	}
+}
+
 // CreateTestOrganization inserts a test organization and returns its ID.
 func CreateTestOrganization(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
+	return CreateTestOrganizationWithParams(t, db, DefaultOrganizationParams())
+}
+
+// CreateTestOrganizationWithParams inserts a test organization with custom params.
+func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params OrganizationParams) uuid.UUID {
+	t.Helper()
 
 	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
 	_, err := db.Exec(`
-		INSERT INTO organization (id, legal_name, legal_document, address, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, id, "Test Org", "12345678901234", `{"city":"Test"}`, "ACTIVE", time.Now(), time.Now())
+		INSERT INTO organization (id, legal_name, legal_document, address, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, id, params.LegalName, params.LegalDocument, `{"city":"Test"}`, params.Status, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test organization")
 
 	return id
 }
 
+// LedgerParams holds parameters for creating a test ledger.
+type LedgerParams struct {
+	Name      string
+	Status    string
+	DeletedAt *time.Time
+}
+
+// DefaultLedgerParams returns default parameters for creating a test ledger.
+func DefaultLedgerParams() LedgerParams {
+	return LedgerParams{
+		Name:   "Test Ledger",
+		Status: "ACTIVE",
+	}
+}
+
 // CreateTestLedger inserts a test ledger and returns its ID.
 func CreateTestLedger(t *testing.T, db *sql.DB, orgID uuid.UUID) uuid.UUID {
 	t.Helper()
+	return CreateTestLedgerWithParams(t, db, orgID, DefaultLedgerParams())
+}
+
+// CreateTestLedgerWithParams inserts a test ledger with custom params.
+func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, params LedgerParams) uuid.UUID {
+	t.Helper()
 
 	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
 	_, err := db.Exec(`
-		INSERT INTO ledger (id, name, organization_id, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, id, "Test Ledger", orgID, "ACTIVE", time.Now(), time.Now())
+		INSERT INTO ledger (id, name, organization_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, id, params.Name, orgID, params.Status, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test ledger")
 
 	return id
