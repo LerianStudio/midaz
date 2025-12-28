@@ -100,11 +100,11 @@ func FuzzValidateMetadataValueNumeric(f *testing.F) {
 	f.Add(float64(-100))
 
 	// Seed: float64 boundary values
-	f.Add(float64(9223372036854775807))     // max int64 as float
-	f.Add(float64(-9223372036854775808))    // min int64 as float
-	f.Add(float64(1.7976931348623157e+308)) // max float64
+	f.Add(float64(9223372036854775807))      // max int64 as float
+	f.Add(float64(-9223372036854775808))     // min int64 as float
+	f.Add(float64(1.7976931348623157e+308))  // max float64
 	f.Add(float64(-1.7976931348623157e+308)) // min float64
-	f.Add(float64(5e-324))                  // smallest positive float64
+	f.Add(float64(5e-324))                   // smallest positive float64
 
 	// Seed: special float values
 	f.Add(float64(0.1))
@@ -132,7 +132,6 @@ func FuzzValidateMetadataValueNumeric(f *testing.F) {
 
 		// Numeric values should always be accepted
 		result, err := pkghttp.ValidateMetadataValue(value)
-
 		// Verify: numeric values should be accepted (unless NaN/Inf handling is special)
 		if err != nil {
 			t.Logf("ValidateMetadataValue rejected float64=%v err=%v", value, err)

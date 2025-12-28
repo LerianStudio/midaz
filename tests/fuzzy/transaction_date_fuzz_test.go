@@ -133,11 +133,11 @@ func FuzzTransactionDateUnmarshalJSON(f *testing.F) {
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzTransactionDateMarshalJSON -run=^$ -fuzztime=30s
 func FuzzTransactionDateMarshalJSON(f *testing.F) {
 	// Seed: epoch timestamps
-	f.Add(int64(0))                    // Unix epoch
-	f.Add(int64(1704067200))           // 2024-01-01 00:00:00 UTC
-	f.Add(int64(1735689599))           // 2024-12-31 23:59:59 UTC
-	f.Add(int64(-62135596800))         // 0001-01-01 00:00:00 UTC
-	f.Add(int64(253402300799))         // 9999-12-31 23:59:59 UTC
+	f.Add(int64(0))            // Unix epoch
+	f.Add(int64(1704067200))   // 2024-01-01 00:00:00 UTC
+	f.Add(int64(1735689599))   // 2024-12-31 23:59:59 UTC
+	f.Add(int64(-62135596800)) // 0001-01-01 00:00:00 UTC
+	f.Add(int64(253402300799)) // 9999-12-31 23:59:59 UTC
 
 	// Seed: boundary values
 	f.Add(int64(-9223372036854775808)) // min int64

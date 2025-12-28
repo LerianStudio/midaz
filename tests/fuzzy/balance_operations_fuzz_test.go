@@ -56,9 +56,9 @@ func FuzzOperateBalances(f *testing.F) {
 
 	// Manual edge cases: boundary values
 	f.Add(int64(0), int64(0), int64(0), "DEBIT", "CREATED")
-	f.Add(int64(9223372036854775807), int64(0), int64(1), "DEBIT", "CREATED")     // max int64
-	f.Add(int64(-9223372036854775808), int64(0), int64(1), "CREDIT", "CREATED")   // min int64
-	f.Add(int64(1), int64(9223372036854775807), int64(1), "RELEASE", "CANCELED")  // max onHold
+	f.Add(int64(9223372036854775807), int64(0), int64(1), "DEBIT", "CREATED")    // max int64
+	f.Add(int64(-9223372036854775808), int64(0), int64(1), "CREDIT", "CREATED")  // min int64
+	f.Add(int64(1), int64(9223372036854775807), int64(1), "RELEASE", "CANCELED") // max onHold
 
 	// Manual edge cases: precision boundary (2^53 float64 limit)
 	f.Add(int64(9007199254740992), int64(0), int64(1), "DEBIT", "CREATED")
@@ -171,18 +171,18 @@ func FuzzCalculateTotal(f *testing.F) {
 	f.Add(int64(10000), int64(25), int64(50), true)    // 25% of 50%
 
 	// Manual edge cases: boundary percentages
-	f.Add(int64(10000), int64(0), int64(100), true)    // 0%
-	f.Add(int64(10000), int64(100), int64(100), true)  // 100%
-	f.Add(int64(10000), int64(1), int64(100), true)    // 1%
+	f.Add(int64(10000), int64(0), int64(100), true)   // 0%
+	f.Add(int64(10000), int64(100), int64(100), true) // 100%
+	f.Add(int64(10000), int64(1), int64(100), true)   // 1%
 
 	// Manual edge cases: large values
-	f.Add(int64(9223372036854775807), int64(50), int64(100), true)  // max int64 amount
-	f.Add(int64(1000000000000000), int64(33), int64(100), false)    // large with odd percentage
+	f.Add(int64(9223372036854775807), int64(50), int64(100), true) // max int64 amount
+	f.Add(int64(1000000000000000), int64(33), int64(100), false)   // large with odd percentage
 
 	// Manual edge cases: precision edge cases
-	f.Add(int64(100), int64(33), int64(100), true)   // 33% - repeating decimal
-	f.Add(int64(100), int64(66), int64(100), true)   // 66% - repeating decimal
-	f.Add(int64(1), int64(50), int64(100), true)     // small amount with percentage
+	f.Add(int64(100), int64(33), int64(100), true) // 33% - repeating decimal
+	f.Add(int64(100), int64(66), int64(100), true) // 66% - repeating decimal
+	f.Add(int64(1), int64(50), int64(100), true)   // small amount with percentage
 
 	// Manual edge cases: zero and negative
 	f.Add(int64(0), int64(50), int64(100), true)

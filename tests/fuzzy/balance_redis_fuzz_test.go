@@ -72,11 +72,11 @@ func FuzzBalanceRedisUnmarshalJSON(f *testing.F) {
 	f.Add(`{"id":"test-id","available":9007199254740993,"onHold":0}`)
 
 	// Manual seeds: boundary values
-	f.Add(`{"available":9223372036854775807,"onHold":0}`)           // max int64
-	f.Add(`{"available":-9223372036854775808,"onHold":0}`)          // min int64
-	f.Add(`{"available":"9223372036854775807","onHold":"0"}`)       // max int64 as string
-	f.Add(`{"available":9007199254740992,"onHold":0}`)              // float64 precision boundary
-	f.Add(`{"available":9007199254740993,"onHold":0}`)              // beyond float64 precision
+	f.Add(`{"available":9223372036854775807,"onHold":0}`)     // max int64
+	f.Add(`{"available":-9223372036854775808,"onHold":0}`)    // min int64
+	f.Add(`{"available":"9223372036854775807","onHold":"0"}`) // max int64 as string
+	f.Add(`{"available":9007199254740992,"onHold":0}`)        // float64 precision boundary
+	f.Add(`{"available":9007199254740993,"onHold":0}`)        // beyond float64 precision
 
 	// Manual seeds: large decimal strings
 	f.Add(`{"available":"123456789012345678901234567890.123456789","onHold":"0"}`)
@@ -109,9 +109,9 @@ func FuzzBalanceRedisUnmarshalJSON(f *testing.F) {
 	f.Add(`{"available":"{{.Cmd}}","onHold":"0"}`)
 
 	// Manual seeds: unicode edge cases
-	f.Add(`{"available":"\u0030","onHold":"0"}`)                    // Unicode 0
-	f.Add(`{"id":"test\u0000id","available":1000,"onHold":0}`)      // null byte
-	f.Add(`{"id":"test\u200Bid","available":1000,"onHold":0}`)      // zero-width space
+	f.Add(`{"available":"\u0030","onHold":"0"}`)               // Unicode 0
+	f.Add(`{"id":"test\u0000id","available":1000,"onHold":0}`) // null byte
+	f.Add(`{"id":"test\u200Bid","available":1000,"onHold":0}`) // zero-width space
 
 	f.Fuzz(func(t *testing.T, jsonData string) {
 		// Skip invalid UTF-8 early
