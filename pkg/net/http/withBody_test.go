@@ -367,6 +367,235 @@ func TestIsDecimalEqual(t *testing.T) {
 	}
 }
 
+func TestMetadataValidation_KeyMaxLength(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		expected bool
+	}{
+		{
+			name:     "valid - exactly 100 chars",
+			key:      string(make([]byte, 100)),
+			expected: true,
+		},
+		{
+			name:     "valid - empty key",
+			key:      "",
+			expected: true,
+		},
+		{
+			name:     "valid - short key",
+			key:      "department",
+			expected: true,
+		},
+		{
+			name:     "invalid - 101 chars",
+			key:      string(make([]byte, 101)),
+			expected: false,
+		},
+		{
+			name:     "invalid - 200 chars",
+			key:      string(make([]byte, 200)),
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys"`
+			}
+			s := testStruct{Metadata: map[string]any{tc.key: "value"}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_ValueMaxLength(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    any
+		expected bool
+	}{
+		{
+			name:     "valid - string exactly 2000 chars",
+			value:    string(make([]byte, 2000)),
+			expected: true,
+		},
+		{
+			name:     "valid - empty string",
+			value:    "",
+			expected: true,
+		},
+		{
+			name:     "valid - short string",
+			value:    "hello world",
+			expected: true,
+		},
+		{
+			name:     "valid - integer",
+			value:    12345,
+			expected: true,
+		},
+		{
+			name:     "valid - float",
+			value:    123.456,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean true",
+			value:    true,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean false",
+			value:    false,
+			expected: true,
+		},
+		{
+			name:     "invalid - string 2001 chars",
+			value:    string(make([]byte, 2001)),
+			expected: false,
+		},
+		{
+			name:     "invalid - string 5000 chars",
+			value:    string(make([]byte, 5000)),
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,endkeys,valuemax=2000"`
+			}
+			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_NestedValues(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    any
+		expected bool
+	}{
+		{
+			name:     "valid - string value",
+			value:    "simple string",
+			expected: true,
+		},
+		{
+			name:     "valid - integer value",
+			value:    42,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean value",
+			value:    true,
+			expected: true,
+		},
+		{
+			name:     "invalid - nested map",
+			value:    map[string]any{"nested": "value"},
+			expected: false,
+		},
+		{
+			name:     "invalid - deeply nested map",
+			value:    map[string]any{"level1": map[string]any{"level2": "value"}},
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,endkeys,nonested"`
+			}
+			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_Combined(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata map[string]any
+		expected bool
+	}{
+		{
+			name:     "valid - simple key-value",
+			metadata: map[string]any{"department": "finance", "active": true, "count": 42},
+			expected: true,
+		},
+		{
+			name:     "valid - empty metadata",
+			metadata: map[string]any{},
+			expected: true,
+		},
+		{
+			name:     "invalid - key too long",
+			metadata: map[string]any{string(make([]byte, 101)): "value"},
+			expected: false,
+		},
+		{
+			name:     "invalid - value too long",
+			metadata: map[string]any{"key": string(make([]byte, 2001))},
+			expected: false,
+		},
+		{
+			name:     "invalid - nested value",
+			metadata: map[string]any{"key": map[string]any{"nested": "bad"}},
+			expected: false,
+		},
+		{
+			name:     "invalid - multiple violations",
+			metadata: map[string]any{string(make([]byte, 101)): string(make([]byte, 2001))},
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+			}
+			s := testStruct{Metadata: tc.metadata}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateCPF(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -849,4 +1078,3 @@ func TestFindUnknownFields_DateComparison(t *testing.T) {
 		})
 	}
 }
-
