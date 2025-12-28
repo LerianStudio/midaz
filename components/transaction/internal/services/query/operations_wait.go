@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -18,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
@@ -909,13 +909,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(tran, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
 		// Mock OperationRepo.Create to return an error for the first operation
+		// Note: MetadataRepo.Create is NOT called because it happens AFTER the transaction commits,
+		// and the transaction rolls back when operation creation fails
 		operationError := errors.New("failed to create operation")
 		mockOperationRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
@@ -927,7 +923,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		assert.Error(t, callErr)
 		var internalErr pkg.InternalServerError
-		if errors.As(err, &internalErr) {
+		if errors.As(callErr, &internalErr) {
 			assert.Contains(t, internalErr.Err.Error(), "failed to create operation")
 		} else {
 			assert.Contains(t, callErr.Error(), "failed to create operation")
@@ -1111,11 +1107,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(operation2, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
+		// Mock MetadataRepo.Create for operation metadata
+		// Note: Metadata is created for ALL operations (both operation1 and operation2)
+		// The duplicate key error only affects PostgreSQL operation creation, not MongoDB metadata
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
-			Times(1)
+			Times(2)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
 		mockRabbitMQRepo.EXPECT().
@@ -1359,6 +1357,18 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+	// Create mock DB and DBProvider
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	dbProvider := &mockDBProvider{db: db}
+
 	// Create a real UseCase with mock repositories
 	uc := &UseCase{
 		OperationRepo:   mockOperationRepo,
@@ -1367,6 +1377,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		BalanceRepo:     mockBalanceRepo,
 		RabbitMQRepo:    mockRabbitMQRepo,
 		RedisRepo:       mockRedisRepo,
+		DBProvider:      dbProvider,
 	}
 
 	ctx := context.Background()
