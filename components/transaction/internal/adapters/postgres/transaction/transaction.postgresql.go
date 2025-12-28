@@ -25,7 +25,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 )
@@ -139,7 +138,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := executor.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	result, err := executor.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) ON CONFLICT (id) DO NOTHING`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -157,15 +156,6 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.Route,
 	)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			// Duplicate key is expected in async mode where ensureAsyncTransactionVisibility
-			// intentionally retries insert. Log at debug level to avoid alert noise.
-			logger.Debugf("Transaction insert skipped (duplicate key - expected in async/retry scenarios): %v", err)
-
-			return nil, pkg.ValidateInternalError(err, "Transaction")
-		}
-
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		logger.Errorf("Failed to execute query: %v", err)
@@ -183,13 +173,63 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		// Duplicate key is expected in async mode where ensureAsyncTransactionVisibility
+		// intentionally retries insert. Fetch and return the existing record.
+		logger.Debugf("Transaction insert skipped (duplicate key - expected in async/retry scenarios), fetching existing: id=%s", record.ID)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction. Rows affected is 0", err)
+		existing := &TransactionPostgreSQLModel{}
+		var body *string
 
-		logger.Warnf("Failed to create transaction. Rows affected is 0: %v", err)
+		selectQuery := squirrel.
+			Select(transactionColumnList...).
+			From(r.tableName).
+			Where(squirrel.Eq{"id": record.ID}).
+			PlaceholderFormat(squirrel.Dollar)
 
-		return nil, err
+		query, args, err := selectQuery.ToSql()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to build select query for existing transaction", err)
+			logger.Errorf("Failed to build select query for existing transaction: %v", err)
+			return nil, pkg.ValidateInternalError(err, "Transaction")
+		}
+
+		row := executor.QueryRowContext(ctx, query, args...)
+		if err := row.Scan(
+			&existing.ID,
+			&existing.ParentTransactionID,
+			&existing.Description,
+			&existing.Status,
+			&existing.StatusDescription,
+			&existing.Amount,
+			&existing.AssetCode,
+			&existing.ChartOfAccountsGroupName,
+			&existing.LedgerID,
+			&existing.OrganizationID,
+			&body,
+			&existing.CreatedAt,
+			&existing.UpdatedAt,
+			&existing.DeletedAt,
+			&existing.Route,
+		); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Unexpected: conflict detected but row not found, fall back to attempted record
+				logger.Warnf("Transaction conflict detected but row not found, returning attempted record: %s", record.ID)
+				return record.ToEntity(), nil
+			}
+			libOpentelemetry.HandleSpanError(&span, "Failed to fetch existing transaction after conflict", err)
+			logger.Errorf("Failed to fetch existing transaction after conflict: %v", err)
+			return nil, pkg.ValidateInternalError(err, "Transaction")
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			if err := json.Unmarshal([]byte(*body), &existing.Body); err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal existing body", err)
+				logger.Errorf("Failed to unmarshal existing body: %v", err)
+				return nil, pkg.ValidateInternalError(err, "Transaction")
+			}
+		}
+
+		return existing.ToEntity(), nil
 	}
 
 	return record.ToEntity(), nil

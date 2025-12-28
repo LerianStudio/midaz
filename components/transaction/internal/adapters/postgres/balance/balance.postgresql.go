@@ -81,7 +81,7 @@ type Repository interface {
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
@@ -1224,7 +1224,9 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 }
 
 // Update updates the allow_sending and allow_receiving fields of a Balance in the database.
-func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error {
+// It returns the updated balance directly from the primary database using RETURNING clause,
+// avoiding stale reads from replicas.
+func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
@@ -1236,10 +1238,10 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return pkg.ValidateInternalError(err, "Balance")
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.update.exec")
+	ctx, spanQuery := tracer.Start(ctx, "postgres.update.query")
 	defer spanQuery.End()
 
 	var updates []string
@@ -1259,35 +1261,55 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 	args = append(args, time.Now(), organizationID, ledgerID, id)
 
+	// Use RETURNING clause to get the updated row directly from the primary database,
+	// avoiding stale reads from replicas due to replication lag
 	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOnlyOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		` AND deleted_at IS NULL` +
+		` RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key`
 
-	result, err := db.ExecContext(ctx, queryUpdate, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+	row := db.QueryRowContext(ctx, queryUpdate, args...)
 
-		logger.Errorf("Err on result exec content: %v", err)
+	var record BalancePostgreSQLModel
 
-		return pkg.ValidateInternalError(err, "Balance")
-	}
+	if err = row.Scan(
+		&record.ID,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.AccountID,
+		&record.Alias,
+		&record.AssetCode,
+		&record.Available,
+		&record.OnHold,
+		&record.Version,
+		&record.AccountType,
+		&record.AllowSending,
+		&record.AllowReceiving,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+		&record.Key,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil || rowsAffected == 0 {
-		if err == nil {
-			err = sql.ErrNoRows
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found for update", err)
+
+			logger.Warnf("Balance not found for update: %v", err)
+
+			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Err on rows affected", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan updated balance", err)
 
-		logger.Errorf("Failed to update balance. Rows affected is 0: %v", err)
+		logger.Errorf("Failed to scan updated balance: %v", err)
 
-		return pkg.ValidateInternalError(err, "Balance")
+		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
-	return nil
+	return record.ToEntity(), nil
 }
 
 // Sync updates a balance record from Redis cache to PostgreSQL using optimistic concurrency.

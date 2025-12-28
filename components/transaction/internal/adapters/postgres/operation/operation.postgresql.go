@@ -153,6 +153,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 			record.VersionBalance,
 			record.VersionBalanceAfter,
 		).
+		Suffix("ON CONFLICT (id) DO NOTHING").
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := insert.ToSql()
@@ -181,13 +182,69 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
+		// ON CONFLICT DO NOTHING: rowsAffected == 0 means duplicate, not an error.
+		// Fetch the existing row from DB to return actual persisted values.
+		logger.Infof("Operation already exists (duplicate), fetching existing: %s", record.ID)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation. Rows affected is 0", err)
+		ctx, spanSelect := tracer.Start(ctx, "postgres.create.select_existing")
 
-		logger.Warnf("Failed to create operation. Rows affected is 0: %v", err)
+		selectQuery := squirrel.
+			Select(operationColumnList...).
+			From(r.tableName).
+			Where(squirrel.Eq{"id": record.ID}).
+			PlaceholderFormat(squirrel.Dollar)
 
-		return nil, err
+		query, args, err := selectQuery.ToSql()
+		if err != nil {
+			spanSelect.End()
+			libOpentelemetry.HandleSpanError(&span, "Failed to build select query for existing operation", err)
+			logger.Errorf("Failed to build select query for existing operation: %v", err)
+			return nil, pkg.ValidateInternalError(err, "Operation")
+		}
+
+		existing := &OperationPostgreSQLModel{}
+		row := executor.QueryRowContext(ctx, query, args...)
+		if err := row.Scan(
+			&existing.ID,
+			&existing.TransactionID,
+			&existing.Description,
+			&existing.Type,
+			&existing.AssetCode,
+			&existing.Amount,
+			&existing.AvailableBalance,
+			&existing.OnHoldBalance,
+			&existing.AvailableBalanceAfter,
+			&existing.OnHoldBalanceAfter,
+			&existing.Status,
+			&existing.StatusDescription,
+			&existing.AccountID,
+			&existing.AccountAlias,
+			&existing.BalanceID,
+			&existing.ChartOfAccounts,
+			&existing.OrganizationID,
+			&existing.LedgerID,
+			&existing.CreatedAt,
+			&existing.UpdatedAt,
+			&existing.DeletedAt,
+			&existing.Route,
+			&existing.BalanceAffected,
+			&existing.BalanceKey,
+			&existing.VersionBalance,
+			&existing.VersionBalanceAfter,
+		); err != nil {
+			spanSelect.End()
+			if errors.Is(err, sql.ErrNoRows) {
+				// Unexpected: conflict detected but row not found, fall back to attempted record
+				logger.Warnf("Operation conflict detected but row not found, returning attempted record: %s", record.ID)
+				return record.ToEntity(), nil
+			}
+			libOpentelemetry.HandleSpanError(&span, "Failed to fetch existing operation", err)
+			logger.Errorf("Failed to fetch existing operation: %v", err)
+			return nil, pkg.ValidateInternalError(err, "Operation")
+		}
+
+		spanSelect.End()
+		return existing.ToEntity(), nil
 	}
 
 	return record.ToEntity(), nil
