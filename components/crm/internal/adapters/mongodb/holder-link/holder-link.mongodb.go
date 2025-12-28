@@ -25,7 +25,7 @@ import (
 
 // Repository provides an interface for operations related to holder link entities.
 //
-//go:generate mockgen --destination=holder-link.mock.go --package=holderlink . Repository
+//go:generate mockgen --destination=holder-link.mongodb_mock.go --package=holderlink . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID string, input *mmodel.HolderLink) (*mmodel.HolderLink, error)
 	Find(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.HolderLink, error)

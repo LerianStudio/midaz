@@ -26,7 +26,7 @@ import (
 
 // Repository provides an interface for operations related to holder entities.
 //
-//go:generate mockgen --destination=holder.mock.go --package=holder . Repository
+//go:generate mockgen --destination=holder.mongodb_mock.go --package=holder . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, input *mmodel.Holder) (*mmodel.Holder, error)
 	Find(ctx context.Context, collection string, id uuid.UUID, includeDeleted bool) (*mmodel.Holder, error)

@@ -26,7 +26,7 @@ import (
 
 // Repository provides an interface for operations related to alias entities.
 //
-//go:generate mockgen --destination=alias.mock.go --package=alias . Repository
+//go:generate mockgen --destination=alias.mongodb_mock.go --package=alias . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID string, input *mmodel.Alias) (*mmodel.Alias, error)
 	Find(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error)
