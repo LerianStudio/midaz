@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -45,20 +46,36 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 // validateAssetCodes validates from and to asset codes
 func (uc *UseCase) validateAssetCodes(span *trace.Span, cari *mmodel.CreateAssetRateInput) error {
 	if err := utils.ValidateCode(cari.From); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.AssetRate{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'from' asset code", err)
+		mapped := mapCodeValidationError(err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'from' asset code", mapped)
 
-		return err
+		return mapped
 	}
 
 	if err := utils.ValidateCode(cari.To); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.AssetRate{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'to' asset code", err)
+		mapped := mapCodeValidationError(err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'to' asset code", mapped)
 
-		return err
+		return mapped
 	}
 
 	return nil
+}
+
+// mapCodeValidationError maps utils validation errors to business errors
+func mapCodeValidationError(err error) error {
+	entityType := reflect.TypeOf(mmodel.AssetRate{}).Name()
+
+	switch err.Error() {
+	case constant.ErrInvalidCodeFormat.Error():
+		return pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, entityType)
+	case constant.ErrCodeUppercaseRequirement.Error():
+		return pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, entityType)
+	case constant.ErrInvalidCodeLength.Error():
+		return pkg.ValidateBusinessError(constant.ErrInvalidCodeLength, entityType)
+	default:
+		return pkg.ValidateBusinessError(err, entityType)
+	}
 }
 
 // findExistingAssetRate finds an existing asset rate by currency pair
