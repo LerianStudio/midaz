@@ -24,17 +24,19 @@ Issue 1: Circular Hierarchy
 │           └── NEW: detectCycleInHierarchy() [with limits]   │
 └─────────────────────────────────────────────────────────────┘
 
-Issue 2: AssetRate Precision (Scaled-Integer Model)
+Issue 2: AssetRate Precision (Decimal Model)
 ┌─────────────────────────────────────────────────────────────┐
-│ Current semantic: rate=525, scale=2 → actual rate = 5.25    │
+│ Current: rate=525 (float64), scale=2 → precision loss       │
 │ Problem: float64 loses precision for values > 2^53          │
-│ Fix: Use int64 to match DB BIGINT, preserve JSON format     │
+│ Fix: Use decimal.Decimal to match Balance/Operation pattern │
+│ Change: DB BIGINT → NUMERIC, JSON number → string           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
 - Go 1.24+
-- PostgreSQL (BIGINT for rate, NUMERIC for scale - unchanged)
+- `github.com/shopspring/decimal` - High-precision decimal arithmetic
+- PostgreSQL (migration: BIGINT → NUMERIC for rate column)
 
 ## Prerequisites
 - [ ] Run `make test` - ensure all tests pass before changes
@@ -398,31 +400,46 @@ make test-property
 
 ---
 
-## Batch 2: AssetRate Precision Fix (Tasks 2.1-2.4)
+## Batch 2: AssetRate Precision Fix (Tasks 2.1-2.6)
 
-### Understanding the Current Semantic Model
+### Understanding the Semantic Model Change
 
-**IMPORTANT:** The AssetRate uses a **scaled-integer** model:
-- `rate = 525` (stored as BIGINT in DB)
-- `scale = 2` (stored as NUMERIC in DB)
+**Current Model (Scaled-Integer):**
+- `rate = 525` (stored as BIGINT)
+- `scale = 2` (stored as NUMERIC)
 - Actual rate = `rate / 10^scale` = `525 / 100` = `5.25`
+- JSON output: `{"rate": 525.0, "scale": 2.0}` (numbers)
 
-This is the correct design for financial precision. The problem is the Go layer uses `float64` for the rate field, which loses precision for values > 2^53.
+**New Model (Direct Decimal - Matching Transaction API):**
+- `rate = 5.25` (stored as NUMERIC, direct value)
+- `scale = 2` (stored as NUMERIC, optional for display)
+- Actual rate = `rate` directly (no division needed)
+- JSON output: `{"rate": "5.25", "scale": 2}` (rate as string, matching Balance/Operation pattern)
 
-**Fix:** Change `float64` to `int64` in Go to match the DB BIGINT type. This:
-- ✅ Preserves the scaled-integer semantic model
-- ✅ Maintains JSON backward compatibility (int64 marshals as number)
-- ✅ Requires no database migration
-- ✅ Fixes precision loss for large values
+**Why This Change:**
+- ✅ Matches existing transaction API (Balance.Available, Operation.Value use decimal.Decimal)
+- ✅ Full precision for any value (no 2^53 limit)
+- ✅ Consistent decimal arithmetic across the codebase
+- ⚠️ **BREAKING CHANGE**: Rate serializes as string (like all decimals in Midaz)
+- 📝 Requires database migration
 
 ---
 
-### Task 2.1: Update AssetRate Model to Use int64
+### Task 2.1: Update AssetRate Model to Use decimal.Decimal
 **File:** `pkg/mmodel/assetrate.go`
 **Estimated Time:** 3 minutes
 **Recommended Agent:** `backend-engineer-golang`
 
-**Description:** Change Rate from float64 to int64 and Scale from *float64 to int.
+**Description:** Change Rate from float64 to decimal.Decimal, matching the pattern used for Balance and Operation.
+
+**Add import:**
+```go
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+```
 
 **Find and replace the Rate and Scale fields (around lines 46-51):**
 
@@ -440,11 +457,12 @@ This is the correct design for financial precision. The problem is the Go layer 
 
 **New:**
 ```go
-	// Conversion rate value (scaled integer - actual rate = rate / 10^scale)
-	// example: 525
-	Rate int64 `json:"rate" example:"525"`
+	// Conversion rate value (direct decimal value, matching Balance/Operation pattern)
+	// example: 5.25
+	// Note: Serializes to JSON as string: {"rate": "5.25"}
+	Rate decimal.Decimal `json:"rate" example:"5.25" swaggertype:"string"`
 
-	// Decimal places for the rate (used to calculate actual rate)
+	// Decimal places for display/calculation (optional)
 	// example: 2
 	// minimum: 0
 	Scale int `json:"scale" example:"2" minimum:"0"`
@@ -452,18 +470,67 @@ This is the correct design for financial precision. The problem is the Go layer 
 
 **Verification:**
 ```bash
-grep -n "Rate int64\|Scale int" pkg/mmodel/assetrate.go
-# Expected: Rate int64 and Scale int fields found
+grep -n "decimal.Decimal.*json" pkg/mmodel/assetrate.go
+# Expected: Rate uses decimal.Decimal
 ```
 
 ---
 
-### Task 2.2: Update PostgreSQL Model
+### Task 2.2: Create Database Migration for AssetRate
+**File:** `components/transaction/migrations/000009_alter_asset_rate_to_decimal.up.sql` (new file)
+**Estimated Time:** 5 minutes
+**Recommended Agent:** `devops-engineer`
+
+**Description:** Create migration to change rate column from BIGINT to NUMERIC.
+
+**Complete Code:**
+```sql
+-- Migration: Change asset_rate.rate from BIGINT to NUMERIC for decimal precision
+-- This is a breaking change - rate values will change from scaled integers to direct decimals
+-- Example: rate=525 with scale=2 represents 5.25, but will need to be stored as 5.25 directly
+
+ALTER TABLE asset_rate
+    ALTER COLUMN rate TYPE NUMERIC(38, 18);
+
+-- Add comment explaining the semantic change
+COMMENT ON COLUMN asset_rate.rate IS 'Direct decimal rate value (e.g., 5.25). Previously stored as scaled integer.';
+```
+
+**Create down migration:**
+**File:** `components/transaction/migrations/000009_alter_asset_rate_to_decimal.down.sql`
+```sql
+-- Rollback: Change asset_rate.rate from NUMERIC back to BIGINT
+-- WARNING: This will truncate decimal values to integers
+
+ALTER TABLE asset_rate
+    ALTER COLUMN rate TYPE BIGINT USING rate::BIGINT;
+```
+
+**Verification:**
+```bash
+ls -la components/transaction/migrations/000009_alter_asset_rate_to_decimal.*
+# Expected: Both .up.sql and .down.sql files exist
+```
+
+---
+
+### Task 2.3: Update PostgreSQL Model
 **File:** `components/transaction/internal/adapters/postgres/assetrate/assetrate.go`
 **Estimated Time:** 3 minutes
 **Recommended Agent:** `backend-engineer-golang`
 
-**Description:** Update the database model to use int64 for Rate and int for Scale.
+**Description:** Update the database model to use decimal.Decimal for Rate.
+
+**Add import:**
+```go
+import (
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/shopspring/decimal"
+)
+```
 
 **Find and update the struct fields (around lines 32-33):**
 
@@ -475,8 +542,8 @@ grep -n "Rate int64\|Scale int" pkg/mmodel/assetrate.go
 
 **New:**
 ```go
-	Rate           int64          // Conversion rate value (scaled integer)
-	RateScale      int            // Decimal places for the rate
+	Rate           decimal.Decimal // Conversion rate value (direct decimal, matches Balance pattern)
+	RateScale      int             // Decimal places for display/calculation
 ```
 
 **Update ToEntity method (around lines 42-58):**
@@ -573,9 +640,82 @@ grep -n "Rate.*int64\|RateScale.*int" components/transaction/internal/adapters/p
 # Expected: Fields use int64 and int types
 ```
 
+**Update ToEntity method - No pointer dereference for Scale:**
+
+Update line 51 from:
+```go
+Scale: &a.RateScale,
+```
+
+To:
+```go
+Scale: a.RateScale,
+```
+
+**Update FromEntity method - No pointer dereference for Scale:**
+
+Update line 71 from:
+```go
+RateScale: *assetRate.Scale,
+```
+
+To:
+```go
+RateScale: assetRate.Scale,
+```
+
+**Verification:**
+```bash
+grep -n "decimal.Decimal" components/transaction/internal/adapters/postgres/assetrate/assetrate.go
+# Expected: Rate field uses decimal.Decimal
+```
+
 ---
 
-### Task 2.3: Update Create/Update AssetRate Command
+### Task 2.4: Update CreateAssetRateInput
+**File:** `pkg/mmodel/assetrate.go`
+**Estimated Time:** 2 minutes
+**Recommended Agent:** `backend-engineer-golang`
+
+**Description:** Update the input struct to accept decimal.Decimal.
+
+**Find these fields in CreateAssetRateInput (around lines 99-105):**
+
+**Old:**
+```go
+	// Conversion rate value (required)
+	// example: 100
+	// required: true
+	Rate int `json:"rate" validate:"required" example:"100"`
+
+	// Decimal places for the rate (optional)
+	// example: 2
+	// minimum: 0
+	Scale int `json:"scale,omitempty" validate:"gte=0" example:"2" minimum:"0"`
+```
+
+**New:**
+```go
+	// Conversion rate value (required, accepts string or number in JSON)
+	// example: 5.25
+	// required: true
+	Rate decimal.Decimal `json:"rate" validate:"required" example:"5.25" swaggertype:"string"`
+
+	// Decimal places for display/calculation (optional)
+	// example: 2
+	// minimum: 0
+	Scale int `json:"scale,omitempty" validate:"gte=0" example:"2" minimum:"0"`
+```
+
+**Verification:**
+```bash
+grep -A2 "Rate.*decimal.Decimal" pkg/mmodel/assetrate.go
+# Expected: Rate decimal.Decimal in both AssetRate and CreateAssetRateInput
+```
+
+---
+
+### Task 2.5: Update Create/Update AssetRate Command
 **File:** `components/transaction/internal/services/command/create-assetrate.go`
 **Estimated Time:** 3 minutes
 **Recommended Agent:** `backend-engineer-golang`
@@ -608,8 +748,8 @@ func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel
 **New:**
 ```go
 func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel.CreateAssetRateInput) {
-	// Types now match directly - no conversion needed, full int64 precision preserved
-	arFound.Rate = int64(cari.Rate)
+	// Direct decimal assignment - matches Balance/Operation pattern, full precision
+	arFound.Rate = cari.Rate
 	arFound.Scale = cari.Scale
 	arFound.Source = cari.Source
 
@@ -653,7 +793,7 @@ func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel
 
 **New:**
 ```go
-	// Types now match directly - full int64 precision preserved
+	// Direct decimal assignment - full precision, matches Balance/Operation pattern
 	ttl := 0
 	if cari.TTL != nil {
 		ttl = *cari.TTL
@@ -666,7 +806,7 @@ func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel
 		ExternalID:     *externalID,
 		From:           cari.From,
 		To:             cari.To,
-		Rate:           int64(cari.Rate),
+		Rate:           cari.Rate,
 		Scale:          cari.Scale,
 		Source:         cari.Source,
 		TTL:            ttl,
@@ -679,60 +819,113 @@ func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel
 ```bash
 grep -n "float64" components/transaction/internal/services/command/create-assetrate.go
 # Expected: No matches (all float64 conversions removed)
+grep -n "cari.Rate" components/transaction/internal/services/command/create-assetrate.go
+# Expected: Direct assignment, no type conversion
 ```
 
 ---
 
-### Task 2.4: Update Property Tests for AssetRate
+### Task 2.6: Run Database Migration
+**File:** N/A (database operation)
+**Estimated Time:** 2 minutes
+**Recommended Agent:** `devops-engineer`
+
+**Description:** Apply the migration to change the rate column type.
+
+**Command:**
+```bash
+# Apply the migration
+make migrate-up
+```
+
+**Verification:**
+```bash
+# Check the column type
+psql -d midaz -c "\d asset_rate"
+# Expected: rate column shows type NUMERIC(38,18)
+```
+
+**Note:** If there is existing data in asset_rate table, you may need a data migration script to convert scaled integers to decimals:
+```sql
+-- Data migration (if needed)
+UPDATE asset_rate
+SET rate = rate / POWER(10, rate_scale)
+WHERE rate_scale > 0;
+```
+
+---
+
+### Task 2.7: Update Property Tests for AssetRate
 **File:** `tests/property/asset_rate_test.go`
 **Estimated Time:** 3 minutes
 **Recommended Agent:** `qa-analyst`
 
-**Description:** Update property tests to verify int64 precision is preserved.
+**Description:** Update property tests to verify decimal.Decimal precision is preserved and matches Balance pattern.
 
-**Add this test to verify large value precision:**
+**Update existing tests to use decimal.Decimal** (if needed) and **add this test:**
 ```go
-// Property: Large rate values maintain precision (int64 range)
-func TestProperty_AssetRateInt64Precision_Model(t *testing.T) {
+// Property: Decimal rate values maintain full precision (no float64 truncation)
+func TestProperty_AssetRateDecimalPrecision_Model(t *testing.T) {
 	f := func(seed int64) bool {
 		rng := rand.New(rand.NewSource(seed))
 
-		// Generate large values that would lose precision in float64
-		// 2^53 = 9007199254740992 is the float64 precision boundary
-		largeValue := int64(9007199254740993) + rng.Int63n(1000000)
+		// Generate values with decimal places that would lose precision in float64
+		intPart := rng.Int63n(1000000)
+		decPart := rng.Intn(100) // 0-99 cents
 
-		// Simulate the AssetRate storage and retrieval
-		stored := largeValue
-		retrieved := stored
-
-		// Property: exact equality - no precision loss
-		if stored != retrieved {
-			t.Logf("Precision loss: stored=%d retrieved=%d", stored, retrieved)
+		// Create decimal rate: e.g., 5.25
+		rateStr := fmt.Sprintf("%d.%02d", intPart, decPart)
+		rate, err := decimal.NewFromString(rateStr)
+		if err != nil {
+			t.Logf("Failed to create decimal: %v", err)
 			return false
 		}
 
-		// Verify it's actually a value that would fail with float64
-		asFloat := float64(largeValue)
-		backToInt := int64(asFloat)
-		if backToInt == largeValue {
-			// This value wouldn't demonstrate the issue, but still passes
-			return true
+		// Simulate storage and retrieval (JSON roundtrip)
+		// Note: decimal.Decimal marshals to JSON as string: "5.25"
+		jsonBytes, err := json.Marshal(map[string]decimal.Decimal{"rate": rate})
+		if err != nil {
+			t.Logf("Failed to marshal: %v", err)
+			return false
 		}
 
-		// The int64 path preserves precision where float64 would not
+		var result map[string]decimal.Decimal
+		err = json.Unmarshal(jsonBytes, &result)
+		if err != nil {
+			t.Logf("Failed to unmarshal: %v", err)
+			return false
+		}
+
+		retrieved := result["rate"]
+
+		// Property: exact equality after JSON roundtrip
+		if !rate.Equal(retrieved) {
+			t.Logf("Precision loss after roundtrip: original=%s retrieved=%s", rate, retrieved)
+			return false
+		}
+
 		return true
 	}
 
 	cfg := &quick.Config{MaxCount: 500}
 	if err := quick.Check(f, cfg); err != nil {
-		t.Fatalf("AssetRate int64 precision property failed: %v", err)
+		t.Fatalf("AssetRate decimal precision property failed: %v", err)
 	}
 }
 ```
 
+**Required imports:**
+```go
+import (
+	"encoding/json"
+	"fmt"
+	// ... existing imports
+)
+```
+
 **Verification:**
 ```bash
-go test -v -race ./tests/property/... -run TestProperty_AssetRateInt64Precision
+go test -v -race ./tests/property/... -run TestProperty_AssetRateDecimalPrecision
 # Expected: PASS
 ```
 
@@ -753,8 +946,8 @@ make test-property
 
 | Batch | Files Modified | Changes |
 |-------|----------------|---------|
-| 1 | 3 files | Add circular hierarchy detection with depth limit |
-| 2 | 4 files | Convert AssetRate from float64 to int64 |
+| 1 | 3 files + tests | Add circular hierarchy detection with depth limit |
+| 2 | 5 files + migration | Convert AssetRate from float64 to decimal.Decimal |
 
 ## Key Design Decisions
 
@@ -766,10 +959,12 @@ make test-property
 - **TOCTOU Note:** Race condition exists but is low-risk; document suggests DB constraint for strict prevention
 
 ### AssetRate Precision
-- **Semantic Model:** Preserved scaled-integer model (rate=525, scale=2 → 5.25)
-- **Type Change:** `float64` → `int64` (matches DB BIGINT)
-- **API Compatibility:** ✅ JSON format unchanged (int64 marshals as number)
-- **DB Compatibility:** ✅ No migration needed (BIGINT matches int64)
+- **Semantic Model:** Changed from scaled-integer to direct decimal (rate=5.25 directly)
+- **Type Change:** `float64` → `decimal.Decimal` (matches Balance/Operation pattern)
+- **API Compatibility:** ⚠️ **BREAKING CHANGE** - JSON format changes from number to string
+  - Before: `{"rate": 5.25}` (number)
+  - After: `{"rate": "5.25"}` (string, matching Balance.Available pattern)
+- **DB Compatibility:** 📝 Requires migration (BIGINT → NUMERIC)
 
 ## TOCTOU Race Condition Note
 
@@ -798,11 +993,16 @@ The current implementation provides reasonable protection for normal usage. The 
 3. Ensure error code 0133/0134 are properly mapped
 
 ### If AssetRate test fails:
-1. Verify `Rate int64` type in both model and DB model
-2. Check JSON marshaling produces number (not string)
+1. Verify `Rate decimal.Decimal` type in both model and DB model
+2. Check JSON marshaling produces string: `{"rate": "5.25"}` (matching Balance pattern)
 3. Ensure no float64 conversions remain in create-assetrate.go
+4. Verify database migration ran successfully (rate column is NUMERIC)
 
-### If API consumers report issues:
-1. Rate field should still be a JSON number
-2. Scale field changed from nullable to non-nullable (0 instead of null)
-3. If null scale was significant, consider keeping `Scale *int`
+### Breaking Changes for API Consumers:
+1. **Rate field now outputs as string:** `{"rate": "5.25"}` instead of `{"rate": 5.25}`
+   - Consumers must parse string to number: `parseFloat(response.rate)`
+   - This matches the existing Balance API pattern
+2. **Scale field changed from nullable to non-nullable:** `0` instead of `null`
+3. **Semantic change:** Rate is now direct decimal value, not scaled integer
+   - Before: rate=525, scale=2 meant 5.25 (calculated)
+   - After: rate=5.25 (direct value)
