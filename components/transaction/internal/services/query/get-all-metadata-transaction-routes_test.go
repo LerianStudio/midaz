@@ -9,8 +9,8 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -262,16 +262,23 @@ func TestGetAllMetadataTransactionRoutesTransactionRouteNotFound(t *testing.T) {
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
 		Return(expectedMetadata, nil)
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "TransactionRoute",
+		Code:       constant.ErrNoTransactionRoutesFound.Error(),
+		Title:      "No Transaction Routes Found",
+		Message:    "No transaction routes were found in the search. Please review the search criteria and try again.",
+	}
+
 	mockTransactionRouteRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
+		Return(nil, libHTTP.CursorPagination{}, notFoundErr)
 
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
-	var entityNotFoundError pkg.EntityNotFoundError
+	var entityNotFoundError *pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0106", entityNotFoundError.Code)
+	assert.Equal(t, constant.ErrNoTransactionRoutesFound.Error(), entityNotFoundError.Code)
 }

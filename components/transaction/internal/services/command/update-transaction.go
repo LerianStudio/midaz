@@ -8,10 +8,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 )
 
@@ -32,9 +30,8 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	if err != nil {
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on repo by id", err)
 
 			logger.Warnf("Error updating transaction on repo by id: %v", err)
@@ -89,9 +86,8 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	if err != nil {
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
-
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update status transaction on repo by id", err)
 
 			logger.Warnf("Error updating status transaction on repo by id: %v", err)

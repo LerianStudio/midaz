@@ -6,7 +6,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -47,14 +46,15 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			msg := "Transaction route not found in database"
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, msg, err)
 
 			logger.Warn(msg)
 
-			return mmodel.TransactionRouteCache{}, pkg.ValidateInternalError(err, "TransactionRoute")
+			return mmodel.TransactionRouteCache{}, err
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to fetch transaction route from database", err)

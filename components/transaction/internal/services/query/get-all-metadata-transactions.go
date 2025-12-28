@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -103,12 +102,12 @@ func (uc *UseCase) fetchTransactionsWithOperations(ctx context.Context, span *tr
 func (uc *UseCase) handleTransactionFetchError(span *trace.Span, logger libLog.Logger, err error) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger.Errorf("Error getting transactions on repo: %v", err)
 
-	if errors.Is(err, services.ErrDatabaseItemNotFound) {
-		businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", businessErr)
-		logger.Warnf("Error getting transactions on repo: %v", businessErr)
+	var entityNotFound *pkg.EntityNotFoundError
+	if errors.As(err, &entityNotFound) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
+		logger.Warnf("Error getting transactions on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, businessErr
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)

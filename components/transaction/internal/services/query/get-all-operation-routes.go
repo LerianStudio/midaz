@@ -8,7 +8,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -28,14 +27,13 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", businessErr)
+			logger.Warnf("Error getting operation routes on repo: %v", err)
 
-			logger.Warnf("Error getting operation routes on repo: %v", businessErr)
-
-			return nil, libHTTP.CursorPagination{}, businessErr
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)

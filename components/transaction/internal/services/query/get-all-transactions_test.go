@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -153,10 +153,17 @@ func TestGetAllTransactions(t *testing.T) {
 	})
 
 	t.Run("Error_ItemNotFound", func(t *testing.T) {
+		notFoundErr := &pkg.EntityNotFoundError{
+			EntityType: "Transaction",
+			Code:       constant.ErrNoTransactionsFound.Error(),
+			Title:      "No Transactions Found",
+			Message:    "No transactions were found in the search. Please review the search criteria and try again.",
+		}
+
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+			Return(nil, libHTTP.CursorPagination{}, notFoundErr).
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)

@@ -10,7 +10,8 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -162,9 +163,16 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 		MetadataRepo:       mockMetadataRepo,
 	}
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "OperationRoute",
+		Code:       constant.ErrNoOperationRoutesFound.Error(),
+		Title:      "No Operation Routes Found",
+		Message:    "No operation routes were found in the search. Please review the search criteria and try again.",
+	}
+
 	mockRepo.EXPECT().
 		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+		Return(nil, libHTTP.CursorPagination{}, notFoundErr).
 		Times(1)
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)

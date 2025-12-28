@@ -8,7 +8,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -171,9 +172,16 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 		MetadataRepo:       mockMetadataRepo,
 	}
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "OperationRoute",
+		Code:       constant.ErrOperationRouteNotFound.Error(),
+		Title:      "Operation Route Not Found",
+		Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+	}
+
 	mockRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(nil, services.ErrDatabaseItemNotFound).
+		Return(nil, notFoundErr).
 		Times(1)
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
@@ -181,6 +189,10 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "The provided operation route does not exist in our records")
+
+	var entityNotFoundErr *pkg.EntityNotFoundError
+	assert.True(t, errors.As(err, &entityNotFoundErr), "error should be of type *pkg.EntityNotFoundError")
+	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityNotFoundErr.Code)
 }
 
 // TestGetOperationRouteByIDMetadataError tests getting an operation route by ID with metadata error

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -67,18 +67,25 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 		TransactionRouteRepo: mockRepo,
 	}
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "TransactionRoute",
+		Code:       constant.ErrTransactionRouteNotFound.Error(),
+		Title:      "Transaction Route Not Found",
+		Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
+	}
+
 	mockRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
-		Return(nil, services.ErrDatabaseItemNotFound).
+		Return(nil, notFoundErr).
 		Times(1)
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err)
 
-	var businessError pkg.EntityNotFoundError
+	var businessError *pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &businessError))
-	assert.Equal(t, "0101", businessError.Code)
+	assert.Equal(t, constant.ErrTransactionRouteNotFound.Error(), businessError.Code)
 }
 
 // TestDeleteTransactionRouteByIDFindError tests deletion with database error during find

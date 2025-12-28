@@ -50,8 +50,17 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 		logger.Errorf("Error updating transaction route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			logger.Warnf("Transaction route ID not found: %s", id.String())
 
+			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
+
+			return nil, err
+		}
+
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
 
 			logger.Warnf("Error updating transaction route on repo by id: %v", err)
@@ -93,6 +102,19 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		logger.Errorf("Error fetching current transaction route: %v", err)
+
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			logger.Warnf("Transaction route ID not found: %s", transactionRouteID.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to fetch current transaction route", err)
+
+			return nil, nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to fetch current transaction route", err)
+
 		return nil, nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 

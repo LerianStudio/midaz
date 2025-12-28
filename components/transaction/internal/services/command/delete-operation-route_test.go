@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -61,9 +61,16 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 		Return(false, nil).
 		Times(1)
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "OperationRoute",
+		Code:       constant.ErrOperationRouteNotFound.Error(),
+		Title:      "Operation Route Not Found",
+		Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+	}
+
 	mockRepo.EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(services.ErrDatabaseItemNotFound).
+		Return(notFoundErr).
 		Times(1)
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
@@ -71,9 +78,9 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	assert.Error(t, err)
 
 	// Check if it's the proper business error
-	var entityNotFoundError pkg.EntityNotFoundError
+	var entityNotFoundError *pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0101", entityNotFoundError.Code)
+	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityNotFoundError.Code)
 }
 
 // TestDeleteOperationRouteByIDError tests deletion with database error

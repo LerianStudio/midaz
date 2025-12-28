@@ -8,7 +8,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -46,14 +45,13 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 	if err != nil {
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", businessErr)
+			logger.Warnf("Error getting transaction routes on repo: %v", err)
 
-			logger.Warnf("Error getting transaction routes on repo: %v", businessErr)
-
-			return nil, libHTTP.CursorPagination{}, businessErr
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)

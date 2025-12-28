@@ -27,9 +27,22 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			logger.Warnf("Transaction route ID not found: %s", transactionRouteID.String())
+
+			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route", err)
+
+			return err
+		}
+
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
 			logger.Warnf("Transaction Route ID not found: %s", transactionRouteID.String())
 
-			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route", err)
+
+			return err
 		}
 
 		logger.Errorf("Error finding transaction route: %v", err)

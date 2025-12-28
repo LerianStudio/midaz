@@ -26,17 +26,26 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Errorf("Error getting transaction route on repo by id: %v", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", businessErr)
+			logger.Warn("Transaction route not found")
 
-			logger.Warnf("Error getting transaction route on repo by id: %v", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route on repo by id", err)
 
-			return nil, businessErr
+			return nil, err
 		}
+
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
+
+			logger.Warn("No transaction route found")
+
+			return nil, err
+		}
+
+		logger.Errorf("Error getting transaction route on repo by id: %v", err)
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
 

@@ -8,7 +8,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -165,9 +164,16 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 		MetadataRepo:         mockMetadataRepo,
 	}
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "TransactionRoute",
+		Code:       constant.ErrTransactionRouteNotFound.Error(),
+		Title:      "Transaction Route Not Found",
+		Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
+	}
+
 	mockTransactionRouteRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
-		Return(nil, services.ErrDatabaseItemNotFound).
+		Return(nil, notFoundErr).
 		Times(1)
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
@@ -175,8 +181,9 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	assert.Error(t, err)
 
 	// Should return business error for transaction route not found
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.ErrorIs(t, err, expectedBusinessError)
+	var entityNotFoundError *pkg.EntityNotFoundError
+	assert.True(t, errors.As(err, &entityNotFoundError))
+	assert.Equal(t, constant.ErrTransactionRouteNotFound.Error(), entityNotFoundError.Code)
 	assert.Nil(t, result)
 }
 

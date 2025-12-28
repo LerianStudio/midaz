@@ -9,7 +9,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -212,9 +212,16 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
 		Return(metadataList, nil)
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "Operation",
+		Code:       constant.ErrNoOperationsFound.Error(),
+		Title:      "No Operations Found",
+		Message:    "No operations were found in the search. Please review the search criteria and try again.",
+	}
+
 	mockOperationRepo.EXPECT().
 		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
+		Return(nil, libHTTP.CursorPagination{}, notFoundErr)
 
 	uc := &UseCase{
 		MetadataRepo:  mockMetadataRepo,

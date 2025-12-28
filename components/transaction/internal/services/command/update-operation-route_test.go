@@ -3,12 +3,10 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -194,10 +192,17 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 		},
 	}
 
+	notFoundErr := &pkg.EntityNotFoundError{
+		EntityType: "OperationRoute",
+		Code:       constant.ErrOperationRouteNotFound.Error(),
+		Title:      "Operation Route Not Found",
+		Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+	}
+
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		Return(nil, services.ErrDatabaseItemNotFound).
+		Return(nil, notFoundErr).
 		Times(1)
 
 	useCase := &UseCase{
@@ -208,8 +213,9 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
-	expectedErr := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
-	assert.ErrorIs(t, err, expectedErr)
+	var entityNotFoundError *pkg.EntityNotFoundError
+	assert.True(t, errors.As(err, &entityNotFoundError))
+	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityNotFoundError.Code)
 }
 
 // TestUpdateOperationRouteError tests updating an operation route with an error

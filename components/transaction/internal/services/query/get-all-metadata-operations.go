@@ -9,7 +9,6 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -44,19 +43,18 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
 	if err != nil {
-		logger.Errorf("Error getting operations on repo: %v", err)
+		var entityNotFound *pkg.EntityNotFoundError
+		if errors.As(err, &entityNotFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			businessErr := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			logger.Warnf("Error getting operations on repo: %v", err)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", businessErr)
-
-			logger.Warnf("Error getting operations on repo: %v", businessErr)
-
-			return nil, libHTTP.CursorPagination{}, businessErr
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
+
+		logger.Errorf("Error getting operations on repo: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Operation")
 	}

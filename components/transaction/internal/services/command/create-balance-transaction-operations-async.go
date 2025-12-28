@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -112,7 +111,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	// Create operation metadata
 	for _, oper := range tran.Operations {
-		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
+		if err := uc.CreateMetadataAsync(ctxProcessMetadata, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
 			// Log warning but don't fail - core operation is already committed
 			logger.Warnf("Operation %s committed successfully but metadata creation failed: %v", oper.ID, err)
 			// TODO(review): Consider adding to retry queue or reconciliation job
@@ -271,6 +270,8 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 
 // createOperationsWithoutMetadata creates operation records in PostgreSQL without metadata.
 // Metadata creation is handled separately outside the database transaction.
+// Note: The repository uses ON CONFLICT (id) DO NOTHING, so duplicates are handled gracefully
+// without errors - the insert simply returns the record with rowsAffected=0.
 func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
@@ -280,11 +281,10 @@ func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger l
 	for _, oper := range operations {
 		_, err := uc.OperationRepo.Create(ctxProcessOperation, oper)
 		if err != nil {
+			// Safety net: isUniqueViolation check kept as fallback, though ON CONFLICT
+			// should handle duplicates without raising errors.
 			if uc.isUniqueViolation(err) {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
-				logger.Warnf(msg)
-
+				logger.Warnf("Skipping operation (unique violation fallback), operation already exists: %v", oper.ID)
 				continue
 			}
 
@@ -292,26 +292,6 @@ func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger l
 			logger.Errorf("Error creating operation: %v", err)
 
 			return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
-		}
-	}
-
-	return nil
-}
-
-// createOperations creates all operations for a transaction including metadata.
-// This is the legacy method that includes metadata creation inline.
-// Use createOperationsWithoutMetadata for transaction-aware operations.
-func (uc *UseCase) createOperations(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) error {
-	// First create PostgreSQL operation records
-	if err := uc.createOperationsWithoutMetadata(ctx, logger, tracer, operations); err != nil {
-		return err
-	}
-
-	// Then create MongoDB metadata
-	for _, oper := range operations {
-		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
-			logger.Errorf("Failed to create metadata on operation: %v", err)
-			return err
 		}
 	}
 
