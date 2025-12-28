@@ -12,14 +12,24 @@ import (
 // Using a private type prevents collisions with other packages.
 type txKey struct{}
 
+// Tx is an interface for transaction operations.
+// Both *sql.Tx and dbresolver.Tx implement this interface.
+type Tx interface {
+	Commit() error
+	Rollback() error
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 // TxBeginner is an interface for types that can begin a transaction.
-// This abstracts *sql.DB and dbresolver.DB to allow for testing.
+// This abstracts both *sql.DB and dbresolver.DB.
 type TxBeginner interface {
-	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error)
 }
 
 // Executor is an interface for types that can execute queries.
-// *sql.DB, *sql.Tx, and dbresolver.DB all implement this interface.
+// *sql.DB, *sql.Tx, dbresolver.DB, and dbresolver.Tx all implement this interface.
 type Executor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -28,7 +38,7 @@ type Executor interface {
 
 // ContextWithTx returns a new context with the given transaction.
 // If tx is nil, the original context is returned unchanged.
-func ContextWithTx(ctx context.Context, tx *sql.Tx) context.Context {
+func ContextWithTx(ctx context.Context, tx Tx) context.Context {
 	if tx == nil {
 		return ctx
 	}
@@ -37,8 +47,8 @@ func ContextWithTx(ctx context.Context, tx *sql.Tx) context.Context {
 
 // TxFromContext extracts a transaction from the context.
 // Returns nil if no transaction is present.
-func TxFromContext(ctx context.Context) *sql.Tx {
-	tx, _ := ctx.Value(txKey{}).(*sql.Tx)
+func TxFromContext(ctx context.Context) Tx {
+	tx, _ := ctx.Value(txKey{}).(Tx)
 	return tx
 }
 

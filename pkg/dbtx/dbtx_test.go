@@ -11,6 +11,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// sqlTxAdapter wraps *sql.Tx to implement our Tx interface
+type sqlTxAdapter struct {
+	*sql.Tx
+}
+
+// sqlDBAdapter wraps *sql.DB to implement our TxBeginner interface
+type sqlDBAdapter struct {
+	*sql.DB
+}
+
+func (a *sqlDBAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error) {
+	tx, err := a.DB.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlTxAdapter{tx}, nil
+}
+
 func TestContextWithTx_NilTx(t *testing.T) {
 	ctx := context.Background()
 	ctxWithTx := ContextWithTx(ctx, nil)
@@ -34,11 +52,12 @@ func TestContextWithTx_RoundTrip(t *testing.T) {
 	tx, err := db.Begin()
 	require.NoError(t, err)
 
+	txAdapter := &sqlTxAdapter{tx}
 	ctx := context.Background()
-	ctxWithTx := ContextWithTx(ctx, tx)
+	ctxWithTx := ContextWithTx(ctx, txAdapter)
 
 	retrieved := TxFromContext(ctxWithTx)
-	assert.Equal(t, tx, retrieved, "should retrieve same tx from context")
+	assert.Equal(t, txAdapter, retrieved, "should retrieve same tx from context")
 
 	mock.ExpectRollback()
 	_ = tx.Rollback()
@@ -53,12 +72,12 @@ func TestGetExecutor_WithTx(t *testing.T) {
 	tx, err := db.Begin()
 	require.NoError(t, err)
 
-	ctx := ContextWithTx(context.Background(), tx)
+	txAdapter := &sqlTxAdapter{tx}
+	ctx := ContextWithTx(context.Background(), txAdapter)
 	executor := GetExecutor(ctx, db)
 
-	// The executor should be the transaction, not the db
-	_, isTx := executor.(*sql.Tx)
-	assert.True(t, isTx, "executor should be *sql.Tx when tx in context")
+	// The executor should be the transaction adapter
+	assert.Equal(t, txAdapter, executor, "executor should be tx when tx in context")
 
 	mock.ExpectRollback()
 	_ = tx.Rollback()
@@ -86,8 +105,9 @@ func TestRunInTransaction_Success(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 
+	dbAdapter := &sqlDBAdapter{db}
 	called := false
-	err = RunInTransaction(context.Background(), db, func(ctx context.Context) error {
+	err = RunInTransaction(context.Background(), dbAdapter, func(ctx context.Context) error {
 		called = true
 		// Verify transaction is in context
 		tx := TxFromContext(ctx)
@@ -108,8 +128,9 @@ func TestRunInTransaction_FunctionError(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectRollback()
 
+	dbAdapter := &sqlDBAdapter{db}
 	expectedErr := errors.New("function error")
-	err = RunInTransaction(context.Background(), db, func(ctx context.Context) error {
+	err = RunInTransaction(context.Background(), dbAdapter, func(ctx context.Context) error {
 		return expectedErr
 	})
 
@@ -125,7 +146,8 @@ func TestRunInTransaction_BeginError(t *testing.T) {
 	expectedErr := errors.New("begin error")
 	mock.ExpectBegin().WillReturnError(expectedErr)
 
-	err = RunInTransaction(context.Background(), db, func(ctx context.Context) error {
+	dbAdapter := &sqlDBAdapter{db}
+	err = RunInTransaction(context.Background(), dbAdapter, func(ctx context.Context) error {
 		t.Fatal("function should not be called")
 		return nil
 	})
@@ -147,7 +169,8 @@ func TestRunInTransaction_CommitError(t *testing.T) {
 	// The defer will try to rollback after commit fails
 	mock.ExpectRollback()
 
-	err = RunInTransaction(context.Background(), db, func(ctx context.Context) error {
+	dbAdapter := &sqlDBAdapter{db}
+	err = RunInTransaction(context.Background(), dbAdapter, func(ctx context.Context) error {
 		return nil
 	})
 
@@ -163,8 +186,9 @@ func TestRunInTransaction_Panic(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectRollback()
 
+	dbAdapter := &sqlDBAdapter{db}
 	assert.Panics(t, func() {
-		_ = RunInTransaction(context.Background(), db, func(ctx context.Context) error {
+		_ = RunInTransaction(context.Background(), dbAdapter, func(ctx context.Context) error {
 			panic("test panic")
 		})
 	})

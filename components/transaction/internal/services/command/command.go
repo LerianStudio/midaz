@@ -4,8 +4,6 @@
 package command
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -18,14 +16,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // DBProvider provides database connection for transaction management.
 // Used to create database transactions that span multiple repository operations.
-type DBProvider interface {
-	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
-}
+// This is an alias to dbtx.TxBeginner for cleaner imports.
+type DBProvider = dbtx.TxBeginner
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
 type UseCase struct {
