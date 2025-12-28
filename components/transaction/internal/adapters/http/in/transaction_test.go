@@ -10,9 +10,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -251,4 +254,400 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCommitTransaction_InvalidStatus_ReturnsError validates that committing a transaction
+// with a status other than PENDING returns HTTP 422 with error code 0099.
+func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		currentStatus string
+	}{
+		{name: "status CREATED cannot be committed", currentStatus: cn.CREATED},
+		{name: "status APPROVED cannot be committed", currentStatus: cn.APPROVED},
+		{name: "status CANCELED cannot be committed", currentStatus: cn.CANCELED},
+		{name: "status NOTED cannot be committed", currentStatus: cn.NOTED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+
+			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+			amount := decimal.NewFromInt(1000)
+			txBody := pkgTransaction.Transaction{
+				Send: pkgTransaction.Send{
+					Source: pkgTransaction.Source{
+						From: []pkgTransaction.FromTo{
+							{AccountAlias: "@acc1"},
+						},
+					},
+					Distribute: pkgTransaction.Distribute{
+						To: []pkgTransaction.FromTo{
+							{AccountAlias: "@acc2"},
+						},
+					},
+				},
+			}
+			tran := &transaction.Transaction{
+				ID:             transactionID.String(),
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Description:    "Test transaction",
+				AssetCode:      "USD",
+				Amount:         &amount,
+				Status: transaction.Status{
+					Code: tt.currentStatus,
+				},
+				Body: txBody,
+			}
+
+			// Mock: Find transaction
+			mockTransactionRepo.EXPECT().
+				Find(gomock.Any(), orgID, ledgerID, transactionID).
+				Return(tran, nil).
+				Times(1)
+
+			// Mock: Metadata lookup
+			mockMetadataRepo.EXPECT().
+				FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+				Return(nil, nil).
+				Times(1)
+
+			// Mock: Redis lock acquired successfully
+			mockRedisRepo.EXPECT().
+				SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).
+				Times(1)
+
+			// Mock: Redis lock cleanup after error
+			mockRedisRepo.EXPECT().
+				Del(gomock.Any(), gomock.Any()).
+				Return(nil).
+				Times(1)
+
+			queryUC := &query.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				OperationRepo:   mockOperationRepo,
+				MetadataRepo:    mockMetadataRepo,
+			}
+			commandUC := &command.UseCase{
+				RedisRepo: mockRedisRepo,
+			}
+			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					c.Locals("transaction_id", transactionID)
+					return c.Next()
+				},
+				handler.CommitTransaction,
+			)
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+				nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-PENDING status")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+				"expected error code 0099 (ErrCommitTransactionNotPending)")
+		})
+	}
+}
+
+// TestRevertTransaction_InvalidStatus_ReturnsError validates that reverting a transaction
+// with a status other than APPROVED returns HTTP 422 with error code 0099.
+func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		currentStatus string
+	}{
+		{name: "status PENDING cannot be reverted", currentStatus: cn.PENDING},
+		{name: "status CREATED cannot be reverted", currentStatus: cn.CREATED},
+		{name: "status CANCELED cannot be reverted", currentStatus: cn.CANCELED},
+		{name: "status NOTED cannot be reverted", currentStatus: cn.NOTED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+
+			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+			amount := decimal.NewFromInt(1000)
+			tran := &transaction.Transaction{
+				ID:                  transactionID.String(),
+				OrganizationID:      orgID.String(),
+				LedgerID:            ledgerID.String(),
+				ParentTransactionID: nil, // Not a revert transaction
+				Description:         "Test transaction",
+				AssetCode:           "USD",
+				Amount:              &amount,
+				Status: transaction.Status{
+					Code: tt.currentStatus,
+				},
+			}
+
+			// Mock: No existing revert (parent lookup returns nil)
+			mockTransactionRepo.EXPECT().
+				FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+				Return(nil, nil).
+				Times(1)
+
+			// Mock: Find transaction with operations
+			mockTransactionRepo.EXPECT().
+				FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+				Return(tran, nil).
+				Times(1)
+
+			// Mock: Metadata lookup
+			mockMetadataRepo.EXPECT().
+				FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+				Return(nil, nil).
+				Times(1)
+
+			queryUC := &query.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				MetadataRepo:    mockMetadataRepo,
+			}
+			handler := &TransactionHandler{Query: queryUC}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					c.Locals("transaction_id", transactionID)
+					return c.Next()
+				},
+				handler.RevertTransaction,
+			)
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+				nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-APPROVED status")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+				"expected error code 0099 (transaction status invalid for revert)")
+		})
+	}
+}
+
+// TestRevertTransaction_AlreadyHasRevert_ReturnsError validates that reverting a transaction
+// that already has a revert returns HTTP 422 with error code 0087.
+func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	existingRevertID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Existing revert transaction
+	existingRevert := &transaction.Transaction{
+		ID:                  existingRevertID.String(),
+		ParentTransactionID: ptr(transactionID.String()),
+	}
+
+	// Mock: Parent lookup returns existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(existingRevert, nil).
+		Times(1)
+
+	// Mock: Metadata lookup for the existing revert
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", existingRevertID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for already reverted transaction")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrTransactionIDHasAlreadyParentTransaction.Error(), errResp["code"],
+		"expected error code 0087 (ErrTransactionIDHasAlreadyParentTransaction)")
+}
+
+// TestRevertTransaction_IsAlreadyARevert_ReturnsError validates that reverting a transaction
+// that is itself a revert returns HTTP 422 with error code 0088.
+func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	originalTransactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	// Transaction that IS a revert (has ParentTransactionID)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: ptr(originalTransactionID.String()), // This IS a revert
+		Description:         "Revert transaction",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+	}
+
+	// Mock: No existing revert of this transaction
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction - it's already a revert
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for transaction that is already a revert")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrTransactionIDIsAlreadyARevert.Error(), errResp["code"],
+		"expected error code 0088 (ErrTransactionIDIsAlreadyARevert)")
+}
+
+// ptr is a helper function to create a pointer to a string.
+func ptr(s string) *string {
+	return &s
 }
