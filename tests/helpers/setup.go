@@ -179,3 +179,120 @@ func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]s
 
 	return account.ID, nil
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACCOUNT TYPE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// AccountTypeResponse represents an account type API response.
+type AccountTypeResponse struct {
+	ID             string         `json:"id"`
+	OrganizationID string         `json:"organizationId"`
+	LedgerID       string         `json:"ledgerId"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description,omitempty"`
+	KeyValue       string         `json:"keyValue"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
+	CreatedAt      string         `json:"createdAt"`
+	UpdatedAt      string         `json:"updatedAt"`
+}
+
+// AccountTypeListResponse represents the account type list API response.
+type AccountTypeListResponse struct {
+	Items []AccountTypeResponse `json:"items"`
+}
+
+// CreateAccountTypePayload returns a valid account type creation payload.
+func CreateAccountTypePayload(name, keyValue string) map[string]any {
+	return map[string]any{
+		"name":     name,
+		"keyValue": keyValue,
+	}
+}
+
+// SetupAccountType creates an account type and returns its ID.
+func SetupAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, name, keyValue string) (string, error) {
+	payload := CreateAccountTypePayload(name, keyValue)
+	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types"
+
+	code, body, err := onboard.Request(ctx, "POST", path, headers, payload)
+	if err != nil || code != setupHTTPStatusCreated {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return "", fmt.Errorf("create account type failed: code=%d err=%w body=%s", code, err, string(body))
+	}
+
+	var accountType AccountTypeResponse
+	if err := json.Unmarshal(body, &accountType); err != nil || accountType.ID == "" {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return "", fmt.Errorf("parse account type: %w body=%s", err, string(body))
+	}
+
+	return accountType.ID, nil
+}
+
+// GetAccountType retrieves an account type by ID.
+func GetAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, accountTypeID string) (*AccountTypeResponse, error) {
+	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types/" + accountTypeID
+	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
+	if err != nil || code != setupHTTPStatusOK {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("get account type failed: code=%d err=%w body=%s", code, err, string(body))
+	}
+
+	var accountType AccountTypeResponse
+	if err := json.Unmarshal(body, &accountType); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("parse account type: %w body=%s", err, string(body))
+	}
+
+	return &accountType, nil
+}
+
+// ListAccountTypes retrieves all account types for a ledger.
+func ListAccountTypes(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID string) (*AccountTypeListResponse, error) {
+	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types"
+	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
+	if err != nil || code != setupHTTPStatusOK {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("list account types failed: code=%d err=%w body=%s", code, err, string(body))
+	}
+
+	var list AccountTypeListResponse
+	if err := json.Unmarshal(body, &list); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("parse account types list: %w body=%s", err, string(body))
+	}
+
+	return &list, nil
+}
+
+// UpdateAccountType updates an account type and returns the updated type.
+func UpdateAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, accountTypeID string, payload map[string]any) (*AccountTypeResponse, error) {
+	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types/" + accountTypeID
+	code, body, err := onboard.Request(ctx, "PATCH", path, headers, payload)
+	if err != nil || code != setupHTTPStatusOK {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("update account type failed: code=%d err=%w body=%s", code, err, string(body))
+	}
+
+	var accountType AccountTypeResponse
+	if err := json.Unmarshal(body, &accountType); err != nil {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return nil, fmt.Errorf("parse account type: %w body=%s", err, string(body))
+	}
+
+	return &accountType, nil
+}
+
+// DeleteAccountType deletes an account type by ID.
+func DeleteAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, accountTypeID string) error {
+	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types/" + accountTypeID
+	code, body, err := onboard.Request(ctx, "DELETE", path, headers, nil)
+	// Accept 200 or 204 for successful deletion
+	if err != nil || (code != 200 && code != 204) {
+		//nolint:wrapcheck // Error already wrapped with context for test helpers
+		return fmt.Errorf("delete account type failed: code=%d err=%w body=%s", code, err, string(body))
+	}
+
+	return nil
+}

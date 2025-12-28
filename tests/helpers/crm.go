@@ -342,7 +342,8 @@ func crmRandIntN(n int) int {
 	max := big.NewInt(int64(n))
 	val, err := rand.Int(rand.Reader, max)
 	if err != nil {
-		return 0
+		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
+		panic("failed to generate random int: " + err.Error())
 	}
 
 	return int(val.Int64())
