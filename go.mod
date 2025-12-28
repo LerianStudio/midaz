@@ -104,7 +104,10 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
-require github.com/golangci/plugin-module-register v0.1.2
+require (
+	github.com/golangci/plugin-module-register v0.1.2
+	github.com/google/gofuzz v1.2.0
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
