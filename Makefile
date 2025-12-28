@@ -2,6 +2,9 @@
 # Coordinates all component Makefiles and provides centralized commands.
 # Midaz Project Management.
 
+# Use bash instead of sh (fixes issues with child process management on macOS)
+SHELL := /bin/bash
+
 # Default target when running 'make' without arguments
 .DEFAULT_GOAL := help
 
@@ -436,6 +439,10 @@ lint-build:
 	@echo "Building custom-gcl to ./bin/..."
 	@golangci-lint custom
 	@test -x ./bin/custom-gcl || (echo "ERROR: custom-gcl build failed" && exit 1)
+	@# Re-sign binary to fix macOS Gatekeeper SIGKILL issue (see: github.com/astral-sh/uv/issues/16726)
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		codesign --force --sign - ./bin/custom-gcl 2>/dev/null || true; \
+	fi
 	@echo "[ok] Custom golangci-lint built at ./bin/custom-gcl"
 
 #-------------------------------------------------------
