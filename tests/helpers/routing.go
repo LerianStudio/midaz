@@ -111,6 +111,7 @@ func SetupOperationRoute(ctx context.Context, trans *HTTPClient, headers map[str
 // GetOperationRoute retrieves an operation route by ID.
 func GetOperationRoute(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, routeID string) (*OperationRouteResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", orgID, ledgerID, routeID)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -129,6 +130,7 @@ func GetOperationRoute(ctx context.Context, trans *HTTPClient, headers map[strin
 // ListOperationRoutes retrieves all operation routes for a ledger.
 func ListOperationRoutes(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID string) (*OperationRouteListResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", orgID, ledgerID)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -147,6 +149,7 @@ func ListOperationRoutes(ctx context.Context, trans *HTTPClient, headers map[str
 // UpdateOperationRoute updates an operation route and returns the updated route.
 func UpdateOperationRoute(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, routeID string, payload map[string]any) (*OperationRouteResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", orgID, ledgerID, routeID)
+
 	code, body, err := trans.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -206,6 +209,7 @@ func SetupTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[s
 // GetTransactionRoute retrieves a transaction route by ID.
 func GetTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, routeID string) (*TransactionRouteResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes/%s", orgID, ledgerID, routeID)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -224,6 +228,7 @@ func GetTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[str
 // ListTransactionRoutes retrieves all transaction routes for a ledger.
 func ListTransactionRoutes(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID string) (*TransactionRouteListResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", orgID, ledgerID)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -242,6 +247,7 @@ func ListTransactionRoutes(ctx context.Context, trans *HTTPClient, headers map[s
 // UpdateTransactionRoute updates a transaction route and returns the updated route.
 func UpdateTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, routeID string, payload map[string]any) (*TransactionRouteResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes/%s", orgID, ledgerID, routeID)
+
 	code, body, err := trans.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -329,6 +335,7 @@ func SetupAssetRate(ctx context.Context, trans *HTTPClient, headers map[string]s
 // GetAssetRateByExternalID retrieves an asset rate by external ID.
 func GetAssetRateByExternalID(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, externalID string) (*AssetRateResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates/%s", orgID, ledgerID, externalID)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -347,6 +354,7 @@ func GetAssetRateByExternalID(ctx context.Context, trans *HTTPClient, headers ma
 // ListAssetRatesByAssetCode retrieves all asset rates for a given source asset code.
 func ListAssetRatesByAssetCode(ctx context.Context, trans *HTTPClient, headers map[string]string, orgID, ledgerID, assetCode string) (*AssetRateListResponse, error) {
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/asset-rates/from/%s", orgID, ledgerID, assetCode)
+
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers

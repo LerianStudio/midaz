@@ -220,6 +220,7 @@ func isRetryableError(err error) bool {
 	}
 
 	errStr := err.Error()
+
 	return strings.Contains(errStr, "EOF") ||
 		strings.Contains(errStr, "connection reset") ||
 		strings.Contains(errStr, "connection refused")
@@ -239,54 +240,66 @@ func prepareRetryHeaders(headers map[string]string, isRetry bool) map[string]str
 	return retryHeaders
 }
 
+// retryConfig holds retry parameters with defaults applied
+type retryConfig struct {
+	attempts    int
+	baseBackoff time.Duration
+}
+
+// newRetryConfig creates retry config with defaults for zero values
+func newRetryConfig(attempts int, baseBackoff time.Duration) retryConfig {
+	cfg := retryConfig{attempts: attempts, baseBackoff: baseBackoff}
+	if cfg.attempts <= 0 {
+		cfg.attempts = httpDefaultRetryAttempts
+	}
+
+	if cfg.baseBackoff <= 0 {
+		cfg.baseBackoff = httpDefaultBackoff
+	}
+
+	return cfg
+}
+
+// shouldRetryRequest determines if a request should be retried based on response
+func shouldRetryRequest(err error, code int) bool {
+	if err != nil {
+		return isRetryableError(err)
+	}
+
+	return isRetryableStatus(code)
+}
+
 // RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
 // Retries on 429, 502, 503, 504 or network errors (EOF, connection reset/refused) up to attempts with exponential backoff.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
-	if attempts <= 0 {
-		attempts = httpDefaultRetryAttempts
-	}
+	cfg := newRetryConfig(attempts, baseBackoff)
 
-	if baseBackoff <= 0 {
-		baseBackoff = httpDefaultBackoff
-	}
+	var lastCode int
 
-	var (
-		lastCode int
-		lastBody []byte
-		lastHdr  http.Header
-		lastErr  error
-	)
+	var lastBody []byte
 
-	for i := 0; i < attempts; i++ {
+	var lastHdr http.Header
+
+	var lastErr error
+
+	for i := 0; i < cfg.attempts; i++ {
 		retryHeaders := prepareRetryHeaders(headers, i > 0)
 		code, b, hdr, err := c.RequestFull(ctx, method, path, retryHeaders, body)
 
 		lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
 
-		// Success: no error and non-retryable status code
-		if err == nil && !isRetryableStatus(code) {
-			return code, b, hdr, nil
-		}
-
-		// Retry on connection errors (EOF, reset, refused) - common under high test parallelism
-		if err != nil && isRetryableError(err) && i < attempts-1 {
-			time.Sleep(time.Duration(1<<i) * baseBackoff)
-			continue
-		}
-
-		// Retry on specific HTTP status codes (429, 502, 503, 504)
-		if err == nil && isRetryableStatus(code) && i < attempts-1 {
-			time.Sleep(time.Duration(1<<i) * baseBackoff)
-			continue
-		}
-
-		// If we get here and it's not retryable, return immediately
+		// Non-retryable error or success: return immediately
 		if err != nil && !isRetryableError(err) {
 			return code, b, hdr, err
 		}
 
 		if err == nil && !isRetryableStatus(code) {
 			return code, b, hdr, nil
+		}
+
+		// Retry with exponential backoff if more attempts remain
+		if shouldRetryRequest(err, code) && i < cfg.attempts-1 {
+			time.Sleep(time.Duration(1<<i) * cfg.baseBackoff)
 		}
 	}
 

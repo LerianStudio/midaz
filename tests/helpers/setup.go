@@ -233,6 +233,7 @@ func SetupAccountType(ctx context.Context, onboard *HTTPClient, headers map[stri
 // GetAccountType retrieves an account type by ID.
 func GetAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, accountTypeID string) (*AccountTypeResponse, error) {
 	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types/" + accountTypeID
+
 	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != setupHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -251,6 +252,7 @@ func GetAccountType(ctx context.Context, onboard *HTTPClient, headers map[string
 // ListAccountTypes retrieves all account types for a ledger.
 func ListAccountTypes(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID string) (*AccountTypeListResponse, error) {
 	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types"
+
 	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != setupHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -269,6 +271,7 @@ func ListAccountTypes(ctx context.Context, onboard *HTTPClient, headers map[stri
 // UpdateAccountType updates an account type and returns the updated type.
 func UpdateAccountType(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, ledgerID, accountTypeID string, payload map[string]any) (*AccountTypeResponse, error) {
 	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/account-types/" + accountTypeID
+
 	code, body, err := onboard.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != setupHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers

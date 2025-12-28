@@ -11,6 +11,16 @@ const (
 	holderTypeLegalPerson   = "LEGAL_PERSON"
 	crmHTTPStatusCreated    = 201
 	crmHTTPStatusOK         = 200
+
+	// CPF/CNPJ validation constants
+	// Brazilian tax ID checksum calculation uses modulo-11 algorithm
+	cpfBaseMax           = 999999999 // Maximum value for 9-digit CPF base
+	cnpjBaseMax          = 99999999  // Maximum value for 8-digit CNPJ base
+	checksumDivisor      = 11        // Modulo divisor for checksum calculation
+	checksumThreshold    = 10        // If remainder >= threshold, digit becomes 0
+	cpfFirstWeightStart  = 10        // Starting weight for CPF first digit calculation
+	cpfSecondWeightStart = 11        // Starting weight for CPF second digit calculation
+	cpfSecondDigitMult   = 2         // Multiplier for d1 in second digit calculation
 )
 
 // HolderResponse represents a holder API response.
@@ -87,6 +97,7 @@ func SetupHolder(ctx context.Context, crm *HTTPClient, headers map[string]string
 // GetHolder retrieves a holder by ID.
 func GetHolder(ctx context.Context, crm *HTTPClient, headers map[string]string, holderID string) (*HolderResponse, error) {
 	path := "/v1/holders/" + holderID
+
 	code, body, err := crm.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -122,6 +133,7 @@ func ListHolders(ctx context.Context, crm *HTTPClient, headers map[string]string
 // UpdateHolder updates a holder and returns the updated holder.
 func UpdateHolder(ctx context.Context, crm *HTTPClient, headers map[string]string, holderID string, payload map[string]any) (*HolderResponse, error) {
 	path := "/v1/holders/" + holderID
+
 	code, body, err := crm.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != crmHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -163,6 +175,7 @@ func SetupAlias(ctx context.Context, crm *HTTPClient, headers map[string]string,
 	payload := CreateAliasPayload(ledgerID, accountID)
 
 	path := fmt.Sprintf("/v1/holders/%s/aliases", holderID)
+
 	code, body, err := crm.Request(ctx, "POST", path, headers, payload)
 	if err != nil || code != crmHTTPStatusCreated {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -181,6 +194,7 @@ func SetupAlias(ctx context.Context, crm *HTTPClient, headers map[string]string,
 // GetAlias retrieves an alias by holder ID and alias ID.
 func GetAlias(ctx context.Context, crm *HTTPClient, headers map[string]string, holderID, aliasID string) (*AliasResponse, error) {
 	path := fmt.Sprintf("/v1/holders/%s/aliases/%s", holderID, aliasID)
+
 	code, body, err := crm.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -239,6 +253,7 @@ func ListAllAliases(ctx context.Context, crm *HTTPClient, headers map[string]str
 // UpdateAlias updates an alias and returns the updated alias.
 func UpdateAlias(ctx context.Context, crm *HTTPClient, headers map[string]string, holderID, aliasID string, payload map[string]any) (*AliasResponse, error) {
 	path := fmt.Sprintf("/v1/holders/%s/aliases/%s", holderID, aliasID)
+
 	code, body, err := crm.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != crmHTTPStatusOK {
 		//nolint:wrapcheck // Error already wrapped with context for test helpers
@@ -285,29 +300,29 @@ func DeleteAlias(ctx context.Context, crm *HTTPClient, headers map[string]string
 //     add d1 * 2, calculate (11 - sum % 11), if >= 10 then d2 = 0
 func GenerateValidCPF() string {
 	// Base CPF digits (first 9 digits) with random variation
-	base := fmt.Sprintf("%09d", RandIntN(999999999))
+	base := fmt.Sprintf("%09d", RandIntN(cpfBaseMax))
 
 	// Calculate first verification digit
 	sum := 0
 	for i := 0; i < 9; i++ {
-		sum += int(base[i]-'0') * (10 - i)
+		sum += int(base[i]-'0') * (cpfFirstWeightStart - i)
 	}
 
-	d1 := 11 - (sum % 11)
-	if d1 >= 10 {
+	d1 := checksumDivisor - (sum % checksumDivisor)
+	if d1 >= checksumThreshold {
 		d1 = 0
 	}
 
 	// Calculate second verification digit
 	sum = 0
 	for i := 0; i < 9; i++ {
-		sum += int(base[i]-'0') * (11 - i)
+		sum += int(base[i]-'0') * (cpfSecondWeightStart - i)
 	}
 
-	sum += d1 * 2
+	sum += d1 * cpfSecondDigitMult
 
-	d2 := 11 - (sum % 11)
-	if d2 >= 10 {
+	d2 := checksumDivisor - (sum % checksumDivisor)
+	if d2 >= checksumThreshold {
 		d2 = 0
 	}
 
@@ -334,22 +349,24 @@ func GenerateValidCPF() string {
 func GenerateValidCNPJ() string {
 	// Base CNPJ digits (first 12 digits) with random variation
 	// Format: XXXXXXXX0001 where XXXXXXXX is random and 0001 indicates headquarters
-	base := fmt.Sprintf("%08d0001", RandIntN(99999999))
+	base := fmt.Sprintf("%08d0001", RandIntN(cnpjBaseMax))
 
 	// Weights for first digit
 	weights1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
+
 	sum := 0
 	for i := 0; i < 12; i++ {
 		sum += int(base[i]-'0') * weights1[i]
 	}
 
-	d1 := 11 - (sum % 11)
-	if d1 >= 10 {
+	d1 := checksumDivisor - (sum % checksumDivisor)
+	if d1 >= checksumThreshold {
 		d1 = 0
 	}
 
 	// Weights for second digit
 	weights2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
+
 	sum = 0
 	for i := 0; i < 12; i++ {
 		sum += int(base[i]-'0') * weights2[i]
@@ -357,8 +374,8 @@ func GenerateValidCNPJ() string {
 
 	sum += d1 * weights2[12]
 
-	d2 := 11 - (sum % 11)
-	if d2 >= 10 {
+	d2 := checksumDivisor - (sum % checksumDivisor)
+	if d2 >= checksumThreshold {
 		d2 = 0
 	}
 

@@ -58,8 +58,10 @@ func WaitForDeletedWithRetry(t *testing.T, resourceName string, getter func() er
 			t.Logf("Verified %s deletion after %d attempts", resourceName, i+1)
 			return
 		}
+
 		time.Sleep(PollIntervalReplica)
 	}
+
 	t.Errorf("GET deleted %s should fail, but succeeded after %d retries (possible replica lag)", resourceName, MaxReplicaRetries)
 }
 
@@ -77,7 +79,9 @@ func WaitForCreatedWithRetry(t *testing.T, resourceName string, getter func() er
 			t.Logf("Verified %s creation visible after %d attempts", resourceName, i+1)
 			return
 		}
+
 		time.Sleep(PollIntervalReplica)
 	}
+
 	t.Fatalf("GET created %s should succeed, but failed after %d retries (possible replica lag)", resourceName, MaxReplicaRetries)
 }

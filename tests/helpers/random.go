@@ -8,8 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-var lettersOnly = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var (
+	letters     = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	lettersOnly = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+)
 
 // RandString generates a random alphanumeric string of length n.
 func RandString(n int) string {
@@ -66,8 +68,9 @@ func RandIntN(n int) int {
 		return 0
 	}
 
-	max := big.NewInt(int64(n))
-	val, err := rand.Int(rand.Reader, max)
+	upperBound := big.NewInt(int64(n))
+
+	val, err := rand.Int(rand.Reader, upperBound)
 	if err != nil {
 		//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
 		panic("failed to generate random int: " + err.Error())
