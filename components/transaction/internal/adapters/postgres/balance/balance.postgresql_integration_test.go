@@ -499,6 +499,60 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	assert.NotContains(t, aliases, "@charlie", "should not include unrequested alias")
 }
 
+func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+	balanceID := libCommons.GenerateUUIDv7()
+
+	// Insert balance with very large precision values
+	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
+	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, "@large-precision-alias", "default", "USD",
+		largeAvail, largeHold, 1, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	balances, err := repo.ListByAliases(ctx, orgID, ledgerID, []string{"@large-precision-alias"})
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, balances, 1)
+	assert.True(t, balances[0].Available.Equal(largeAvail), "available should preserve large precision")
+	assert.True(t, balances[0].OnHold.Equal(largeHold), "on_hold should preserve large precision")
+}
+
+func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Act
+	balances, err := repo.ListByAliases(ctx, orgID, ledgerID, []string{"@non-existent"})
+
+	// Assert
+	require.NoError(t, err, "should not error for empty result")
+	assert.Empty(t, balances, "should return empty slice")
+}
+
 // ============================================================================
 // FindByAccountIDAndKey Tests
 // ============================================================================
