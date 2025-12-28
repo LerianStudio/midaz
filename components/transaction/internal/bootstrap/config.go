@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
@@ -151,6 +152,9 @@ type Config struct {
 	BalanceSyncWorkerEnabled                 bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers                    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 	DLQConsumerEnabled                       bool   `env:"DLQ_CONSUMER_ENABLED"` // H5: Add to Config struct
+	MetadataOutboxWorkerEnabled              bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
+	MetadataOutboxMaxWorkers                 int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
+	MetadataOutboxRetentionDays              int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -249,6 +253,8 @@ func InitServers() *Service {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
+	outboxPostgreSQLRepository := outbox.NewOutboxPostgreSQLRepository(postgresConnection)
+
 	// Ensure indexes also for known base collections on fresh installs
 	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), ensureIndexesTimeoutSeconds*time.Second)
 	defer cancelEnsureIndexes()
@@ -301,6 +307,7 @@ func InitServers() *Service {
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
+		OutboxRepo:           outboxPostgreSQLRepository,
 		DBProvider:           dbProvider,
 	}
 
@@ -423,24 +430,62 @@ func InitServers() *Service {
 		logger.Info("DLQConsumer disabled (set DLQ_CONSUMER_ENABLED=true to enable)")
 	}
 
+	// Metadata Outbox Worker - processes pending metadata entries from outbox to MongoDB
+	const (
+		defaultMetadataOutboxMaxWorkers    = 5
+		defaultMetadataOutboxRetentionDays = 7
+	)
+
+	var metadataOutboxWorker *MetadataOutboxWorker
+
+	metadataOutboxMaxWorkers := cfg.MetadataOutboxMaxWorkers
+	if metadataOutboxMaxWorkers <= 0 {
+		metadataOutboxMaxWorkers = defaultMetadataOutboxMaxWorkers
+		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_MAX_WORKERS=%d", defaultMetadataOutboxMaxWorkers)
+	}
+
+	metadataOutboxRetentionDays := cfg.MetadataOutboxRetentionDays
+	if metadataOutboxRetentionDays <= 0 {
+		metadataOutboxRetentionDays = defaultMetadataOutboxRetentionDays
+		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_RETENTION_DAYS=%d", defaultMetadataOutboxRetentionDays)
+	}
+
+	if cfg.MetadataOutboxWorkerEnabled {
+		metadataOutboxWorker = NewMetadataOutboxWorker(
+			logger,
+			outboxPostgreSQLRepository,
+			metadataMongoDBRepository,
+			postgresConnection,
+			mongoConnection,
+			metadataOutboxMaxWorkers,
+			metadataOutboxRetentionDays,
+		)
+		logger.Infof("MetadataOutboxWorker enabled with %d max workers and %d days retention.",
+			metadataOutboxMaxWorkers, metadataOutboxRetentionDays)
+	} else {
+		logger.Info("MetadataOutboxWorker disabled (set METADATA_OUTBOX_WORKER_ENABLED=true to enable)")
+	}
+
 	return &Service{
-		Server:                   server,
-		ServerGRPC:               serverGRPC,
-		MultiQueueConsumer:       multiQueueConsumer,
-		RedisQueueConsumer:       redisConsumer,
-		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: cfg.BalanceSyncWorkerEnabled,
-		DLQConsumer:              dlqConsumer,
-		DLQConsumerEnabled:       cfg.DLQConsumerEnabled, // H5: Use cfg field consistently
-		Logger:                   logger,
-		balancePort:              useCase,
-		auth:                     auth,
-		transactionHandler:       transactionHandler,
-		operationHandler:         operationHandler,
-		assetRateHandler:         assetRateHandler,
-		balanceHandler:           balanceHandler,
-		operationRouteHandler:    operationRouteHandler,
-		transactionRouteHandler:  transactionRouteHandler,
+		Server:                        server,
+		ServerGRPC:                    serverGRPC,
+		MultiQueueConsumer:            multiQueueConsumer,
+		RedisQueueConsumer:            redisConsumer,
+		BalanceSyncWorker:             balanceSyncWorker,
+		BalanceSyncWorkerEnabled:      cfg.BalanceSyncWorkerEnabled,
+		DLQConsumer:                   dlqConsumer,
+		DLQConsumerEnabled:            cfg.DLQConsumerEnabled, // H5: Use cfg field consistently
+		MetadataOutboxWorker:          metadataOutboxWorker,
+		MetadataOutboxWorkerEnabled:   cfg.MetadataOutboxWorkerEnabled,
+		Logger:                        logger,
+		balancePort:                   useCase,
+		auth:                          auth,
+		transactionHandler:            transactionHandler,
+		operationHandler:              operationHandler,
+		assetRateHandler:              assetRateHandler,
+		balanceHandler:                balanceHandler,
+		operationRouteHandler:         operationRouteHandler,
+		transactionRouteHandler:       transactionRouteHandler,
 	}
 }
 

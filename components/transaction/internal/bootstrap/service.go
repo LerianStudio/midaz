@@ -19,6 +19,8 @@ type Service struct {
 	BalanceSyncWorkerEnabled bool
 	*DLQConsumer
 	DLQConsumerEnabled bool
+	*MetadataOutboxWorker
+	MetadataOutboxWorkerEnabled bool
 	libLog.Logger
 
 	// balancePort holds the reference for use in unified ledger mode.
@@ -54,6 +56,10 @@ func (app *Service) Run() {
 		opts = append(opts, libCommons.RunApp("DLQ Consumer", app.DLQConsumer))
 	}
 
+	if app.MetadataOutboxWorkerEnabled {
+		opts = append(opts, libCommons.RunApp("Metadata Outbox Worker", app.MetadataOutboxWorker))
+	}
+
 	libCommons.NewLauncher(opts...).Run()
 }
 
@@ -76,6 +82,12 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 	if app.BalanceSyncWorkerEnabled {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Balance Sync Worker", Runnable: app.BalanceSyncWorker,
+		})
+	}
+
+	if app.MetadataOutboxWorkerEnabled {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Metadata Outbox Worker", Runnable: app.MetadataOutboxWorker,
 		})
 	}
 
