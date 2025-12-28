@@ -210,7 +210,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Expr("account_id = ANY(?)", pq.Array(accountIds))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -360,7 +360,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
@@ -444,7 +444,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("account_id = ?", accountID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
@@ -520,7 +520,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Expr("alias = ANY(?)", pq.Array(aliases))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -632,7 +632,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(orConditions).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -882,7 +882,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
 	sqlQuery, args, err := query.ToSql()
@@ -1047,7 +1047,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("account_id = ?", accountID)).
 		Where(squirrel.Expr("key = ?", key)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Suffix(")").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1466,7 +1466,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"account_id": accountID}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 

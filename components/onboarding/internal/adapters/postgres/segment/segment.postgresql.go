@@ -177,7 +177,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Expr("name LIKE ?", name)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
@@ -246,7 +246,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		From(p.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
@@ -321,7 +321,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
@@ -391,7 +391,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()

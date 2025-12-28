@@ -310,7 +310,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	findQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
 		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findQuery.ToSql()
@@ -376,7 +376,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 	findAll := squirrel.Select(organizationColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
@@ -465,7 +465,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	listQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 

@@ -169,7 +169,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
@@ -227,7 +227,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	findAll := squirrel.Select(ledgerColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
@@ -301,7 +301,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Expr("LOWER(name) LIKE LOWER(?)", name)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
@@ -363,7 +363,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()

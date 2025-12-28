@@ -187,7 +187,7 @@ func (r *TransactionRoutePostgreSQLRepository) buildFindByIDQuery(organizationID
 		Where(squirrel.Eq{"tr.organization_id": organizationID}).
 		Where(squirrel.Eq{"tr.ledger_id": ledgerID}).
 		Where(squirrel.Eq{"tr.id": id}).
-		Where(squirrel.Eq{"tr.deleted_at": nil}).
+		Where("tr.deleted_at IS NULL").
 		OrderBy("or_data.created_at").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -653,7 +653,7 @@ func (r *TransactionRoutePostgreSQLRepository) buildFindAllQuery(organizationID,
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)

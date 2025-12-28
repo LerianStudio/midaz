@@ -257,7 +257,7 @@ func buildTransactionFindAllQuery(r *TransactionPostgreSQLRepository, organizati
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
@@ -473,7 +473,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -578,7 +578,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("id = ?", id)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := find.ToSql()
@@ -668,7 +668,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("parent_transaction_id = ?", parentID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findByParent.ToSql()
@@ -902,7 +902,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		Where(squirrel.Expr("t.organization_id = ?", organizationID)).
 		Where(squirrel.Expr("t.ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("t.id = ?", id)).
-		Where(squirrel.Eq{"t.deleted_at": nil}).
+		Where("t.deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findWithOps.ToSql()
@@ -1240,7 +1240,7 @@ func buildTransactionWithOperationsQuery(r *TransactionPostgreSQLRepository, org
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where("deleted_at IS NULL").
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
