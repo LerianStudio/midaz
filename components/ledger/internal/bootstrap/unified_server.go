@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -10,6 +12,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
+)
+
+const (
+	// HTTP server timeout configuration
+	defaultReadTimeout  = 30 * time.Second // Time to read full request
+	defaultWriteTimeout = 30 * time.Second // Time to write full response
+	defaultIdleTimeout  = 60 * time.Second // Connection idle before close
+
+	// Request body limits
+	defaultBodyLimitMB  = 10
+	bodyLimitMultiplier = 1024 * 1024
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber app.
@@ -38,6 +51,14 @@ func NewUnifiedServer(
 		AppName:               "Midaz Unified Ledger API",
 		DisableStartupMessage: true,
 		ErrorHandler:          libHTTP.HandleFiberError,
+
+		// Server timeouts to prevent hanging connections under high load
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		IdleTimeout:  defaultIdleTimeout,
+
+		// Request limits to prevent resource exhaustion
+		BodyLimit: defaultBodyLimitMB * bodyLimitMultiplier, // 10MB max request body
 	})
 
 	// Add common middleware (only once for all routes)

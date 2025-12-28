@@ -3,6 +3,7 @@ package in
 import (
 	"fmt"
 	"runtime/debug"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -19,13 +20,32 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const applicationName = "crm"
+const (
+	applicationName = "crm"
+
+	// HTTP server timeout configuration
+	defaultReadTimeout  = 30 * time.Second // Time to read full request
+	defaultWriteTimeout = 30 * time.Second // Time to write full response
+	defaultIdleTimeout  = 60 * time.Second // Connection idle before close
+
+	// Request body limits
+	defaultBodyLimitMB  = 10
+	bodyLimitMultiplier = 1024 * 1024
+)
 
 // NewRouter creates and configures a new Fiber router with all CRM API routes.
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler:          libHTTP.HandleFiberError,
+
+		// Server timeouts to prevent hanging connections under high load
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		IdleTimeout:  defaultIdleTimeout,
+
+		// Request limits to prevent resource exhaustion
+		BodyLimit: defaultBodyLimitMB * bodyLimitMultiplier, // 10MB max request body
 	})
 
 	// Panic recovery middleware - MUST be first to catch panics from all other middleware.
