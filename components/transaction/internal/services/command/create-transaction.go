@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -21,6 +22,15 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction")
 	defer span.End()
+
+	// Preconditions: validate required inputs
+	assert.NotNil(t, "transaction input must not be nil",
+		"organizationID", organizationID,
+		"ledgerID", ledgerID)
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(ledgerID != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", ledgerID)
 
 	logger.Infof("Trying to create new transaction")
 

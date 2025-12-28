@@ -10,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -32,6 +33,9 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	ctxSendTransactionEvents, spanTransactionEvents := tracer.Start(ctx, "command.send_transaction_events_async")
 	defer spanTransactionEvents.End()
 
+	// Precondition: transaction must not be nil
+	assert.NotNil(tran, "transaction must not be nil for event dispatch")
+
 	payload, err := json.Marshal(tran)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
@@ -49,6 +53,9 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		LedgerID:       tran.LedgerID,
 		Payload:        payload,
 	}
+
+	// Postcondition: event must have required fields
+	assert.NotEmpty(event.Source, "event.Source must not be empty")
 
 	var key strings.Builder
 

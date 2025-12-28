@@ -11,6 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -37,6 +38,11 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 
 			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
+
+		// Invariant: account must have an alias for balance creation
+		assert.NotNil(account.Alias, "account.Alias must not be nil for balance creation",
+			"accountID", account.ID,
+			"assetCode", account.AssetCode)
 
 		balance := &mmodel.Balance{
 			ID:             libCommons.GenerateUUIDv7().String(),

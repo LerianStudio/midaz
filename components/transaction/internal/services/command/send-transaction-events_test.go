@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -170,4 +171,16 @@ func TestSendTransactionEvents(t *testing.T) {
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
 	})
+}
+
+func TestSendTransactionEvents_NilTransaction_Panics(t *testing.T) {
+	// Set environment variable to enable transaction events
+	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "true")
+
+	uc := &UseCase{}
+	ctx := context.Background()
+
+	require.Panics(t, func() {
+		uc.SendTransactionEvents(ctx, nil)
+	}, "should panic when transaction is nil")
 }
