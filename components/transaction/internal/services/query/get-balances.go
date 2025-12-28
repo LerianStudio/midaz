@@ -32,7 +32,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 	balances := make([]*mmodel.Balance, 0)
 
-	balancesRedis, aliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
+	balancesRedis, aliases := uc.ValidateIfBalanceExistsOnRedis(ctx, logger, organizationID, ledgerID, validate.Aliases)
 	if len(balancesRedis) > 0 {
 		balances = append(balances, balancesRedis...)
 	}
@@ -116,13 +116,11 @@ func isRetriableBalanceLookupErr(err error) bool {
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
-func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_if_balance_exists_on_redis")
 	defer span.End()
-
-	logger.Infof("Checking if balances exists on redis")
 
 	newBalances := make([]*mmodel.Balance, 0)
 

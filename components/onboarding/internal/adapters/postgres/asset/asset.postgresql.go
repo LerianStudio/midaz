@@ -219,9 +219,9 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		)
 		if scanErr != nil {
 			// If scan fails, log with search parameters as fallback
-			logger.Warnf("Asset name or code duplicate found (search params: name=%s, code=%s)", name, code)
+			logger.Debugf("Asset name or code duplicate found (search params: name=%s, code=%s)", name, code)
 		} else {
-			logger.Warnf("Asset name or code duplicate found: existing_asset_name=%s, existing_asset_code=%s (search params: name=%s, code=%s)",
+			logger.Debugf("Asset name or code duplicate found: existing_asset_name=%s, existing_asset_code=%s (search params: name=%s, code=%s)",
 				foundName, foundCode, name, code)
 		}
 
