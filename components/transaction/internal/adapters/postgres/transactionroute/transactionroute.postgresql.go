@@ -174,34 +174,29 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 // buildFindByIDQuery constructs the SQL query for finding a transaction route by ID
 func (r *TransactionRoutePostgreSQLRepository) buildFindByIDQuery(organizationID, ledgerID, id uuid.UUID) (string, []any, error) {
-	subQuery := squirrel.Select(
-		"id", "organization_id", "ledger_id", "title", "description", "created_at", "updated_at", "deleted_at",
-	).
-		From("transaction_route").
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		PlaceholderFormat(squirrel.Dollar)
-
-	mainQuery := squirrel.Select(
+	// Use direct query with explicit deleted_at filter to ensure soft-deleted records are excluded
+	query := squirrel.Select(
 		"tr.id", "tr.organization_id", "tr.ledger_id", "tr.title", "tr.description", "tr.created_at", "tr.updated_at", "tr.deleted_at",
 		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.created_at", "otr.deleted_at",
 		"or_data.id", "or_data.organization_id", "or_data.ledger_id", "or_data.title", "or_data.description", "or_data.operation_type",
 		"or_data.account_rule_type", "or_data.account_rule_valid_if", "or_data.created_at", "or_data.updated_at", "or_data.deleted_at", "or_data.code",
 	).
-		FromSelect(subQuery, "tr").
+		From("transaction_route tr").
 		LeftJoin("operation_transaction_route otr ON tr.id = otr.transaction_route_id AND otr.deleted_at IS NULL").
 		LeftJoin("operation_route or_data ON otr.operation_route_id = or_data.id AND or_data.deleted_at IS NULL").
+		Where(squirrel.Eq{"tr.organization_id": organizationID}).
+		Where(squirrel.Eq{"tr.ledger_id": ledgerID}).
+		Where(squirrel.Eq{"tr.id": id}).
+		Where(squirrel.Eq{"tr.deleted_at": nil}).
 		OrderBy("or_data.created_at").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := mainQuery.ToSql()
+	sqlQuery, args, err := query.ToSql()
 	if err != nil {
 		return "", nil, pkg.ValidateInternalError(err, "TransactionRoute")
 	}
 
-	return query, args, nil
+	return sqlQuery, args, nil
 }
 
 // executeFindByIDQuery executes the query and returns rows
@@ -360,12 +355,16 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	record := &TransactionRoutePostgreSQLModel{}
 	record.FromEntity(transactionRoute)
 
-	if err := r.updateTransactionRouteRecord(ctx, tx, tracer, organizationID, ledgerID, id, transactionRoute, record, logger); err != nil {
+	// Use assignment (=) instead of short declaration (:=) to update the outer err variable
+	// This ensures the defer can properly rollback on error
+	err = r.updateTransactionRouteRecord(ctx, tx, tracer, organizationID, ledgerID, id, transactionRoute, record, logger)
+	if err != nil {
 		return nil, err
 	}
 
 	if len(toAdd) > 0 || len(toRemove) > 0 {
-		if err = r.updateOperationRouteRelationships(ctx, tx, id, toAdd, toRemove); err != nil {
+		err = r.updateOperationRouteRelationships(ctx, tx, id, toAdd, toRemove)
+		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to update operation route relationships", err)
 			logger.Errorf("Failed to update operation route relationships: %v", err)
 
@@ -373,7 +372,8 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
+	err = tx.Commit()
+	if err != nil {
 		return nil, r.handleCommitError(&span, logger, err)
 	}
 
