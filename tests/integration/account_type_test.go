@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -65,8 +66,8 @@ func TestIntegration_AccountType_CRUDLifecycle(t *testing.T) {
 	if createdType.Name != typeName {
 		t.Errorf("account type name mismatch: got %q, want %q", createdType.Name, typeName)
 	}
-	if createdType.KeyValue != keyValue {
-		t.Errorf("account type keyValue mismatch: got %q, want %q", createdType.KeyValue, keyValue)
+	if createdType.KeyValue != strings.ToLower(keyValue) {
+		t.Errorf("account type keyValue mismatch: got %q, want %q", createdType.KeyValue, strings.ToLower(keyValue))
 	}
 	if createdType.OrganizationID != orgID {
 		t.Errorf("account type organization ID mismatch: got %q, want %q", createdType.OrganizationID, orgID)
@@ -134,9 +135,9 @@ func TestIntegration_AccountType_CRUDLifecycle(t *testing.T) {
 	if updatedType.Name != updatedName {
 		t.Errorf("updated type name mismatch: got %q, want %q", updatedType.Name, updatedName)
 	}
-	// KeyValue should remain unchanged (immutable)
-	if updatedType.KeyValue != keyValue {
-		t.Errorf("updated type keyValue should not change: got %q, want %q", updatedType.KeyValue, keyValue)
+	// KeyValue should remain unchanged (immutable, stored as lowercase)
+	if updatedType.KeyValue != strings.ToLower(keyValue) {
+		t.Errorf("updated type keyValue should not change: got %q, want %q", updatedType.KeyValue, strings.ToLower(keyValue))
 	}
 
 	t.Logf("Updated account type: ID=%s NewName=%s", updatedType.ID, updatedType.Name)
