@@ -1254,7 +1254,8 @@ func (handler *TransactionHandler) validateTransactionInput(span *trace.Span, lo
 	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(mmodel.Transaction{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
-		logger.Warnf("Transaction value must be greater than zero")
+		logger.Warnf("Transaction value must be greater than zero - received value: %s, asset: %s, description: %s",
+			parserDSL.Send.Value.String(), parserDSL.Send.Asset, parserDSL.Description)
 
 		return err
 	}

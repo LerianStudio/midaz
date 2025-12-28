@@ -57,7 +57,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		balances = append(balances, balancesByAliases...)
 	}
 
-	logger.Infof("REDIS_LOCK_START: Acquiring Redis locks for %d balance operations", len(balances))
+	logger.Infof("REDIS_BALANCE_UPDATE_START: Starting Redis balance operations for %d balances", len(balances))
 
 	lockStart := time.Now()
 
@@ -65,7 +65,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 	lockDuration := time.Since(lockStart)
 	if err != nil {
-		logger.Errorf("REDIS_LOCK_FAILED: Failed to acquire locks after %v: %v", lockDuration, err)
+		logger.Errorf("REDIS_BALANCE_UPDATE_FAILED: Failed to update balances after %v: %v", lockDuration, err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
 
 		logger.Error("Failed to get balances and update on redis", err.Error())
@@ -73,7 +73,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		return nil, err
 	}
 
-	logger.Infof("REDIS_LOCK_SUCCESS: Successfully acquired locks for %d balances in %v", len(newBalances), lockDuration)
+	logger.Infof("REDIS_BALANCE_UPDATE_SUCCESS: Successfully updated %d balances in %v", len(newBalances), lockDuration)
 
 	return newBalances, nil
 }
