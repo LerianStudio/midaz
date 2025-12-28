@@ -163,6 +163,25 @@ func TestIntegration_Transactions_RevertOnNonApproved_Should4xx(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &tx2)
 
+	// Ensure transaction is retrievable before attempting revert (avoid transient 404)
+	getPath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s", org.ID, ledger.ID, tx2.ID)
+	revertDeadline := time.Now().Add(5 * time.Second)
+	if dl, ok := t.Deadline(); ok {
+		if d := time.Until(dl) / 2; d < 5*time.Second {
+			revertDeadline = time.Now().Add(d)
+		}
+	}
+	for {
+		c, _, e := trans.Request(ctx, "GET", getPath, headers, nil)
+		if e == nil && c == 200 {
+			break
+		}
+		if time.Now().After(revertDeadline) {
+			break
+		}
+		time.Sleep(75 * time.Millisecond)
+	}
+
 	code, body, err = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/revert", org.ID, ledger.ID, tx2.ID), headers, nil)
 	if err != nil {
 		t.Fatalf("revert request error: %v", err)
