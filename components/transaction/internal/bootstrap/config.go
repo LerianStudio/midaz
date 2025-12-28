@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	"github.com/LerianStudio/lib-commons/v2/commons/postgres/dbresolver"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -30,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -47,6 +50,25 @@ var (
 	// ErrInitializationFailed indicates a panic occurred during initialization.
 	ErrInitializationFailed = errors.New("initialization failed")
 )
+
+// dbTxAdapter wraps dbresolver.Tx to implement dbtx.Tx
+type dbTxAdapter struct {
+	dbresolver.Tx
+}
+
+// dbProviderAdapter wraps dbresolver.DB to implement dbtx.TxBeginner
+type dbProviderAdapter struct {
+	db dbresolver.DB
+}
+
+// BeginTx starts a new transaction and returns it wrapped as dbtx.Tx
+func (a *dbProviderAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbtx.Tx, error) {
+	tx, err := a.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &dbTxAdapter{tx}, nil
+}
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
@@ -260,10 +282,13 @@ func InitServers() *Service {
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
 	// Get DB connection for transaction management in UseCase
-	dbProvider, err := postgresConnection.GetDB()
+	dbConn, err := postgresConnection.GetDB()
 	assert.NoError(err, "database connection required for UseCase DBProvider",
 		"package", "bootstrap",
 		"function", "InitServers")
+
+	// Wrap dbresolver.DB to implement dbtx.TxBeginner interface
+	dbProvider := &dbProviderAdapter{db: dbConn}
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
