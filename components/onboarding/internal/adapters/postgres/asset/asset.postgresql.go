@@ -203,11 +203,13 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 	if rows.Next() {
 		// Scan the actual duplicate asset's name and code for better error reporting
-		var foundID, foundName, foundType, foundCode string
-		var foundStatus, foundStatusDesc sql.NullString
-		var foundLedgerID, foundOrgID string
-		var foundCreatedAt, foundUpdatedAt time.Time
-		var foundDeletedAt sql.NullTime
+		var (
+			foundID, foundName, foundType, foundCode string
+			foundStatus, foundStatusDesc             sql.NullString
+			foundLedgerID, foundOrgID                string
+			foundCreatedAt, foundUpdatedAt           time.Time
+			foundDeletedAt                           sql.NullTime
+		)
 
 		scanErr := rows.Scan(
 			&foundID, &foundName, &foundType, &foundCode,
