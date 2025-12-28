@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -23,7 +25,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -90,6 +91,29 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			return err
 		}
 
+		// Step 4: Queue metadata to outbox (INSIDE transaction for atomicity)
+		if tran.Metadata != nil {
+			entry, err := outbox.NewMetadataOutbox(tran.ID, outbox.EntityTypeTransaction, tran.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to create outbox entry for transaction: %w", err)
+			}
+			if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
+				return fmt.Errorf("failed to queue transaction metadata to outbox: %w", err)
+			}
+		}
+
+		for _, oper := range tran.Operations {
+			if oper.Metadata != nil {
+				entry, err := outbox.NewMetadataOutbox(oper.ID, outbox.EntityTypeOperation, oper.Metadata)
+				if err != nil {
+					return fmt.Errorf("failed to create outbox entry for operation: %w", err)
+				}
+				if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
+					return fmt.Errorf("failed to queue operation metadata to outbox: %w", err)
+				}
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -99,23 +123,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err //nolint:wrapcheck // Errors from transaction callback are already typed
 	}
 
-	// All MongoDB metadata creation happens after PostgreSQL transaction commits.
-	// This prevents orphaned metadata in MongoDB if the PostgreSQL transaction rolls back.
-	// If metadata creation fails, the core transaction is already committed successfully.
-
-	// Create transaction metadata
-	ctxProcessTransactionMetadata, spanCreateTransactionMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction_metadata")
-	defer spanCreateTransactionMetadata.End()
-
-	if err := uc.CreateMetadataAsync(ctxProcessTransactionMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransactionMetadata, "Failed to create transaction metadata", err)
-		// Transaction is already committed - log warning but don't fail the operation
-		logger.Warnf("Transaction %s committed successfully but metadata creation failed: %v", tran.ID, err)
-		// TODO(review): Consider adding to retry queue or reconciliation job
-	}
-
-	// Create operation metadata
-	uc.createOperationMetadataAsync(ctx, logger, tracer, tran.Operations)
+	// Metadata creation is now handled via the outbox pattern inside the transaction.
+	// The outbox worker will asynchronously process and write metadata to MongoDB.
 
 	mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "send_transaction_events", mruntime.KeepRunning, func(ctx context.Context) {
 		uc.SendTransactionEvents(ctx, tran)
@@ -295,22 +304,4 @@ func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger l
 	}
 
 	return nil
-}
-
-// createOperationMetadataAsync creates metadata for all operations asynchronously.
-// Errors are logged but don't fail the operation since the core transaction is already committed.
-func (uc *UseCase) createOperationMetadataAsync(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, operations []*operation.Operation) {
-	ctx, span := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation_metadata_async")
-	defer span.End()
-
-	for _, oper := range operations {
-		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
-			// Record error on span with operation ID for observability
-			span.SetAttributes(attribute.String("operation.id", oper.ID))
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation metadata", err)
-			// Log warning but don't fail - core operation is already committed
-			logger.Warnf("Operation %s committed successfully but metadata creation failed: %v", oper.ID, err)
-			// TODO(review): Consider adding to retry queue or reconciliation job
-		}
-	}
 }
