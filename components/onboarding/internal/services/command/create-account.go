@@ -332,8 +332,8 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 // handleCorruptedUUID handles corrupted UUID detection with metrics, logging, and strict mode check.
 // Returns (shouldTerminate, error). If shouldTerminate is true, the caller should return the error (which may be nil in lenient mode).
 func (uc *UseCase) handleCorruptedUUID(ctx context.Context, organizationID, ledgerID uuid.UUID, currentID string, parseErr error, span *trace.Span) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	_, _, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracking := libCommons.NewLoggerFromContext(ctx), libCommons.NewTrackingFromContext(ctx)
+	metricFactory := tracking.MetricFactory
 
 	// Always emit metric for observability regardless of mode
 	if metricFactory != nil {
