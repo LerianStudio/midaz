@@ -59,7 +59,7 @@ type CreateOperationRouteInput struct {
 	// required: true
 	// example: source
 	// enum: source,destination
-	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
+	OperationType string `json:"operationType,omitempty" validate:"required,oneof=source destination" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -91,7 +91,7 @@ type AccountRule struct {
 	// The rule type for account selection.
 	// example: alias
 	// enum: alias,account_type
-	RuleType string `json:"ruleType,omitempty" example:"alias" enum:"alias,account_type"`
+	RuleType string `json:"ruleType,omitempty" validate:"omitempty,oneof=alias account_type" example:"alias" enum:"alias,account_type"`
 	// The rule condition for account selection. String for alias type, array for account_type.
 	// example: @cash_account
 	ValidIf any `json:"validIf,omitempty" example:"@cash_account"`

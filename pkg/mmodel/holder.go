@@ -23,7 +23,7 @@ type CreateHolderInput struct {
 	// Type of person.
 	// * NATURAL_PERSON - Individual
 	// * LEGAL_PERSON - Company
-	Type *string `json:"type" validate:"required" example:"NATURAL_PERSON" enums:"NATURAL_PERSON,LEGAL_PERSON"`
+	Type *string `json:"type" validate:"required,oneof=NATURAL_PERSON LEGAL_PERSON" example:"NATURAL_PERSON" enums:"NATURAL_PERSON,LEGAL_PERSON"`
 	// Holders name.
 	// **Notes:** If the person type is LEGAL_PERSON, this must be the full legal name. If the person type is NATURAL_PERSON, this should be the individuals full name.
 	Name string `json:"name" validate:"required" example:"John Doe"`
