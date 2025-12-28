@@ -116,6 +116,8 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 			return err
 		}
 
+		// Postcondition: cacheRule is valid after successful lookup
+		// Note: cacheRule.Account may be nil (no rules defined), which is valid
 		if cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation failed validation against route rules", err)

@@ -32,6 +32,10 @@ func asyncTransactionsEnabled() bool {
 	return strings.ToLower(os.Getenv(asyncTransactionEnvVar)) == "true"
 }
 
+// waitForOperations polls for operations with backoff until found or timeout.
+// Return contract: returns (ops, cursor, nil) when ops found,
+// (nil/empty, cursor, err) when error occurs, or
+// (empty, cursor, ErrOperationsWaitTimeout) when polling times out.
 func waitForOperations(ctx context.Context, fetch func(context.Context) ([]*operation.Operation, libHTTP.CursorPagination, error)) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	ops, cur, err := fetch(ctx)
 	if err != nil || len(ops) > 0 || !asyncTransactionsEnabled() {

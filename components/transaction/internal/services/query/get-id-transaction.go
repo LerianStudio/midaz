@@ -86,10 +86,12 @@ func (uc *UseCase) enrichTransactionMetadata(ctx context.Context, span *trace.Sp
 }
 
 // extractMetadataData extracts metadata data or returns an empty map.
+// Postcondition: always returns a non-nil map for safe iteration by callers.
 func extractMetadataData(metadata *mongodb.Metadata) map[string]any {
 	if metadata != nil && metadata.Data != nil {
 		return metadata.Data
 	}
 
+	// Postcondition: ensure Metadata is never nil for safe iteration
 	return map[string]any{}
 }
