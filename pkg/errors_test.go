@@ -529,24 +529,26 @@ func TestValidateBadRequestFieldsError(t *testing.T) {
 
 			assert.NotNil(t, result, "Expected an error but got nil")
 
-			switch tt.expectedErrorType {
-			case "errorString":
-				_, ok := result.(error)
-				assert.True(t, ok, "Expected a generic error")
-			case "ValidationUnknownFieldsError":
-				_, ok := result.(ValidationUnknownFieldsError)
-				assert.True(t, ok, "Expected ValidationUnknownFieldsError")
-			case "ValidationKnownFieldsError":
-				_, ok := result.(ValidationKnownFieldsError)
-				assert.True(t, ok, "Expected ValidationKnownFieldsError")
-			}
+		switch tt.expectedErrorType {
+		case "errorString":
+			// result is already of type error, just verify it's not a specific known type
+			_, isUnknown := result.(ValidationUnknownFieldsError)
+			_, isKnown := result.(ValidationKnownFieldsError)
+			assert.False(t, isUnknown || isKnown, "Expected a generic error, not a specific validation error type")
+		case "ValidationUnknownFieldsError":
+			_, ok := result.(ValidationUnknownFieldsError)
+			assert.True(t, ok, "Expected ValidationUnknownFieldsError")
+		case "ValidationKnownFieldsError":
+			_, ok := result.(ValidationKnownFieldsError)
+			assert.True(t, ok, "Expected ValidationKnownFieldsError")
+		}
 		})
 	}
 }
 
 func TestValidateBusinessError(t *testing.T) {
 	// Create a simple mock for ValidateBusinessError
-	mockValidateBusinessError := func(err error, entityType string, args ...interface{}) error {
+	mockValidateBusinessError := func(err error, entityType string, _ ...interface{}) error {
 		switch err.Error() {
 		case "duplicate_ledger":
 			return &EntityConflictError{
