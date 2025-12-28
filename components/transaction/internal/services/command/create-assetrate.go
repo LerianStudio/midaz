@@ -134,7 +134,13 @@ func (uc *UseCase) updateAssetRateFields(arFound *mmodel.AssetRate, cari *mmodel
 	arFound.Rate = rate
 	arFound.Scale = &scale
 	arFound.Source = cari.Source
-	arFound.TTL = *cari.TTL
+
+	if cari.TTL != nil {
+		arFound.TTL = *cari.TTL
+	} else {
+		arFound.TTL = 0
+	}
+
 	arFound.UpdatedAt = time.Now()
 
 	if !libCommons.IsNilOrEmpty(cari.ExternalID) {
@@ -158,6 +164,11 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 	rate := float64(cari.Rate)
 	scale := float64(cari.Scale)
 
+	var ttl int
+	if cari.TTL != nil {
+		ttl = *cari.TTL
+	}
+
 	assetRateDB := &mmodel.AssetRate{
 		ID:             libCommons.GenerateUUIDv7().String(),
 		OrganizationID: organizationID.String(),
@@ -168,7 +179,7 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 		Rate:           rate,
 		Scale:          &scale,
 		Source:         cari.Source,
-		TTL:            *cari.TTL,
+		TTL:            ttl,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
