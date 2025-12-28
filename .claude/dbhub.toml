@@ -1,0 +1,215 @@
+# DBHub Configuration for Midaz PostgreSQL Databases
+# Project-specific configuration for ~/repos/lerianstudio/midaz
+
+# =============================================================================
+# PostgreSQL Primary - Onboarding Database
+# =============================================================================
+[[sources]]
+id = "onboarding-primary"
+dsn = "postgres://midaz:lerian@localhost:5701/onboarding?sslmode=disable"
+connection_timeout = 30
+query_timeout = 60
+
+# =============================================================================
+# PostgreSQL Primary - Transaction Database
+# =============================================================================
+[[sources]]
+id = "transaction-primary"
+dsn = "postgres://midaz:lerian@localhost:5701/transaction?sslmode=disable"
+connection_timeout = 30
+query_timeout = 60
+
+# =============================================================================
+# PostgreSQL Replica - Onboarding Database (Read-Only)
+# =============================================================================
+[[sources]]
+id = "onboarding-replica"
+dsn = "postgres://midaz:lerian@localhost:5702/onboarding?sslmode=disable"
+connection_timeout = 30
+query_timeout = 60
+
+# =============================================================================
+# PostgreSQL Replica - Transaction Database (Read-Only)
+# =============================================================================
+[[sources]]
+id = "transaction-replica"
+dsn = "postgres://midaz:lerian@localhost:5702/transaction?sslmode=disable"
+connection_timeout = 30
+query_timeout = 60
+
+# =============================================================================
+# Tool Configurations
+# =============================================================================
+
+# Primary databases - full access (use carefully!)
+[[tools]]
+name = "execute_sql"
+source = "onboarding-primary"
+readonly = false
+max_rows = 1000
+
+[[tools]]
+name = "execute_sql"
+source = "transaction-primary"
+readonly = false
+max_rows = 1000
+
+# Replica databases - read-only (safe for exploration)
+[[tools]]
+name = "execute_sql"
+source = "onboarding-replica"
+readonly = true
+max_rows = 5000
+
+[[tools]]
+name = "execute_sql"
+source = "transaction-replica"
+readonly = true
+max_rows = 5000
+
+# =============================================================================
+# Custom Tools - Common Midaz Queries
+# =============================================================================
+
+# --- Organization Queries ---
+[[tools]]
+name = "list_organizations"
+description = "List all organizations with optional limit"
+source = "onboarding-replica"
+statement = "SELECT id, legal_name, doing_business_as, status, created_at FROM organization WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1"
+
+[[tools.parameters]]
+name = "limit"
+type = "integer"
+description = "Maximum number of organizations to return"
+default = 20
+
+[[tools]]
+name = "get_organization"
+description = "Get organization details by ID"
+source = "onboarding-replica"
+statement = "SELECT * FROM organization WHERE id = $1 AND deleted_at IS NULL"
+
+[[tools.parameters]]
+name = "organization_id"
+type = "string"
+description = "The organization UUID"
+
+# --- Ledger Queries ---
+[[tools]]
+name = "list_ledgers"
+description = "List ledgers for an organization"
+source = "onboarding-replica"
+statement = "SELECT id, name, status, organization_id, created_at FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2"
+
+[[tools.parameters]]
+name = "organization_id"
+type = "string"
+description = "The organization UUID"
+
+[[tools.parameters]]
+name = "limit"
+type = "integer"
+description = "Maximum number of ledgers to return"
+default = 50
+
+# --- Account Queries ---
+[[tools]]
+name = "list_accounts"
+description = "List accounts for a ledger"
+source = "onboarding-replica"
+statement = "SELECT id, name, alias, type, status, ledger_id, portfolio_id, created_at FROM account WHERE ledger_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2"
+
+[[tools.parameters]]
+name = "ledger_id"
+type = "string"
+description = "The ledger UUID"
+
+[[tools.parameters]]
+name = "limit"
+type = "integer"
+description = "Maximum number of accounts to return"
+default = 100
+
+# --- Transaction Queries ---
+[[tools]]
+name = "list_transactions"
+description = "List recent transactions for a ledger"
+source = "transaction-replica"
+statement = "SELECT id, description, status, ledger_id, created_at FROM transaction WHERE ledger_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2"
+
+[[tools.parameters]]
+name = "ledger_id"
+type = "string"
+description = "The ledger UUID"
+
+[[tools.parameters]]
+name = "limit"
+type = "integer"
+description = "Maximum number of transactions to return"
+default = 50
+
+[[tools]]
+name = "get_transaction"
+description = "Get transaction details with operations (amounts include scale for precision)"
+source = "transaction-replica"
+statement = """
+SELECT t.id, t.description, t.status, t.ledger_id, t.amount, t.amount_scale, t.asset_code, t.created_at,
+       o.id as operation_id, o.type, o.amount as op_amount, o.amount_scale as op_amount_scale,
+       o.asset_code as op_asset_code, o.account_id, o.account_alias
+FROM transaction t
+LEFT JOIN operation o ON o.transaction_id = t.id AND o.deleted_at IS NULL
+WHERE t.id = $1 AND t.deleted_at IS NULL
+"""
+
+[[tools.parameters]]
+name = "transaction_id"
+type = "string"
+description = "The transaction UUID"
+
+# --- Balance Queries ---
+[[tools]]
+name = "get_account_balance"
+description = "Get balance for an account"
+source = "transaction-replica"
+statement = "SELECT id, account_id, asset_code, available, on_hold, scale, updated_at FROM balance WHERE account_id = $1 AND deleted_at IS NULL"
+
+[[tools.parameters]]
+name = "account_id"
+type = "string"
+description = "The account UUID"
+
+[[tools]]
+name = "list_balances_by_ledger"
+description = "List all balances for accounts in a ledger"
+source = "transaction-replica"
+statement = """
+SELECT b.id, b.account_id, b.asset_code, b.available, b.on_hold, b.scale, b.updated_at
+FROM balance b
+WHERE b.ledger_id = $1 AND b.deleted_at IS NULL
+ORDER BY b.updated_at DESC
+LIMIT $2
+"""
+
+[[tools.parameters]]
+name = "ledger_id"
+type = "string"
+description = "The ledger UUID"
+
+[[tools.parameters]]
+name = "limit"
+type = "integer"
+description = "Maximum number of balances to return"
+default = 100
+
+# --- Asset Queries ---
+[[tools]]
+name = "list_assets"
+description = "List assets for a ledger"
+source = "onboarding-replica"
+statement = "SELECT id, name, code, type, status, ledger_id, created_at FROM asset WHERE ledger_id = $1 AND deleted_at IS NULL ORDER BY code"
+
+[[tools.parameters]]
+name = "ledger_id"
+type = "string"
+description = "The ledger UUID"
