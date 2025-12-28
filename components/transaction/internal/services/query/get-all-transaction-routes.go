@@ -33,14 +33,14 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 			logger.Warnf("Transaction routes not found: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "TransactionRoute")
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	if transactionRoutes != nil {

@@ -49,14 +49,14 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 			logger.Warnf("Error getting operation routes on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 		}
 
 		logger.Errorf("Error getting operation routes on repo: %v", err)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "OperationRoute")
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	var filteredOperationRoutes []*mmodel.OperationRoute

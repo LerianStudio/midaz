@@ -75,7 +75,7 @@ func (uc *UseCase) handleFetchTransactionsError(span *trace.Span, logger libLog.
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-	return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "Transaction")
+	return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 }
 
 // fetchAndMapTransactionMetadata fetches and maps transaction metadata
@@ -176,7 +176,7 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 
 		logger.Warnf("Error getting operation metadata: %v", err)
 
-		return pkg.ValidateInternalError(err, "Operation")
+		return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 	}
 
 	operationMetadataMap := make(map[string]map[string]any, len(operationMetadata))

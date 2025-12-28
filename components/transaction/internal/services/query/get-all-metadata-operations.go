@@ -49,7 +49,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 			logger.Warnf("Error getting operations on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, err //nolint:wrapcheck // EntityNotFoundError is already a typed business error
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)

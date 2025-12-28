@@ -36,7 +36,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 			logger.Warnf("Error updating transaction on repo by id: %v", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on repo by id", err)
@@ -92,7 +92,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 
 			logger.Warnf("Error updating status transaction on repo by id: %v", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update status transaction on repo by id", err)

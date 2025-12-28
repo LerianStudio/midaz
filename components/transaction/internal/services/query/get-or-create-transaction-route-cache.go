@@ -54,7 +54,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 			logger.Warn(msg)
 
-			return mmodel.TransactionRouteCache{}, err
+			return mmodel.TransactionRouteCache{}, pkg.ValidateInternalError(err, "TransactionRoute")
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to fetch transaction route from database", err)

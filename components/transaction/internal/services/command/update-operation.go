@@ -35,7 +35,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 			logger.Warnf("Error updating op on repo by id: %v", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Operation{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation on repo by id", err)
@@ -45,9 +45,11 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Operation{}).Name(), operationID.String(), uoi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
+		wrappedErr := pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Operation{}).Name())
 
-		return nil, err
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", wrappedErr)
+
+		return nil, wrappedErr
 	}
 
 	operationUpdated.Metadata = metadataUpdated

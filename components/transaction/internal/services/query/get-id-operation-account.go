@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -11,6 +10,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"
 )
+
+// operationTypeName is the type name used for Operation entity in error handling and metadata lookups.
+const operationTypeName = "Operation"
 
 // GetOperationByAccount retrieves a specific operation by its ID for a given account.
 func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*operation.Operation, error) {
@@ -31,22 +33,22 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 
 			logger.Warnf("Error getting operation on repo: %v", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, operationTypeName)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by account", err)
 
-		return nil, pkg.ValidateInternalError(err, "Operation")
+		return nil, pkg.ValidateInternalError(err, operationTypeName)
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, operationTypeName, operationID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 
-			return nil, pkg.ValidateInternalError(err, "Operation")
+			return nil, pkg.ValidateInternalError(err, operationTypeName)
 		}
 
 		if metadata != nil {

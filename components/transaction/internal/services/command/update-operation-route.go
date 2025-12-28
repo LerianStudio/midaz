@@ -39,7 +39,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 			logger.Warnf("Error updating operation route on repo by id: %v", err)
 
-			return nil, err
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation route on repo by id", err)

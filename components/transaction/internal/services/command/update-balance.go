@@ -323,7 +323,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
 	return balance, nil

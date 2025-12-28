@@ -33,14 +33,14 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 			logger.Warnf("Error getting operation routes on repo: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, err //nolint:wrapcheck // EntityNotFoundError is already a typed business error
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
 		logger.Errorf("Error getting operation routes on repo: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, "OperationRoute")
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if operationRoutes != nil {

@@ -2,10 +2,12 @@ package query
 
 import (
 	"context"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 )
@@ -32,7 +34,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	if err := uc.enrichOperationsWithMetadata(ctx, &span, op); err != nil {
 		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
 	}
 
 	return op, cur, nil

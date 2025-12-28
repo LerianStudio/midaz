@@ -30,7 +30,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 
 			logger.Warnf("Error getting operation route on repo by id: %v", err)
 
-			return nil, err
+			return nil, err //nolint:wrapcheck // EntityNotFoundError is already a typed business error
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)

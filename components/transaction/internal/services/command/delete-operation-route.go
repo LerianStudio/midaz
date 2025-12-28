@@ -46,7 +46,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 			logger.Warnf("Operation Route ID not found: %s", id.String())
 
-			return err
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation route on repo by id", err)

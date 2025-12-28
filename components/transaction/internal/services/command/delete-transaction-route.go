@@ -42,7 +42,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route", err)
 
-			return err
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
 		logger.Errorf("Error finding transaction route: %v", err)
