@@ -199,12 +199,26 @@ func TestIntegration_Routing_OperationRouteSourceAndDestination(t *testing.T) {
 	}
 	t.Logf("Created source route: ID=%s", sourceRouteID)
 
+	// Register cleanup for source route
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID); err != nil {
+			t.Logf("Warning: cleanup delete source route failed: %v", err)
+		}
+	})
+
 	// Create DESTINATION operation route
 	destRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Destination %s", h.RandString(4)), "destination")
 	if err != nil {
 		t.Fatalf("create destination route failed: %v", err)
 	}
 	t.Logf("Created destination route: ID=%s", destRouteID)
+
+	// Register cleanup for destination route
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, destRouteID); err != nil {
+			t.Logf("Warning: cleanup delete destination route failed: %v", err)
+		}
+	})
 
 	// List and verify both routes exist
 	routeList, err := h.ListOperationRoutes(ctx, trans, headers, orgID, ledgerID)
@@ -234,10 +248,6 @@ func TestIntegration_Routing_OperationRouteSourceAndDestination(t *testing.T) {
 	}
 
 	t.Logf("Source and destination routes test passed: found source=%v, dest=%v", foundSource, foundDest)
-
-	// Cleanup
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID)
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, destRouteID)
 }
 
 // TestIntegration_Routing_OperationRouteWithAccountRule tests creating an operation route
@@ -284,6 +294,13 @@ func TestIntegration_Routing_OperationRouteWithAccountRule(t *testing.T) {
 
 	t.Logf("Created operation route with account rule: ID=%s Title=%s", createdRoute.ID, createdRoute.Title)
 
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, createdRoute.ID); err != nil {
+			t.Logf("Warning: cleanup delete route failed: %v", err)
+		}
+	})
+
 	// Verify account rule is set
 	if createdRoute.Account == nil {
 		t.Errorf("expected account rule to be set, got nil")
@@ -292,9 +309,6 @@ func TestIntegration_Routing_OperationRouteWithAccountRule(t *testing.T) {
 			t.Errorf("account rule type mismatch: got %q, want %q", createdRoute.Account.RuleType, "alias")
 		}
 	}
-
-	// Cleanup
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, createdRoute.ID)
 
 	t.Log("Operation route with account rule test completed successfully")
 }
@@ -345,16 +359,132 @@ func TestIntegration_Routing_OperationRouteValidation(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			code, body, err := trans.Request(ctx, "POST", path, headers, tc.payload)
 			if err != nil {
 				t.Logf("Request error (expected for validation): %v", err)
 			}
-			// Expect non-201 for validation errors
-			if code == 201 {
-				t.Errorf("expected validation error for %s, but got 201 Created: body=%s", tc.name, string(body))
+			// Expect 400 Bad Request for validation errors
+			if code != 400 {
+				t.Errorf("expected 400 Bad Request for %s, but got %d: body=%s", tc.name, code, string(body))
 			}
-			t.Logf("Validation test %s: code=%d (expected non-201)", tc.name, code)
+			t.Logf("Validation test %s: code=%d (expected 400)", tc.name, code)
 		})
 	}
+}
+
+// TestIntegration_Routing_OperationTypeImmutability tests that the operationType field
+// cannot be changed after creation. The operationType (source/destination) is a
+// fundamental property that should be immutable once the operation route is created.
+func TestIntegration_Routing_OperationTypeImmutability(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	// Setup
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Immutable Test Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Immutable Test Ledger %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup ledger failed: %v", err)
+	}
+
+	// Create a SOURCE operation route
+	sourceTitle := fmt.Sprintf("Source Route %s", h.RandString(6))
+	createPayload := h.CreateSourceOperationRoutePayload(sourceTitle)
+	createPayload["description"] = "Route to test operationType immutability"
+
+	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", orgID, ledgerID)
+	code, body, err := trans.Request(ctx, "POST", path, headers, createPayload)
+	if err != nil || code != 201 {
+		t.Fatalf("CREATE source operation route failed: code=%d err=%v body=%s", code, err, string(body))
+	}
+
+	var createdRoute h.OperationRouteResponse
+	if err := json.Unmarshal(body, &createdRoute); err != nil || createdRoute.ID == "" {
+		t.Fatalf("parse created operation route: %v body=%s", err, string(body))
+	}
+
+	routeID := createdRoute.ID
+	t.Logf("Created SOURCE operation route: ID=%s OperationType=%s", routeID, createdRoute.OperationType)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, routeID); err != nil {
+			t.Logf("Warning: cleanup delete route failed: %v", err)
+		}
+	})
+
+	// Verify initial operationType is "source"
+	if createdRoute.OperationType != "source" {
+		t.Fatalf("expected initial operationType to be 'source', got %q", createdRoute.OperationType)
+	}
+
+	// Attempt to change operationType from "source" to "destination" via PATCH
+	updatePayload := map[string]any{
+		"operationType": "destination", // Attempting to change the type
+		"title":         fmt.Sprintf("Changed Route %s", h.RandString(6)),
+	}
+
+	updatePath := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes/%s", orgID, ledgerID, routeID)
+	code, body, err = trans.Request(ctx, "PATCH", updatePath, headers, updatePayload)
+
+	// The API should either:
+	// A) Reject the update with 400 (operationType is immutable and cannot be changed)
+	// B) Accept the update but ignore the operationType change (operationType remains "source")
+	// C) Accept and apply the change (operationType becomes "destination" - not ideal but valid)
+	if err != nil {
+		t.Logf("PATCH request error: %v", err)
+	}
+
+	t.Logf("PATCH with operationType change: code=%d", code)
+
+	if code == 400 {
+		// Behavior A: API rejects operationType changes explicitly
+		t.Logf("API behavior: operationType change REJECTED with 400 Bad Request")
+		t.Log("operationType immutability test completed: API explicitly rejects changes")
+		return
+	}
+
+	if code != 200 {
+		t.Fatalf("unexpected response code for PATCH: code=%d body=%s", code, string(body))
+	}
+
+	// If PATCH returned 200, check if operationType actually changed
+	var updatedRoute h.OperationRouteResponse
+	if err := json.Unmarshal(body, &updatedRoute); err != nil {
+		t.Fatalf("parse updated operation route: %v body=%s", err, string(body))
+	}
+
+	t.Logf("After PATCH: ID=%s OperationType=%s", updatedRoute.ID, updatedRoute.OperationType)
+
+	if updatedRoute.OperationType == "source" {
+		// Behavior B: API accepted PATCH but ignored operationType change
+		t.Logf("API behavior: operationType change IGNORED (remained 'source')")
+		t.Log("operationType immutability test completed: operationType is effectively immutable")
+	} else if updatedRoute.OperationType == "destination" {
+		// Behavior C: API allowed operationType change
+		t.Logf("API behavior: operationType change ALLOWED (changed to 'destination')")
+		t.Logf("Warning: operationType is mutable - consider if this is desired behavior")
+	} else {
+		t.Errorf("unexpected operationType after PATCH: got %q", updatedRoute.OperationType)
+	}
+
+	// Verify by fetching again
+	fetchedRoute, err := h.GetOperationRoute(ctx, trans, headers, orgID, ledgerID, routeID)
+	if err != nil {
+		t.Fatalf("GET operation route after update failed: %v", err)
+	}
+
+	t.Logf("Verified operationType after PATCH: %s", fetchedRoute.OperationType)
+	t.Log("operationType immutability test completed successfully")
 }

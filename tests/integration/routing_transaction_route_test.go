@@ -42,12 +42,26 @@ func TestIntegration_Routing_TransactionRouteCRUDLifecycle(t *testing.T) {
 	}
 	t.Logf("Created source operation route: ID=%s", sourceRouteID)
 
+	// Register cleanup for source route
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID); err != nil {
+			t.Logf("Warning: cleanup delete source route failed: %v", err)
+		}
+	})
+
 	// Create destination operation route
 	destRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Dest %s", h.RandString(4)), "destination")
 	if err != nil {
 		t.Fatalf("create destination operation route failed: %v", err)
 	}
 	t.Logf("Created destination operation route: ID=%s", destRouteID)
+
+	// Register cleanup for destination route
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, destRouteID); err != nil {
+			t.Logf("Warning: cleanup delete destination route failed: %v", err)
+		}
+	})
 
 	// Test data
 	txRouteTitle := fmt.Sprintf("Transaction Route %s", h.RandString(6))
@@ -182,10 +196,6 @@ func TestIntegration_Routing_TransactionRouteCRUDLifecycle(t *testing.T) {
 		t.Errorf("GET deleted transaction route should fail, but succeeded")
 	}
 
-	// Cleanup operation routes
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID)
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, destRouteID)
-
 	t.Log("Transaction Route CRUD lifecycle completed successfully")
 }
 
@@ -217,24 +227,44 @@ func TestIntegration_Routing_TransactionRouteOperationRouteLinkage(t *testing.T)
 	if err != nil {
 		t.Fatalf("create source route failed: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID); err != nil {
+			t.Logf("Warning: cleanup delete source route failed: %v", err)
+		}
+	})
 
 	dest1Title := fmt.Sprintf("Dest1 %s", h.RandString(4))
 	dest1RouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, dest1Title, "destination")
 	if err != nil {
 		t.Fatalf("create dest1 route failed: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, dest1RouteID); err != nil {
+			t.Logf("Warning: cleanup delete dest1 route failed: %v", err)
+		}
+	})
 
 	dest2Title := fmt.Sprintf("Dest2 %s", h.RandString(4))
 	dest2RouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, dest2Title, "destination")
 	if err != nil {
 		t.Fatalf("create dest2 route failed: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, dest2RouteID); err != nil {
+			t.Logf("Warning: cleanup delete dest2 route failed: %v", err)
+		}
+	})
 
 	// Create transaction route linking all three
 	txRouteID, err := h.SetupTransactionRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Multi Link %s", h.RandString(4)), []string{sourceRouteID, dest1RouteID, dest2RouteID})
 	if err != nil {
 		t.Fatalf("create transaction route failed: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := h.DeleteTransactionRoute(ctx, trans, headers, orgID, ledgerID, txRouteID); err != nil {
+			t.Logf("Warning: cleanup delete transaction route failed: %v", err)
+		}
+	})
 
 	// Fetch and verify linkage
 	txRoute, err := h.GetTransactionRoute(ctx, trans, headers, orgID, ledgerID, txRouteID)
@@ -276,12 +306,6 @@ func TestIntegration_Routing_TransactionRouteOperationRouteLinkage(t *testing.T)
 	}
 
 	t.Logf("Transaction route linkage verified: 3 operation routes correctly embedded")
-
-	// Cleanup
-	_ = h.DeleteTransactionRoute(ctx, trans, headers, orgID, ledgerID, txRouteID)
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID)
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, dest1RouteID)
-	_ = h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, dest2RouteID)
 }
 
 // TestIntegration_Routing_TransactionRouteValidation tests validation errors for transaction route creation.
@@ -330,16 +354,115 @@ func TestIntegration_Routing_TransactionRouteValidation(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			code, body, err := trans.Request(ctx, "POST", path, headers, tc.payload)
 			if err != nil {
 				t.Logf("Request error (expected for validation): %v", err)
 			}
-			// Expect non-201 for validation errors
-			if code == 201 {
-				t.Errorf("expected validation error for %s, but got 201 Created: body=%s", tc.name, string(body))
+			// Expect 400 Bad Request for validation errors
+			if code != 400 {
+				t.Errorf("expected 400 Bad Request for %s, but got %d: body=%s", tc.name, code, string(body))
 			}
-			t.Logf("Validation test %s: code=%d (expected non-201)", tc.name, code)
+			t.Logf("Validation test %s: code=%d (expected 400)", tc.name, code)
 		})
 	}
+}
+
+// TestIntegration_Routing_TransactionRouteInvalidOperationRouteRef tests that creating a
+// transaction route with non-existent operation route IDs fails appropriately.
+func TestIntegration_Routing_TransactionRouteInvalidOperationRouteRef(t *testing.T) {
+	t.Parallel()
+	env := h.LoadEnvironment()
+	ctx := context.Background()
+
+	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+	trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
+	headers := h.AuthHeaders(h.RandHex(8))
+
+	// Setup organization and ledger
+	orgID, err := h.SetupOrganization(ctx, onboard, headers, fmt.Sprintf("Invalid OpRoute Org %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup organization failed: %v", err)
+	}
+	t.Logf("Created organization: ID=%s", orgID)
+
+	ledgerID, err := h.SetupLedger(ctx, onboard, headers, orgID, fmt.Sprintf("Invalid OpRoute Ledger %s", h.RandString(5)))
+	if err != nil {
+		t.Fatalf("setup ledger failed: %v", err)
+	}
+	t.Logf("Created ledger: ID=%s", ledgerID)
+
+	// Create one valid operation route
+	validRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Valid Route %s", h.RandString(4)), "source")
+	if err != nil {
+		t.Fatalf("create valid operation route failed: %v", err)
+	}
+	t.Logf("Created valid operation route: ID=%s", validRouteID)
+
+	// Generate a non-existent UUID for testing
+	nonExistentRouteID := "00000000-0000-0000-0000-000000000000"
+
+	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", orgID, ledgerID)
+
+	testCases := []struct {
+		name              string
+		operationRouteIDs []string
+		description       string
+	}{
+		{
+			name:              "all non-existent operation routes",
+			operationRouteIDs: []string{nonExistentRouteID, "11111111-1111-1111-1111-111111111111"},
+			description:       "should fail when all operation route IDs are non-existent",
+		},
+		{
+			name:              "mix of valid and non-existent operation routes",
+			operationRouteIDs: []string{validRouteID, nonExistentRouteID},
+			description:       "should fail when any operation route ID is non-existent",
+		},
+		{
+			name:              "single non-existent operation route",
+			operationRouteIDs: []string{nonExistentRouteID},
+			description:       "should fail with single non-existent operation route",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			createPayload := h.CreateTransactionRoutePayload(
+				fmt.Sprintf("TxRoute %s", h.RandString(6)),
+				tc.operationRouteIDs,
+			)
+			createPayload["description"] = tc.description
+
+			code, body, err := trans.Request(ctx, "POST", path, headers, createPayload)
+			if err != nil {
+				t.Logf("Request error (may be expected): %v", err)
+			}
+
+			// Should NOT succeed with non-existent operation route references
+			if code == 201 {
+				t.Errorf("%s: expected failure, but got 201 Created: body=%s", tc.description, string(body))
+				// Cleanup if accidentally created
+				var created h.TransactionRouteResponse
+				if json.Unmarshal(body, &created) == nil && created.ID != "" {
+					if delErr := h.DeleteTransactionRoute(ctx, trans, headers, orgID, ledgerID, created.ID); delErr != nil {
+						t.Logf("Warning: cleanup delete accidental transaction route failed: %v", delErr)
+					}
+				}
+			} else {
+				t.Logf("%s: correctly rejected with code=%d", tc.description, code)
+			}
+		})
+	}
+
+	// Cleanup
+	if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, validRouteID); err != nil {
+		t.Logf("Warning: cleanup delete valid route failed: %v", err)
+	}
+
+	t.Log("Invalid operation route reference test completed")
 }
