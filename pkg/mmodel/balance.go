@@ -464,3 +464,48 @@ type TransactionRedisQueue struct {
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 }
+
+// NewBalance creates a new Balance with validated invariants.
+// Panics if any required field is invalid or empty.
+// Use this constructor for programmatic balance creation to ensure invariants.
+//
+// Parameters:
+//   - id: must be valid UUID string
+//   - organizationID: must be valid UUID string
+//   - ledgerID: must be valid UUID string
+//   - accountID: must be valid UUID string
+//   - alias: must not be empty
+//   - assetCode: must not be empty
+//   - accountType: the type of account holding this balance
+//
+// Returns a Balance with Version=1, zero Available/OnHold, and current timestamps.
+func NewBalance(id, organizationID, ledgerID, accountID, alias, assetCode, accountType string) *Balance {
+	// Validate required UUID fields
+	assert.That(assert.ValidUUID(id), "id must be valid UUID", "id", id)
+	assert.That(assert.ValidUUID(organizationID), "organizationID must be valid UUID", "organizationID", organizationID)
+	assert.That(assert.ValidUUID(ledgerID), "ledgerID must be valid UUID", "ledgerID", ledgerID)
+	assert.That(assert.ValidUUID(accountID), "accountID must be valid UUID", "accountID", accountID)
+
+	// Validate required string fields
+	assert.NotEmpty(alias, "alias must not be empty")
+	assert.NotEmpty(assetCode, "assetCode must not be empty")
+
+	now := time.Now()
+
+	return &Balance{
+		ID:             id,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AccountID:      accountID,
+		Alias:          alias,
+		AssetCode:      assetCode,
+		AccountType:    accountType,
+		Available:      decimal.Zero,
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AllowSending:   true,
+		AllowReceiving: true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+}

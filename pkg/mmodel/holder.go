@@ -3,7 +3,14 @@ package mmodel
 import (
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/google/uuid"
+)
+
+// Holder type constants
+const (
+	HolderTypeNaturalPerson = "NATURAL_PERSON"
+	HolderTypeLegalPerson   = "LEGAL_PERSON"
 )
 
 // CreateHolderInput is a struct designed to encapsulate request create payload data.
@@ -155,7 +162,7 @@ type LegalPerson struct {
 // swagger:model Representative
 // @Description Representative object from LegalPerson
 type Representative struct {
-	// The legal representative’s name.
+	// The legal representative's name.
 	Name *string `json:"name,omitempty" example:"John Doe"`
 	// The document number of the legal representative.
 	Document *string `json:"document,omitempty" example:"91315026015"`
@@ -164,3 +171,40 @@ type Representative struct {
 	// The role of the legal representative within the company.
 	Role *string `json:"role,omitempty" example:"CFO"`
 } // @name Representative
+
+// NewHolder creates a new Holder with validated invariants.
+// Panics if any required field is invalid or empty.
+// Use this constructor for programmatic holder creation to ensure invariants.
+//
+// Parameters:
+//   - id: must not be uuid.Nil
+//   - name: must not be empty
+//   - document: must not be empty
+//   - holderType: must be "NATURAL_PERSON" or "LEGAL_PERSON"
+//
+// Returns a Holder with the given properties and current timestamps.
+func NewHolder(id uuid.UUID, name, document, holderType string) *Holder {
+	// Validate UUID is not nil
+	assert.That(id != uuid.Nil, "id must not be nil UUID", "id", id.String())
+
+	// Validate required string fields
+	assert.NotEmpty(name, "name must not be empty")
+	assert.NotEmpty(document, "document must not be empty")
+	assert.NotEmpty(holderType, "holderType must not be empty")
+
+	// Validate holderType is a valid enum value
+	assert.That(holderType == HolderTypeNaturalPerson || holderType == HolderTypeLegalPerson,
+		"holderType must be NATURAL_PERSON or LEGAL_PERSON",
+		"holderType", holderType)
+
+	now := time.Now()
+
+	return &Holder{
+		ID:        &id,
+		Name:      &name,
+		Document:  &document,
+		Type:      &holderType,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}

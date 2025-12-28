@@ -7,6 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Account status constants
+const (
+	AccountStatusActive = "ACTIVE"
+)
+
 // CreateAccountInput is a struct designed to encapsulate request create payload data.
 //
 // swagger:model CreateAccountInput
@@ -364,5 +369,43 @@ type AccountErrorResponse struct {
 		// Additional error details if available
 		// example: {"field": "assetCode", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
+	}
+}
+
+// NewAccount creates a new Account with validated invariants.
+// Panics if any required field is invalid or empty.
+// Use this constructor for programmatic account creation to ensure invariants.
+//
+// Parameters:
+//   - id: must be valid UUID string
+//   - organizationID: must be valid UUID string
+//   - ledgerID: must be valid UUID string
+//   - assetCode: must not be empty
+//   - accountType: must not be empty
+//
+// Returns an Account with ACTIVE status and current timestamps.
+func NewAccount(id, organizationID, ledgerID, assetCode, accountType string) *Account {
+	// Validate required UUID fields
+	assert.That(assert.ValidUUID(id), "id must be valid UUID", "id", id)
+	assert.That(assert.ValidUUID(organizationID), "organizationID must be valid UUID", "organizationID", organizationID)
+	assert.That(assert.ValidUUID(ledgerID), "ledgerID must be valid UUID", "ledgerID", ledgerID)
+
+	// Validate required string fields
+	assert.NotEmpty(assetCode, "assetCode must not be empty")
+	assert.NotEmpty(accountType, "accountType must not be empty")
+
+	now := time.Now()
+
+	return &Account{
+		ID:             id,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AssetCode:      assetCode,
+		Type:           accountType,
+		Status: Status{
+			Code: AccountStatusActive,
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }

@@ -142,3 +142,44 @@ func TestBalance_KeyField(t *testing.T) {
 		})
 	}
 }
+
+func TestNewBalance_ValidInputs(t *testing.T) {
+	id := uuid.New().String()
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+	accountID := uuid.New().String()
+
+	balance := NewBalance(id, orgID, ledgerID, accountID, "@alias", "USD", "deposit")
+
+	assert.Equal(t, id, balance.ID)
+	assert.Equal(t, orgID, balance.OrganizationID)
+	assert.Equal(t, ledgerID, balance.LedgerID)
+	assert.Equal(t, accountID, balance.AccountID)
+	assert.Equal(t, "@alias", balance.Alias)
+	assert.Equal(t, "USD", balance.AssetCode)
+	assert.Equal(t, "deposit", balance.AccountType)
+	assert.Equal(t, int64(1), balance.Version)
+	assert.True(t, balance.Available.IsZero())
+	assert.True(t, balance.OnHold.IsZero())
+}
+
+func TestNewBalance_InvalidID_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewBalance("invalid-uuid", uuid.New().String(), uuid.New().String(),
+			uuid.New().String(), "@alias", "USD", "deposit")
+	}, "should panic with invalid ID")
+}
+
+func TestNewBalance_EmptyAlias_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewBalance(uuid.New().String(), uuid.New().String(), uuid.New().String(),
+			uuid.New().String(), "", "USD", "deposit")
+	}, "should panic with empty alias")
+}
+
+func TestNewBalance_EmptyAssetCode_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewBalance(uuid.New().String(), uuid.New().String(), uuid.New().String(),
+			uuid.New().String(), "@alias", "", "deposit")
+	}, "should panic with empty asset code")
+}

@@ -97,3 +97,50 @@ func TestAccount_IDtoUUID(t *testing.T) {
 		})
 	}
 }
+
+func TestNewAccount_ValidInputs(t *testing.T) {
+	id := uuid.New().String()
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+
+	account := NewAccount(id, orgID, ledgerID, "USD", "deposit")
+
+	assert.Equal(t, id, account.ID)
+	assert.Equal(t, orgID, account.OrganizationID)
+	assert.Equal(t, ledgerID, account.LedgerID)
+	assert.Equal(t, "USD", account.AssetCode)
+	assert.Equal(t, "deposit", account.Type)
+	assert.Equal(t, AccountStatusActive, account.Status.Code)
+	assert.False(t, account.CreatedAt.IsZero())
+	assert.False(t, account.UpdatedAt.IsZero())
+}
+
+func TestNewAccount_InvalidID_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewAccount("invalid-uuid", uuid.New().String(), uuid.New().String(), "USD", "deposit")
+	}, "should panic with invalid ID")
+}
+
+func TestNewAccount_InvalidOrganizationID_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewAccount(uuid.New().String(), "invalid-uuid", uuid.New().String(), "USD", "deposit")
+	}, "should panic with invalid organization ID")
+}
+
+func TestNewAccount_InvalidLedgerID_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewAccount(uuid.New().String(), uuid.New().String(), "invalid-uuid", "USD", "deposit")
+	}, "should panic with invalid ledger ID")
+}
+
+func TestNewAccount_EmptyAssetCode_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewAccount(uuid.New().String(), uuid.New().String(), uuid.New().String(), "", "deposit")
+	}, "should panic with empty asset code")
+}
+
+func TestNewAccount_EmptyAccountType_Panics(t *testing.T) {
+	assert.Panics(t, func() {
+		NewAccount(uuid.New().String(), uuid.New().String(), uuid.New().String(), "USD", "")
+	}, "should panic with empty account type")
+}
