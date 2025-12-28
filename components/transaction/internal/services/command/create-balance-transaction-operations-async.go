@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -26,7 +27,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
+// CreateBalanceTransactionOperationsAsync creates all transactions atomically using a database transaction.
+// This ensures that balance updates, transaction creation, and operation creation either
+// all succeed or all fail together, preventing orphan transactions.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -43,48 +46,66 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	if t.Transaction.Status.Code != constant.NOTED {
-		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-		defer spanUpdateBalances.End()
+	// Use the result outside the transaction
+	var tran *transaction.Transaction
 
-		logger.Infof("Trying to update balances")
+	// Wrap balance update, transaction creation, and operations in a single database transaction.
+	// This prevents orphan transactions (transactions without operations) that occur when
+	// transaction creation succeeds but operation creation fails.
+	ctx, spanAtomic := tracer.Start(ctx, "command.create_balance_transaction_operations.atomic")
+	defer spanAtomic.End()
 
-		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
+	err := dbtx.RunInTransaction(ctx, uc.DBProvider, func(txCtx context.Context) error {
+		// Step 1: Update balances (if not NOTED status)
+		if t.Transaction.Status.Code != constant.NOTED {
+			ctxProcessBalances, spanUpdateBalances := tracer.Start(txCtx, "command.create_balance_transaction_operations.update_balances")
+			defer spanUpdateBalances.End()
+
+			logger.Infof("Trying to update balances")
+
+			if err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
+				logger.Errorf("Failed to update balances: %v", err.Error())
+				return err
+			}
+		}
+
+		// Step 2: Create or update transaction
+		ctxProcessTransaction, spanUpdateTransaction := tracer.Start(txCtx, "command.create_balance_transaction_operations.create_transaction")
+		defer spanUpdateTransaction.End()
+
+		var err error
+		tran, err = uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
-
-			logger.Errorf("Failed to update balances: %v", err.Error())
-
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
+			logger.Errorf("Failed to create or update transaction: %v", err.Error())
 			return err
 		}
-	}
 
-	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
-	defer spanUpdateTransaction.End()
+		// Step 3: Create operations
+		if err := uc.createOperations(txCtx, logger, tracer, tran.Operations); err != nil {
+			return err
+		}
 
-	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+		return nil
+	})
+
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
-
-		logger.Errorf("Failed to create or update transaction: %v", err.Error())
-
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAtomic, "Atomic transaction failed", err)
+		logger.Errorf("Atomic transaction failed: %v", err.Error())
 		return err
 	}
 
+	// Metadata creation is done outside the transaction since it's MongoDB (different database)
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
-
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
-
-		return err
-	}
-
-	err = uc.createOperations(ctx, logger, tracer, tran.Operations)
-	if err != nil {
+		// Note: Transaction is already committed, but metadata creation failed.
+		// This is acceptable because metadata is supplementary and the core transaction is atomic.
 		return err
 	}
 

@@ -259,6 +259,12 @@ func InitServers() *Service {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
+	// Get DB connection for transaction management in UseCase
+	dbProvider, err := postgresConnection.GetDB()
+	assert.NoError(err, "database connection required for UseCase DBProvider",
+		"package", "bootstrap",
+		"function", "InitServers")
+
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
@@ -269,6 +275,7 @@ func InitServers() *Service {
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
+		DBProvider:           dbProvider,
 	}
 
 	queryUseCase := &query.UseCase{
