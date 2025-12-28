@@ -157,16 +157,24 @@ endif
 	fi
 
 
-# E2E tests (Apidog CLI) – brings up stack, runs Apidog JSON workflow, saves report
+# E2E tests (Apidog CLI) – runs Apidog JSON workflow, saves report
+# Use START_LOCAL_DOCKER=1 to spin up the Docker stack before running tests
 .PHONY: test-e2e
 test-e2e:
-	$(call print_title,Running E2E tests with Apidog CLI (with Docker stack))
+	$(call print_title,Running E2E tests with Apidog CLI)
+
+ifeq ($(START_LOCAL_DOCKER),1)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+endif
 	@set -e; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
+	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
+	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	  $(MAKE) up-backend; \
+	  $(MAKE) -s wait-for-services; \
+	else \
+	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
+	fi; \
 	mkdir -p ./reports/e2e; \
 	echo "Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json"; \
 	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
