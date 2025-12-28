@@ -552,17 +552,15 @@ func TestIntegration_OperationRoutes_MetadataHandling(t *testing.T) {
 
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/operation-routes", orgID, ledgerID)
 
-	// Create route with complex metadata
+	// Create route with flat metadata (nested objects and arrays are not allowed)
 	complexMetadata := map[string]any{
 		"string_value": "test",
 		"int_value":    42,
 		"float_value":  3.14,
 		"bool_value":   true,
-		"nested": map[string]any{
-			"key1": "value1",
-			"key2": 123,
-		},
-		"array_value": []any{"a", "b", "c"},
+		"nested_key1":  "value1",
+		"nested_key2":  123,
+		"array_value":  "a,b,c",
 	}
 
 	createPayload := map[string]any{

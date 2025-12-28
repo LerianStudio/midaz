@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -337,7 +338,7 @@ func TestIntegration_Asset_Update(t *testing.T) {
 	}
 
 	// Create custom asset
-	assetCode := fmt.Sprintf("TST%s", h.RandString(3))
+	assetCode := fmt.Sprintf("TST%s", strings.ToUpper(h.RandString(3)))
 	createAssetPayload := map[string]any{
 		"name": "Test Asset",
 		"type": "currency",
@@ -412,7 +413,7 @@ func TestIntegration_Asset_Delete(t *testing.T) {
 	}
 
 	// Create custom asset (not USD to avoid conflicts)
-	assetCode := fmt.Sprintf("DEL%s", h.RandString(3))
+	assetCode := fmt.Sprintf("DEL%s", strings.ToUpper(h.RandString(3)))
 	createAssetPayload := map[string]any{
 		"name": "Asset To Delete",
 		"type": "currency",
@@ -617,7 +618,7 @@ func TestIntegration_Idempotency_DuplicateAssetCreate(t *testing.T) {
 	}
 
 	// Generate unique asset code for this test
-	assetCode := fmt.Sprintf("DUP%s", h.RandString(3))
+	assetCode := fmt.Sprintf("DUP%s", strings.ToUpper(h.RandString(3)))
 	createPayload := map[string]any{
 		"name": "Duplicate Test Asset",
 		"type": "currency",
@@ -668,7 +669,7 @@ func TestIntegration_Metadata_EmptyUpdate(t *testing.T) {
 		"metadata": map[string]any{
 			"environment": "test",
 			"version":     1,
-			"tags":        []string{"integration", "metadata-test"},
+			"tags":        "integration,metadata-test",
 		},
 	}
 
