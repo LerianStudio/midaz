@@ -55,8 +55,11 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 	var deleteErrs []error
 
 	for _, holderLink := range holderLinks {
+		// Data integrity check: HolderLink.ID should never be nil
+		// If nil, this indicates a data corruption issue that should be investigated
+		// We log and skip rather than panic to allow partial cleanup to proceed
 		if holderLink.ID == nil {
-			logger.Errorf("HolderLink with nil ID found for holder %s, skipping", id.String())
+			logger.Errorf("DATA INTEGRITY: HolderLink with nil ID found for holder %s - this should be investigated", id.String())
 
 			continue
 		}

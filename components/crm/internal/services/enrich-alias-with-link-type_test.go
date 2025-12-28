@@ -9,6 +9,7 @@ import (
 	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -109,14 +110,6 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 			},
 		},
 		{
-			name: "Success when alias ID is nil",
-			alias: &mmodel.Alias{
-				ID: nil,
-			},
-			mockSetup:           func() {},
-			expectedHolderLinks: nil,
-		},
-		{
 			name: "Success when no holder links found",
 			alias: &mmodel.Alias{
 				ID: &aliasID,
@@ -194,4 +187,18 @@ func TestEnrichAliasWithLinkType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnrichAliasWithLinkType_NilAliasID_Panics(t *testing.T) {
+	uc := &UseCase{}
+	ctx := context.Background()
+	orgID := "org-123"
+
+	alias := &mmodel.Alias{
+		ID: nil, // This should now trigger assertion
+	}
+
+	require.Panics(t, func() {
+		uc.enrichAliasWithLinkType(ctx, orgID, alias)
+	}, "should panic when alias.ID is nil - indicates programming error")
 }

@@ -5,6 +5,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -16,13 +17,10 @@ func (uc *UseCase) enrichAliasWithLinkType(ctx context.Context, organizationID s
 	ctx, span := tracer.Start(ctx, "service.enrich_alias_with_link_type")
 	defer span.End()
 
-	if alias.ID == nil {
-		libOpenTelemetry.HandleSpanEvent(&span, "Alias ID is nil")
-
-		logger.Infof("Alias ID is nil")
-
-		return
-	}
+	// Precondition: alias.ID must not be nil - indicates programming error
+	// If this triggers, the caller passed an uninitialized alias
+	assert.NotNil(alias.ID, "alias.ID must not be nil for enrichment",
+		"organizationID", organizationID)
 
 	holderLinks, err := uc.HolderLinkRepo.FindByAliasID(ctx, organizationID, *alias.ID, false)
 	if err != nil {

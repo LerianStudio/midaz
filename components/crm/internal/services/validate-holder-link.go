@@ -39,6 +39,8 @@ func (uc *UseCase) ValidateHolderLinkConstraints(ctx context.Context, organizati
 	}
 
 	if existingLink != nil {
+		// Note: LinkType conversion from string is always safe (creates enum value)
+		// Invalid values will fail the comparison checks below
 		linkTypeEnum := mmodel.LinkType(linkType)
 		if linkTypeEnum == mmodel.LinkTypePrimaryHolder {
 			libOpenTelemetry.HandleSpanError(&span, "Primary holder already exists for this alias", constant.ErrPrimaryHolderAlreadyExists)
