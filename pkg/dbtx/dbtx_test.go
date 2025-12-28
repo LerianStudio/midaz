@@ -152,7 +152,7 @@ func TestRunInTransaction_BeginError(t *testing.T) {
 		return nil
 	})
 
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -174,7 +174,7 @@ func TestRunInTransaction_CommitError(t *testing.T) {
 		return nil
 	})
 
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	// Don't strictly check expectations since rollback behavior after commit error is driver-dependent
 }
 

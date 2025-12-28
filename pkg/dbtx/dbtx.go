@@ -6,6 +6,7 @@ package dbtx
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // txKey is the context key for database transactions.
@@ -42,6 +43,7 @@ func ContextWithTx(ctx context.Context, tx Tx) context.Context {
 	if tx == nil {
 		return ctx
 	}
+
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
@@ -61,6 +63,7 @@ func GetExecutor(ctx context.Context, db Executor) Executor {
 	if tx := TxFromContext(ctx); tx != nil {
 		return tx
 	}
+
 	return db
 }
 
@@ -70,11 +73,12 @@ func GetExecutor(ctx context.Context, db Executor) Executor {
 func RunInTransaction(ctx context.Context, db TxBeginner, fn func(ctx context.Context) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("beginning transaction: %w", err) //nolint:wrapcheck // Transaction operations are infrastructure-level, context added via fmt.Errorf
 	}
 
 	// Ensure rollback on panic
 	committed := false
+
 	defer func() {
 		if !committed {
 			_ = tx.Rollback()
@@ -89,8 +93,9 @@ func RunInTransaction(ctx context.Context, db TxBeginner, fn func(ctx context.Co
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		return err
+		return fmt.Errorf("committing transaction: %w", err) //nolint:wrapcheck // Transaction operations are infrastructure-level, context added via fmt.Errorf
 	}
+
 	committed = true
 
 	return nil
