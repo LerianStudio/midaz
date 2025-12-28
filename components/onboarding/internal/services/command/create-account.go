@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // validateAccountPrerequisites validates asset, portfolio, and parent account before account creation
@@ -55,30 +56,52 @@ func (uc *UseCase) validateAccountPrerequisites(ctx context.Context, organizatio
 	}
 
 	if !libCommons.IsNilOrEmpty(cai.ParentAccountID) {
-		assert.That(assert.ValidUUID(*cai.ParentAccountID),
-			"parent account ID must be valid UUID",
-			"parent_account_id", *cai.ParentAccountID)
-
-		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
-		if err != nil {
-			businessErr := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", businessErr)
-
-			return uuid.Nil, businessErr
-		}
-
-		assert.NotNil(acc, "parent account must exist after successful Find",
-			"parent_account_id", *cai.ParentAccountID)
-
-		if acc.AssetCode != cai.AssetCode {
-			businessErr := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate parent account", businessErr)
-
-			return uuid.Nil, businessErr
+		if err := uc.validateParentAccount(ctx, organizationID, ledgerID, &portfolioUUID, cai, span); err != nil {
+			return uuid.Nil, err
 		}
 	}
 
 	return portfolioUUID, nil
+}
+
+// validateParentAccount validates the parent account exists, has matching asset code, and no circular hierarchy.
+func (uc *UseCase) validateParentAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioUUID *uuid.UUID, cai *mmodel.CreateAccountInput, span *trace.Span) error {
+	// Safe UUID parsing - avoids panic on malformed input
+	parsedParentID, parseErr := uuid.Parse(*cai.ParentAccountID)
+	if parseErr != nil {
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid parent account ID format", businessErr)
+
+		return businessErr
+	}
+
+	acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioUUID, parsedParentID)
+	if err != nil {
+		businessErr := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", businessErr)
+
+		return businessErr
+	}
+
+	assert.NotNil(acc, "parent account must exist after successful Find",
+		"parent_account_id", parsedParentID.String())
+
+	if acc.AssetCode != cai.AssetCode {
+		businessErr := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate parent account", businessErr)
+
+		return businessErr
+	}
+
+	// Check for circular hierarchy before allowing account creation (CREATE only).
+	// Note: This check is not atomic with account creation. For strict prevention,
+	// consider adding a database trigger or constraint. See TOCTOU note in docs.
+	if err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, parsedParentID.String()); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Circular hierarchy check failed: "+err.Error(), err)
+		return err
+	}
+
+	return nil
 }
 
 // createAccountBalance creates the default balance for an account via BalancePort
@@ -301,6 +324,116 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 		logger.Errorf("Error finding account type: %v", err)
 
 		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
+	}
+
+	return nil
+}
+
+// detectCycleInHierarchy checks if setting parentAccountID as parent of a new account
+// would create a circular reference. It traverses up the hierarchy from parentAccountID
+// with a depth limit to prevent DoS attacks.
+//
+// This function is used during CREATE operations only - the new account doesn't exist yet,
+// so we only need to check if the existing parent chain already contains a cycle.
+//
+// Returns:
+// - nil: No cycle detected, safe to proceed
+// - ErrCircularAccountHierarchy: Cycle detected in existing hierarchy
+// - ErrAccountHierarchyTooDeep: Hierarchy exceeds max depth
+// - ErrCorruptedParentAccountUUID: Invalid UUID detected (strict mode only)
+// - Other errors: Database or validation errors
+func (uc *UseCase) detectCycleInHierarchy(ctx context.Context, organizationID, ledgerID uuid.UUID, parentAccountID string) error {
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.detect_cycle_in_hierarchy")
+	defer span.End()
+
+	visited := make(map[string]bool)
+	currentID := parentAccountID
+	depth := 0
+
+	for currentID != "" {
+		depth++
+
+		// Depth limit check - prevents DoS via deep hierarchies
+		if depth > constant.MaxAccountHierarchyDepth {
+			err := pkg.ValidateBusinessError(constant.ErrAccountHierarchyTooDeep, reflect.TypeOf(mmodel.Account{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Hierarchy depth limit exceeded", err)
+			logger.Warnf("Account hierarchy depth limit exceeded: %d levels", depth)
+
+			return err
+		}
+
+		// Cycle detection - check if we've visited this node
+		if visited[currentID] {
+			err := pkg.ValidateBusinessError(constant.ErrCircularAccountHierarchy, reflect.TypeOf(mmodel.Account{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Circular hierarchy detected in existing data", err)
+			logger.Warnf("Circular hierarchy detected: already visited account %s", currentID)
+
+			return err
+		}
+
+		visited[currentID] = true
+
+		// Safe UUID parsing - handles corrupted database data based on strictMode configuration.
+		// When strictMode is enabled (STRICT_PARENT_UUID_VALIDATION=true), parse failures
+		// return an error to fail the operation fast.
+		// When strictMode is disabled (default), we treat corrupted UUIDs as end-of-chain
+		// to prevent cascading failures from bad data while still allowing the operation.
+		// In both cases, a metric is emitted and the error is logged for incident tracking.
+		parsedID, parseErr := uuid.Parse(currentID)
+		if parseErr != nil {
+			// Always emit metric for observability regardless of mode
+			if metricFactory != nil {
+				metricFactory.Counter(utils.ParentUUIDCorruption).
+					WithLabels(map[string]string{
+						"organization_id": organizationID.String(),
+						"ledger_id":       ledgerID.String(),
+					}).
+					AddOne(ctx)
+			}
+
+			// Always log with full error details for incident tracking
+			logger.Warnf("DATA_CORRUPTION: Invalid UUID in parent account chain: %s, parse_error: %v, organization_id: %s, ledger_id: %s",
+				currentID, parseErr, organizationID.String(), ledgerID.String())
+
+			// Check strict mode configuration
+			strictMode := strings.EqualFold(os.Getenv("STRICT_PARENT_UUID_VALIDATION"), "true")
+			if strictMode {
+				err := pkg.ValidateBusinessError(constant.ErrCorruptedParentAccountUUID, reflect.TypeOf(mmodel.Account{}).Name())
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Corrupted UUID detected in parent account chain (strict mode)", err)
+
+				return err
+			}
+
+			// Lenient mode: defensive termination - treat as end of chain
+			return nil
+		}
+
+		// Fetch the current account to get its parent
+		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, parsedID)
+		if err != nil {
+			// Check if it's a "not found" error using the correct error type
+			// AccountRepo.Find returns pkg.EntityNotFoundError, not services.ErrDatabaseItemNotFound
+			var entityNotFoundErr pkg.EntityNotFoundError
+			if errors.As(err, &entityNotFoundErr) {
+				logger.Infof("Account %s not found, end of hierarchy chain", currentID)
+				return nil
+			}
+			// Propagate real database errors
+			libOpentelemetry.HandleSpanError(&span, "Database error during hierarchy check", err)
+			logger.Errorf("Error fetching account %s during hierarchy check: %v", currentID, err)
+
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
+		}
+
+		// Move to parent
+		if acc.ParentAccountID == nil || *acc.ParentAccountID == "" {
+			// Reached root, no cycle
+			return nil
+		}
+
+		currentID = *acc.ParentAccountID
 	}
 
 	return nil

@@ -986,6 +986,404 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	}
 }
 
+// TestDetectCycleInHierarchy_DepthLimitExceeded tests hierarchy depth limit enforcement
+func TestDetectCycleInHierarchy_DepthLimitExceeded(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	// Create a chain of 101 accounts (exceeds MaxAccountHierarchyDepth = 100)
+	accountIDs := make([]string, 102)
+	for i := range accountIDs {
+		accountIDs[i] = uuid.New().String()
+	}
+
+	// Set up mock to return accounts with parent chains
+	// Each account points to the next one as its parent
+	// Note: depth check (depth > 100) happens at start of loop iteration BEFORE Find,
+	// so with MaxAccountHierarchyDepth=100, we make 100 Find calls (depths 1-100)
+	// and error on the 101st iteration before the Find call
+	for i := 0; i < 100; i++ {
+		currentID := accountIDs[i]
+		nextID := accountIDs[i+1]
+		parsedID, _ := uuid.Parse(currentID)
+
+		mockAccountRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, nil, parsedID).
+			Return(&mmodel.Account{
+				ID:              currentID,
+				ParentAccountID: &nextID,
+			}, nil).
+			Times(1)
+	}
+
+	// Call detectCycleInHierarchy starting from the first account
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, accountIDs[0])
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds the maximum allowed depth")
+}
+
+// TestDetectCycleInHierarchy_CycleInExistingData tests cycle detection in existing data (A→B→C→A)
+func TestDetectCycleInHierarchy_CycleInExistingData(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	// Create circular reference: A → B → C → A
+	accountA := uuid.New().String()
+	accountB := uuid.New().String()
+	accountC := uuid.New().String()
+
+	parsedA, _ := uuid.Parse(accountA)
+	parsedB, _ := uuid.Parse(accountB)
+	parsedC, _ := uuid.Parse(accountC)
+
+	// A's parent is B
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedA).
+		Return(&mmodel.Account{
+			ID:              accountA,
+			ParentAccountID: &accountB,
+		}, nil).
+		Times(1)
+
+	// B's parent is C
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedB).
+		Return(&mmodel.Account{
+			ID:              accountB,
+			ParentAccountID: &accountC,
+		}, nil).
+		Times(1)
+
+	// C's parent is A (cycle!)
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedC).
+		Return(&mmodel.Account{
+			ID:              accountC,
+			ParentAccountID: &accountA,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy starting from A
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, accountA)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "circular")
+}
+
+// TestDetectCycleInHierarchy_InvalidUUID_LenientMode tests defensive termination on invalid UUID in lenient mode (default)
+func TestDetectCycleInHierarchy_InvalidUUID_LenientMode(t *testing.T) {
+	// Ensure lenient mode (env var not set or set to false)
+	originalEnv := os.Getenv("STRICT_PARENT_UUID_VALIDATION")
+	os.Setenv("STRICT_PARENT_UUID_VALIDATION", "")
+	defer func() {
+		os.Setenv("STRICT_PARENT_UUID_VALIDATION", originalEnv)
+	}()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	validParentID := uuid.New().String()
+	invalidUUID := "not-a-valid-uuid"
+
+	parsedValidID, _ := uuid.Parse(validParentID)
+
+	// First call returns an account with invalid parent UUID
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedValidID).
+		Return(&mmodel.Account{
+			ID:              validParentID,
+			ParentAccountID: &invalidUUID,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return nil (defensive termination in lenient mode)
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, validParentID)
+
+	assert.NoError(t, err)
+}
+
+// TestDetectCycleInHierarchy_InvalidUUID_StrictMode tests error return on invalid UUID in strict mode
+func TestDetectCycleInHierarchy_InvalidUUID_StrictMode(t *testing.T) {
+	// Enable strict mode
+	originalEnv := os.Getenv("STRICT_PARENT_UUID_VALIDATION")
+	os.Setenv("STRICT_PARENT_UUID_VALIDATION", "true")
+	defer func() {
+		os.Setenv("STRICT_PARENT_UUID_VALIDATION", originalEnv)
+	}()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	validParentID := uuid.New().String()
+	invalidUUID := "not-a-valid-uuid"
+
+	parsedValidID, _ := uuid.Parse(validParentID)
+
+	// First call returns an account with invalid parent UUID
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedValidID).
+		Return(&mmodel.Account{
+			ID:              validParentID,
+			ParentAccountID: &invalidUUID,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return error in strict mode
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, validParentID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "corruption")
+}
+
+// TestDetectCycleInHierarchy_InvalidUUID_StrictModeCaseInsensitive tests that strict mode env var is case insensitive
+func TestDetectCycleInHierarchy_InvalidUUID_StrictModeCaseInsensitive(t *testing.T) {
+	// Enable strict mode with mixed case
+	originalEnv := os.Getenv("STRICT_PARENT_UUID_VALIDATION")
+	os.Setenv("STRICT_PARENT_UUID_VALIDATION", "TRUE")
+	defer func() {
+		os.Setenv("STRICT_PARENT_UUID_VALIDATION", originalEnv)
+	}()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	validParentID := uuid.New().String()
+	invalidUUID := "not-a-valid-uuid"
+
+	parsedValidID, _ := uuid.Parse(validParentID)
+
+	// First call returns an account with invalid parent UUID
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedValidID).
+		Return(&mmodel.Account{
+			ID:              validParentID,
+			ParentAccountID: &invalidUUID,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return error in strict mode (case insensitive)
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, validParentID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "corruption")
+}
+
+// TestDetectCycleInHierarchy_InvalidUUID_LenientModeExplicitFalse tests lenient mode with explicit "false" value
+func TestDetectCycleInHierarchy_InvalidUUID_LenientModeExplicitFalse(t *testing.T) {
+	// Explicit false means lenient mode
+	originalEnv := os.Getenv("STRICT_PARENT_UUID_VALIDATION")
+	os.Setenv("STRICT_PARENT_UUID_VALIDATION", "false")
+	defer func() {
+		os.Setenv("STRICT_PARENT_UUID_VALIDATION", originalEnv)
+	}()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	validParentID := uuid.New().String()
+	invalidUUID := "not-a-valid-uuid"
+
+	parsedValidID, _ := uuid.Parse(validParentID)
+
+	// First call returns an account with invalid parent UUID
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedValidID).
+		Return(&mmodel.Account{
+			ID:              validParentID,
+			ParentAccountID: &invalidUUID,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return nil (defensive termination in lenient mode)
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, validParentID)
+
+	assert.NoError(t, err)
+}
+
+// TestDetectCycleInHierarchy_AccountNotFound tests graceful handling when account is not found
+func TestDetectCycleInHierarchy_AccountNotFound(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	parentID := uuid.New().String()
+	parsedID, _ := uuid.Parse(parentID)
+
+	// Mock returns EntityNotFoundError
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedID).
+		Return(nil, pkg.EntityNotFoundError{
+			EntityType: "Account",
+			Message:    "account not found",
+		}).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return nil (end of hierarchy chain)
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, parentID)
+
+	assert.NoError(t, err)
+}
+
+// TestDetectCycleInHierarchy_DatabaseError tests propagation of database errors
+func TestDetectCycleInHierarchy_DatabaseError(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	parentID := uuid.New().String()
+	parsedID, _ := uuid.Parse(parentID)
+
+	// Mock returns a database error (not EntityNotFoundError)
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedID).
+		Return(nil, errors.New("database connection error")).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return InternalError
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, parentID)
+
+	require.Error(t, err)
+	var internalErr pkg.InternalServerError
+	assert.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+}
+
+// TestDetectCycleInHierarchy_NormalTraversal tests successful traversal of a valid 3-level hierarchy
+func TestDetectCycleInHierarchy_NormalTraversal(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	// Create a valid 3-level hierarchy: Child → Parent → Grandparent → nil (root)
+	childID := uuid.New().String()
+	parentID := uuid.New().String()
+	grandparentID := uuid.New().String()
+
+	parsedChildID, _ := uuid.Parse(childID)
+	parsedParentID, _ := uuid.Parse(parentID)
+	parsedGrandparentID, _ := uuid.Parse(grandparentID)
+
+	// Child's parent is Parent
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedChildID).
+		Return(&mmodel.Account{
+			ID:              childID,
+			ParentAccountID: &parentID,
+		}, nil).
+		Times(1)
+
+	// Parent's parent is Grandparent
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedParentID).
+		Return(&mmodel.Account{
+			ID:              parentID,
+			ParentAccountID: &grandparentID,
+		}, nil).
+		Times(1)
+
+	// Grandparent has no parent (root)
+	emptyParent := ""
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, parsedGrandparentID).
+		Return(&mmodel.Account{
+			ID:              grandparentID,
+			ParentAccountID: &emptyParent,
+		}, nil).
+		Times(1)
+
+	// Call detectCycleInHierarchy - should return nil (no cycle)
+	err := uc.detectCycleInHierarchy(ctx, organizationID, ledgerID, childID)
+
+	assert.NoError(t, err)
+}
+
 // TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
 func TestCreateAccountBlockedFlag(t *testing.T) {
 	ctx := context.Background()
