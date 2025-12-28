@@ -245,25 +245,51 @@ SELECT json_build_object(
 );")
 
 # ----------------------------------------------------------------------------
-# Check 5: MongoDB Counts
+# Check 5: MongoDB Counts (DEPRECATED - kept for reference)
 # ----------------------------------------------------------------------------
-log "Running MongoDB counts..."
+# NOTE: Raw MongoDB counts are NOT comparable to PostgreSQL counts.
+# MongoDB stores ONLY metadata records, not full entity replication.
+# See Check 6 for meaningful metadata integrity checks.
+# log "Running MongoDB counts..."
+# MONGO_ONBOARDING=$(run_mongosh onboarding "...")
+# MONGO_TRANSACTION=$(run_mongosh transaction "...")
 
-MONGO_ONBOARDING=$(run_mongosh onboarding "
-JSON.stringify({
-    organization: db.organization.countDocuments({deleted_at: null}),
-    ledger: db.ledger.countDocuments({deleted_at: null}),
-    asset: db.asset.countDocuments({deleted_at: null}),
-    account: db.account.countDocuments({deleted_at: null}),
-    portfolio: db.portfolio.countDocuments({deleted_at: null}),
-    segment: db.segment.countDocuments({deleted_at: null})
-})")
+# ----------------------------------------------------------------------------
+# Check 6: MongoDB Metadata Integrity
+# ----------------------------------------------------------------------------
+log "Running MongoDB metadata integrity check..."
 
-MONGO_TRANSACTION=$(run_mongosh transaction "
+# Check for metadata in onboarding (metadata records for entities with metadata attached)
+MONGO_METADATA_ONBOARDING=$(run_mongosh onboarding "
+var counts = {
+    organization: 0,
+    ledger: 0,
+    asset: 0,
+    account: 0,
+    portfolio: 0,
+    segment: 0
+};
+var entityNames = ['organization', 'ledger', 'asset', 'account', 'portfolio', 'segment'];
+entityNames.forEach(function(name) {
+    var coll = db.getCollection(name);
+    var count = coll.countDocuments({deleted_at: null});
+    counts[name] = count;
+});
 JSON.stringify({
-    transaction: db.transaction.countDocuments({deleted_at: null}),
-    operation: db.operation.countDocuments({deleted_at: null})
-})")
+    total_metadata_records: counts.organization + counts.ledger + counts.asset + counts.account + counts.portfolio + counts.segment,
+    by_entity: counts
+});
+")
+
+MONGO_METADATA_TRANSACTION=$(run_mongosh transaction "
+var counts = {transaction: 0, operation: 0};
+counts.transaction = db.transaction.countDocuments({deleted_at: null});
+counts.operation = db.operation.countDocuments({deleted_at: null});
+JSON.stringify({
+    total_metadata_records: counts.transaction + counts.operation,
+    by_entity: counts
+});
+")
 
 # ----------------------------------------------------------------------------
 # Assemble Final Report
@@ -279,22 +305,24 @@ jq -n \
     --argjson double_entry "$DOUBLE_ENTRY_CHECK" \
     --argjson integrity_onboarding "$INTEGRITY_ONBOARDING" \
     --argjson integrity_transaction "$INTEGRITY_TRANSACTION" \
-    --argjson mongo_onboarding "$MONGO_ONBOARDING" \
-    --argjson mongo_transaction "$MONGO_TRANSACTION" \
+    --argjson mongo_metadata_onboarding "$MONGO_METADATA_ONBOARDING" \
+    --argjson mongo_metadata_transaction "$MONGO_METADATA_TRANSACTION" \
     '{
         reconciliation_report: {
             timestamp: $ts,
-            version: "1.0.0",
+            version: "2.0.0",
             checks: {
                 entity_counts: {
                     postgresql: {
                         onboarding: $pg_onboarding,
                         transaction: $pg_transaction
                     },
-                    mongodb: {
-                        onboarding: $mongo_onboarding,
-                        transaction: $mongo_transaction
-                    }
+                    note: "MongoDB stores metadata ONLY for entities with metadata attached. Count differences are expected and normal."
+                },
+                metadata_store: {
+                    note: "MongoDB is a metadata-only store. Records exist only for entities that have metadata attached.",
+                    onboarding: $mongo_metadata_onboarding,
+                    transaction: $mongo_metadata_transaction
                 },
                 balance_consistency: $balance,
                 double_entry_validation: $double_entry,

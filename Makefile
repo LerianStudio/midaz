@@ -798,37 +798,37 @@ reconcile:
 	echo "╚══════════════════════════════════════════════════════════════════════════════╝"; \
 	echo ""; \
 	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
-	echo "│  ENTITY COUNTS                                                               │"; \
-	echo "├─────────────────────┬─────────────────┬─────────────────┬────────────────────┤"; \
-	echo "│ Entity              │ PostgreSQL      │ MongoDB         │ Difference         │"; \
-	echo "├─────────────────────┼─────────────────┼─────────────────┼────────────────────┤"; \
+	echo "│  POSTGRESQL ENTITY COUNTS                                                    │"; \
+	echo "├─────────────────────────────────────────────┬────────────────────────────────┤"; \
+	echo "│ Entity                                      │ Count                          │"; \
+	echo "├─────────────────────────────────────────────┼────────────────────────────────┤"; \
 	pg_org=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.organization' $$REPORT); \
-	mg_org=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.organization' $$REPORT); \
-	diff_org=$$((mg_org - pg_org)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Organizations" "$$pg_org" "$$mg_org" "$$diff_org"; \
+	printf "│ %-43s │ %30s │\n" "Organizations" "$$pg_org"; \
 	pg_ldg=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.ledger' $$REPORT); \
-	mg_ldg=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.ledger' $$REPORT); \
-	diff_ldg=$$((mg_ldg - pg_ldg)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Ledgers" "$$pg_ldg" "$$mg_ldg" "$$diff_ldg"; \
+	printf "│ %-43s │ %30s │\n" "Ledgers" "$$pg_ldg"; \
 	pg_ast=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.asset' $$REPORT); \
-	mg_ast=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.asset' $$REPORT); \
-	diff_ast=$$((mg_ast - pg_ast)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Assets" "$$pg_ast" "$$mg_ast" "$$diff_ast"; \
+	printf "│ %-43s │ %30s │\n" "Assets" "$$pg_ast"; \
 	pg_acc=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.onboarding.account' $$REPORT); \
-	mg_acc=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.onboarding.account' $$REPORT); \
-	diff_acc=$$((mg_acc - pg_acc)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Accounts" "$$pg_acc" "$$mg_acc" "$$diff_acc"; \
+	printf "│ %-43s │ %30s │\n" "Accounts" "$$pg_acc"; \
 	pg_txn=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.transaction' $$REPORT); \
-	mg_txn=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.transaction.transaction' $$REPORT); \
-	diff_txn=$$((mg_txn - pg_txn)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Transactions" "$$pg_txn" "$$mg_txn" "$$diff_txn"; \
+	printf "│ %-43s │ %30s │\n" "Transactions" "$$pg_txn"; \
 	pg_ops=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.operation' $$REPORT); \
-	mg_ops=$$(jq -r '.reconciliation_report.checks.entity_counts.mongodb.transaction.operation' $$REPORT); \
-	diff_ops=$$((mg_ops - pg_ops)); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Operations" "$$pg_ops" "$$mg_ops" "$$diff_ops"; \
+	printf "│ %-43s │ %30s │\n" "Operations" "$$pg_ops"; \
 	pg_bal=$$(jq -r '.reconciliation_report.checks.entity_counts.postgresql.transaction.balance' $$REPORT); \
-	printf "│ %-19s │ %15s │ %15s │ %18s │\n" "Balances" "$$pg_bal" "-" "-"; \
-	echo "└─────────────────────┴─────────────────┴─────────────────┴────────────────────┘"; \
+	printf "│ %-43s │ %30s │\n" "Balances" "$$pg_bal"; \
+	echo "└─────────────────────────────────────────────┴────────────────────────────────┘"; \
+	echo ""; \
+	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
+	echo "│  METADATA STORE (MongoDB)                                                    │"; \
+	echo "│  Note: MongoDB stores only entities WITH metadata attached                   │"; \
+	echo "├─────────────────────────────────────────────┬────────────────────────────────┤"; \
+	echo "│ Entity                                      │ Metadata Records               │"; \
+	echo "├─────────────────────────────────────────────┼────────────────────────────────┤"; \
+	mg_meta_total=$$(jq -r '.reconciliation_report.checks.metadata_store.onboarding.total_metadata_records // 0' $$REPORT); \
+	printf "│ %-43s │ %30s │\n" "Onboarding Entities with Metadata" "$$mg_meta_total"; \
+	mg_txn_meta=$$(jq -r '.reconciliation_report.checks.metadata_store.transaction.total_metadata_records // 0' $$REPORT); \
+	printf "│ %-43s │ %30s │\n" "Transaction Entities with Metadata" "$$mg_txn_meta"; \
+	echo "└─────────────────────────────────────────────┴────────────────────────────────┘"; \
 	echo ""; \
 	echo "┌──────────────────────────────────────────────────────────────────────────────┐"; \
 	echo "│  CONSISTENCY CHECKS                                                          │"; \
