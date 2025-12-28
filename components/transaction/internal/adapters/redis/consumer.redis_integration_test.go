@@ -10,7 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	redistestutil "github.com/LerianStudio/midaz/v3/pkg/testutil/redis"
+	redistestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
