@@ -70,11 +70,12 @@ func TestGetExecutor_WithoutTx(t *testing.T) {
 	defer db.Close()
 
 	ctx := context.Background()
-	executor := GetExecutor(ctx, db)
+	// Cast to Executor interface since GetExecutor now takes Executor
+	var dbExecutor Executor = db
+	executor := GetExecutor(ctx, dbExecutor)
 
-	// The executor should be the db
-	_, isDB := executor.(*sql.DB)
-	assert.True(t, isDB, "executor should be *sql.DB when no tx in context")
+	// The executor should be the db (same reference)
+	assert.Equal(t, dbExecutor, executor, "executor should be same as input db when no tx in context")
 }
 
 func TestRunInTransaction_Success(t *testing.T) {

@@ -13,13 +13,13 @@ import (
 type txKey struct{}
 
 // TxBeginner is an interface for types that can begin a transaction.
-// This abstracts *sql.DB to allow for testing.
+// This abstracts *sql.DB and dbresolver.DB to allow for testing.
 type TxBeginner interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
 // Executor is an interface for types that can execute queries.
-// Both *sql.DB and *sql.Tx implement this interface.
+// *sql.DB, *sql.Tx, and dbresolver.DB all implement this interface.
 type Executor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -46,7 +46,8 @@ func TxFromContext(ctx context.Context) *sql.Tx {
 // otherwise returns the provided database connection.
 // This allows repository methods to transparently use either
 // a transaction or direct connection.
-func GetExecutor(ctx context.Context, db *sql.DB) Executor {
+// The db parameter should implement the Executor interface (e.g., *sql.DB or dbresolver.DB).
+func GetExecutor(ctx context.Context, db Executor) Executor {
 	if tx := TxFromContext(ctx); tx != nil {
 		return tx
 	}

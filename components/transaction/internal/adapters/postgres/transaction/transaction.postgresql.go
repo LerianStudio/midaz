@@ -18,9 +18,10 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -104,7 +105,18 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 	}
 }
 
+// getExecutor returns the appropriate database executor.
+// If a transaction is present in context, it uses that; otherwise uses the DB connection.
+func (r *TransactionPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Executor, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+	return dbtx.GetExecutor(ctx, db), nil
+}
+
 // Create a new Transaction entity into Postgresql and returns it.
+// If a transaction is present in context, it uses that transaction for atomicity.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	assert.NotNil(transaction, "transaction entity must not be nil for Create",
 		"repository", "TransactionPostgreSQLRepository")
@@ -114,12 +126,10 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	executor, err := r.getExecutor(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		logger.Errorf("Failed to get database connection: %v", err)
-
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database executor", err)
+		logger.Errorf("Failed to get database executor: %v", err)
 		return nil, pkg.ValidateInternalError(err, "Transaction")
 	}
 
@@ -129,7 +139,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	result, err := executor.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
