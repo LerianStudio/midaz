@@ -239,6 +239,12 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
 			return mapped
+		case constant.ErrInvalidCodeLength.Error():
+			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeLength, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
+
+			return mapped
 		}
 	}
 
