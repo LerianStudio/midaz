@@ -336,6 +336,10 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.list_ledgers_by_ids")
 	defer span.End()
 
+	if len(ids) == 0 {
+		return []*mmodel.Ledger{}, nil
+	}
+
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
