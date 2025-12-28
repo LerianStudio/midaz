@@ -474,17 +474,35 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", err)
-
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Errorf("Failed to execute delete query: %v", err)
 
 		return pkg.ValidateInternalError(err, "OperationRoute")
 	}
 
 	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
+
+		return pkg.ValidateInternalError(err, "OperationRoute")
+	}
+
+	if rowsAffected == 0 {
+		err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation route. Rows affected is 0", err)
+
+		logger.Warnf("Failed to delete operation route. Rows affected is 0: %v", err)
+
+		return err
+	}
 
 	return nil
 }

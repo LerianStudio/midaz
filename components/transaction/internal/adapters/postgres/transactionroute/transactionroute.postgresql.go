@@ -540,13 +540,32 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, `UPDATE transaction_route SET deleted_at = NOW() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`, organizationID, ledgerID, id)
+	result, err := tx.ExecContext(ctx, `UPDATE transaction_route SET deleted_at = NOW() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
 		return pkg.ValidateInternalError(err, "TransactionRoute")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
+
+		return pkg.ValidateInternalError(err, "TransactionRoute")
+	}
+
+	if rowsAffected == 0 {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route. Rows affected is 0", err)
+
+		logger.Warnf("Failed to delete transaction route. Rows affected is 0: %v", err)
+
+		return err
 	}
 
 	err = r.updateOperationRouteRelationships(ctx, tx, id, make([]uuid.UUID, 0), toRemove)

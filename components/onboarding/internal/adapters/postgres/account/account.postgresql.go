@@ -987,15 +987,35 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
+
+		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	if rowsAffected == 0 {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account. Rows affected is 0", err)
+
+		logger.Warnf("Failed to delete account. Rows affected is 0: %v", err)
+
+		return err
+	}
 
 	return nil
 }
