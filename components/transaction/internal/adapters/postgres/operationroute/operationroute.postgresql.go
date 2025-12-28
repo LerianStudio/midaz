@@ -196,11 +196,11 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan operation route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation route not found", err)
 
-			logger.Warnf("Failed to scan operation route: %v", err)
+			logger.Infof("Operation route not found: %v", err)
 
-			return nil, pkg.ValidateInternalError(err, "OperationRoute")
+			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan operation route", err)
