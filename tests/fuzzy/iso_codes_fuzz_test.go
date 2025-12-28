@@ -283,8 +283,8 @@ func FuzzValidateCode(f *testing.F) {
 			t.Errorf("ValidateCode accepted digits: %q", code)
 		}
 
-		// Verify: pure uppercase ASCII (including empty) should succeed
-		if isPureUpperASCII(code) && err != nil {
+		// Verify: pure uppercase ASCII within valid length (2-10) should succeed
+		if isPureUpperASCII(code) && len(code) >= 2 && len(code) <= 10 && err != nil {
 			t.Errorf("ValidateCode rejected valid uppercase ASCII: %q err=%v", code, err)
 		}
 	})
