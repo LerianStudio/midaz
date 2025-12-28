@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -234,6 +237,7 @@ func TestIntegration_Security_MalformedToken(t *testing.T) {
 // access organizations they don't own.
 func TestIntegration_Security_CrossTenantOrganizationAccess(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -296,6 +300,7 @@ func TestIntegration_Security_CrossTenantOrganizationAccess(t *testing.T) {
 // access ledgers in organizations they don't have access to.
 func TestIntegration_Security_CrossTenantLedgerAccess(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -356,6 +361,7 @@ func TestIntegration_Security_CrossTenantLedgerAccess(t *testing.T) {
 // access accounts belonging to other organizations.
 func TestIntegration_Security_CrossTenantAccountAccess(t *testing.T) {
 	t.Parallel()
+	requireAuthEnabled(t)
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -762,6 +768,74 @@ func containsSQLErrorPatterns(body []byte) bool {
 		}
 	}
 	return false
+}
+
+func requireAuthEnabled(t *testing.T) {
+	enabled, err := pluginAuthEnabledFromEnvFiles()
+	if err != nil {
+		t.Fatalf("failed to read PLUGIN_AUTH_ENABLED from .env files: %v", err)
+	}
+	if enabled == nil {
+		t.Skip("PLUGIN_AUTH_ENABLED not found in .env files; skipping cross-tenant auth tests")
+	}
+	if !*enabled {
+		t.Skip("PLUGIN_AUTH_ENABLED=false in .env files; skipping cross-tenant auth tests")
+	}
+}
+
+func pluginAuthEnabledFromEnvFiles() (*bool, error) {
+	paths := []string{
+		filepath.Join("components", "onboarding", ".env"),
+		filepath.Join("components", "transaction", ".env"),
+		filepath.Join("components", "crm", ".env"),
+	}
+
+	found := false
+	for _, path := range paths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		value, ok := readEnvKey(string(b), "PLUGIN_AUTH_ENABLED")
+		if !ok {
+			continue
+		}
+		found = true
+		if strings.EqualFold(value, "true") {
+			enabled := true
+			return &enabled, nil
+		}
+	}
+
+	if found {
+		enabled := false
+		return &enabled, nil
+	}
+
+	return nil, nil
+}
+
+func readEnvKey(contents, key string) (string, bool) {
+	for _, line := range strings.Split(contents, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		k := strings.TrimSpace(parts[0])
+		if k != key {
+			continue
+		}
+		return strings.TrimSpace(parts[1]), true
+	}
+
+	return "", false
 }
 
 // contains checks if s contains substr (case-sensitive).

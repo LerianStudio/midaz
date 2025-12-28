@@ -341,7 +341,7 @@ func TestIntegration_Asset_Update(t *testing.T) {
 	assetCode := fmt.Sprintf("TST%s", strings.ToUpper(h.RandString(3)))
 	createAssetPayload := map[string]any{
 		"name": "Test Asset",
-		"type": "currency",
+		"type": "commodity",
 		"code": assetCode,
 	}
 
@@ -416,7 +416,7 @@ func TestIntegration_Asset_Delete(t *testing.T) {
 	assetCode := fmt.Sprintf("DEL%s", strings.ToUpper(h.RandString(3)))
 	createAssetPayload := map[string]any{
 		"name": "Asset To Delete",
-		"type": "currency",
+		"type": "commodity",
 		"code": assetCode,
 	}
 
@@ -621,7 +621,7 @@ func TestIntegration_Idempotency_DuplicateAssetCreate(t *testing.T) {
 	assetCode := fmt.Sprintf("DUP%s", strings.ToUpper(h.RandString(3)))
 	createPayload := map[string]any{
 		"name": "Duplicate Test Asset",
-		"type": "currency",
+		"type": "commodity",
 		"code": assetCode,
 	}
 
@@ -665,7 +665,11 @@ func TestIntegration_Metadata_EmptyUpdate(t *testing.T) {
 	orgName := fmt.Sprintf("Empty Meta Test Org %s", h.RandString(6))
 	createPayload := map[string]any{
 		"legalName":       orgName,
+		"legalDocument":   "123456789",
 		"doingBusinessAs": orgName,
+		"address": map[string]any{
+			"country": "US",
+		},
 		"metadata": map[string]any{
 			"environment": "test",
 			"version":     1,

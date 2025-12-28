@@ -607,35 +607,43 @@ func TestIntegration_TransactionRoutes_MetadataHandling(t *testing.T) {
 		t.Fatalf("setup ledger failed: %v", err)
 	}
 
-	// Create operation route as prerequisite
-	opRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Meta OpRoute %s", h.RandString(4)), "source")
+	// Create operation routes as prerequisite (need both source and destination)
+	sourceRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Meta Source OpRoute %s", h.RandString(4)), "source")
 	if err != nil {
-		t.Fatalf("create operation route failed: %v", err)
+		t.Fatalf("create source operation route failed: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, opRouteID); err != nil {
-			t.Logf("Warning: cleanup delete operation route failed: %v", err)
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, sourceRouteID); err != nil {
+			t.Logf("Warning: cleanup delete source operation route failed: %v", err)
+		}
+	})
+
+	destRouteID, err := h.SetupOperationRoute(ctx, trans, headers, orgID, ledgerID, fmt.Sprintf("Meta Dest OpRoute %s", h.RandString(4)), "destination")
+	if err != nil {
+		t.Fatalf("create destination operation route failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.DeleteOperationRoute(ctx, trans, headers, orgID, ledgerID, destRouteID); err != nil {
+			t.Logf("Warning: cleanup delete destination operation route failed: %v", err)
 		}
 	})
 
 	path := fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transaction-routes", orgID, ledgerID)
 
-	// Create route with complex metadata
+	// Create route with complex metadata (flattened - nested objects not allowed)
 	complexMetadata := map[string]any{
 		"string_value": "test",
 		"int_value":    42,
 		"float_value":  3.14,
 		"bool_value":   true,
-		"nested": map[string]any{
-			"key1": "value1",
-			"key2": 123,
-		},
-		"array_value": []any{"a", "b", "c"},
+		"nested_key1":  "value1",
+		"nested_key2":  123,
+		"array_value":  "a,b,c",
 	}
 
 	createPayload := map[string]any{
 		"title":           fmt.Sprintf("Metadata TxRoute %s", h.RandString(6)),
-		"operationRoutes": []string{opRouteID},
+		"operationRoutes": []string{sourceRouteID, destRouteID},
 		"metadata":        complexMetadata,
 	}
 
