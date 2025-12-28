@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -50,7 +51,6 @@ const (
 	whereOrgIDOffset         = 3
 	whereLedgerIDOffset      = 2
 	whereOrgIDOnlyOffset     = 2
-	placeholderStartIndex    = 2
 	balanceUpdateFieldCount  = 4
 	balanceUpdateArgCapacity = 7
 )
@@ -780,40 +780,15 @@ func (r *BalancePostgreSQLRepository) processBalanceUpdates(ctx context.Context,
 	return successCount, nil
 }
 
-// BalancesUpdate updates the balances in the database.
-// If a transaction is present in context, it participates in that transaction.
-// Otherwise, it creates its own transaction for atomicity.
-func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+// executeBalancesUpdateWithNewTx executes balance updates within a new transaction.
+func (r *BalancePostgreSQLRepository) executeBalancesUpdateWithNewTx(ctx context.Context, db dbresolver.DB, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "postgres.update_balances")
+	ctx, span := tracer.Start(ctx, "postgres.execute_balances_update_with_new_tx")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		return pkg.ValidateInternalError(err, "Balance")
-	}
-
-	// Check if we're already in a transaction from context
-	if tx := dbtx.TxFromContext(ctx); tx != nil {
-		// Use existing transaction - no commit/rollback here, managed by caller
-		successCount, err := r.processBalanceUpdates(ctx, tx, organizationID, ledgerID, balances)
-		if err != nil {
-			return err
-		}
-
-		if successCount == 0 && len(balances) > 0 {
-			return pkg.ValidateInternalError(ErrNoBalancesUpdated, "Balance")
-		}
-
-		return nil
-	}
-
-	// No external transaction - create our own
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
 		return pkg.ValidateInternalError(err, "Balance")
 	}
 
@@ -824,9 +799,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			return
 		}
 
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			libOpentelemetry.HandleSpanError(&span, "Failed to rollback balances update", rollbackErr)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			logger.Errorf("err on rollback: %v", rollbackErr)
 		}
 	}()
@@ -840,9 +813,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		return pkg.ValidateInternalError(ErrNoBalancesUpdated, "Balance")
 	}
 
-	commitErr := tx.Commit()
-	if commitErr != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to commit balances update", commitErr)
+	if commitErr := tx.Commit(); commitErr != nil {
 		logger.Errorf("err on commit: %v", commitErr)
 
 		return pkg.ValidateInternalError(commitErr, "Balance")
@@ -851,6 +822,39 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	committed = true
 
 	return nil
+}
+
+// BalancesUpdate updates the balances in the database.
+// If a transaction is present in context, it participates in that transaction.
+// Otherwise, it creates its own transaction for atomicity.
+func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "postgres.update_balances")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		return pkg.ValidateInternalError(err, "Balance")
+	}
+
+	// Check if we're already in a transaction from context
+	if tx := dbtx.TxFromContext(ctx); tx != nil {
+		successCount, updateErr := r.processBalanceUpdates(ctx, tx, organizationID, ledgerID, balances)
+		if updateErr != nil {
+			return updateErr
+		}
+
+		if successCount == 0 && len(balances) > 0 {
+			return pkg.ValidateInternalError(ErrNoBalancesUpdated, "Balance")
+		}
+
+		return nil
+	}
+
+	// No external transaction - create our own
+	return r.executeBalancesUpdateWithNewTx(ctx, db, organizationID, ledgerID, balances)
 }
 
 // Find retrieves a balance entity from the database using the provided ID.
