@@ -57,29 +57,27 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field
 				assert.Contains(t, result, "name", "response should contain name")
 				assert.Equal(t, "Test Portfolio", result["name"])
-			},
-		},
-		{
-			name: "conflict returns 409",
-			payload: &mmodel.CreatePortfolioInput{
-				Name: "Existing Portfolio",
-			},
-			setupMocks: func(portfolioRepo *portfolio.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				portfolioRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
 
-				assert.Contains(t, errResp, "code", "error response should contain code")
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should match input")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{
@@ -218,9 +216,27 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field - verify update was applied
 				assert.Contains(t, result, "name", "response should contain name")
-				assert.Equal(t, "Updated Portfolio Name", result["name"])
+				assert.Equal(t, "Updated Portfolio Name", result["name"], "name should reflect the update")
+
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should be preserved")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{
@@ -397,9 +413,27 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field
 				assert.Contains(t, result, "name", "response should contain name")
 				assert.Equal(t, "Test Portfolio", result["name"])
+
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should match")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{

@@ -63,9 +63,27 @@ func TestHandler_CreateSegment(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field
 				assert.Contains(t, result, "name", "response should contain name")
 				assert.Equal(t, "Test Segment", result["name"])
+
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should match input")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{
@@ -231,9 +249,27 @@ func TestHandler_UpdateSegment(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field - verify update was applied
 				assert.Contains(t, result, "name", "response should contain name")
-				assert.Equal(t, "Updated Segment Name", result["name"])
+				assert.Equal(t, "Updated Segment Name", result["name"], "name should reflect the update")
+
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should be preserved")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{
@@ -410,9 +446,27 @@ func TestHandler_GetSegmentByID(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
+				// Core identity fields
 				assert.Contains(t, result, "id", "response should contain id")
+				assert.NotEmpty(t, result["id"], "id should not be empty")
+
+				// Name field
 				assert.Contains(t, result, "name", "response should contain name")
 				assert.Equal(t, "Test Segment", result["name"])
+
+				// Status field
+				assert.Contains(t, result, "status", "response should contain status")
+				status, ok := result["status"].(map[string]any)
+				require.True(t, ok, "status should be an object")
+				assert.Equal(t, "ACTIVE", status["code"], "status code should match")
+
+				// Relationship fields
+				assert.Contains(t, result, "organizationId", "response should contain organizationId")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+
+				// Timestamp fields
+				assert.Contains(t, result, "createdAt", "response should contain createdAt")
+				assert.Contains(t, result, "updatedAt", "response should contain updatedAt")
 			},
 		},
 		{
