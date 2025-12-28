@@ -197,22 +197,26 @@ func GetAlias(ctx context.Context, crm *HTTPClient, headers map[string]string, h
 }
 
 // ListAliases retrieves all aliases for a holder.
+// Note: CRM API doesn't have a direct endpoint for listing aliases per holder,
+// so we fetch all aliases and filter by holder ID.
 func ListAliases(ctx context.Context, crm *HTTPClient, headers map[string]string, holderID string) (*AliasListResponse, error) {
-	path := fmt.Sprintf("/v1/holders/%s/aliases", holderID)
-	code, body, err := crm.Request(ctx, "GET", path, headers, nil)
-	// Allow both 200 for list and potentially empty results
-	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
-		return nil, fmt.Errorf("list aliases failed: code=%d err=%w body=%s", code, err, string(body))
+	// Use the global aliases endpoint since per-holder list isn't available
+	allAliases, err := ListAllAliases(ctx, crm, headers)
+	if err != nil {
+		return nil, err
 	}
 
-	var list AliasListResponse
-	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
-		return nil, fmt.Errorf("parse aliases list: %w body=%s", err, string(body))
+	// Filter by holder ID
+	filtered := &AliasListResponse{
+		Items: make([]AliasResponse, 0),
+	}
+	for _, alias := range allAliases.Items {
+		if alias.HolderID == holderID {
+			filtered.Items = append(filtered.Items, alias)
+		}
 	}
 
-	return &list, nil
+	return filtered, nil
 }
 
 // ListAllAliases retrieves all aliases across all holders.

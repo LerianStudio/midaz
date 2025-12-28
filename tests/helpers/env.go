@@ -42,7 +42,7 @@ type Environment struct {
 func LoadEnvironment() Environment {
 	onboarding := getenv("ONBOARDING_URL", "http://localhost:3000")
 	transaction := getenv("TRANSACTION_URL", "http://localhost:3001")
-	crm := getenv("CRM_URL", "http://localhost:3002")
+	crm := getenv("CRM_URL", "http://localhost:4003")
 	manage := getenv("MIDAZ_TEST_MANAGE_STACK", "false") == "true"
 	timeoutStr := getenv("MIDAZ_TEST_HTTP_TIMEOUT", "20s")
 

@@ -19,3 +19,12 @@ func AuthHeaders(requestID string) map[string]string {
 
 	return hdr
 }
+
+// AuthHeadersWithOrg returns headers including Authorization, X-Request-Id, and X-Organization-Id.
+// This is required for CRM service endpoints that expect organization context.
+func AuthHeadersWithOrg(requestID, organizationID string) map[string]string {
+	hdr := AuthHeaders(requestID)
+	hdr["X-Organization-Id"] = organizationID
+
+	return hdr
+}

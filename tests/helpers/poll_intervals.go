@@ -1,7 +1,10 @@
 // Package helpers provides test utilities for the Midaz test suite.
 package helpers
 
-import "time"
+import (
+	"testing"
+	"time"
+)
 
 // Standardized poll intervals for test helpers.
 // These values are tuned for the balance between test speed and reliability.
@@ -32,4 +35,49 @@ const (
 	// Use for: Waiting for DLQ to empty after chaos tests
 	// Higher interval because DLQ replay has exponential backoff
 	PollIntervalDLQ = 5 * time.Second
+
+	// PollIntervalReplica is for replica lag tolerance (50ms)
+	// Use for: Verifying DELETE propagation in primary/replica setups
+	PollIntervalReplica = 50 * time.Millisecond
+
+	// MaxReplicaRetries is the maximum retries for replica lag verification
+	MaxReplicaRetries = 10
 )
+
+// WaitForDeletedWithRetry polls until the getter function returns an error (indicating deletion).
+// This handles replica lag in primary/replica database setups where DELETE on primary
+// may not be immediately visible on replica.
+// Use for: Verifying soft-delete propagation after DELETE operations.
+func WaitForDeletedWithRetry(t *testing.T, resourceName string, getter func() error) {
+	t.Helper()
+
+	for i := 0; i < MaxReplicaRetries; i++ {
+		err := getter()
+		if err != nil {
+			// Resource not found - deletion verified
+			t.Logf("Verified %s deletion after %d attempts", resourceName, i+1)
+			return
+		}
+		time.Sleep(PollIntervalReplica)
+	}
+	t.Errorf("GET deleted %s should fail, but succeeded after %d retries (possible replica lag)", resourceName, MaxReplicaRetries)
+}
+
+// WaitForCreatedWithRetry polls until the getter function returns success (indicating creation visible).
+// This handles replica lag in primary/replica database setups where CREATE on primary
+// may not be immediately visible on replica.
+// Use for: Verifying resource visibility after CREATE operations.
+func WaitForCreatedWithRetry(t *testing.T, resourceName string, getter func() error) {
+	t.Helper()
+
+	for i := 0; i < MaxReplicaRetries; i++ {
+		err := getter()
+		if err == nil {
+			// Resource found - creation visible
+			t.Logf("Verified %s creation visible after %d attempts", resourceName, i+1)
+			return
+		}
+		time.Sleep(PollIntervalReplica)
+	}
+	t.Fatalf("GET created %s should succeed, but failed after %d retries (possible replica lag)", resourceName, MaxReplicaRetries)
+}

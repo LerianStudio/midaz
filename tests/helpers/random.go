@@ -4,9 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"math/big"
+
+	"github.com/google/uuid"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+var lettersOnly = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 // RandString generates a random alphanumeric string of length n.
 func RandString(n int) string {
@@ -22,6 +25,25 @@ func RandString(n int) string {
 		}
 
 		b[i] = letters[idx.Int64()]
+	}
+
+	return string(b)
+}
+
+// RandLetters generates a random string of letters only (no digits) of length n.
+// Use this for asset codes which require letters-only uppercase strings.
+func RandLetters(n int) string {
+	b := make([]rune, n)
+
+	lettersLen := big.NewInt(int64(len(lettersOnly)))
+	for i := range b {
+		idx, err := rand.Int(rand.Reader, lettersLen)
+		if err != nil {
+			//nolint:panicguardwarn // Test helper: panic is acceptable for fatal setup errors
+			panic("failed to generate random index: " + err.Error())
+		}
+
+		b[i] = lettersOnly[idx.Int64()]
 	}
 
 	return string(b)
@@ -52,4 +74,9 @@ func RandIntN(n int) int {
 	}
 
 	return int(val.Int64())
+}
+
+// RandUUID generates a random UUID v4 string.
+func RandUUID() string {
+	return uuid.New().String()
 }
