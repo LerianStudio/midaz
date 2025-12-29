@@ -128,3 +128,27 @@ func ValidPort(port string) bool {
 
 	return p > 0 && p <= 65535
 }
+
+// ValidSSLMode returns true if mode is a valid PostgreSQL SSL mode.
+// Valid modes are: disable, allow, prefer, require, verify-ca, verify-full.
+// Empty string is also valid (uses PostgreSQL default).
+//
+// Note: SSL modes are case-sensitive per PostgreSQL documentation.
+// Unknown modes will cause connection failures.
+//
+// Example:
+//
+//	assert.That(assert.ValidSSLMode(cfg.DBSSLMode), "DB_SSLMODE invalid", "mode", cfg.DBSSLMode)
+func ValidSSLMode(mode string) bool {
+	validModes := map[string]bool{
+		"":            true, // Empty uses PostgreSQL default
+		"disable":     true,
+		"allow":       true,
+		"prefer":      true,
+		"require":     true,
+		"verify-ca":   true,
+		"verify-full": true,
+	}
+
+	return validModes[mode]
+}

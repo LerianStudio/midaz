@@ -598,3 +598,32 @@ func TestValidPort(t *testing.T) {
 		})
 	}
 }
+
+// TestValidSSLMode tests the ValidSSLMode predicate for PostgreSQL SSL modes.
+func TestValidSSLMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected bool
+	}{
+		{"disable", "disable", true},
+		{"allow", "allow", true},
+		{"prefer", "prefer", true},
+		{"require", "require", true},
+		{"verify-ca", "verify-ca", true},
+		{"verify-full", "verify-full", true},
+		{"empty string allowed", "", true},
+		{"invalid mode", "invalid", false},
+		{"typo disable", "disabel", false},
+		{"uppercase", "DISABLE", false},
+		{"mixed case", "Disable", false},
+		{"with spaces", " disable ", false},
+		{"partial match", "dis", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, ValidSSLMode(tt.mode))
+		})
+	}
+}
