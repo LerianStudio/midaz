@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Metadata Outbox table for reliable MongoDB metadata creation
 -- Entries are created atomically with PostgreSQL transactions and processed asynchronously
 --
@@ -65,3 +67,5 @@ COMMENT ON COLUMN metadata_outbox.status IS 'PENDING=new, PROCESSING=claimed by 
 COMMENT ON COLUMN metadata_outbox.processing_started_at IS 'Set when worker claims entry; used to detect stale PROCESSING entries from crashed workers';
 COMMENT ON COLUMN metadata_outbox.last_error IS 'Sanitized error message - must NOT contain PII or sensitive data';
 COMMENT ON COLUMN metadata_outbox.max_retries IS 'Maximum retry attempts before DLQ. Application MUST call MarkDLQ when retry_count >= max_retries';
+
+COMMIT;
