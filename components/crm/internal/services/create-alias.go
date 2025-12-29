@@ -114,6 +114,11 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 
 			logger.Errorf("Failed to create holder link: %v", err)
 
+			deleteErr := uc.AliasRepo.Delete(ctx, organizationID, holderID, *createdAccount.ID, true)
+			if deleteErr != nil {
+				logger.Errorf("Failed to rollback alias creation after holder link error: %v", deleteErr)
+			}
+
 			return nil, err
 		}
 

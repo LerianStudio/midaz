@@ -43,7 +43,12 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	defer span.End()
 
 	payload := p.(*mmodel.CreateAliasInput)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -52,7 +57,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -93,8 +98,16 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_alias_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
@@ -145,8 +158,16 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_alias")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	payload := p.(*mmodel.UpdateAliasInput)
 
@@ -166,7 +187,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.alias_id", id.String()),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -213,8 +234,16 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_alias_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	holderID := c.Locals("holder_id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
@@ -228,7 +257,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating removal of alias with ID: %s", id.String())
 
-	err := handler.Service.DeleteAliasByID(ctx, organizationID, holderID, id, hardDelete)
+	err = handler.Service.DeleteAliasByID(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias", err)
 
