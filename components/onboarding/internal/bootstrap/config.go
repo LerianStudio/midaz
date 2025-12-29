@@ -168,14 +168,15 @@ func InitServers() *Service {
 	}
 
 	// Perform preflight check with retry for migration safety
+	// CRITICAL: Fail fast on migration errors - do not continue with broken database state
 	ctx := context.Background()
 	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
 	if err != nil {
-		logger.Errorf("Migration preflight failed for %s: %v - continuing with standard GetDB", ApplicationName, err)
-	} else {
-		migrationWrapper.UpdateStatusMetrics()
-		logger.Infof("Migration preflight successful for %s", ApplicationName)
+		logger.Fatalf("Migration preflight failed for %s: %v - cannot proceed with broken database state", ApplicationName, err)
 	}
+
+	migrationWrapper.UpdateStatusMetrics()
+	logger.Infof("Migration preflight successful for %s", ApplicationName)
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
@@ -473,14 +474,15 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	}
 
 	// Perform preflight check with retry for migration safety
+	// CRITICAL: Fail fast on migration errors - do not continue with broken database state
 	ctx := context.Background()
 	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
 	if err != nil {
-		logger.Errorf("Migration preflight failed for %s: %v - continuing with standard GetDB", ApplicationName, err)
-	} else {
-		migrationWrapper.UpdateStatusMetrics()
-		logger.Infof("Migration preflight successful for %s", ApplicationName)
+		logger.Fatalf("Migration preflight failed for %s: %v - cannot proceed with broken database state", ApplicationName, err)
 	}
+
+	migrationWrapper.UpdateStatusMetrics()
+	logger.Infof("Migration preflight successful for %s", ApplicationName)
 
 	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: buildMongoSource(cfg),
