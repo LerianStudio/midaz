@@ -75,7 +75,7 @@ func (uc *UseCase) handleFetchTransactionsError(span *trace.Span, logger libLog.
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-	return nil, libHTTP.CursorPagination{}, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
+	return nil, libHTTP.CursorPagination{}, err
 }
 
 // fetchAndMapTransactionMetadata fetches and maps transaction metadata
