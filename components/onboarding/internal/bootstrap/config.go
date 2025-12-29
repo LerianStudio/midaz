@@ -17,6 +17,10 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
@@ -34,9 +38,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 )
 
 // ApplicationName is the identifier for the onboarding service used in logging and tracing.
@@ -114,6 +116,9 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
+	// Migration auto-recovery configuration
+	MigrationAutoRecover bool `env:"MIGRATION_AUTO_RECOVER" default:"true"`
+	MigrationMaxRetries  int  `env:"MIGRATION_MAX_RETRIES" default:"3"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -154,6 +159,22 @@ func InitServers() *Service {
 		Logger:                  logger,
 		MaxOpenConnections:      cfg.MaxOpenConnections,
 		MaxIdleConnections:      cfg.MaxIdleConnections,
+	}
+
+	// Create migration wrapper for safe database access with auto-recovery
+	migrationWrapper, err := mmigration.NewMigrationWrapper(postgresConnection, newMigrationConfig(cfg), logger)
+	if err != nil {
+		logger.Fatalf("Failed to create migration wrapper for %s: %v", ApplicationName, err)
+	}
+
+	// Perform preflight check with retry for migration safety
+	ctx := context.Background()
+	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
+	if err != nil {
+		logger.Errorf("Migration preflight failed for %s: %v - continuing with standard GetDB", ApplicationName, err)
+	} else {
+		migrationWrapper.UpdateStatusMetrics()
+		logger.Infof("Migration preflight successful for %s", ApplicationName)
 	}
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
@@ -355,6 +376,20 @@ func getMongoMaxPoolSize(cfg *Config) uint64 {
 	return uint64(cfg.MaxPoolSize)
 }
 
+// newMigrationConfig creates a migration configuration from the application config.
+func newMigrationConfig(cfg *Config) mmigration.MigrationConfig {
+	return mmigration.MigrationConfig{
+		AutoRecoverDirty:      cfg.MigrationAutoRecover,
+		MaxRetries:            cfg.MigrationMaxRetries,
+		MaxRecoveryPerVersion: 3,
+		RetryBackoff:          1 * time.Second,
+		MaxBackoff:            30 * time.Second,
+		LockTimeout:           30 * time.Second,
+		Component:             ApplicationName,
+		MigrationsPath:        "/app/components/onboarding/migrations",
+	}
+}
+
 // resolveBalancePort determines the balance port based on mode and configuration.
 func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {
 	if opts.UnifiedMode && opts.BalancePort != nil {
@@ -429,6 +464,22 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 		Logger:                  logger,
 		MaxOpenConnections:      cfg.MaxOpenConnections,
 		MaxIdleConnections:      cfg.MaxIdleConnections,
+	}
+
+	// Create migration wrapper for safe database access with auto-recovery
+	migrationWrapper, err := mmigration.NewMigrationWrapper(postgresConnection, newMigrationConfig(cfg), logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create migration wrapper for %s: %w", ApplicationName, err)
+	}
+
+	// Perform preflight check with retry for migration safety
+	ctx := context.Background()
+	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
+	if err != nil {
+		logger.Errorf("Migration preflight failed for %s: %v - continuing with standard GetDB", ApplicationName, err)
+	} else {
+		migrationWrapper.UpdateStatusMetrics()
+		logger.Infof("Migration preflight successful for %s", ApplicationName)
 	}
 
 	mongoConnection := &libMongo.MongoConnection{

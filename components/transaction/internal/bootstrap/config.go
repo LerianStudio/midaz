@@ -17,6 +17,11 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/bxcodec/dbresolver/v2"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -33,10 +38,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
-	"github.com/bxcodec/dbresolver/v2"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 )
 
 // ApplicationName is the identifier for the transaction service used in logging and tracing.
@@ -155,6 +157,9 @@ type Config struct {
 	MetadataOutboxWorkerEnabled              bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
 	MetadataOutboxMaxWorkers                 int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
 	MetadataOutboxRetentionDays              int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
+	// Migration auto-recovery configuration
+	MigrationAutoRecover bool `env:"MIGRATION_AUTO_RECOVER" default:"true"`
+	MigrationMaxRetries  int  `env:"MIGRATION_MAX_RETRIES" default:"3"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -197,6 +202,33 @@ func InitServers() *Service {
 		Logger:                  logger,
 		MaxOpenConnections:      cfg.MaxOpenConnections,
 		MaxIdleConnections:      cfg.MaxIdleConnections,
+	}
+
+	// Create migration wrapper for safe database access with auto-recovery
+	migrationConfig := mmigration.MigrationConfig{
+		AutoRecoverDirty:      cfg.MigrationAutoRecover,
+		MaxRetries:            cfg.MigrationMaxRetries,
+		MaxRecoveryPerVersion: 3,
+		RetryBackoff:          1 * time.Second,
+		MaxBackoff:            30 * time.Second,
+		LockTimeout:           30 * time.Second,
+		Component:             ApplicationName,
+		MigrationsPath:        "/app/components/transaction/migrations",
+	}
+
+	migrationWrapper, err := mmigration.NewMigrationWrapper(postgresConnection, migrationConfig, logger)
+	if err != nil {
+		logger.Fatalf("Failed to create migration wrapper for %s: %v", ApplicationName, err)
+	}
+
+	// Perform preflight check with retry for migration safety
+	ctx := context.Background()
+	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
+	if err != nil {
+		logger.Errorf("Migration preflight failed for %s: %v - continuing with standard GetDB", ApplicationName, err)
+	} else {
+		migrationWrapper.UpdateStatusMetrics()
+		logger.Infof("Migration preflight successful for %s", ApplicationName)
 	}
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
@@ -467,25 +499,25 @@ func InitServers() *Service {
 	}
 
 	return &Service{
-		Server:                        server,
-		ServerGRPC:                    serverGRPC,
-		MultiQueueConsumer:            multiQueueConsumer,
-		RedisQueueConsumer:            redisConsumer,
-		BalanceSyncWorker:             balanceSyncWorker,
-		BalanceSyncWorkerEnabled:      cfg.BalanceSyncWorkerEnabled,
-		DLQConsumer:                   dlqConsumer,
-		DLQConsumerEnabled:            cfg.DLQConsumerEnabled, // H5: Use cfg field consistently
-		MetadataOutboxWorker:          metadataOutboxWorker,
-		MetadataOutboxWorkerEnabled:   cfg.MetadataOutboxWorkerEnabled,
-		Logger:                        logger,
-		balancePort:                   useCase,
-		auth:                          auth,
-		transactionHandler:            transactionHandler,
-		operationHandler:              operationHandler,
-		assetRateHandler:              assetRateHandler,
-		balanceHandler:                balanceHandler,
-		operationRouteHandler:         operationRouteHandler,
-		transactionRouteHandler:       transactionRouteHandler,
+		Server:                      server,
+		ServerGRPC:                  serverGRPC,
+		MultiQueueConsumer:          multiQueueConsumer,
+		RedisQueueConsumer:          redisConsumer,
+		BalanceSyncWorker:           balanceSyncWorker,
+		BalanceSyncWorkerEnabled:    cfg.BalanceSyncWorkerEnabled,
+		DLQConsumer:                 dlqConsumer,
+		DLQConsumerEnabled:          cfg.DLQConsumerEnabled, // H5: Use cfg field consistently
+		MetadataOutboxWorker:        metadataOutboxWorker,
+		MetadataOutboxWorkerEnabled: cfg.MetadataOutboxWorkerEnabled,
+		Logger:                      logger,
+		balancePort:                 useCase,
+		auth:                        auth,
+		transactionHandler:          transactionHandler,
+		operationHandler:            operationHandler,
+		assetRateHandler:            assetRateHandler,
+		balanceHandler:              balanceHandler,
+		operationRouteHandler:       operationRouteHandler,
+		transactionRouteHandler:     transactionRouteHandler,
 	}
 }
 
