@@ -85,8 +85,6 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
-
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
