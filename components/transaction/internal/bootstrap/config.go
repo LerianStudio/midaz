@@ -320,6 +320,7 @@ func InitServers() *Service {
 
 	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
 		cfg.ProtoAddress = ":3011"
+
 		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
 	}
 
