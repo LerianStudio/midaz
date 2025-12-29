@@ -268,6 +268,30 @@ func TestSanitizeErrorMessage(t *testing.T) {
 			shouldNot:   []string{"4111111111111111"},
 		},
 		{
+			name:        "redacts credit card with hyphen separators",
+			input:       "card: 4111-1111-1111-1111",
+			shouldMatch: []string{"[REDACTED]"},
+			shouldNot:   []string{"4111-1111-1111-1111"},
+		},
+		{
+			name:        "redacts credit card with space separators",
+			input:       "card: 4111 1111 1111 1111",
+			shouldMatch: []string{"[REDACTED]"},
+			shouldNot:   []string{"4111 1111 1111 1111"},
+		},
+		{
+			name:        "redacts phone numbers with spaces",
+			input:       "contact: 123 456 7890",
+			shouldMatch: []string{"[REDACTED]"},
+			shouldNot:   []string{"123 456 7890"},
+		},
+		{
+			name:        "redacts SSN with spaces",
+			input:       "SSN: 123 45 6789",
+			shouldMatch: []string{"[REDACTED]"},
+			shouldNot:   []string{"123 45 6789"},
+		},
+		{
 			name:        "redacts DSN/driver strings",
 			input:       "error: driver=postgres dsn=host=localhost user=admin",
 			shouldMatch: []string{"[REDACTED]"},

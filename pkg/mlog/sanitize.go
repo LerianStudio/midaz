@@ -57,12 +57,56 @@ var sensitiveQueryParams = map[string]struct{}{
 }
 
 // piiPatterns contains regex patterns for detecting PII in error messages.
-// Note: UUIDs are intentionally NOT included as entity IDs are needed for debugging.
+//
+// Design decisions and trade-offs:
+//   - These patterns intentionally favor catching potential PII (false positives)
+//     over missing actual PII (false negatives) to ensure privacy protection.
+//   - Go's standard regexp package uses RE2, which does NOT support lookahead or
+//     lookbehind assertions (e.g., (?<!\d) or (?!\d)). Word boundaries (\b) are
+//     used as the primary mechanism to prevent partial matches within longer
+//     alphanumeric sequences.
+//   - UUIDs are intentionally NOT redacted as entity IDs are required for debugging.
+//
+// Pattern overlap notes:
+//   - SSN and phone patterns have distinct groupings (3-3-4 vs 3-2-4) to reduce
+//     overlap, but some sequences may match both; this is acceptable as both
+//     represent sensitive data that should be redacted.
+//   - Credit card patterns include both continuous digits (13-16) and formatted
+//     versions (4-4-4-4 with separators) to catch common representations.
+//   - Some numeric sequences like timestamps or transaction IDs may be falsely
+//     matched; this is an accepted trade-off for privacy protection.
+//
+// False-positive tolerance:
+//   - Phone/SSN: May match order numbers, zip+4 codes, or other numeric IDs
+//   - Credit card: May match long transaction IDs or timestamps
+//   - In all cases, redacting non-PII is preferred over leaking actual PII
 var piiPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`), // Email
-	regexp.MustCompile(`\b\d{3}[-.]?\d{3}[-.]?\d{4}\b`),                       // Phone number
-	regexp.MustCompile(`\b\d{3}[-]?\d{2}[-]?\d{4}\b`),                         // SSN
-	regexp.MustCompile(`\b\d{13,16}\b`),                                       // Credit card
+	// Email addresses - standard RFC 5322 simplified pattern
+	regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`),
+
+	// Phone numbers (US format): explicit 3-3-4 grouping with optional separators
+	// Separators: hyphen (-), dot (.), or whitespace
+	// Examples: 123-456-7890, 123.456.7890, 123 456 7890, 1234567890
+	regexp.MustCompile(`\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b`),
+
+	// SSN (US format): explicit 3-2-4 grouping with optional separators
+	// Separators: hyphen (-) or whitespace (space is common in forms)
+	// Examples: 123-45-6789, 123 45 6789, 123456789
+	// Note: Distinct from phone pattern due to 3-2-4 vs 3-3-4 grouping
+	regexp.MustCompile(`\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b`),
+
+	// Credit card numbers: 13-16 continuous digits with word boundaries
+	// Word boundaries prevent matching within longer numeric identifiers
+	// Covers: Visa (13,16), Mastercard (16), Amex (15), Discover (16)
+	regexp.MustCompile(`\b\d{13,16}\b`),
+
+	// Credit card with hyphen separators: 4 groups of 4 digits
+	// Example: 1234-5678-9012-3456
+	regexp.MustCompile(`\b\d{4}-\d{4}-\d{4}-\d{4}\b`),
+
+	// Credit card with space separators: 4 groups of 4 digits
+	// Example: 1234 5678 9012 3456
+	regexp.MustCompile(`\b\d{4}\s\d{4}\s\d{4}\s\d{4}\b`),
 }
 
 // structuralPatterns contains patterns for structural data that should be redacted.
@@ -154,9 +198,10 @@ func sanitizePath(path string) string {
 
 	path = builder.String()
 
-	// Truncate to max length
-	if len(path) > maxPathLength {
-		return path[:maxPathLength] + "...[truncated]"
+	// Truncate to max length (using runes to avoid splitting UTF-8 characters)
+	pathRunes := []rune(path)
+	if len(pathRunes) > maxPathLength {
+		return string(pathRunes[:maxPathLength]) + "...[truncated]"
 	}
 
 	return path
