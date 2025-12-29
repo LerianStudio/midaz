@@ -153,9 +153,9 @@ func (cfg *Config) Validate() {
 		"field", "ReplicaDBSSLMode", "value", cfg.ReplicaDBSSLMode)
 
 	// Database pool configuration
-	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, 500), "DB_MAX_OPEN_CONNS must be 1-500",
+	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, 10000), "DB_MAX_OPEN_CONNS must be 1-10000",
 		"field", "MaxOpenConnections", "value", cfg.MaxOpenConnections)
-	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, 100), "DB_MAX_IDLE_CONNS must be 1-100",
+	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, 5000), "DB_MAX_IDLE_CONNS must be 1-5000",
 		"field", "MaxIdleConnections", "value", cfg.MaxIdleConnections)
 
 	// MongoDB configuration
