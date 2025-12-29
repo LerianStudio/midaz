@@ -234,6 +234,9 @@ func InitServers() *Service {
 		"package", "bootstrap",
 		"function", "InitServers")
 
+	// Validate configuration before proceeding
+	cfg.Validate()
+
 	logger := libZap.InitializeLogger()
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
