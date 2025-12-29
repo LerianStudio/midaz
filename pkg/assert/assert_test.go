@@ -627,3 +627,52 @@ func TestValidSSLMode(t *testing.T) {
 		})
 	}
 }
+
+// TestPositiveInt tests the PositiveInt predicate for int type.
+func TestPositiveInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		n        int
+		expected bool
+	}{
+		{"positive 1", 1, true},
+		{"positive large", 1000000, true},
+		{"zero", 0, false},
+		{"negative", -1, false},
+		{"negative large", -1000000, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, PositiveInt(tt.n))
+		})
+	}
+}
+
+// TestInRangeInt tests the InRangeInt predicate for int type.
+func TestInRangeInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		n        int
+		min      int
+		max      int
+		expected bool
+	}{
+		{"in range", 5, 1, 10, true},
+		{"at min", 1, 1, 10, true},
+		{"at max", 10, 1, 10, true},
+		{"below min", 0, 1, 10, false},
+		{"above max", 11, 1, 10, false},
+		{"pool size valid", 50, 1, 100, true},
+		{"pool size at max", 100, 1, 100, true},
+		{"pool size zero invalid", 0, 1, 100, false},
+		{"pool size over max", 101, 1, 100, false},
+		{"inverted range always false", 5, 10, 1, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, InRangeInt(tt.n, tt.min, tt.max))
+		})
+	}
+}

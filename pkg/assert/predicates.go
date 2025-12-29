@@ -152,3 +152,26 @@ func ValidSSLMode(mode string) bool {
 
 	return validModes[mode]
 }
+
+// PositiveInt returns true if n > 0.
+// This is the int variant of Positive (which uses int64).
+//
+// Example:
+//
+//	assert.That(assert.PositiveInt(cfg.MaxWorkers), "MAX_WORKERS must be positive", "value", cfg.MaxWorkers)
+func PositiveInt(n int) bool {
+	return n > 0
+}
+
+// InRangeInt returns true if min <= n <= max.
+// This is the int variant of InRange (which uses int64).
+//
+// Note: If min > max (inverted range), always returns false. This is fail-safe
+// behavior - callers should ensure min <= max for correct results.
+//
+// Example:
+//
+//	assert.That(assert.InRangeInt(cfg.PoolSize, 1, 100), "POOL_SIZE out of range", "value", cfg.PoolSize)
+func InRangeInt(n, minVal, maxVal int) bool {
+	return n >= minVal && n <= maxVal
+}
