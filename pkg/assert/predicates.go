@@ -1,6 +1,8 @@
 package assert
 
 import (
+	"strconv"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -103,4 +105,26 @@ func PositiveDecimal(amount decimal.Decimal) bool {
 //	assert.That(assert.NonNegativeDecimal(balance), "balance must not be negative", "balance", balance)
 func NonNegativeDecimal(amount decimal.Decimal) bool {
 	return !amount.IsNegative()
+}
+
+// ValidPort returns true if port is a valid network port number (1-65535).
+// The port must be a numeric string representing a value in the valid range.
+//
+// Note: Port 0 is invalid for configuration purposes (it's used for dynamic allocation).
+// Empty strings, non-numeric values, and out-of-range values return false.
+//
+// Example:
+//
+//	assert.That(assert.ValidPort(cfg.DBPort), "DB_PORT must be valid port", "port", cfg.DBPort)
+func ValidPort(port string) bool {
+	if port == "" {
+		return false
+	}
+
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return false
+	}
+
+	return p > 0 && p <= 65535
 }

@@ -568,3 +568,33 @@ func TestPanicWithContext_FormatOutput(t *testing.T) {
 		"bool_key", true,
 	)
 }
+
+// TestValidPort tests the ValidPort predicate for network port validation.
+func TestValidPort(t *testing.T) {
+	tests := []struct {
+		name     string
+		port     string
+		expected bool
+	}{
+		{"valid port 80", "80", true},
+		{"valid port 443", "443", true},
+		{"valid port 8080", "8080", true},
+		{"valid port 1", "1", true},
+		{"valid port 65535", "65535", true},
+		{"valid port 5432 postgres", "5432", true},
+		{"invalid port 0", "0", false},
+		{"invalid port negative", "-1", false},
+		{"invalid port too high", "65536", false},
+		{"invalid port way too high", "100000", false},
+		{"invalid port empty", "", false},
+		{"invalid port non-numeric", "abc", false},
+		{"invalid port with spaces", " 80 ", false},
+		{"invalid port decimal", "80.5", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, ValidPort(tt.port))
+		})
+	}
+}
