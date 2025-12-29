@@ -1,92 +1,120 @@
-# IDE and editor files
+# =============================================================================
+# OS Generated Files
+# =============================================================================
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
 .vscode/
 .idea/
+.run/
 *.iml
 ide/
-tmp/
-.run/onboarding.run.xml
-.run/transaction.run.xml
+.windsurfrules
+.worktrees/
 
-# OS generated files
-.DS_Store
+# =============================================================================
+# Environment Files
+# =============================================================================
+.env
+.env.*
+.env*.local
 
-# Build and binary files
-*__debug_bin1675735721
-dist/
-coverage.out
-scripts/coverage_ignore.txt
-reports/
+# =============================================================================
+# Dependencies
+# =============================================================================
+node_modules/
+
+# =============================================================================
+# Build Artifacts and Binaries
+# =============================================================================
 /bin/
+dist/
+tmp/
+build/
+*__debug_bin*
 build-errors.log
 
-# Docker compose files
+# =============================================================================
+# Test and Coverage Reports
+# =============================================================================
+coverage.out
+reports/
+scripts/coverage_ignore.txt
+
+# =============================================================================
+# Security and Certificates
+# =============================================================================
+cert/
+*.pem
+
+# =============================================================================
+# Docker Overrides
+# =============================================================================
 components/ledger/_docker-compose.yml
 components/onboarding/_docker-compose.yml
 
-# Environment files
-.env
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+postman/backups/
 
-# Dependencies
-node_modules/
-scripts/node_modules/
+# Demo data scripts
 scripts/demo-data/node_modules/
 scripts/demo-data/dist/
 scripts/demo-data/sdk-source/
 
-# Other
-postman/backups
+# =============================================================================
+# Console Component (components/console/)
+# =============================================================================
 
-# === Console Component (components/console) ===
-
-# dependencies
-/components/console/node_modules
+# Dependencies
+/components/console/node_modules/
 /components/console/.pnp
 /components/console/.pnp.js
 /components/console/.yarn/install-state.gz
 
-# testing
-/components/console/coverage
-
-# next.js
+# Next.js
 /components/console/.next/
 /components/console/out/
+/components/console/next-env.d.ts
 
-# production
-/components/console/build
+# Build output
+/components/console/build/
 
-# misc
-/components/console/.DS_Store
-/components/console/*.pem
+# Testing and coverage
+/components/console/coverage/
 
-# debug
+# Debug logs
 /components/console/npm-debug.log*
 /components/console/yarn-debug.log*
 /components/console/yarn-error.log*
 
-# local env files
+# Environment files
 /components/console/.env
 /components/console/.env*.local
 
-# vercel
-/components/console/.vercel
-
-# typescript
+# TypeScript
 /components/console/*.tsbuildinfo
-/components/console/next-env.d.ts
-
-# IDE's
-/components/console/.idea
-/components/console/*storybook.log
 
 # Storybook
 /components/console/storybook-static/
+/components/console/*storybook.log
 
-# playwright
+# Playwright
 /components/console/.env.playwright
 /components/console/playwright-report/
 /components/console/playwright/.cache/
 /components/console/blob-report/
 /components/console/tests/storage/
-.windsurfrules
-cert/
-.worktrees/
+
+# Vercel
+/components/console/.vercel/
+
+# IDE (console-specific)
+/components/console/.idea/
+
+# OS files (console-specific)
+/components/console/.DS_Store
