@@ -84,46 +84,54 @@ test:
 test-unit:
 	$(call print_title,Running Go unit tests)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/unit; \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
 	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running unit tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs || { \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs; \
+	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
 	  fi; \
 	fi
 
+# Unit tests with coverage (uses covermode=atomic)
 .PHONY: coverage-unit
-coverage-unit: test-unit
-	$(call print_title,Generate and open unit test coverage report)
-	@set -e; \
-	if [ -f $(TEST_REPORTS_DIR)/unit/coverage.out ]; then \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/unit/coverage.out -o $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  echo "Coverage report generated at $(TEST_REPORTS_DIR)/unit/coverage.html"; \
-	  if command -v open >/dev/null 2>&1; then \
-	    open $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  elif command -v xdg-open >/dev/null 2>&1; then \
-	    xdg-open $(TEST_REPORTS_DIR)/unit/coverage.html; \
-	  else \
-	    echo "Open the file manually: $(TEST_REPORTS_DIR)/unit/coverage.html"; \
-	  fi; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/unit/coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
+coverage-unit:
+	$(call print_title,Running Go unit tests with coverage)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
-	  echo "coverage.out not found at $(TEST_REPORTS_DIR)/unit/coverage.out"; \
-	  exit 1; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    echo "Running unit tests with gotestsum (coverage enabled)"; \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs || { \
+	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	        echo "Retrying unit tests once..."; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
+	      else \
+	        exit 1; \
+	      fi; \
+	    }; \
+	  else \
+	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
+	  fi; \
+	  go tool cover -html=$(TEST_REPORTS_DIR)/unit_coverage.out -o $(TEST_REPORTS_DIR)/unit_coverage.html; \
+	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/unit_coverage.html"; \
+	  echo "----------------------------------------"; \
+	  go tool cover -func=$(TEST_REPORTS_DIR)/unit_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
+	  echo "----------------------------------------"; \
 	fi
 
 # Integration tests (Go) – spins up stack, runs tests/integration
@@ -287,34 +295,70 @@ test-security:
 	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
 	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration -run Security
 
-# Integration tests with testcontainers (colocated with source code)
+# Integration tests with testcontainers (no coverage)
 # These tests use the `integration` build tag and testcontainers-go to spin up
 # ephemeral containers. No external Docker stack is required.
-# Test files must follow the naming convention: *_integ_test.go
+# Requirements:
+#   - Test files must follow the naming convention: *_integration_test.go
+#   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
 .PHONY: test-integ
 test-integ:
 	$(call print_title,Running integration tests with testcontainers)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/integ; \
-	echo "Finding packages with *_integ_test.go files..."; \
-	dirs=$$(find ./components ./pkg -name '*_integ_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	echo "Finding packages with *_integration_test.go files..."; \
+	dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
 	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
 	if [ -z "$$pkgs" ]; then \
-	  echo "No integration test packages found (files matching *_integ_test.go)"; \
+	  echo "No integration test packages found (files matching *_integration_test.go)"; \
 	else \
 	  echo "Found packages: $$pkgs"; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integ/integ.xml -- \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integ/coverage.out \
+	      -run '^TestIntegration' $$pkgs || { \
+	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	        echo "Retrying integ tests once..."; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
+	          -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          -run '^TestIntegration' $$pkgs; \
+	      else \
+	        exit 1; \
+	      fi; \
+	    }; \
+	  else \
+	    go test -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -run '^TestIntegration' $$pkgs; \
+	  fi; \
+	fi
+
+# Integration tests with testcontainers (with coverage, uses covermode=atomic)
+.PHONY: coverage-integration
+coverage-integration:
+	$(call print_title,Running integration tests with testcontainers (coverage enabled))
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	echo "Finding packages with *_integration_test.go files..."; \
+	dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No integration test packages found (files matching *_integration_test.go)"; \
+	else \
+	  echo "Found packages: $$pkgs"; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
+	      -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integ/integ-rerun.xml -- \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integ/coverage.out \
+	          -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
 	        exit 1; \
@@ -322,95 +366,22 @@ test-integ:
 	    }; \
 	  else \
 	    go test -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integ/coverage.out \
+	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
+	  go tool cover -html=$(TEST_REPORTS_DIR)/integration_coverage.out -o $(TEST_REPORTS_DIR)/integration_coverage.html; \
+	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/integration_coverage.html"; \
+	  echo "----------------------------------------"; \
+	  go tool cover -func=$(TEST_REPORTS_DIR)/integration_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
+	  echo "----------------------------------------"; \
 	fi
 
-.PHONY: coverage-integ
-coverage-integ: test-integ
-	$(call print_title,Generate and open testcontainers integration test coverage report)
-	@set -e; \
-	if [ -f $(TEST_REPORTS_DIR)/integ/coverage.out ]; then \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/integ/coverage.out -o $(TEST_REPORTS_DIR)/integ/coverage.html; \
-	  echo "Coverage report generated at $(TEST_REPORTS_DIR)/integ/coverage.html"; \
-	  if command -v open >/dev/null 2>&1; then \
-	    open $(TEST_REPORTS_DIR)/integ/coverage.html; \
-	  elif command -v xdg-open >/dev/null 2>&1; then \
-	    xdg-open $(TEST_REPORTS_DIR)/integ/coverage.html; \
-	  else \
-	    echo "Open the file manually: $(TEST_REPORTS_DIR)/integ/coverage.html"; \
-	  fi; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/integ/coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
-	else \
-	  echo "coverage.out not found at $(TEST_REPORTS_DIR)/integ/coverage.out"; \
-	  exit 1; \
-	fi
-
-# Combined coverage: runs unit tests + testcontainers integration tests and merges coverage
-.PHONY: coverage-combined
-coverage-combined:
-	$(call print_title,Running unit tests and testcontainers integration tests with combined coverage)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/combined; \
-	echo ""; \
-	echo "Step 1/4: Running unit tests..."; \
-	pkgs_unit=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
-	if [ -n "$$pkgs_unit" ]; then \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/combined/unit.xml -- \
-	      -v -race -count=1 $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/combined/unit.out \
-	      $$pkgs_unit || exit 1; \
-	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/combined/unit.out \
-	      $$pkgs_unit || exit 1; \
-	  fi; \
-	fi; \
-	echo ""; \
-	echo "Step 2/4: Running testcontainers integration tests..."; \
-	dirs_int=$$(find ./components ./pkg -name '*_integ_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	pkgs_int=$$(if [ -n "$$dirs_int" ]; then go list $$dirs_int 2>/dev/null | tr '\n' ' '; fi); \
-	if [ -n "$$pkgs_int" ]; then \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/combined/integ.xml -- \
-	      -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/combined/integ.out \
-	      $$pkgs_int || exit 1; \
-	  else \
-	    go test -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/combined/integ.out \
-	      $$pkgs_int || exit 1; \
-	  fi; \
-	fi; \
-	echo ""; \
-	echo "Step 3/4: Merging coverage profiles..."; \
-	echo "mode: atomic" > $(TEST_REPORTS_DIR)/combined/coverage.out; \
-	for f in $(TEST_REPORTS_DIR)/combined/unit.out $(TEST_REPORTS_DIR)/combined/integ.out; do \
-	  if [ -f "$$f" ]; then \
-	    tail -n +2 "$$f" >> $(TEST_REPORTS_DIR)/combined/coverage.out; \
-	  fi; \
-	done; \
-	echo ""; \
-	echo "Step 4/4: Generating HTML report..."; \
-	go tool cover -html=$(TEST_REPORTS_DIR)/combined/coverage.out -o $(TEST_REPORTS_DIR)/combined/coverage.html; \
-	echo ""; \
-	echo "========================================"; \
-	echo "Combined coverage report generated at $(TEST_REPORTS_DIR)/combined/coverage.html"; \
-	echo "========================================"; \
-	go tool cover -func=$(TEST_REPORTS_DIR)/combined/coverage.out | grep total | awk '{print "Total combined coverage: " $$3}'; \
-	echo "========================================"; \
-	if command -v open >/dev/null 2>&1; then \
-	  open $(TEST_REPORTS_DIR)/combined/coverage.html; \
-	elif command -v xdg-open >/dev/null 2>&1; then \
-	  xdg-open $(TEST_REPORTS_DIR)/combined/coverage.html; \
-	else \
-	  echo "Open the file manually: $(TEST_REPORTS_DIR)/combined/coverage.html"; \
-	fi
+# Run all coverage targets
+.PHONY: coverage
+coverage:
+	$(call print_title,Running all coverage targets)
+	$(MAKE) coverage-unit
+	$(MAKE) coverage-integration
 
 # Run all tests
 .PHONY: test-all
