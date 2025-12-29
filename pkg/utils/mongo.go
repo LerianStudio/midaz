@@ -29,6 +29,7 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 					"Sanitized port=%s, ignored embedded=%s, using explicit=%s",
 				actualPort, embeddedParams, parameters,
 			)
+
 			return actualPort, parameters
 		}
 
@@ -39,6 +40,7 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 				"Extracted port=%s, parameters=%s",
 			actualPort, embeddedParams,
 		)
+
 		return actualPort, embeddedParams
 	}
 
