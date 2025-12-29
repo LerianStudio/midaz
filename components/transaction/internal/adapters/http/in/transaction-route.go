@@ -45,8 +45,19 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		logger.Errorf("Failed to get organization_id from context: missing or invalid type")
+
+		return http.InternalServerError(c, "INTERNAL_SERVER_ERROR", "Internal Server Error", "An internal error occurred while processing the request")
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		logger.Errorf("Failed to get ledger_id from context: missing or invalid type")
+
+		return http.InternalServerError(c, "INTERNAL_SERVER_ERROR", "Internal Server Error", "An internal error occurred while processing the request")
+	}
 
 	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, uuid.Nil)
 	mlog.SetHandler(c, "create_transaction_route")
