@@ -13,6 +13,12 @@ type contextKey string
 // wideEventKey is the key used to store WideEvent in Fiber's Locals.
 const wideEventKey contextKey = "wide_event"
 
+// defaultWideEventFieldsCap is the initial slice capacity for WideEvent fields.
+// The WideEvent struct currently has ~50 fields, and each field produces two slice
+// elements (key + value). This capacity (100) accommodates all current fields with
+// minimal slack for future additions, avoiding reallocations in the common case.
+const defaultWideEventFieldsCap = 100
+
 // GetWideEvent retrieves the WideEvent from Fiber context.
 // Returns nil if no event is found.
 func GetWideEvent(c *fiber.Ctx) *WideEvent {
@@ -86,8 +92,10 @@ func EnrichFromLocals(c *fiber.Ctx) {
 		event.SetSegment(segmentID.String())
 	}
 
-	// Extract external_id for asset rates
-	if externalID, ok := c.Locals("external_id").(string); ok {
+	// Extract external_id for asset rates (check String() method first for uuid.UUID, then plain string)
+	if stringer, ok := c.Locals("external_id").(interface{ String() string }); ok {
+		event.SetAssetRateExternalID(stringer.String())
+	} else if externalID, ok := c.Locals("external_id").(string); ok {
 		event.SetAssetRateExternalID(externalID)
 	}
 
@@ -148,7 +156,7 @@ func (e *WideEvent) Emit(logger libLog.Logger) {
 //
 //nolint:gocyclo,gocognit // Field assembly is intentionally explicit for clarity and debuggability
 func (e *WideEvent) toFieldsLocked() []any {
-	fields := make([]any, 0, 100)
+	fields := make([]any, 0, defaultWideEventFieldsCap)
 
 	// Request identification
 	if e.RequestID != "" {

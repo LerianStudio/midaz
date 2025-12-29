@@ -2,10 +2,46 @@ package mlog
 
 import (
 	"fmt"
+	"strconv"
+	"sync/atomic"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/gofiber/fiber/v2"
 )
+
+// responseSizeTrackerKey is the context key for storing the response size tracker.
+const responseSizeTrackerKey = "wide_event_response_size_tracker"
+
+// ResponseSizeTracker tracks the number of bytes written to the response.
+// This is useful for streaming/chunked responses where Content-Length may not be set.
+type ResponseSizeTracker struct {
+	bytesWritten int64
+}
+
+// AddBytes adds to the bytes written counter (thread-safe).
+func (t *ResponseSizeTracker) AddBytes(n int64) {
+	atomic.AddInt64(&t.bytesWritten, n)
+}
+
+// BytesWritten returns the total bytes written (thread-safe).
+func (t *ResponseSizeTracker) BytesWritten() int64 {
+	return atomic.LoadInt64(&t.bytesWritten)
+}
+
+// GetResponseSizeTracker retrieves the response size tracker from the Fiber context.
+// Returns nil if no tracker is present.
+func GetResponseSizeTracker(c *fiber.Ctx) *ResponseSizeTracker {
+	if tracker, ok := c.Locals(responseSizeTrackerKey).(*ResponseSizeTracker); ok {
+		return tracker
+	}
+
+	return nil
+}
+
+// SetResponseSizeTracker stores the response size tracker in the Fiber context.
+func SetResponseSizeTracker(c *fiber.Ctx, tracker *ResponseSizeTracker) {
+	c.Locals(responseSizeTrackerKey, tracker)
+}
 
 // DefaultSkipPaths returns paths that should be skipped from wide event logging.
 // Returns a fresh copy each time to prevent mutation.
@@ -71,6 +107,11 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 			return c.Next()
 		}
 
+		// Initialize response size tracker early for accurate streaming response tracking.
+		// Handlers can use GetResponseSizeTracker(c).AddBytes(n) when writing streamed data.
+		tracker := &ResponseSizeTracker{}
+		SetResponseSizeTracker(c, tracker)
+
 		// Initialize wide event
 		event := NewWideEvent(c)
 		event.SetService(cfg.Service, cfg.Version, cfg.Environment)
@@ -103,13 +144,14 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 			event.SetPanic(fmt.Sprintf("%v", panicVal))
 		}
 
-		// Capture response details
-		event.SetResponse(c.Response().StatusCode(), int64(len(c.Response().Body())))
+		// Capture response details with accurate size calculation
+		responseSize := calculateResponseSize(c, tracker)
+		event.SetResponse(c.Response().StatusCode(), responseSize)
 
 		// Handle any error that occurred
 		if err != nil {
 			if fiberErr, ok := err.(*fiber.Error); ok {
-				event.SetError("fiber_error", "", fiberErr.Message, false)
+				event.SetError("fiber_error", strconv.Itoa(fiberErr.Code), fiberErr.Message, false)
 			} else {
 				event.SetError("handler_error", "", err.Error(), false)
 			}
@@ -125,4 +167,27 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 
 		return err
 	}
+}
+
+// calculateResponseSize determines the response size using the most accurate method available:
+// 1. Content-Length header (if explicitly set by the handler)
+// 2. ResponseSizeTracker bytes written (for instrumented streaming responses)
+// 3. Response body length (fallback for buffered responses)
+func calculateResponseSize(c *fiber.Ctx, tracker *ResponseSizeTracker) int64 {
+	// First, check for Content-Length header (most authoritative when set)
+	if contentLength := c.Response().Header.Peek("Content-Length"); len(contentLength) > 0 {
+		if size, err := strconv.ParseInt(string(contentLength), 10, 64); err == nil && size >= 0 {
+			return size
+		}
+	}
+
+	// Second, check if we have tracked bytes from streaming writes
+	if tracker != nil {
+		if trackedBytes := tracker.BytesWritten(); trackedBytes > 0 {
+			return trackedBytes
+		}
+	}
+
+	// Fallback to body length for buffered responses
+	return int64(len(c.Response().Body()))
 }
