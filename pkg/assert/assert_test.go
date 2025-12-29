@@ -629,6 +629,7 @@ func TestValidSSLMode(t *testing.T) {
 }
 
 // TestPositiveInt tests the PositiveInt predicate for int type.
+// TODO(review): Add math.MaxInt and math.MinInt boundary tests for completeness (reported by code-reviewer on 2025-12-29, severity: Low)
 func TestPositiveInt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -650,6 +651,7 @@ func TestPositiveInt(t *testing.T) {
 }
 
 // TestInRangeInt tests the InRangeInt predicate for int type.
+// TODO(review): Add math.MaxInt and math.MinInt boundary tests for completeness (reported by business-logic-reviewer on 2025-12-29, severity: Low)
 func TestInRangeInt(t *testing.T) {
 	tests := []struct {
 		name     string
