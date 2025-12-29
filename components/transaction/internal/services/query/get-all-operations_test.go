@@ -3,7 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
@@ -143,4 +146,49 @@ func TestGetAllOperations(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
+}
+
+func TestGetAllOperations_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _, _ = uc.GetAllOperations(ctx, uuid.Nil, uuid.New(), uuid.New(), http.QueryHeader{})
+}
+
+func TestGetAllOperations_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _, _ = uc.GetAllOperations(ctx, uuid.New(), uuid.Nil, uuid.New(), http.QueryHeader{})
+}
+
+func TestGetAllOperations_NilTransactionID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil transactionID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "transactionID must not be nil UUID"),
+			"panic message should mention transactionID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _, _ = uc.GetAllOperations(ctx, uuid.New(), uuid.New(), uuid.Nil, http.QueryHeader{})
 }

@@ -3,7 +3,9 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -627,6 +629,85 @@ func (m *MockLogger) Infoln(args ...interface{})            {}
 func (m *MockLogger) Warnln(args ...interface{})            {}
 func (m *MockLogger) Errorln(args ...interface{})           {}
 func (m *MockLogger) Fatalln(args ...interface{})           {}
-func (m *MockLogger) Sync() error                           { return nil }
-func (m *MockLogger) WithDefaultMessageTemplate(string) libLog.Logger { return m }
-func (m *MockLogger) WithFields(...any) libLog.Logger                   { return m }
+func (m *MockLogger) Sync() error                                      { return nil }
+func (m *MockLogger) WithDefaultMessageTemplate(string) libLog.Logger  { return m }
+func (m *MockLogger) WithFields(...any) libLog.Logger                  { return m }
+
+// Precondition tests for GetBalances
+
+func TestValidateIfBalanceExistsOnRedis_MalformedAlias_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{
+		RedisRepo: mockRedisRepo,
+	}
+
+	// Mock Redis to return a valid balance JSON for a malformed alias (no # separator)
+	malformedAlias := "alias_without_separator"
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// The key format includes the alias, so we need to match any key
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return(`{"id":"test-id","accountId":"acc-123","available":"100","onHold":"0","version":1}`, nil)
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on malformed alias without # separator")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "alias must contain exactly one '#' separator"),
+			"panic message should mention alias separator, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	logger := &MockLogger{}
+	_, _ = uc.ValidateIfBalanceExistsOnRedis(ctx, logger, orgID, ledgerID, []string{malformedAlias})
+}
+
+func TestGetBalances_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalances(ctx, uuid.Nil, uuid.New(), uuid.New(), nil, nil, "")
+}
+
+func TestGetBalances_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalances(ctx, uuid.New(), uuid.Nil, uuid.New(), nil, nil, "")
+}
+
+func TestGetBalances_NilTransactionID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil transactionID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "transactionID must not be nil UUID"),
+			"panic message should mention transactionID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalances(ctx, uuid.New(), uuid.New(), uuid.Nil, nil, nil, "")
+}

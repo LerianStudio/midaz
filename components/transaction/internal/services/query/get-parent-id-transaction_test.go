@@ -3,10 +3,13 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -58,4 +61,49 @@ func TestGetParentByTransactionIDError(t *testing.T) {
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, res)
+}
+
+func TestGetParentByTransactionID_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetParentByTransactionID(ctx, uuid.Nil, uuid.New(), uuid.New())
+}
+
+func TestGetParentByTransactionID_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetParentByTransactionID(ctx, uuid.New(), uuid.Nil, uuid.New())
+}
+
+func TestGetParentByTransactionID_NilParentID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil parentID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "parentID must not be nil UUID"),
+			"panic message should mention parentID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetParentByTransactionID(ctx, uuid.New(), uuid.New(), uuid.Nil)
 }

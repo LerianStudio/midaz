@@ -11,6 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -25,6 +26,14 @@ const (
 
 // GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
+	// Preconditions: validate required UUID inputs
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(ledgerID != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", ledgerID)
+	assert.That(transactionID != uuid.Nil, "transactionID must not be nil UUID",
+		"transactionID", transactionID)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
@@ -142,13 +151,10 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, logger li
 			}
 
 			aliasAndKey := strings.Split(alias, "#")
-			if len(aliasAndKey) != 2 {
-				logger.Warnf("Invalid alias format in Redis cache (expected 'alias#key'): %s", alias)
-				// Fallback to database lookup for malformed cache entries
-				newAliases = append(newAliases, alias)
-
-				continue
-			}
+			assert.That(len(aliasAndKey) == 2,
+				"alias must contain exactly one '#' separator",
+				"alias", alias,
+				"parts", len(aliasAndKey))
 
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,

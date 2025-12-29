@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -14,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -263,4 +266,49 @@ func TestGetBalanceByID(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, out)
 	})
+}
+
+func TestGetBalanceByID_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalanceByID(ctx, uuid.Nil, uuid.New(), uuid.New())
+}
+
+func TestGetBalanceByID_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalanceByID(ctx, uuid.New(), uuid.Nil, uuid.New())
+}
+
+func TestGetBalanceByID_NilBalanceID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil balanceID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "balanceID must not be nil UUID"),
+			"panic message should mention balanceID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetBalanceByID(ctx, uuid.New(), uuid.New(), uuid.Nil)
 }

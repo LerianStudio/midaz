@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1066,4 +1067,66 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		assert.True(t, res[1].OnHold.Equal(decimal.Zero))
 		assert.Equal(t, int64(0), res[1].Version)
 	})
+}
+
+// Precondition tests for GetAllBalances and GetAllBalancesByAlias
+
+func TestGetAllBalances_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _, _ = uc.GetAllBalances(ctx, uuid.Nil, uuid.New(), http.QueryHeader{})
+}
+
+func TestGetAllBalances_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _, _ = uc.GetAllBalances(ctx, uuid.New(), uuid.Nil, http.QueryHeader{})
+}
+
+func TestGetAllBalancesByAlias_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetAllBalancesByAlias(ctx, uuid.Nil, uuid.New(), "test-alias")
+}
+
+func TestGetAllBalancesByAlias_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetAllBalancesByAlias(ctx, uuid.New(), uuid.Nil, "test-alias")
 }
