@@ -192,6 +192,9 @@ func InitServers() *Service {
 		"package", "bootstrap",
 		"function", "InitServers")
 
+	// Validate configuration before proceeding
+	cfg.Validate()
+
 	logger := libZap.InitializeLogger()
 
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
@@ -493,6 +496,9 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	if err != nil {
 		return nil, pkg.ValidateInternalError(err, "Config")
 	}
+
+	// Validate configuration before proceeding
+	cfg.Validate()
 
 	// Use provided logger or initialize a new one
 	logger := opts.Logger
