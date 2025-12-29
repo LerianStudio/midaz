@@ -944,3 +944,246 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 			"response amount should be 100, got %s", amount)
 	}
 }
+
+// TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit validates the full
+// pending transaction lifecycle: creation with pending=true, then commit.
+//
+// Pending transaction flow:
+// 1. Creation (pending=true):
+//   - Source: Available decreases, OnHold increases (funds reserved)
+//   - Destination: NO change (credit not applied yet)
+//   - Transaction status: PENDING
+//   - Only source operation created (DEBIT with ONHOLD)
+//
+// 2. Commit:
+//   - Source: OnHold decreases (funds released from hold)
+//   - Destination: Available increases (credit applied)
+//   - Transaction status: APPROVED
+//   - Destination operation created (CREDIT)
+func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *testing.T) {
+	// Arrange
+	infra := setupTestInfra(t)
+
+	// Ensure sync mode is enabled
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Use fake account IDs (account table is in onboarding component)
+	sourceAccountID := libCommons.GenerateUUIDv7()
+	destAccountID := libCommons.GenerateUUIDv7()
+
+	// Create source balance (@source-pending) with 1000 USD available
+	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
+	sourceBalanceParams.Alias = "@source-pending"
+	sourceBalanceParams.AssetCode = "USD"
+	sourceBalanceParams.Available = decimal.NewFromInt(1000)
+	sourceBalanceParams.OnHold = decimal.Zero
+	sourceBalanceID := postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
+
+	// Create destination balance (@dest-pending) with 0 USD available
+	destBalanceParams := postgrestestutil.DefaultBalanceParams()
+	destBalanceParams.Alias = "@dest-pending"
+	destBalanceParams.AssetCode = "USD"
+	destBalanceParams.Available = decimal.Zero
+	destBalanceParams.OnHold = decimal.Zero
+	destBalanceID := postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
+
+	// Build JSON request body for PENDING transaction (100 USD transfer)
+	requestBody := `{
+		"description": "Pending transaction test - 100 USD transfer",
+		"pending": true,
+		"send": {
+			"asset": "USD",
+			"value": "100",
+			"source": {
+				"from": [
+					{
+						"accountAlias": "@source-pending",
+						"amount": {
+							"asset": "USD",
+							"value": "100"
+						}
+					}
+				]
+			},
+			"distribute": {
+				"to": [
+					{
+						"accountAlias": "@dest-pending",
+						"amount": {
+							"asset": "USD",
+							"value": "100"
+						}
+					}
+				]
+			}
+		}
+	}`
+
+	// =========================================
+	// PHASE 1: Create pending transaction
+	// =========================================
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "HTTP request should not fail")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "should read response body")
+
+	if resp.StatusCode != 201 {
+		t.Logf("Response status: %d, body: %s", resp.StatusCode, string(body))
+	}
+	assert.Equal(t, 201, resp.StatusCode, "expected HTTP 201 Created")
+
+	// Parse response JSON
+	var result map[string]any
+	err = json.Unmarshal(body, &result)
+	require.NoError(t, err, "response should be valid JSON")
+
+	// Get transaction ID
+	txIDStr, ok := result["id"].(string)
+	require.True(t, ok, "response should contain transaction id")
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err, "transaction ID should be valid UUID")
+
+	// =========================================
+	// Assert: State after PENDING creation
+	// =========================================
+
+	ctx := context.Background()
+
+	// Assert: Transaction status is PENDING
+	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, cn.PENDING, dbStatus,
+		"transaction status should be PENDING after creation")
+
+	// Assert: Source balance in PostgreSQL - Available decreased, OnHold increased
+	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
+	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
+	assert.True(t, sourceAvailableAfterCreate.Equal(decimal.NewFromInt(900)),
+		"source available should be 900 after pending creation, got %s", sourceAvailableAfterCreate.String())
+	assert.True(t, sourceOnHoldAfterCreate.Equal(decimal.NewFromInt(100)),
+		"source onHold should be 100 after pending creation, got %s", sourceOnHoldAfterCreate.String())
+
+	// Assert: Destination balance in PostgreSQL - UNCHANGED (no credit yet)
+	destAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
+	destOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, destBalanceID)
+	assert.True(t, destAvailableAfterCreate.Equal(decimal.Zero),
+		"dest available should be 0 after pending creation (no credit yet), got %s", destAvailableAfterCreate.String())
+	assert.True(t, destOnHoldAfterCreate.Equal(decimal.Zero),
+		"dest onHold should be 0 after pending creation, got %s", destOnHoldAfterCreate.String())
+
+	// Assert: Source balance in Redis - Available=900, OnHold=100
+	sourceRedisAfterCreate := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@source-pending", "default")
+	require.NotNil(t, sourceRedisAfterCreate, "source balance should exist in Redis after pending creation")
+	assert.True(t, sourceRedisAfterCreate.Available.Equal(decimal.NewFromInt(900)),
+		"Redis source available should be 900, got %s", sourceRedisAfterCreate.Available.String())
+	assert.True(t, sourceRedisAfterCreate.OnHold.Equal(decimal.NewFromInt(100)),
+		"Redis source onHold should be 100, got %s", sourceRedisAfterCreate.OnHold.String())
+
+	// Assert: Destination balance in Redis - should NOT exist or be unchanged
+	// (destination is not processed during pending creation)
+	destRedisAfterCreate := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@dest-pending", "default")
+	// Destination may not be in Redis at all if never touched, or may have initial values
+	if destRedisAfterCreate != nil {
+		assert.True(t, destRedisAfterCreate.Available.Equal(decimal.Zero),
+			"Redis dest available should be 0 after pending creation, got %s", destRedisAfterCreate.Available.String())
+		assert.True(t, destRedisAfterCreate.OnHold.Equal(decimal.Zero),
+			"Redis dest onHold should be 0 after pending creation, got %s", destRedisAfterCreate.OnHold.String())
+	}
+
+	// Assert: Only 1 operation created (source DEBIT with ONHOLD)
+	opCountAfterCreate := postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, 1, opCountAfterCreate,
+		"should have exactly 1 operation after pending creation (source only), got %d", opCountAfterCreate)
+
+	// =========================================
+	// PHASE 2: Commit the pending transaction
+	// =========================================
+
+	commitReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/"+txID.String()+"/commit",
+		nil)
+	commitReq.Header.Set("Content-Type", "application/json")
+
+	commitResp, err := infra.app.Test(commitReq, -1)
+	require.NoError(t, err, "commit HTTP request should not fail")
+
+	commitBody, err := io.ReadAll(commitResp.Body)
+	require.NoError(t, err, "should read commit response body")
+
+	if commitResp.StatusCode != 201 {
+		t.Logf("Commit response status: %d, body: %s", commitResp.StatusCode, string(commitBody))
+	}
+	assert.Equal(t, 201, commitResp.StatusCode, "expected HTTP 201 Created for commit (creates new transaction)")
+
+	// =========================================
+	// Assert: State after COMMIT
+	// =========================================
+
+	// Assert: Transaction status is APPROVED
+	dbStatusAfterCommit := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, cn.APPROVED, dbStatusAfterCommit,
+		"transaction status should be APPROVED after commit")
+
+	// Assert: Source balance in PostgreSQL - Available=900, OnHold=0 (released)
+	sourceAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
+	sourceOnHoldAfterCommit := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
+	assert.True(t, sourceAvailableAfterCommit.Equal(decimal.NewFromInt(900)),
+		"source available should remain 900 after commit, got %s", sourceAvailableAfterCommit.String())
+	assert.True(t, sourceOnHoldAfterCommit.Equal(decimal.Zero),
+		"source onHold should be 0 after commit (released), got %s", sourceOnHoldAfterCommit.String())
+
+	// Assert: Destination balance in PostgreSQL - Available=100 (credit applied)
+	destAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
+	destOnHoldAfterCommit := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, destBalanceID)
+	assert.True(t, destAvailableAfterCommit.Equal(decimal.NewFromInt(100)),
+		"dest available should be 100 after commit (credit applied), got %s", destAvailableAfterCommit.String())
+	assert.True(t, destOnHoldAfterCommit.Equal(decimal.Zero),
+		"dest onHold should be 0 after commit, got %s", destOnHoldAfterCommit.String())
+
+	// Assert: Source balance in Redis - Available=900, OnHold=0
+	sourceRedisAfterCommit := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@source-pending", "default")
+	require.NotNil(t, sourceRedisAfterCommit, "source balance should exist in Redis after commit")
+	assert.True(t, sourceRedisAfterCommit.Available.Equal(decimal.NewFromInt(900)),
+		"Redis source available should be 900 after commit, got %s", sourceRedisAfterCommit.Available.String())
+	assert.True(t, sourceRedisAfterCommit.OnHold.Equal(decimal.Zero),
+		"Redis source onHold should be 0 after commit, got %s", sourceRedisAfterCommit.OnHold.String())
+
+	// Assert: Destination balance in Redis - Available=100
+	destRedisAfterCommit := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@dest-pending", "default")
+	require.NotNil(t, destRedisAfterCommit, "dest balance should exist in Redis after commit")
+	assert.True(t, destRedisAfterCommit.Available.Equal(decimal.NewFromInt(100)),
+		"Redis dest available should be 100 after commit, got %s", destRedisAfterCommit.Available.String())
+	assert.True(t, destRedisAfterCommit.OnHold.Equal(decimal.Zero),
+		"Redis dest onHold should be 0 after commit, got %s", destRedisAfterCommit.OnHold.String())
+
+	// Assert: 3 operations total after commit
+	// The pending transaction flow creates operations as follows:
+	// - Pending creation: 1 ON_HOLD for source (reserve funds from available to onHold)
+	// - Commit: 1 DEBIT for source (release from hold) + 1 CREDIT for destination (apply credit)
+	opCountAfterCommit := postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, 3, opCountAfterCommit,
+		"should have exactly 3 operations after commit (1 ON_HOLD + 1 DEBIT + 1 CREDIT), got %d", opCountAfterCommit)
+
+	// Assert: Verify operation types (ON_HOLD, DEBIT, CREDIT)
+	var onHoldCount, debitCount, creditCount int
+	err = infra.pgContainer.DB.QueryRow(`
+		SELECT
+			SUM(CASE WHEN type = 'ON_HOLD' THEN 1 ELSE 0 END) as on_hold_count,
+			SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END) as debit_count,
+			SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END) as credit_count
+		FROM operation
+		WHERE transaction_id = $1
+	`, txID).Scan(&onHoldCount, &debitCount, &creditCount)
+	require.NoError(t, err, "should query operation types")
+	assert.Equal(t, 1, onHoldCount, "should have exactly 1 ON_HOLD operation (pending creation)")
+	assert.Equal(t, 1, debitCount, "should have exactly 1 DEBIT operation (release from hold)")
+	assert.Equal(t, 1, creditCount, "should have exactly 1 CREDIT operation (destination credit)")
+}

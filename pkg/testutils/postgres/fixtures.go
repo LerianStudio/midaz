@@ -375,6 +375,17 @@ func GetBalanceAvailable(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.
 	return available
 }
 
+// GetBalanceOnHold retrieves the on_hold amount of a balance.
+func GetBalanceOnHold(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.Decimal {
+	t.Helper()
+
+	var onHold decimal.Decimal
+	err := db.QueryRow(`SELECT on_hold FROM balance WHERE id = $1`, balanceID).Scan(&onHold)
+	require.NoError(t, err, "failed to get balance on_hold")
+
+	return onHold
+}
+
 // CountOperationsByTransactionID counts operations for a given transaction.
 func CountOperationsByTransactionID(t *testing.T, db *sql.DB, txID uuid.UUID) int {
 	t.Helper()
