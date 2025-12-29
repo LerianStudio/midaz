@@ -1,3 +1,38 @@
+## [v3.5.0-beta.28] - 2025-12-29
+
+### ✨ Features
+- add enum values for entityName in Swagger documentation for ledger API
+- add 404 response for organization or ledger not found and clean up 204 response in API documentation
+- add metadata index endpoints to ledger API documentation and implement related routes
+- move metadata index to ledger component
+- add 409 Conflict response to API documentation for metadata index creation
+- implement metadata index creation, deletion, and retrieval functionality
+- add metadata index management functionality
+
+### 🐛 Bug Fixes
+- remove unnecessary schema definition for 204 response in transaction Swagger files
+- correct variable name typos and ensure proper span handling in MongoDB index methods
+
+### 🔄 Changes
+- update metadata index routes to use a unified endpoint structure under /v1/settings/metadata-indexes
+- clean up API documentation by removing unnecessary whitespace and adding date-time format to createdAt fields
+- revert unnecessary changes to documentation
+- multiple fixes in metadata indexes endpoints + add metadata indexes endpoints to docs
+- improve span handling in MongoDB index deletion and enhance code readability in metadata index retrieval
+- simplify metadata index methods by removing organization and ledger ID parameters, and enhance error handling for entity name validation
+
+### 📚 Documentation
+- enhance metadata index deletion endpoint description to specify required entity_name query parameter
+
+### 🧪 Testing
+- add error handling tests for CreateMetadataIndex and DeleteMetadataIndex endpoints
+- add comprehensive unit tests for metadata index creation, deletion, and retrieval
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update docs
+
+
 ## [v3.5.0-beta.28] - 2025-12-22
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.27...v3.5.0-beta.28)
@@ -273,7 +308,7 @@ Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
 - **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
 - **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
 
-## [v3.4.7] - 2025-12-09
+## [v3.5.0-beta.29] - 2025-12-29
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
 Contributors: Clara Tersi
