@@ -239,6 +239,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("cpfcnpj", validateCPFCNPJ)
 	_ = v.RegisterValidation("cpf", validateCPF)
 	_ = v.RegisterValidation("cnpj", validateCNPJ)
+	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -354,6 +355,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("nowhitespaces", "{0} cannot contain whitespaces", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("nowhitespaces", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("metadatakeyformat", trans, func(ut ut.Translator) error {
+		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("metadatakeyformat", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -474,6 +483,34 @@ func validateNoWhitespaces(fl validator.FieldLevel) bool {
 	match, _ := regexp.MatchString(`^\S+$`, f)
 
 	return match
+}
+
+// validateMetadataKeyFormat validates the metadata key format for index creation.
+// Rules:
+// - Must start with a letter
+// - Only alphanumeric characters and underscores allowed
+// - No dots, $, or MongoDB reserved prefixes
+func validateMetadataKeyFormat(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	if len(f) == 0 {
+		return false
+	}
+
+	// Must start with a letter
+	if !regexp.MustCompile(`^[a-zA-Z]`).MatchString(f) {
+		return false
+	}
+
+	// Only alphanumeric and underscores allowed (no dots, $, or special chars)
+	if !regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`).MatchString(f) {
+		return false
+	}
+
+	return true
 }
 
 // formatErrorFieldName formats metadata field error names for error messages

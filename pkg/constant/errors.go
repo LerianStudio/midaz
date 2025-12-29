@@ -137,6 +137,15 @@ var (
 	ErrAccountCreationFailed                    = errors.New("0127")
 	ErrInvalidDatetimeFormat                    = errors.New("0128")
 
+	// Metadata Index errors
+	ErrMetadataIndexAlreadyExists     = errors.New("0129")
+	ErrMetadataIndexNotFound          = errors.New("0130")
+	ErrMetadataIndexInvalidKey        = errors.New("0131")
+	ErrMetadataIndexLimitExceeded     = errors.New("0132")
+	ErrMetadataIndexCreationFailed    = errors.New("0133")
+	ErrMetadataIndexDeletionForbidden = errors.New("0134")
+	ErrInvalidEntityName              = errors.New("0135")
+
 	//CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
 	ErrAliasNotFound                      = errors.New("CRM-0008")

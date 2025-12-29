@@ -406,6 +406,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
+	metadataIndexAdapter := NewMetadataIndexAdapter(useCase, queryUseCase)
+
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -461,6 +463,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
+		metadataIndexPort:        metadataIndexAdapter,
 		auth:                     auth,
 		transactionHandler:       transactionHandler,
 		operationHandler:         operationHandler,
