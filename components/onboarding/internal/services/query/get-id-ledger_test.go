@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
@@ -101,4 +103,34 @@ func TestGetLedgerByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetLedgerByID_NilOrganizationID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil organizationID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "organizationID must not be nil UUID"),
+			"panic message should mention organizationID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetLedgerByID(ctx, uuid.Nil, uuid.New())
+}
+
+func TestGetLedgerByID_NilLedgerID_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic on nil ledgerID")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "ledgerID must not be nil UUID"),
+			"panic message should mention ledgerID, got: %s", panicMsg)
+	}()
+
+	ctx := context.Background()
+	_, _ = uc.GetLedgerByID(ctx, uuid.New(), uuid.Nil)
 }

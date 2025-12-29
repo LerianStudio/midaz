@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -15,6 +16,14 @@ import (
 
 // GetPortfolioByID get a Portfolio from the repository by given id.
 func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
+	// Preconditions: validate required UUID inputs
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(ledgerID != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", ledgerID)
+	assert.That(id != uuid.Nil, "portfolioID must not be nil UUID",
+		"portfolioID", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_portfolio_by_id")

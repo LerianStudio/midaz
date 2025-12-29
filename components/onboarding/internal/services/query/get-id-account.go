@@ -7,12 +7,22 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // GetAccountByID get an Account from the repository by given id.
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+	// Preconditions: validate required UUID inputs
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(ledgerID != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", ledgerID)
+	// portfolioID is optional (can be nil pointer)
+	assert.That(id != uuid.Nil, "accountID must not be nil UUID",
+		"accountID", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id")

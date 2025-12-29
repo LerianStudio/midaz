@@ -10,12 +10,21 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // GetSegmentByID get a Segment from the repository by given id.
 func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
+	// Preconditions: validate required UUID inputs
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(ledgerID != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", ledgerID)
+	assert.That(id != uuid.Nil, "segmentID must not be nil UUID",
+		"segmentID", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_segment_by_id")

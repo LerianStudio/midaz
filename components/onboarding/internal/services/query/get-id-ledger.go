@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -15,6 +16,12 @@ import (
 
 // GetLedgerByID Get a ledger from the repository by given id.
 func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
+	// Preconditions: validate required UUID inputs
+	assert.That(organizationID != uuid.Nil, "organizationID must not be nil UUID",
+		"organizationID", organizationID)
+	assert.That(id != uuid.Nil, "ledgerID must not be nil UUID",
+		"ledgerID", id)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_by_id")
