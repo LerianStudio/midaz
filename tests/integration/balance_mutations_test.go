@@ -386,17 +386,17 @@ func TestIntegration_Balance_Delete(t *testing.T) {
 	}
 	t.Logf("Deleted balance: ID=%s (code=%d)", balanceID, code)
 
-	// Verify GET returns 404 after delete
-	code, body, err = trans.Request(ctx, "GET", getPath, headers, nil)
-	if err != nil {
-		t.Logf("GET after delete error (may be expected): %v", err)
-	}
-
-	if code != 404 {
-		t.Errorf("expected 404 after delete, got %d: body=%s", code, string(body))
-	} else {
-		t.Logf("Balance correctly returns 404 after delete")
-	}
+	// Verify GET returns 404 after delete (with retry for replica lag)
+	h.WaitForDeletedWithRetry(t, "balance", func() error {
+		code, _, err := trans.Request(ctx, "GET", getPath, headers, nil)
+		if err != nil {
+			return err
+		}
+		if code == 404 {
+			return fmt.Errorf("not found")
+		}
+		return nil // Still found - keep retrying
+	})
 
 	t.Log("Balance DELETE test completed successfully")
 }

@@ -267,15 +267,18 @@ func TestIntegration_OperationRoutes_CRUD(t *testing.T) {
 	t.Logf("Deleted operation route: ID=%s", routeID)
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 6) Verify GET returns 404 after delete
+	// 6) Verify GET returns 404 after delete (with retry for replica lag)
 	// ─────────────────────────────────────────────────────────────────────────
-	code, body, err = trans.Request(ctx, "GET", getPath, headers, nil)
-	if err != nil {
-		t.Logf("GET after delete returned error (expected): %v", err)
-	}
-	if code != 404 {
-		t.Errorf("GET deleted operation route should return 404, got %d: body=%s", code, string(body))
-	}
+	h.WaitForDeletedWithRetry(t, "operation route", func() error {
+		code, _, err := trans.Request(ctx, "GET", getPath, headers, nil)
+		if err != nil {
+			return err
+		}
+		if code == 404 {
+			return fmt.Errorf("not found")
+		}
+		return nil // Still found - keep retrying
+	})
 
 	t.Log("Operation Routes CRUD lifecycle completed successfully")
 }
