@@ -244,9 +244,7 @@ func InitServers() *Service {
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
-	}
+	// Note: MaxPoolSize validated in cfg.Validate() above (must be 1-1000)
 
 	if cfg.MongoDBParameters != "" {
 		mongoSource += "?" + cfg.MongoDBParameters
@@ -284,9 +282,7 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-		panic("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
-	}
+	// Note: gRPC config validated in cfg.Validate() above
 
 	grpcConnection := &mgrpc.GRPCConnection{
 		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),

@@ -47,6 +47,7 @@ type Config struct {
 
 // Validate validates the configuration and panics with clear error messages if invalid.
 // This method should be called immediately after loading configuration from environment.
+// TODO(review): Add conditional AuthAddress validation when AuthEnabled=true (reported by code-reviewer on 2025-12-29, severity: Medium)
 func (cfg *Config) Validate() {
 	// Server configuration
 	assert.NotEmpty(cfg.ServerAddress, "SERVER_ADDRESS is required",
