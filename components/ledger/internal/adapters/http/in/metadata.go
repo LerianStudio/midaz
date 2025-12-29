@@ -27,17 +27,14 @@ type MetadataIndexHandler struct {
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			metadata-index	body		mmodel.CreateMetadataIndexInput	true	"Metadata Index Input"
 //	@Success		201				{object}	mmodel.MetadataIndex			"Successfully created metadata index"
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error					"Organization or ledger not found"
 //	@Failure		409				{object}	mmodel.Error					"Conflict: Metadata index already exists"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [post]
+//	@Router			/v1/settings/metadata-indexes [post]
 func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -89,16 +86,13 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			entity_name		query		string	false	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
 //	@Success		200				{object}	[]mmodel.MetadataIndex			"Successfully retrieved metadata indexes"
 //	@Failure		400				{object}	mmodel.Error					"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error					"Organization or ledger not found"
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes [get]
+//	@Router			/v1/settings/metadata-indexes [get]
 func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -159,8 +153,6 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Produce		json
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			index_name		path	string	true	"Index Name"
 //	@Param			entity_name		query	string	true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
 //	@Success		204				"Metadata index successfully deleted"
@@ -169,7 +161,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Metadata index not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name} [delete]
+//	@Router			/v1/settings/metadata-indexes/{index_name} [delete]
 func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

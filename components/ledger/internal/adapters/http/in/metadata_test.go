@@ -30,7 +30,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", func(c *fiber.Ctx) error {
+		app.Post("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 
 			var input mmodel.CreateMetadataIndexInput
@@ -60,7 +60,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			Return(expectedResult, nil)
 
 		body, _ := json.Marshal(input)
-		req := httptest.NewRequest("POST", "/v1/organizations/123/ledgers/456/metadata-indexes", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req)
@@ -72,7 +72,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 	t.Run("error - port failure", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", func(c *fiber.Ctx) error {
+		app.Post("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 
 			var input mmodel.CreateMetadataIndexInput
@@ -94,7 +94,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			Return(nil, errors.New("index already exists"))
 
 		body, _ := json.Marshal(input)
-		req := httptest.NewRequest("POST", "/v1/organizations/123/ledgers/456/metadata-indexes", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req)
@@ -117,7 +117,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", func(c *fiber.Ctx) error {
+		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 
 			return handler.GetAllMetadataIndexes(c)
@@ -137,7 +137,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
 			Return(expectedResult, nil)
 
-		req := httptest.NewRequest("GET", "/v1/organizations/123/ledgers/456/metadata-indexes", nil)
+		req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes", nil)
 
 		resp, err := app.Test(req)
 
@@ -155,7 +155,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 	t.Run("success - with entity filter", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", func(c *fiber.Ctx) error {
+		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 
 			return handler.GetAllMetadataIndexes(c)
@@ -175,7 +175,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
 			Return(expectedResult, nil)
 
-		req := httptest.NewRequest("GET", "/v1/organizations/123/ledgers/456/metadata-indexes?entity_name=operation", nil)
+		req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes?entity_name=operation", nil)
 
 		resp, err := app.Test(req)
 
@@ -186,7 +186,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 	t.Run("error - port failure", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes", func(c *fiber.Ctx) error {
+		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 
 			return handler.GetAllMetadataIndexes(c)
@@ -196,7 +196,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
 			Return(nil, errors.New("database error"))
 
-		req := httptest.NewRequest("GET", "/v1/organizations/123/ledgers/456/metadata-indexes", nil)
+		req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes", nil)
 
 		resp, err := app.Test(req)
 
@@ -218,7 +218,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 			c.Locals("index_name", c.Params("index_name"))
 
@@ -229,7 +229,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			DeleteMetadataIndex(gomock.Any(), "transaction", "metadata.tier_1").
 			Return(nil)
 
-		req := httptest.NewRequest("DELETE", "/v1/organizations/123/ledgers/456/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
 
 		resp, err := app.Test(req)
 
@@ -240,14 +240,14 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 	t.Run("error - missing entity_name", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 			c.Locals("index_name", c.Params("index_name"))
 
 			return handler.DeleteMetadataIndex(c)
 		})
 
-		req := httptest.NewRequest("DELETE", "/v1/organizations/123/ledgers/456/metadata-indexes/metadata.tier_1", nil)
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1", nil)
 
 		resp, err := app.Test(req)
 
@@ -258,14 +258,14 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 	t.Run("error - invalid entity_name", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 			c.Locals("index_name", c.Params("index_name"))
 
 			return handler.DeleteMetadataIndex(c)
 		})
 
-		req := httptest.NewRequest("DELETE", "/v1/organizations/123/ledgers/456/metadata-indexes/metadata.tier_1?entity_name=invalid", nil)
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1?entity_name=invalid", nil)
 
 		resp, err := app.Test(req)
 
@@ -276,7 +276,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 	t.Run("error - port failure", func(t *testing.T) {
 		app := fiber.New()
 
-		app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
 			c.SetUserContext(context.Background())
 			c.Locals("index_name", c.Params("index_name"))
 
@@ -287,7 +287,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			DeleteMetadataIndex(gomock.Any(), "transaction", "metadata.tier_1").
 			Return(errors.New("index not found"))
 
-		req := httptest.NewRequest("DELETE", "/v1/organizations/123/ledgers/456/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
 
 		resp, err := app.Test(req)
 
