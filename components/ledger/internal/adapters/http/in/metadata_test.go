@@ -102,6 +102,44 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 	})
+
+	t.Run("error - invalid payload type", func(t *testing.T) {
+		app := fiber.New()
+
+		app.Post("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+
+			invalidPayload := "invalid"
+
+			return handler.CreateMetadataIndex(invalidPayload, c)
+		})
+
+		req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes", bytes.NewReader([]byte("{}")))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("error - nil payload", func(t *testing.T) {
+		app := fiber.New()
+
+		app.Post("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+
+			return handler.CreateMetadataIndex(nil, c)
+		})
+
+		req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes", bytes.NewReader([]byte("{}")))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	})
 }
 
 func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
@@ -293,6 +331,41 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	})
+
+	t.Run("error - index_name not set in locals", func(t *testing.T) {
+		app := fiber.New()
+
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+
+			return handler.DeleteMetadataIndex(c)
+		})
+
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
+
+		resp, err := app.Test(req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("error - index_name wrong type in locals", func(t *testing.T) {
+		app := fiber.New()
+
+		app.Delete("/v1/settings/metadata-indexes/:index_name", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			c.Locals("index_name", 12345)
+
+			return handler.DeleteMetadataIndex(c)
+		})
+
+		req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/metadata.tier_1?entity_name=transaction", nil)
+
+		resp, err := app.Test(req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 	})
 }
 

@@ -61,7 +61,17 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	payload := p.(*mmodel.CreateMetadataIndexInput)
+	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
+	if !ok {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.CreateMetadataIndexInput{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to assert payload type", err)
+
+		logger.Errorf("Failed to assert payload type, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
 	logger.Infof("Request to create a metadata index: entityName=%s, metadataKey=%s", payload.EntityName, payload.MetadataKey)
 
 	metadataIndex, err := handler.MetadataIndexPort.CreateMetadataIndex(ctx, payload)
@@ -170,10 +180,8 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_metadata_index")
 	defer span.End()
 
-	indexName := c.Locals("index_name").(string)
-	entityName := c.Query("entity_name")
-
-	if indexName == "" {
+	indexName, ok := c.Locals("index_name").(string)
+	if !ok || indexName == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.MetadataIndex{}).Name(), "index_name")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get index name", err)
@@ -182,6 +190,8 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
+
+	entityName := c.Query("entity_name")
 
 	if entityName == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, reflect.TypeOf(mmodel.MetadataIndex{}).Name(), "entity_name")
