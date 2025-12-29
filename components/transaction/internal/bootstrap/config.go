@@ -318,6 +318,11 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
+
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
