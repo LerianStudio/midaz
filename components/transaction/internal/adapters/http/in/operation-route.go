@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -53,6 +54,9 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, uuid.Nil)
+	mlog.SetHandler(c, "create_operation_route")
 
 	payload := i.(*mmodel.CreateOperationRouteInput)
 
@@ -107,6 +111,9 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("operation_route_id").(uuid.UUID)
 
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "get_operation_route_by_id")
+
 	logger.Infof("Initiating retrieval of Operation Route with Operation Route ID: %s", id.String())
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
@@ -155,6 +162,9 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("operation_route_id").(uuid.UUID)
+
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "update_operation_route")
 
 	logger.Infof("Initiating update of Operation Route with Operation Route ID: %s", id.String())
 
@@ -225,6 +235,9 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("operation_route_id").(uuid.UUID)
 
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "delete_operation_route_by_id")
+
 	logger.Infof("Initiating deletion of Operation Route with Operation Route ID: %s", id.String())
 
 	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
@@ -272,6 +285,9 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, uuid.Nil)
+	mlog.SetHandler(c, "get_all_operation_routes")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

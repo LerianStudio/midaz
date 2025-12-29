@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -51,6 +52,9 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_all_balances")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -129,6 +133,9 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, accountID, uuid.Nil)
+	mlog.SetHandler(c, "get_all_balances_by_account_id")
+
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
@@ -200,6 +207,9 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	balanceID := c.Locals("balance_id").(uuid.UUID)
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "get_balance_by_id")
+
 	logger.Infof("Initiating retrieval of balance by id")
 
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
@@ -245,6 +255,9 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	balanceID := c.Locals("balance_id").(uuid.UUID)
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "delete_balance_by_id")
 
 	logger.Infof("Initiating delete balance by id")
 
@@ -293,6 +306,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	balanceID := c.Locals("balance_id").(uuid.UUID)
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "update_balance")
 
 	logger.Infof("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String())
 
@@ -356,6 +372,9 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	alias := c.Params("alias")
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_balances_by_alias")
+
 	logger.Infof("Initiating retrieval of balances by alias")
 
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
@@ -409,6 +428,9 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_balances_external_by_code")
+
 	logger.Infof("Initiating retrieval of balances by code")
 
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
@@ -460,6 +482,9 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, accountID, uuid.Nil)
+	mlog.SetHandler(c, "create_additional_balance")
 
 	payload := p.(*mmodel.CreateAdditionalBalance)
 	logger.Infof("Request to create a Balance with details: %#v", payload)

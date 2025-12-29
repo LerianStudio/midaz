@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -54,6 +55,10 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
+
+	mlog.EnrichOperation(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.EnrichAccount(c, organizationID, ledgerID, accountID)
+	mlog.SetHandler(c, "get_all_operations_by_account")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -148,6 +153,10 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	accountID := c.Locals("account_id").(uuid.UUID)
 	operationID := c.Locals("operation_id").(uuid.UUID)
 
+	mlog.EnrichOperation(c, organizationID, ledgerID, uuid.Nil, operationID)
+	mlog.EnrichAccount(c, organizationID, ledgerID, accountID)
+	mlog.SetHandler(c, "get_operation_by_account")
+
 	logger.Infof("Initiating retrieval of Operation by account")
 
 	op, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
@@ -197,6 +206,9 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 	operationID := c.Locals("operation_id").(uuid.UUID)
+
+	mlog.EnrichOperation(c, organizationID, ledgerID, transactionID, operationID)
+	mlog.SetHandler(c, "update_operation")
 
 	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 

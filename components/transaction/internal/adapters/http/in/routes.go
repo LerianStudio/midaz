@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -8,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -19,7 +22,7 @@ const midazName = "midaz"
 const routingName = "routing"
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, version string, envName string, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -31,7 +34,26 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
+	f.Use(mlog.NewWideEventMiddleware(mlog.Config{
+		Service:     "transaction",
+		Version:     version,
+		Environment: envName,
+		Logger:      lg,
+		SkipPaths:   mlog.DefaultSkipPaths(),
+	}))
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+
+	// Panic capture middleware - stores panic value for wide event logging
+	f.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if e := recover(); e != nil {
+				c.Locals("panic_value", fmt.Sprintf("%v", e))
+				panic(e) // Re-panic for upstream handling
+			}
+		}()
+
+		return c.Next()
+	})
 
 	// -- Routes --
 

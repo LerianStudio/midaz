@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -857,6 +858,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
 	transactionID := libCommons.GenerateUUIDv7()
 
+	// Enrich wide event with business context
+	mlog.EnrichFromLocals(c)
+	mlog.EnrichTransaction(c, organizationID, ledgerID, transactionStatus)
+	mlog.SetHandler(c, "create_transaction")
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
@@ -924,6 +930,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 		spanIdempotency.End()
 		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		// Enrich wide event with idempotency info (cache hit)
+		mlog.SetIdempotency(c, key, true)
 
 		return http.Created(c, t)
 	}
@@ -1024,6 +1033,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
+	// Enrich wide event with transaction result
+	mlog.EnrichTransactionResult(c, tran.IDtoUUID(), tran.Status.Code, len(tran.Operations))
+
 	return http.Created(c, tran)
 }
 
@@ -1037,6 +1049,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
+	txnID := uuid.MustParse(tran.ID)
+
+	// Enrich wide event with transaction action context
+	mlog.EnrichTransactionAction(c, organizationID, ledgerID, txnID, transactionStatus)
+	mlog.SetHandler(c, "commit_or_cancel_transaction")
 
 	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
 
