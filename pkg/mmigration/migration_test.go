@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -685,9 +686,14 @@ func TestPreflightCheck_TableDoesNotExist(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	// Simulate "table does not exist" error
+	// Simulate "table does not exist" error with proper pq.Error type
+	// PostgreSQL error code 42P01 = undefined_table
+	pqErr := &pq.Error{
+		Code:    "42P01",
+		Message: "relation \"schema_migrations\" does not exist",
+	}
 	mock.ExpectQuery("SELECT version, dirty FROM schema_migrations").
-		WillReturnError(errors.New("pq: relation \"schema_migrations\" does not exist"))
+		WillReturnError(pqErr)
 
 	mockLog, ctrl := newTestMockLogger(t)
 	defer ctrl.Finish()
