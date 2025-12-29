@@ -384,6 +384,148 @@ func TestIntegration_AddSumBalancesRedis_NonNegativeBalance_BoundaryConditions(t
 	}
 }
 
+func TestIntegration_AddSumBalancesRedis_NtoN_InsufficientFunds_RollsBackAllBalances(t *testing.T) {
+	// This test validates the atomic rollback behavior for N:N transactions (multiple sources, multiple destinations).
+	// When one balance operation fails validation (insufficient funds), ALL previously modified balances
+	// must be restored to their original state by the Lua script's rollback function.
+	//
+	// Scenario:
+	// - 3 sources: @source1 (1000), @source2 (1000), @source3 (1000)
+	// - 3 destinations: @dest1 (0), @dest2 (0), @dest3 (0)
+	// - Operations: DEBIT 100 from each source, CREDIT 100 to each dest
+	// - @source3 will try to DEBIT 5000 (invalid - only 1000 available)
+	// - Expected: All 5 previous balance modifications should be rolled back
+
+	// Arrange
+	container := redistestutil.SetupContainer(t)
+	defer container.Cleanup()
+
+	ctx := context.Background()
+	conn := redistestutil.CreateConnection(t, container.Addr)
+
+	repo := &RedisConsumerRepository{
+		conn:               conn,
+		balanceSyncEnabled: false,
+	}
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := libCommons.GenerateUUIDv7()
+
+	// Create source balance operations (DEBIT)
+	source1 := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@source1", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(100),  // amount to debit
+		decimal.NewFromInt(1000), // available balance
+		"deposit",
+	)
+	source1.Balance.Key = "source1-key"
+	source1.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source1-key")
+
+	source2 := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@source2", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(100),
+		decimal.NewFromInt(1000),
+		"deposit",
+	)
+	source2.Balance.Key = "source2-key"
+	source2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source2-key")
+
+	// source3 will FAIL - trying to debit 5000 from 1000 available
+	source3Invalid := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@source3", "USD",
+		constant.DEBIT,
+		decimal.NewFromInt(5000), // amount to debit (INVALID - exceeds available)
+		decimal.NewFromInt(1000), // available balance
+		"deposit",
+	)
+	source3Invalid.Balance.Key = "source3-key"
+	source3Invalid.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source3-key")
+
+	// Create destination balance operations (CREDIT)
+	dest1 := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@dest1", "USD",
+		constant.CREDIT,
+		decimal.NewFromInt(100), // amount to credit
+		decimal.Zero,            // available balance (starts at 0)
+		"deposit",
+	)
+	dest1.Balance.Key = "dest1-key"
+	dest1.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest1-key")
+
+	dest2 := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@dest2", "USD",
+		constant.CREDIT,
+		decimal.NewFromInt(100),
+		decimal.Zero,
+		"deposit",
+	)
+	dest2.Balance.Key = "dest2-key"
+	dest2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest2-key")
+
+	dest3 := redistestutil.CreateBalanceOperationWithAvailable(
+		organizationID, ledgerID,
+		"@dest3", "USD",
+		constant.CREDIT,
+		decimal.NewFromInt(100),
+		decimal.Zero,
+		"deposit",
+	)
+	dest3.Balance.Key = "dest3-key"
+	dest3.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest3-key")
+
+	// Order matters: source3Invalid is last, so all previous balances should be modified then rolled back
+	balanceOps := []mmodel.BalanceOperation{
+		source1,        // Valid: 1000 - 100 = 900
+		source2,        // Valid: 1000 - 100 = 900
+		dest1,          // Valid: 0 + 100 = 100
+		dest2,          // Valid: 0 + 100 = 100
+		dest3,          // Valid: 0 + 100 = 100
+		source3Invalid, // INVALID: 1000 - 5000 = -4000 (fails validation)
+	}
+
+	// Store original values for assertion
+	originalBalances := map[string]decimal.Decimal{
+		source1.InternalKey:        decimal.NewFromInt(1000),
+		source2.InternalKey:        decimal.NewFromInt(1000),
+		dest1.InternalKey:          decimal.Zero,
+		dest2.InternalKey:          decimal.Zero,
+		dest3.InternalKey:          decimal.Zero,
+		source3Invalid.InternalKey: decimal.NewFromInt(1000),
+	}
+
+	// Act
+	balances, err := repo.AddSumBalancesRedis(
+		ctx, organizationID, ledgerID, transactionID,
+		constant.CREATED, false, balanceOps,
+	)
+
+	// Assert: Error should be returned (insufficient funds - error code 0018)
+	redistestutil.AssertInsufficientFundsError(t, err)
+	assert.Nil(t, balances, "balances should be nil on error")
+
+	// Assert: ALL balances should be rolled back to their original state
+	for key, expectedAvailable := range originalBalances {
+		val, err := container.Client.Get(ctx, key).Result()
+		require.NoError(t, err, "balance key %s should exist in Redis after rollback", key)
+
+		var restored mmodel.BalanceRedis
+		require.NoError(t, json.Unmarshal([]byte(val), &restored),
+			"should unmarshal balance for key %s", key)
+
+		assert.True(t, restored.Available.Equal(expectedAvailable),
+			"balance %s should be rolled back to %s, got %s",
+			key, expectedAvailable, restored.Available)
+	}
+}
+
 func TestIntegration_AddSumBalancesRedis_OperationsSumEqualsBalance(t *testing.T) {
 	// Validates invariant: Σ(operations) == balance.Available
 	// Uses sequence of CREDIT/DEBIT ops and verifies Redis state after each
