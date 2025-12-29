@@ -45,6 +45,30 @@ type Config struct {
 	OrganizationIDs         string `env:"ORGANIZATION_IDS"`
 }
 
+// Validate validates the configuration and panics with clear error messages if invalid.
+// This method should be called immediately after loading configuration from environment.
+func (cfg *Config) Validate() {
+	// Server configuration
+	assert.NotEmpty(cfg.ServerAddress, "SERVER_ADDRESS is required",
+		"field", "ServerAddress")
+
+	// MongoDB configuration
+	assert.NotEmpty(cfg.MongoDBHost, "MONGO_HOST is required",
+		"field", "MongoDBHost")
+	assert.NotEmpty(cfg.MongoDBName, "MONGO_NAME is required",
+		"field", "MongoDBName")
+	assert.That(assert.ValidPort(cfg.MongoDBPort), "MONGO_PORT must be valid port (1-65535)",
+		"field", "MongoDBPort", "value", cfg.MongoDBPort)
+	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, 1000), "MONGO_MAX_POOL_SIZE must be 1-1000",
+		"field", "MaxPoolSize", "value", cfg.MaxPoolSize)
+
+	// Crypto configuration (required for data security)
+	assert.NotEmpty(cfg.HashSecretKey, "LCRYPTO_HASH_SECRET_KEY is required",
+		"field", "HashSecretKey")
+	assert.NotEmpty(cfg.EncryptSecretKey, "LCRYPTO_ENCRYPT_SECRET_KEY is required",
+		"field", "EncryptSecretKey")
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() *Service {
 	cfg := &Config{}
