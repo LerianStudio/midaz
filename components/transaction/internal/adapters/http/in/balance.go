@@ -7,9 +7,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -54,6 +56,9 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_all_balances")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -144,6 +149,9 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	accountID := http.LocalUUID(c, "account_id")
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, accountID, uuid.Nil)
+	mlog.SetHandler(c, "get_all_balances_by_account_id")
+
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
@@ -227,6 +235,9 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	balanceID := http.LocalUUID(c, "balance_id")
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "get_balance_by_id")
+
 	logger.Infof("Initiating retrieval of balance by id")
 
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
@@ -280,6 +291,9 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	balanceID := http.LocalUUID(c, "balance_id")
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "delete_balance_by_id")
 
 	logger.Infof("Initiating delete balance by id")
 
@@ -337,6 +351,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	balanceID := http.LocalUUID(c, "balance_id")
 
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, balanceID)
+	mlog.SetHandler(c, "update_balance")
+
 	logger.Infof("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String())
 
 	payload := http.Payload[*mmodel.UpdateBalance](c, p)
@@ -382,7 +399,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
+//	@Param			limit			query		int		false	"Limit"	default(10)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -399,6 +418,23 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	alias := c.Params("alias")
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_balances_by_alias")
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
+	}
 
 	logger.Infof("Initiating retrieval of balances by alias")
 
@@ -422,7 +458,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	}
 
 	if err := http.OK(c, libPostgres.Pagination{
-		Limit: defaultPaginationLimit,
+		Limit: headerParams.Limit,
 		Items: balances,
 	}); err != nil {
 		return err
@@ -442,7 +478,9 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
+//	@Param			limit			query		int		false	"Limit"	default(10)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -460,6 +498,23 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
+	mlog.SetHandler(c, "get_balances_external_by_code")
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
+	}
 
 	logger.Infof("Initiating retrieval of balances by code")
 
@@ -483,7 +538,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	}
 
 	if err := http.OK(c, libPostgres.Pagination{
-		Limit: defaultPaginationLimit,
+		Limit: headerParams.Limit,
 		Items: balances,
 	}); err != nil {
 		return err
@@ -520,6 +575,9 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	accountID := http.LocalUUID(c, "account_id")
+
+	mlog.EnrichBalance(c, organizationID, ledgerID, accountID, uuid.Nil)
+	mlog.SetHandler(c, "create_additional_balance")
 
 	payload := http.Payload[*mmodel.CreateAdditionalBalance](c, p)
 	logger.Infof("Request to create a Balance with details: %#v", payload)

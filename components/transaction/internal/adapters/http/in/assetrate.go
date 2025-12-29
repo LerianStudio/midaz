@@ -9,9 +9,11 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -50,6 +52,9 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
+
+	mlog.EnrichAssetRate(c, uuid.Nil.String())
+	mlog.SetHandler(c, "create_or_update_asset_rate")
 
 	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
@@ -113,6 +118,9 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	externalID := http.LocalUUID(c, "external_id")
 
+	mlog.EnrichAssetRate(c, externalID.String())
+	mlog.SetHandler(c, "get_asset_rate_by_external_id")
+
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
 		organizationID.String(), ledgerID.String(), externalID.String())
 
@@ -174,6 +182,10 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	assetCode := c.Params("asset_code")
+
+	mlog.EnrichOperationRoute(c, organizationID, ledgerID, uuid.Nil)
+	mlog.EnrichAssetRate(c, assetCode)
+	mlog.SetHandler(c, "get_all_asset_rates_by_asset_code")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

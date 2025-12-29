@@ -129,7 +129,7 @@ type Config struct {
 	RedisMasterName                          string `env:"REDIS_MASTER_NAME" default:""`
 	RedisPassword                            string `env:"REDIS_PASSWORD"`
 	RedisDB                                  int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                            int    `env:"REDIS_DB" default:"3"`
+	RedisProtocol                            int    `env:"REDIS_PROTOCOL" default:"3"`
 	RedisTLS                                 bool   `env:"REDIS_TLS" default:"false"`
 	RedisCACert                              string `env:"REDIS_CA_CERT"`
 	RedisUseGCPIAM                           bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
@@ -151,7 +151,7 @@ type Config struct {
 	ProtoAddress                             string `env:"PROTO_ADDRESS"`
 	BalanceSyncWorkerEnabled                 bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers                    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
-	DLQConsumerEnabled                       bool   `env:"DLQ_CONSUMER_ENABLED"` // H5: Add to Config struct
+	DLQConsumerEnabled                       bool   `env:"DLQ_CONSUMER_ENABLED"`
 	MetadataOutboxWorkerEnabled              bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
 	MetadataOutboxMaxWorkers                 int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
 	MetadataOutboxRetentionDays              int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
@@ -373,7 +373,7 @@ func InitServers() *Service {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, cfg.OtelServiceVersion, cfg.EnvName, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

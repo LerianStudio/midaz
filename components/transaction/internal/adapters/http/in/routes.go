@@ -9,6 +9,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -34,7 +35,7 @@ const (
 )
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, version string, envName string, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler:          libHTTP.HandleFiberError,
@@ -78,6 +79,13 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
+	f.Use(mlog.NewWideEventMiddleware(mlog.Config{
+		Service:     "transaction",
+		Version:     version,
+		Environment: envName,
+		Logger:      lg,
+		SkipPaths:   mlog.DefaultSkipPaths(),
+	}))
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
 	// Register all routes

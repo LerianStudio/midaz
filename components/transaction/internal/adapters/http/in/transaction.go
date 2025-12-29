@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -1192,6 +1193,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	parentID := http.LocalUUIDOptional(c, "transaction_id")
 	transactionID := libCommons.GenerateUUIDv7()
 
+	// Enrich wide event with business context
+	mlog.EnrichFromLocals(c)
+	mlog.EnrichTransaction(c, organizationID, ledgerID, transactionStatus)
+	mlog.SetHandler(c, "create_transaction")
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
@@ -1300,6 +1306,9 @@ func (handler *TransactionHandler) handleIdempotency(ctx context.Context, c *fib
 		}
 
 		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		// Enrich wide event with idempotency info (cache hit)
+		mlog.SetIdempotency(c, key, true)
 
 		return &t, nil
 	}
@@ -1529,6 +1538,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
+	txnID := uuid.MustParse(tran.ID)
+
+	// Enrich wide event with transaction action context
+	mlog.EnrichTransactionAction(c, organizationID, ledgerID, txnID, transactionStatus)
+	mlog.SetHandler(c, "commit_or_cancel_transaction")
 
 	deleteLockOnError, err := handler.acquireTransactionLock(ctx, &span, logger, organizationID, ledgerID, tran.ID)
 	if err != nil {

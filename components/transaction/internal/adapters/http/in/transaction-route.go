@@ -9,6 +9,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -52,6 +53,9 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
+
+	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, uuid.Nil)
+	mlog.SetHandler(c, "create_transaction_route")
 
 	payload := http.Payload[*mmodel.CreateTransactionRouteInput](c, i)
 
@@ -121,6 +125,9 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	id := http.LocalUUID(c, "transaction_route_id")
 
+	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "get_transaction_route_by_id")
+
 	logger.Infof("Request to get transaction route with ID: %s", id.String())
 
 	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
@@ -173,6 +180,9 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	id := http.LocalUUID(c, "transaction_route_id")
+
+	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "update_transaction_route")
 
 	logger.Infof("Request to update transaction route with ID: %s", id.String())
 
@@ -257,6 +267,9 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	id := http.LocalUUID(c, "transaction_route_id")
 
+	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, id)
+	mlog.SetHandler(c, "delete_transaction_route_by_id")
+
 	logger.Infof("Request to delete transaction route with ID: %s", id.String())
 
 	err := handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id)
@@ -317,6 +330,9 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
+
+	mlog.EnrichTransactionRoute(c, organizationID, ledgerID, uuid.Nil)
+	mlog.SetHandler(c, "get_all_transaction_routes")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
