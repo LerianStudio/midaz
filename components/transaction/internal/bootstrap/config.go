@@ -162,6 +162,69 @@ type Config struct {
 	MigrationMaxRetries  int  `env:"MIGRATION_MAX_RETRIES" default:"3"`
 }
 
+// Validate validates the configuration and panics with clear error messages if invalid.
+// This method should be called immediately after loading configuration from environment.
+// It uses assert predicates to provide consistent, informative error messages.
+func (cfg *Config) Validate() {
+	// Server configuration
+	assert.NotEmpty(cfg.ServerAddress, "SERVER_ADDRESS is required",
+		"field", "ServerAddress")
+
+	// Primary database configuration
+	assert.NotEmpty(cfg.PrimaryDBHost, "DB_HOST is required",
+		"field", "PrimaryDBHost")
+	assert.NotEmpty(cfg.PrimaryDBUser, "DB_USER is required",
+		"field", "PrimaryDBUser")
+	assert.NotEmpty(cfg.PrimaryDBName, "DB_NAME is required",
+		"field", "PrimaryDBName")
+	assert.That(assert.ValidPort(cfg.PrimaryDBPort), "DB_PORT must be valid port (1-65535)",
+		"field", "PrimaryDBPort", "value", cfg.PrimaryDBPort)
+	assert.That(assert.ValidSSLMode(cfg.PrimaryDBSSLMode), "DB_SSLMODE must be valid PostgreSQL SSL mode",
+		"field", "PrimaryDBSSLMode", "value", cfg.PrimaryDBSSLMode)
+
+	// Replica database configuration
+	assert.NotEmpty(cfg.ReplicaDBHost, "DB_REPLICA_HOST is required",
+		"field", "ReplicaDBHost")
+	assert.NotEmpty(cfg.ReplicaDBUser, "DB_REPLICA_USER is required",
+		"field", "ReplicaDBUser")
+	assert.NotEmpty(cfg.ReplicaDBName, "DB_REPLICA_NAME is required",
+		"field", "ReplicaDBName")
+	assert.That(assert.ValidPort(cfg.ReplicaDBPort), "DB_REPLICA_PORT must be valid port (1-65535)",
+		"field", "ReplicaDBPort", "value", cfg.ReplicaDBPort)
+	assert.That(assert.ValidSSLMode(cfg.ReplicaDBSSLMode), "DB_REPLICA_SSLMODE must be valid PostgreSQL SSL mode",
+		"field", "ReplicaDBSSLMode", "value", cfg.ReplicaDBSSLMode)
+
+	// Database pool configuration
+	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, 500), "DB_MAX_OPEN_CONNS must be 1-500",
+		"field", "MaxOpenConnections", "value", cfg.MaxOpenConnections)
+	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, 100), "DB_MAX_IDLE_CONNS must be 1-100",
+		"field", "MaxIdleConnections", "value", cfg.MaxIdleConnections)
+
+	// MongoDB configuration
+	assert.NotEmpty(cfg.MongoDBHost, "MONGO_HOST is required",
+		"field", "MongoDBHost")
+	assert.NotEmpty(cfg.MongoDBName, "MONGO_NAME is required",
+		"field", "MongoDBName")
+	assert.That(assert.ValidPort(cfg.MongoDBPort), "MONGO_PORT must be valid port (1-65535)",
+		"field", "MongoDBPort", "value", cfg.MongoDBPort)
+	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, 1000), "MONGO_MAX_POOL_SIZE must be 1-1000",
+		"field", "MaxPoolSize", "value", cfg.MaxPoolSize)
+
+	// Redis configuration
+	assert.NotEmpty(cfg.RedisHost, "REDIS_HOST is required",
+		"field", "RedisHost")
+	assert.That(assert.InRangeInt(cfg.RedisPoolSize, 1, 1000), "REDIS_POOL_SIZE must be 1-1000",
+		"field", "RedisPoolSize", "value", cfg.RedisPoolSize)
+
+	// RabbitMQ configuration
+	assert.NotEmpty(cfg.RabbitMQHost, "RABBITMQ_HOST is required",
+		"field", "RabbitMQHost")
+	assert.That(assert.ValidPort(cfg.RabbitMQPortHost), "RABBITMQ_PORT_HOST must be valid port (1-65535)",
+		"field", "RabbitMQPortHost", "value", cfg.RabbitMQPortHost)
+	assert.That(assert.ValidPort(cfg.RabbitMQPortAMQP), "RABBITMQ_PORT_AMQP must be valid port (1-65535)",
+		"field", "RabbitMQPortAMQP", "value", cfg.RabbitMQPortAMQP)
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() *Service {
 	cfg := &Config{}
