@@ -24,10 +24,8 @@ CREATE TABLE IF NOT EXISTS metadata_outbox (
     last_error            VARCHAR(512),                     -- Last error message (sanitized, no PII)
     created_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     updated_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-    processed_at          TIMESTAMP WITH TIME ZONE,         -- When successfully processed
-    -- Limit metadata size to 64KB to prevent DoS via large payloads
-    -- Note: pg_column_size checks post-TOAST storage size; primary validation in application layer
-    CONSTRAINT chk_metadata_size CHECK (pg_column_size(metadata) <= 65536)
+    processed_at          TIMESTAMP WITH TIME ZONE          -- When successfully processed
+    -- Note: Metadata size validation (64KB limit) enforced in application layer
 );
 
 -- Index for polling pending entries efficiently (fixed: removed now() from predicate)
@@ -64,7 +62,7 @@ REVOKE ALL ON metadata_outbox FROM PUBLIC;
 
 COMMENT ON TABLE metadata_outbox IS 'Outbox pattern table for reliable MongoDB metadata creation';
 COMMENT ON COLUMN metadata_outbox.status IS 'PENDING=new, PROCESSING=claimed by worker, PUBLISHED=success, FAILED=retriable error, DLQ=permanent failure';
-COMMENT ON COLUMN metadata_outbox.processing_started_at IS 'Set when worker claims entry; used to detect stale PROCESSING entries from crashed workers';
+COMMENT ON COLUMN metadata_outbox.processing_started_at IS 'Set when worker claims entry - used to detect stale PROCESSING entries from crashed workers';
 COMMENT ON COLUMN metadata_outbox.last_error IS 'Sanitized error message - must NOT contain PII or sensitive data';
 COMMENT ON COLUMN metadata_outbox.max_retries IS 'Maximum retry attempts before DLQ. Application MUST call MarkDLQ when retry_count >= max_retries';
 
