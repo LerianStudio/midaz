@@ -128,11 +128,11 @@ func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 	if state == connectivity.Idle {
 		c.Conn.Connect() // Force connection attempt
 
-		ctx, cancel := context.WithTimeout(ctx, timeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
 		// Wait for state to change from Idle
-		c.Conn.WaitForStateChange(ctx, connectivity.Idle)
+		c.Conn.WaitForStateChange(timeoutCtx, connectivity.Idle)
 
 		newState := c.Conn.GetState()
 		if newState == connectivity.Ready {
@@ -148,10 +148,10 @@ func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 
 	// For Connecting state, wait briefly for the connection to become ready
 	if state == connectivity.Connecting {
-		ctx, cancel := context.WithTimeout(ctx, timeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		c.Conn.WaitForStateChange(ctx, connectivity.Connecting)
+		c.Conn.WaitForStateChange(timeoutCtx, connectivity.Connecting)
 
 		newState := c.Conn.GetState()
 		if newState == connectivity.Ready {
