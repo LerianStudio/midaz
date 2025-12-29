@@ -142,6 +142,14 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, logger li
 			}
 
 			aliasAndKey := strings.Split(alias, "#")
+			if len(aliasAndKey) != 2 {
+				logger.Warnf("Invalid alias format in Redis cache (expected 'alias#key'): %s", alias)
+				// Fallback to database lookup for malformed cache entries
+				newAliases = append(newAliases, alias)
+
+				continue
+			}
+
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,
 				AccountID:      b.AccountID,
