@@ -33,17 +33,7 @@ func EnrichTransactionResult(c *fiber.Ctx, txnID uuid.UUID, status string, opCou
 		return
 	}
 
-	event.mu.Lock()
-
-	if txnID != uuid.Nil {
-		event.TransactionID = txnID.String()
-	}
-
-	event.OperationCount = opCount
-	event.mu.Unlock()
-
-	// Use SetCustom for transaction status
-	event.SetCustom("transaction_status", status)
+	event.SetTransactionResult(txnID, opCount, status)
 }
 
 // EnrichAccount is a convenience function to enrich wide event with account context.
@@ -106,7 +96,7 @@ func EnrichOperation(c *fiber.Ctx, orgID, ledgerID, txnID, opID uuid.UUID) {
 	}
 
 	if txnID != uuid.Nil {
-		event.SetTransaction(txnID.String(), "", "", "")
+		event.SetTransactionID(txnID.String())
 	}
 
 	if opID != uuid.Nil {
@@ -210,7 +200,7 @@ func EnrichTransactionAction(c *fiber.Ctx, orgID, ledgerID, txnID uuid.UUID, act
 	}
 
 	if txnID != uuid.Nil {
-		event.SetTransaction(txnID.String(), "", "", "")
+		event.SetTransactionID(txnID.String())
 	}
 
 	event.SetCustom("transaction_action", action)

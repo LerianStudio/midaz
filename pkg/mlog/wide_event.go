@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -92,8 +93,21 @@ type WideEvent struct {
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
 	IdempotencyHit bool   `json:"idempotency_hit,omitempty"`
 
-	// Custom fields for handler-specific data
-	// TODO(review): Consider deep sanitization for complex nested types in Custom map
+	// Custom fields for handler-specific data.
+	//
+	// WARNING: Values placed into this map are NOT automatically sanitized for sensitive data.
+	// Callers MUST sanitize any values before adding them to Custom, including:
+	//   - Nested structs, maps, and slices (their contents are logged as-is)
+	//   - Strings that may contain PII, credentials, or connection strings
+	//   - Any complex types that could embed sensitive information
+	//
+	// Use sanitization helpers from this package before storing values:
+	//   event.SetCustom("user_message", sanitizeErrorMessage(msg))  // for strings with potential PII
+	//
+	// Only top-level string values are truncated by SetCustom; nested data is not modified.
+	//
+	// TODO(future): Implement deep-sanitization for Custom map values if library-level
+	// sanitization is desired (e.g., recursive traversal with field-name-based redaction).
 	Custom map[string]any `json:"custom,omitempty"`
 }
 
@@ -166,6 +180,16 @@ func (e *WideEvent) SetTransaction(txnID, txnType, amount, currency string) {
 	e.TransactionCurrency = currency
 }
 
+// SetTransactionID sets only the transaction ID, leaving other transaction fields intact.
+// Use this when you only have the transaction ID and don't want to overwrite
+// previously set type/amount/currency fields.
+func (e *WideEvent) SetTransactionID(txnID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.TransactionID = txnID
+}
+
 // SetAccount sets the account ID.
 func (e *WideEvent) SetAccount(accountID string) {
 	e.mu.Lock()
@@ -189,6 +213,22 @@ func (e *WideEvent) SetOperation(operationID string, count int) {
 
 	e.OperationID = operationID
 	e.OperationCount = count
+}
+
+// SetTransactionResult sets transaction result fields (ID, operation count, and status).
+// This is used after a transaction is created/updated to record the outcome.
+func (e *WideEvent) SetTransactionResult(txnID uuid.UUID, opCount int, status string) {
+	e.mu.Lock()
+
+	if txnID != uuid.Nil {
+		e.TransactionID = txnID.String()
+	}
+
+	e.OperationCount = opCount
+	e.mu.Unlock()
+
+	// SetCustom handles its own locking, so call it outside the locked section
+	e.SetCustom("transaction_status", status)
 }
 
 // SetAsset sets the asset code.

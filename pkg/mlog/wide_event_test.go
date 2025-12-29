@@ -1,6 +1,7 @@
 package mlog
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -396,7 +397,7 @@ func TestWideEvent_SetCustom(t *testing.T) {
 
 		// Add maxCustomKeys (50) keys
 		for i := 0; i < maxCustomKeys+10; i++ {
-			event.SetCustom("key_"+string(rune('a'+i%26))+string(rune('0'+i/26)), "value")
+			event.SetCustom(fmt.Sprintf("key_%d", i), "value")
 		}
 
 		// Should have at most maxCustomKeys regular keys + overflow indicator
