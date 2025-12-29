@@ -858,6 +858,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opCreatedAt, opUpdatedAt                                     *time.Time
 			opDeletedAt                                                  sql.NullTime
 			opBalanceAffected                                            *bool
+			opVersionBalance, opVersionBalanceAfter                      *int64
 		)
 
 		if err := rows.Scan(
@@ -900,6 +901,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opRoute,
 			&opBalanceAffected,
 			&opBalanceKey,
+			&opVersionBalance,
+			&opVersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -957,6 +960,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				Route:                 opRoute,
 				BalanceAffected:       *opBalanceAffected,
 				BalanceKey:            *opBalanceKey,
+				VersionBalance:        opVersionBalance,
+				VersionBalanceAfter:   opVersionBalanceAfter,
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())
