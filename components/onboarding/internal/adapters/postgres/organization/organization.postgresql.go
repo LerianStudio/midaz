@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -56,20 +57,20 @@ type Repository interface {
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
 type OrganizationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
-// NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
-func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OrganizationPostgreSQLRepository")
+// NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given MigrationWrapper.
+func NewOrganizationPostgreSQLRepository(mw *mmigration.MigrationWrapper) *OrganizationPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "OrganizationPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for OrganizationPostgreSQLRepository",
-		"repository", "OrganizationPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "OrganizationPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "OrganizationPostgreSQLRepository")
 
 	return &OrganizationPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "organization",
 	}
 }

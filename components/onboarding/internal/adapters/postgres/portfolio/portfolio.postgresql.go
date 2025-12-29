@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -59,20 +60,20 @@ type Repository interface {
 // PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
 type PortfolioPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
-// NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
-func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "PortfolioPostgreSQLRepository")
+// NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given MigrationWrapper.
+func NewPortfolioPostgreSQLRepository(mw *mmigration.MigrationWrapper) *PortfolioPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "PortfolioPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for PortfolioPostgreSQLRepository",
-		"repository", "PortfolioPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "PortfolioPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "PortfolioPostgreSQLRepository")
 
 	return &PortfolioPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "portfolio",
 	}
 }

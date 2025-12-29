@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -64,20 +65,20 @@ type Repository interface {
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
-// NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
-func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "AccountPostgreSQLRepository")
+// NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given MigrationWrapper.
+func NewAccountPostgreSQLRepository(mw *mmigration.MigrationWrapper) *AccountPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "AccountPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for AccountPostgreSQLRepository",
-		"repository", "AccountPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "AccountPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "AccountPostgreSQLRepository")
 
 	return &AccountPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "account",
 	}
 }

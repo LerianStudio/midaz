@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -87,21 +88,29 @@ type Repository interface {
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
+	// connection is cached from wrapper.GetConnection() for fast-path DB operations.
+	// Normal operations use connection.GetDB() - zero overhead.
 	connection *libPostgres.PostgresConnection
-	tableName  string
+	// wrapper is retained for future health check integration via GetStatus().
+	// DO NOT use wrapper.SafeGetDB() in hot paths - it's heavyweight (advisory lock + preflight check).
+	wrapper   *mmigration.MigrationWrapper
+	tableName string
 }
 
-// NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "TransactionPostgreSQLRepository")
+// NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given MigrationWrapper.
+// The wrapper provides access to the underlying PostgresConnection for normal operations
+// and can be used for future health check integration.
+func NewTransactionPostgreSQLRepository(mw *mmigration.MigrationWrapper) *TransactionPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "TransactionPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for TransactionPostgreSQLRepository",
-		"repository", "TransactionPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "TransactionPostgreSQLRepository")
+	// Extract underlying connection for normal DB operations (fast path)
+	// NOTE: Do NOT call SafeGetDB() here - bootstrap already validated migrations
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "TransactionPostgreSQLRepository")
 
 	return &TransactionPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "transaction",
 	}
 }

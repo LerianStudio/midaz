@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -47,20 +48,20 @@ type Repository interface {
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
 type TransactionRoutePostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
 // NewTransactionRoutePostgreSQLRepository creates a new instance of TransactionRoutePostgreSQLRepository.
-func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionRoutePostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "TransactionRoutePostgreSQLRepository")
+func NewTransactionRoutePostgreSQLRepository(mw *mmigration.MigrationWrapper) *TransactionRoutePostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "TransactionRoutePostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for TransactionRoutePostgreSQLRepository",
-		"repository", "TransactionRoutePostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "TransactionRoutePostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "TransactionRoutePostgreSQLRepository")
 
 	return &TransactionRoutePostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "transaction_route",
 	}
 }

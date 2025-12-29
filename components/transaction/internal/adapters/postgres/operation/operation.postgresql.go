@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -44,6 +45,7 @@ type Repository interface {
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
 type OperationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
@@ -76,17 +78,16 @@ var operationColumnList = []string{
 	"balance_version_after",
 }
 
-// NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
-func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OperationPostgreSQLRepository")
+// NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given MigrationWrapper.
+func NewOperationPostgreSQLRepository(mw *mmigration.MigrationWrapper) *OperationPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "OperationPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for OperationPostgreSQLRepository",
-		"repository", "OperationPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "OperationPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "OperationPostgreSQLRepository")
 
 	return &OperationPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "operation",
 	}
 }

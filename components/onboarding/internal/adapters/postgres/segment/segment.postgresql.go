@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -58,20 +59,20 @@ type Repository interface {
 // SegmentPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type SegmentPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
-// NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
-func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "SegmentPostgreSQLRepository")
+// NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given MigrationWrapper.
+func NewSegmentPostgreSQLRepository(mw *mmigration.MigrationWrapper) *SegmentPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "SegmentPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for SegmentPostgreSQLRepository",
-		"repository", "SegmentPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "SegmentPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "SegmentPostgreSQLRepository")
 
 	return &SegmentPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "segment",
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/lib/pq"
 )
 
@@ -116,20 +117,20 @@ func SecureRandomFloat64() float64 {
 // OutboxPostgreSQLRepository is a PostgreSQL implementation of the Repository.
 type OutboxPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
 // NewOutboxPostgreSQLRepository returns a new instance of OutboxPostgreSQLRepository.
-func NewOutboxPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OutboxPostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "OutboxPostgreSQLRepository")
+func NewOutboxPostgreSQLRepository(mw *mmigration.MigrationWrapper) *OutboxPostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "OutboxPostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for OutboxPostgreSQLRepository",
-		"repository", "OutboxPostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "OutboxPostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "OutboxPostgreSQLRepository")
 
 	return &OutboxPostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "metadata_outbox",
 	}
 }

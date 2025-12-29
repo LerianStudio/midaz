@@ -232,13 +232,13 @@ func InitServers() *Service {
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
-	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(migrationWrapper)
+	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(migrationWrapper)
+	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(migrationWrapper)
+	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(migrationWrapper)
+	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(migrationWrapper)
+	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(migrationWrapper)
+	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(migrationWrapper)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -518,13 +518,13 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
-	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(migrationWrapper)
+	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(migrationWrapper)
+	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(migrationWrapper)
+	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(migrationWrapper)
+	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(migrationWrapper)
+	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(migrationWrapper)
+	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(migrationWrapper)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 

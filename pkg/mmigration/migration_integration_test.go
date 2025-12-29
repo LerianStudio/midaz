@@ -6,26 +6,110 @@ package mmigration
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// getTestDatabaseURL returns a PostgreSQL connection URL for integration tests.
+// It first tries to load credentials from components/infra/.env, then falls back
+// to the TEST_DATABASE_URL environment variable.
+func getTestDatabaseURL(t *testing.T) string {
+	t.Helper()
+
+	// Try to load from .env file first
+	if dbURL := loadFromEnvFile(t); dbURL != "" {
+		return dbURL
+	}
+
+	// Fall back to environment variable
+	if dbURL := os.Getenv("TEST_DATABASE_URL"); dbURL != "" {
+		return dbURL
+	}
+
+	t.Skip("No database configuration found: set TEST_DATABASE_URL or ensure components/infra/.env exists")
+	return ""
+}
+
+// loadFromEnvFile attempts to load database credentials from components/infra/.env
+func loadFromEnvFile(t *testing.T) string {
+	t.Helper()
+
+	// Find repo root by walking up from current directory looking for go.mod
+	repoRoot := findRepoRoot()
+	if repoRoot == "" {
+		return ""
+	}
+
+	envPath := filepath.Join(repoRoot, "components", "infra", ".env")
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return ""
+	}
+
+	// Load .env file (doesn't override existing env vars)
+	if err := godotenv.Load(envPath); err != nil {
+		t.Logf("Warning: could not load %s: %v", envPath, err)
+		return ""
+	}
+
+	// Build connection URL from env vars
+	host := getEnvOrDefault("DB_HOST", "localhost")
+	port := getEnvOrDefault("DB_PORT", "5701")
+	user := getEnvOrDefault("DB_USER", "midaz")
+	password := getEnvOrDefault("DB_PASSWORD", "lerian")
+	dbName := getEnvOrDefault("DB_NAME", "midaz")
+
+	// For local testing, use localhost instead of Docker container name
+	if host == "midaz-postgres-primary" {
+		host = "localhost"
+	}
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		user, password, host, port, dbName)
+}
+
+// findRepoRoot walks up the directory tree to find the repository root (contains go.mod)
+func findRepoRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// getEnvOrDefault returns the environment variable value or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 // TestIntegration_DirtyRecovery tests the full dirty recovery workflow against a real database.
 // Run with: go test -tags=integration -v ./pkg/mmigration/...
 //
-// Requires environment variable:
-//
-//	TEST_DATABASE_URL=postgres://user:pass@localhost:5432/testdb?sslmode=disable
+// Database credentials are loaded automatically from components/infra/.env
+// or can be overridden with TEST_DATABASE_URL environment variable.
 func TestIntegration_DirtyRecovery(t *testing.T) {
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("TEST_DATABASE_URL not set, skipping integration test")
-	}
+	dbURL := getTestDatabaseURL(t)
 
 	db, err := sql.Open("postgres", dbURL)
 	require.NoError(t, err)
@@ -52,13 +136,21 @@ func TestIntegration_DirtyRecovery(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	wrapper := newTestWrapper(t, MigrationConfig{
+	// Create temp directory with a dummy migration file for recovery
+	migrationsDir := t.TempDir()
+	dummyMigrationFile := filepath.Join(migrationsDir, "000015_dummy.up.sql")
+	err = os.WriteFile(dummyMigrationFile, []byte("-- dummy migration for test"), 0644)
+	require.NoError(t, err)
+
+	wrapper, ctrl := newTestWrapper(t, MigrationConfig{
 		Component:        "integration-test",
+		MigrationsPath:   migrationsDir,
 		AutoRecoverDirty: true,
 		MaxRetries:       3,
 		RetryBackoff:     100 * time.Millisecond,
 		LockTimeout:      5 * time.Second,
 	})
+	defer ctrl.Finish()
 
 	// Test 1: Preflight should detect dirty state
 	status, err := wrapper.PreflightCheck(ctx, db)
@@ -82,10 +174,7 @@ func TestIntegration_DirtyRecovery(t *testing.T) {
 
 // TestIntegration_AdvisoryLock tests advisory lock behavior against a real database.
 func TestIntegration_AdvisoryLock(t *testing.T) {
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("TEST_DATABASE_URL not set, skipping integration test")
-	}
+	dbURL := getTestDatabaseURL(t)
 
 	db, err := sql.Open("postgres", dbURL)
 	require.NoError(t, err)
@@ -93,10 +182,11 @@ func TestIntegration_AdvisoryLock(t *testing.T) {
 
 	ctx := context.Background()
 
-	wrapper := newTestWrapper(t, MigrationConfig{
+	wrapper, ctrl := newTestWrapper(t, MigrationConfig{
 		Component:   "integration-test-lock",
 		LockTimeout: 5 * time.Second,
 	})
+	defer ctrl.Finish()
 
 	// Test 1: Acquire lock
 	err = wrapper.AcquireAdvisoryLock(ctx, db)
@@ -117,10 +207,7 @@ func TestIntegration_AdvisoryLock(t *testing.T) {
 
 // TestIntegration_ConcurrentLock tests that two different sessions cannot hold the same lock.
 func TestIntegration_ConcurrentLock(t *testing.T) {
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("TEST_DATABASE_URL not set, skipping integration test")
-	}
+	dbURL := getTestDatabaseURL(t)
 
 	// Connection 1
 	db1, err := sql.Open("postgres", dbURL)
@@ -134,10 +221,11 @@ func TestIntegration_ConcurrentLock(t *testing.T) {
 
 	ctx := context.Background()
 
-	wrapper := newTestWrapper(t, MigrationConfig{
+	wrapper, ctrl := newTestWrapper(t, MigrationConfig{
 		Component:   "concurrent-lock-test",
 		LockTimeout: 100 * time.Millisecond, // Short timeout for test
 	})
+	defer ctrl.Finish()
 
 	// Session 1 acquires lock
 	err = wrapper.AcquireAdvisoryLock(ctx, db1)

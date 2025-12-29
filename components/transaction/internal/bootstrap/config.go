@@ -277,16 +277,16 @@ func InitServers() *Service {
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
-	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
-	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
-	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
-	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
-	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(migrationWrapper)
+	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(migrationWrapper)
+	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(migrationWrapper)
+	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(migrationWrapper)
+	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(migrationWrapper)
+	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(migrationWrapper)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	outboxPostgreSQLRepository := outbox.NewOutboxPostgreSQLRepository(postgresConnection)
+	outboxPostgreSQLRepository := outbox.NewOutboxPostgreSQLRepository(migrationWrapper)
 
 	// Ensure indexes also for known base collections on fresh installs
 	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), ensureIndexesTimeoutSeconds*time.Second)
@@ -321,8 +321,9 @@ func InitServers() *Service {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
-	// Get DB connection for transaction management in UseCase
-	dbConn, err := postgresConnection.GetDB()
+	// Get DB connection from migration wrapper for transaction management in UseCase
+	// This ensures DBProvider uses the same validated connection as repositories
+	dbConn, err := migrationWrapper.GetConnection().GetDB()
 	assert.NoError(err, "database connection required for UseCase DBProvider",
 		"package", "bootstrap",
 		"function", "InitServers")

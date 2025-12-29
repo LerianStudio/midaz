@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
+	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
@@ -92,20 +93,20 @@ type Repository interface {
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
 type BalancePostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
+	wrapper    *mmigration.MigrationWrapper // For future health checks
 	tableName  string
 }
 
-// NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
-func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
-	assert.NotNil(pc, "PostgreSQL connection must not be nil", "repository", "BalancePostgreSQLRepository")
+// NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given MigrationWrapper.
+func NewBalancePostgreSQLRepository(mw *mmigration.MigrationWrapper) *BalancePostgreSQLRepository {
+	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "BalancePostgreSQLRepository")
 
-	db, err := pc.GetDB()
-	assert.NoError(err, "database connection required for BalancePostgreSQLRepository",
-		"repository", "BalancePostgreSQLRepository")
-	assert.NotNil(db, "database handle must not be nil", "repository", "BalancePostgreSQLRepository")
+	pc := mw.GetConnection()
+	assert.NotNil(pc, "PostgresConnection from wrapper must not be nil", "repository", "BalancePostgreSQLRepository")
 
 	return &BalancePostgreSQLRepository{
 		connection: pc,
+		wrapper:    mw,
 		tableName:  "balance",
 	}
 }
