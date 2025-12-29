@@ -403,6 +403,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 		case constant.AccountRuleTypeAccountType:
 			switch v := account.ValidIf.(type) {
 			case []string:
+				// intentional no-op: []string is already the valid type, no conversion needed
 			case []any:
 				for _, item := range v {
 					if _, ok := item.(string); !ok {
