@@ -195,3 +195,211 @@ func CreateTestBalanceSimple(t *testing.T, db *sql.DB, orgID, ledgerID, accountI
 
 	return CreateTestBalance(t, db, orgID, ledgerID, accountID, params)
 }
+
+// TransactionParams holds parameters for creating a test transaction.
+type TransactionParams struct {
+	ParentTransactionID      *uuid.UUID
+	Description              string
+	Status                   string
+	StatusDescription        *string
+	Amount                   decimal.Decimal
+	AssetCode                string
+	ChartOfAccountsGroupName string
+	Route                    *string
+	Body                     *string // JSON body (nullable after migration 000004)
+	DeletedAt                *time.Time
+}
+
+// DefaultTransactionParams returns default parameters for creating a test transaction.
+func DefaultTransactionParams() TransactionParams {
+	body := `{"send":{"asset":"USD","value":"100"}}`
+	return TransactionParams{
+		Description:              "Test transaction",
+		Status:                   "PENDING",
+		Amount:                   decimal.NewFromInt(100),
+		AssetCode:                "USD",
+		ChartOfAccountsGroupName: "default",
+		Body:                     &body,
+	}
+}
+
+// CreateTestTransaction inserts a transaction directly into DB for test setup.
+func CreateTestTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params TransactionParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	var parentID any
+	if params.ParentTransactionID != nil {
+		parentID = *params.ParentTransactionID
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO transaction (id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, route, organization_id, ledger_id, body, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, id, parentID, params.Description, params.Status, params.StatusDescription,
+		params.Amount, params.AssetCode, params.ChartOfAccountsGroupName, params.Route,
+		orgID, ledgerID, params.Body, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test transaction")
+
+	return id
+}
+
+// CreateTestTransactionWithStatus is a convenience wrapper for creating a transaction with a specific status.
+func CreateTestTransactionWithStatus(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, status string, amount decimal.Decimal, assetCode string) uuid.UUID {
+	t.Helper()
+
+	params := DefaultTransactionParams()
+	params.Status = status
+	params.Amount = amount
+	params.AssetCode = assetCode
+
+	return CreateTestTransaction(t, db, orgID, ledgerID, params)
+}
+
+// OperationParams holds parameters for creating a test operation.
+type OperationParams struct {
+	TransactionID         uuid.UUID
+	Description           string
+	Type                  string // "debit" or "credit"
+	AccountID             uuid.UUID
+	AccountAlias          string
+	BalanceID             uuid.UUID
+	BalanceKey            string
+	AssetCode             string
+	ChartOfAccounts       string
+	Amount                decimal.Decimal
+	AvailableBalance      decimal.Decimal // balance before operation
+	OnHoldBalance         decimal.Decimal // balance before operation
+	AvailableBalanceAfter decimal.Decimal // balance after operation
+	OnHoldBalanceAfter    decimal.Decimal // balance after operation
+	BalanceVersionBefore  int64
+	BalanceVersionAfter   int64
+	Status                string
+	Route                 *string
+	BalanceAffected       bool
+	DeletedAt             *time.Time
+}
+
+// CreateTestOperation inserts an operation directly into DB for test setup.
+func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params OperationParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Set defaults for optional fields
+	status := params.Status
+	if status == "" {
+		status = "APPROVED"
+	}
+	balanceKey := params.BalanceKey
+	if balanceKey == "" {
+		balanceKey = "default"
+	}
+	chartOfAccounts := params.ChartOfAccounts
+	if chartOfAccounts == "" {
+		chartOfAccounts = "default"
+	}
+	balanceAffected := true
+	if !params.BalanceAffected && params.Status != "" {
+		// Only respect false if explicitly set (Status is set as indicator)
+		balanceAffected = params.BalanceAffected
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO operation (
+			id, transaction_id, description, type, account_id, account_alias, balance_id, balance_key,
+			asset_code, chart_of_accounts, amount, available_balance, on_hold_balance,
+			available_balance_after, on_hold_balance_after, balance_version_before, balance_version_after,
+			status, route, balance_affected, organization_id, ledger_id, created_at, updated_at, deleted_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+	`, id, params.TransactionID, params.Description, params.Type, params.AccountID, params.AccountAlias,
+		params.BalanceID, balanceKey, params.AssetCode, chartOfAccounts, params.Amount,
+		params.AvailableBalance, params.OnHoldBalance, params.AvailableBalanceAfter, params.OnHoldBalanceAfter,
+		params.BalanceVersionBefore, params.BalanceVersionAfter, status, params.Route, balanceAffected,
+		orgID, ledgerID, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test operation")
+
+	return id
+}
+
+// UpdateTransactionStatus updates the status of a transaction.
+func UpdateTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID, status string) {
+	t.Helper()
+
+	_, err := db.Exec(`UPDATE transaction SET status = $1, updated_at = $2 WHERE id = $3`,
+		status, time.Now().Truncate(time.Microsecond), txID)
+	require.NoError(t, err, "failed to update transaction status")
+}
+
+// GetTransactionStatus retrieves the current status of a transaction.
+func GetTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID) string {
+	t.Helper()
+
+	var status string
+	err := db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, txID).Scan(&status)
+	require.NoError(t, err, "failed to get transaction status")
+
+	return status
+}
+
+// GetTransactionParentID retrieves the parent_transaction_id of a transaction.
+func GetTransactionParentID(t *testing.T, db *sql.DB, txID uuid.UUID) *uuid.UUID {
+	t.Helper()
+
+	var parentID *string
+	err := db.QueryRow(`SELECT parent_transaction_id FROM transaction WHERE id = $1`, txID).Scan(&parentID)
+	require.NoError(t, err, "failed to get transaction parent ID")
+
+	if parentID == nil {
+		return nil
+	}
+
+	id, err := uuid.Parse(*parentID)
+	require.NoError(t, err, "failed to parse parent transaction ID")
+
+	return &id
+}
+
+// GetBalanceAvailable retrieves the available amount of a balance.
+func GetBalanceAvailable(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.Decimal {
+	t.Helper()
+
+	var available decimal.Decimal
+	err := db.QueryRow(`SELECT available FROM balance WHERE id = $1`, balanceID).Scan(&available)
+	require.NoError(t, err, "failed to get balance available")
+
+	return available
+}
+
+// CountOperationsByTransactionID counts operations for a given transaction.
+func CountOperationsByTransactionID(t *testing.T, db *sql.DB, txID uuid.UUID) int {
+	t.Helper()
+
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, txID).Scan(&count)
+	require.NoError(t, err, "failed to count operations")
+
+	return count
+}
+
+// GetTransactionByParentID finds a transaction by its parent_transaction_id.
+// Returns nil if no transaction found with that parent.
+func GetTransactionByParentID(t *testing.T, db *sql.DB, parentID uuid.UUID) *uuid.UUID {
+	t.Helper()
+
+	var id string
+	err := db.QueryRow(`SELECT id FROM transaction WHERE parent_transaction_id = $1`, parentID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	require.NoError(t, err, "failed to get transaction by parent ID")
+
+	txID, err := uuid.Parse(id)
+	require.NoError(t, err, "failed to parse transaction ID")
+
+	return &txID
+}
