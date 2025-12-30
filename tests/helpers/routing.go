@@ -95,13 +95,11 @@ func SetupOperationRoute(ctx context.Context, trans *HTTPClient, headers map[str
 
 	code, body, err := trans.Request(ctx, "POST", path, headers, payload)
 	if err != nil || code != routingHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create operation route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route OperationRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil || route.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse operation route: %w body=%s", err, string(body))
 	}
 
@@ -114,13 +112,11 @@ func GetOperationRoute(ctx context.Context, trans *HTTPClient, headers map[strin
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get operation route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route OperationRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse operation route: %w body=%s", err, string(body))
 	}
 
@@ -133,13 +129,11 @@ func ListOperationRoutes(ctx context.Context, trans *HTTPClient, headers map[str
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list operation routes failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list OperationRouteListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse operation routes list: %w body=%s", err, string(body))
 	}
 
@@ -152,13 +146,11 @@ func UpdateOperationRoute(ctx context.Context, trans *HTTPClient, headers map[st
 
 	code, body, err := trans.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("update operation route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route OperationRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse operation route: %w body=%s", err, string(body))
 	}
 
@@ -171,7 +163,6 @@ func DeleteOperationRoute(ctx context.Context, trans *HTTPClient, headers map[st
 	code, body, err := trans.Request(ctx, "DELETE", path, headers, nil)
 	// Accept 200 or 204 for successful deletion
 	if err != nil || (code != routingHTTPStatusOK && code != routingHTTPStatusNoContent) {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("delete operation route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -193,13 +184,11 @@ func SetupTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[s
 
 	code, body, err := trans.Request(ctx, "POST", path, headers, payload)
 	if err != nil || code != routingHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create transaction route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route TransactionRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil || route.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse transaction route: %w body=%s", err, string(body))
 	}
 
@@ -212,13 +201,11 @@ func GetTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[str
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get transaction route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route TransactionRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse transaction route: %w body=%s", err, string(body))
 	}
 
@@ -231,13 +218,11 @@ func ListTransactionRoutes(ctx context.Context, trans *HTTPClient, headers map[s
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list transaction routes failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list TransactionRouteListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse transaction routes list: %w body=%s", err, string(body))
 	}
 
@@ -250,13 +235,11 @@ func UpdateTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[
 
 	code, body, err := trans.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("update transaction route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var route TransactionRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse transaction route: %w body=%s", err, string(body))
 	}
 
@@ -269,7 +252,6 @@ func DeleteTransactionRoute(ctx context.Context, trans *HTTPClient, headers map[
 	code, body, err := trans.Request(ctx, "DELETE", path, headers, nil)
 	// Accept 200 or 204 for successful deletion
 	if err != nil || (code != routingHTTPStatusOK && code != routingHTTPStatusNoContent) {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("delete transaction route failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -318,13 +300,11 @@ func SetupAssetRate(ctx context.Context, trans *HTTPClient, headers map[string]s
 
 	code, body, err := trans.Request(ctx, "PUT", path, headers, payload)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create asset rate failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var assetRate AssetRateResponse
 	if err := json.Unmarshal(body, &assetRate); err != nil || assetRate.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse asset rate: %w body=%s", err, string(body))
 	}
 
@@ -337,13 +317,11 @@ func GetAssetRateByExternalID(ctx context.Context, trans *HTTPClient, headers ma
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get asset rate failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var assetRate AssetRateResponse
 	if err := json.Unmarshal(body, &assetRate); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse asset rate: %w body=%s", err, string(body))
 	}
 
@@ -356,13 +334,11 @@ func ListAssetRatesByAssetCode(ctx context.Context, trans *HTTPClient, headers m
 
 	code, body, err := trans.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != routingHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list asset rates failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list AssetRateListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse asset rates list: %w body=%s", err, string(body))
 	}
 

@@ -81,13 +81,11 @@ func SetupHolder(ctx context.Context, crm *HTTPClient, headers map[string]string
 
 	code, body, err := crm.Request(ctx, "POST", "/v1/holders", headers, payload)
 	if err != nil || code != crmHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create holder failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var holder HolderResponse
 	if err := json.Unmarshal(body, &holder); err != nil || holder.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse holder: %w body=%s", err, string(body))
 	}
 
@@ -100,13 +98,11 @@ func GetHolder(ctx context.Context, crm *HTTPClient, headers map[string]string, 
 
 	code, body, err := crm.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get holder failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var holder HolderResponse
 	if err := json.Unmarshal(body, &holder); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse holder: %w body=%s", err, string(body))
 	}
 
@@ -117,13 +113,11 @@ func GetHolder(ctx context.Context, crm *HTTPClient, headers map[string]string, 
 func ListHolders(ctx context.Context, crm *HTTPClient, headers map[string]string) (*HolderListResponse, error) {
 	code, body, err := crm.Request(ctx, "GET", "/v1/holders", headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list holders failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list HolderListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse holders list: %w body=%s", err, string(body))
 	}
 
@@ -136,13 +130,11 @@ func UpdateHolder(ctx context.Context, crm *HTTPClient, headers map[string]strin
 
 	code, body, err := crm.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("update holder failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var holder HolderResponse
 	if err := json.Unmarshal(body, &holder); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse holder: %w body=%s", err, string(body))
 	}
 
@@ -155,7 +147,6 @@ func DeleteHolder(ctx context.Context, crm *HTTPClient, headers map[string]strin
 	code, body, err := crm.Request(ctx, "DELETE", path, headers, nil)
 	// Accept 200 or 204 for successful deletion
 	if err != nil || (code != 200 && code != 204) {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("delete holder failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -178,13 +169,11 @@ func SetupAlias(ctx context.Context, crm *HTTPClient, headers map[string]string,
 
 	code, body, err := crm.Request(ctx, "POST", path, headers, payload)
 	if err != nil || code != crmHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create alias failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var alias AliasResponse
 	if err := json.Unmarshal(body, &alias); err != nil || alias.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse alias: %w body=%s", err, string(body))
 	}
 
@@ -197,13 +186,11 @@ func GetAlias(ctx context.Context, crm *HTTPClient, headers map[string]string, h
 
 	code, body, err := crm.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get alias failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var alias AliasResponse
 	if err := json.Unmarshal(body, &alias); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse alias: %w body=%s", err, string(body))
 	}
 
@@ -237,13 +224,11 @@ func ListAliases(ctx context.Context, crm *HTTPClient, headers map[string]string
 func ListAllAliases(ctx context.Context, crm *HTTPClient, headers map[string]string) (*AliasListResponse, error) {
 	code, body, err := crm.Request(ctx, "GET", "/v1/aliases", headers, nil)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list all aliases failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list AliasListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse aliases list: %w body=%s", err, string(body))
 	}
 
@@ -256,13 +241,11 @@ func UpdateAlias(ctx context.Context, crm *HTTPClient, headers map[string]string
 
 	code, body, err := crm.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != crmHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("update alias failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var alias AliasResponse
 	if err := json.Unmarshal(body, &alias); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse alias: %w body=%s", err, string(body))
 	}
 
@@ -275,7 +258,6 @@ func DeleteAlias(ctx context.Context, crm *HTTPClient, headers map[string]string
 	code, body, err := crm.Request(ctx, "DELETE", path, headers, nil)
 	// Accept 200 or 204 for successful deletion
 	if err != nil || (code != 200 && code != 204) {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("delete alias failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 

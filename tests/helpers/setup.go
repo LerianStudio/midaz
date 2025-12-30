@@ -47,7 +47,6 @@ func createAssetRequest(ctx context.Context, client *HTTPClient, orgID, ledgerID
 	}
 	// Accept 201 (created) or 409 (duplicate) depending on server semantics; other 2xx also ok
 	if code >= setupHTTPStatusBadRequest && code != setupHTTPStatusConflict {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("%w: status %d body=%s", ErrAssetCreationFailed, code, string(body))
 	}
 
@@ -120,7 +119,6 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, payload)
 	if err != nil || code != setupHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create organization failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -128,7 +126,6 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &org); err != nil || org.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse organization: %w body=%s", err, string(body))
 	}
 
@@ -139,7 +136,6 @@ func SetupOrganization(ctx context.Context, onboard *HTTPClient, headers map[str
 func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]string, orgID, name string) (string, error) {
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers", headers, map[string]any{"name": name})
 	if err != nil || code != setupHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create ledger failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -147,7 +143,6 @@ func SetupLedger(ctx context.Context, onboard *HTTPClient, headers map[string]st
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &ledger); err != nil || ledger.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse ledger: %w body=%s", err, string(body))
 	}
 
@@ -165,7 +160,6 @@ func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]s
 
 	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/accounts", headers, payload)
 	if err != nil || code != setupHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create account failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
@@ -173,7 +167,6 @@ func SetupAccount(ctx context.Context, onboard *HTTPClient, headers map[string]s
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(body, &account); err != nil || account.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse account: %w body=%s", err, string(body))
 	}
 
@@ -217,13 +210,11 @@ func SetupAccountType(ctx context.Context, onboard *HTTPClient, headers map[stri
 
 	code, body, err := onboard.Request(ctx, "POST", path, headers, payload)
 	if err != nil || code != setupHTTPStatusCreated {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("create account type failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var accountType AccountTypeResponse
 	if err := json.Unmarshal(body, &accountType); err != nil || accountType.ID == "" {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("parse account type: %w body=%s", err, string(body))
 	}
 
@@ -236,13 +227,11 @@ func GetAccountType(ctx context.Context, onboard *HTTPClient, headers map[string
 
 	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != setupHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("get account type failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var accountType AccountTypeResponse
 	if err := json.Unmarshal(body, &accountType); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse account type: %w body=%s", err, string(body))
 	}
 
@@ -255,13 +244,11 @@ func ListAccountTypes(ctx context.Context, onboard *HTTPClient, headers map[stri
 
 	code, body, err := onboard.Request(ctx, "GET", path, headers, nil)
 	if err != nil || code != setupHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("list account types failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var list AccountTypeListResponse
 	if err := json.Unmarshal(body, &list); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse account types list: %w body=%s", err, string(body))
 	}
 
@@ -274,13 +261,11 @@ func UpdateAccountType(ctx context.Context, onboard *HTTPClient, headers map[str
 
 	code, body, err := onboard.Request(ctx, "PATCH", path, headers, payload)
 	if err != nil || code != setupHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("update account type failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 
 	var accountType AccountTypeResponse
 	if err := json.Unmarshal(body, &accountType); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("parse account type: %w body=%s", err, string(body))
 	}
 
@@ -293,7 +278,6 @@ func DeleteAccountType(ctx context.Context, onboard *HTTPClient, headers map[str
 	code, body, err := onboard.Request(ctx, "DELETE", path, headers, nil)
 	// Accept 200 or 204 for successful deletion
 	if err != nil || (code != 200 && code != 204) {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("delete account type failed: code=%d err=%w body=%s", code, err, string(body))
 	}
 

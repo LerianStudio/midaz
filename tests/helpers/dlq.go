@@ -89,7 +89,7 @@ func classifyDLQQueue(queueName string) string {
 // validateQueueName checks that a queue name is safe for URL construction.
 // Returns error if the name contains characters that could cause URL injection.
 //
-//nolint:wrapcheck // Returns package-defined sentinel errors intentionally
+
 func validateQueueName(queueName string) error {
 	if queueName == "" {
 		return ErrQueueNameEmpty
@@ -145,7 +145,6 @@ type RabbitMQQueueInfo struct {
 func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass string) (int, error) {
 	// Security: Validate queue name to prevent URL path injection
 	if err := validateQueueName(queueName); err != nil {
-		//nolint:wrapcheck // Wrapping with package-defined sentinel error
 		return 0, fmt.Errorf("%w: %w", ErrQueueValidationFailed, err)
 	}
 
@@ -156,7 +155,6 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -166,7 +164,6 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 
 	resp, err := client.Do(req)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to query RabbitMQ management API: %w", err)
 	}
 	defer resp.Body.Close()
@@ -177,13 +174,11 @@ func GetDLQMessageCount(ctx context.Context, mgmtURL, queueName, user, pass stri
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("%w: %d", ErrUnexpectedStatusCode, resp.StatusCode)
 	}
 
 	var queueInfo RabbitMQQueueInfo
 	if err := json.NewDecoder(resp.Body).Decode(&queueInfo); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, fmt.Errorf("failed to decode queue info: %w", err)
 	}
 
@@ -204,7 +199,6 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			//nolint:wrapcheck // Wrapping with package-defined sentinel error
 			return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 		default:
 		}
@@ -214,7 +208,6 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 			// Log but continue - transient errors are expected during chaos
 			// Use context-aware sleep to respect graceful shutdown
 			if !sleepWithContext(ctx, dlqPollInterval) {
-				//nolint:wrapcheck // Wrapping with package-defined sentinel error
 				return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 			}
 
@@ -227,7 +220,6 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 
 		// Context-aware sleep between poll attempts
 		if !sleepWithContext(ctx, dlqPollInterval) {
-			//nolint:wrapcheck // Wrapping with package-defined sentinel error
 			return fmt.Errorf("%w: %w", ErrContextCancelledDLQ, ctx.Err())
 		}
 	}
@@ -235,7 +227,6 @@ func WaitForDLQEmpty(ctx context.Context, mgmtURL, queueName, user, pass string,
 	// Get final count for error message
 	finalCount, _ := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 
-	//nolint:wrapcheck // Error already wrapped with context for test helpers
 	return fmt.Errorf("%w: %s still has %d messages after %v", ErrDLQNotEmpty, BuildDLQName(queueName), finalCount, timeout)
 }
 
@@ -256,7 +247,6 @@ func GetAllDLQCounts(ctx context.Context, mgmtURL, user, pass string, queueNames
 	for _, queueName := range queueNames {
 		count, err := GetDLQMessageCount(ctx, mgmtURL, queueName, user, pass)
 		if err != nil {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return nil, fmt.Errorf("failed to get DLQ count for %s: %w", queueName, err)
 		}
 

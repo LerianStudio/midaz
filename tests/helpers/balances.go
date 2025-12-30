@@ -59,7 +59,6 @@ func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, l
 		}
 
 		if time.Now().After(deadline) {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("%w: %s", ErrDefaultBalanceNotReady, accountID)
 		}
 
@@ -97,7 +96,6 @@ func findDefaultBalanceID(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 		}
 
 		if time.Now().After(deadline) {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return "", fmt.Errorf("%w: %s", ErrDefaultBalanceNotFound, alias)
 		}
 
@@ -115,7 +113,6 @@ func patchDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerID
 	}
 
 	if c2 != balanceHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("%w: status %d body=%s", ErrBalancePatchFailed, c2, string(b2))
 	}
 
@@ -130,7 +127,6 @@ func GetAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledge
 	}
 
 	if code != balanceHTTPStatusOK {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return decimal.Zero, fmt.Errorf("%w: status=%d body=%s", ErrBalancesByAliasFailed, code, string(body))
 	}
 
@@ -141,7 +137,6 @@ func GetAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledge
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(body, &paged); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return decimal.Zero, fmt.Errorf("failed to unmarshal balances response: %w", err)
 	}
 
@@ -171,13 +166,11 @@ func WaitForAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, l
 			}
 			// guard that it never becomes negative
 			if cur.IsNegative() {
-				//nolint:wrapcheck // Error already wrapped with context for test helpers
 				return cur, fmt.Errorf("%w for alias %s: %s", ErrBalanceBecameNegative, alias, cur.String())
 			}
 		}
 
 		if time.Now().After(deadline) {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return last, fmt.Errorf("%w; last=%s expected=%s", ErrBalanceTimeoutWaiting, last.String(), expected.String())
 		}
 

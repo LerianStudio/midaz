@@ -75,7 +75,6 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return 0, nil, nil, fmt.Errorf("marshal body: %w", err)
 		}
 
@@ -92,7 +91,6 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -102,14 +100,12 @@ func (c *HTTPClient) RequestFull(ctx context.Context, method, path string, heade
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body: %w", err)
 	}
 
@@ -134,7 +130,6 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(raw))
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create raw request: %w", err)
 	}
 
@@ -144,14 +139,12 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute raw request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read raw response body: %w", err)
 	}
 
@@ -166,7 +159,6 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return 0, nil, nil, fmt.Errorf("marshal body: %w", err)
 		}
 
@@ -175,7 +167,6 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to create request with header values: %w", err)
 	}
 
@@ -187,14 +178,12 @@ func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path s
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return 0, nil, nil, fmt.Errorf("failed to execute request with header values: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("failed to read response body with header values: %w", err)
 	}
 

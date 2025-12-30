@@ -46,7 +46,6 @@ func AuthenticateFromEnv() error {
 	password := os.Getenv("TEST_AUTH_PASSWORD")
 
 	if username == "" || password == "" {
-		//nolint:wrapcheck // Returning sentinel error for test validation
 		return ErrAuthCredentialsMissing
 	}
 
@@ -57,7 +56,6 @@ func AuthenticateFromEnv() error {
 
 	// Export for the duration of the process so helpers.AuthHeaders picks it up
 	if err := os.Setenv("TEST_AUTH_HEADER", "Bearer "+token); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("failed to set TEST_AUTH_HEADER: %w", err)
 	}
 
@@ -74,7 +72,6 @@ func fetchAuthToken(authURL, username, password string) (string, error) {
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("failed to marshal auth payload: %w", err)
 	}
 
@@ -83,7 +80,6 @@ func fetchAuthToken(authURL, username, password string) (string, error) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("failed to create auth request: %w", err)
 	}
 
@@ -91,7 +87,6 @@ func fetchAuthToken(authURL, username, password string) (string, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("failed to execute auth request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -99,11 +94,9 @@ func fetchAuthToken(authURL, username, password string) (string, error) {
 	if resp.StatusCode < authMinStatusSuccess || resp.StatusCode >= authMaxStatusSuccess {
 		var errBody bytes.Buffer
 		if _, readErr := errBody.ReadFrom(resp.Body); readErr != nil {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return "", fmt.Errorf("auth request failed with status %d, and could not read body: %w", resp.StatusCode, readErr)
 		}
 
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("%w: status=%d, body: %s", ErrAuthRequestFailed, resp.StatusCode, errBody.String())
 	}
 
@@ -118,7 +111,6 @@ func parseAuthToken(resp *http.Response) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return "", fmt.Errorf("decode auth response: %w", err)
 	}
 
@@ -128,7 +120,6 @@ func parseAuthToken(resp *http.Response) (string, error) {
 	}
 
 	if token == "" {
-		//nolint:wrapcheck // Returning sentinel error for test validation
 		return "", ErrAuthTokenMissing
 	}
 

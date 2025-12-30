@@ -73,7 +73,7 @@ func GetExecutor(ctx context.Context, db Executor) Executor {
 func RunInTransaction(ctx context.Context, db TxBeginner, fn func(ctx context.Context) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err) //nolint:wrapcheck // Transaction operations are infrastructure-level, context added via fmt.Errorf
+		return fmt.Errorf("beginning transaction: %w", err)
 	}
 
 	// Ensure rollback on panic
@@ -93,7 +93,7 @@ func RunInTransaction(ctx context.Context, db TxBeginner, fn func(ctx context.Co
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing transaction: %w", err) //nolint:wrapcheck // Transaction operations are infrastructure-level, context added via fmt.Errorf
+		return fmt.Errorf("committing transaction: %w", err)
 	}
 
 	committed = true

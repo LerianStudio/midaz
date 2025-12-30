@@ -22,7 +22,6 @@ func ComposeUpBackend() error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("make up-backend failed: %w\n%s", err, string(out))
 	}
 
@@ -38,7 +37,6 @@ func ComposeDownBackend() error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("make down-backend failed: %w\n%s", err, string(out))
 	}
 
@@ -55,7 +53,6 @@ func DockerAction(action, container string, extraArgs ...string) error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("docker %s %s failed: %w\n%s", action, strings.Join(args, " "), err, string(out))
 	}
 
@@ -83,7 +80,6 @@ func DockerNetwork(action, network, container string) error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return fmt.Errorf("docker network %s %s %s failed: %w\n%s", action, network, container, err, string(out))
 	}
 

@@ -49,7 +49,6 @@ func NewRedisBalanceClient(addr string) (*RedisBalanceClient, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", addr, err)
 	}
 
@@ -62,7 +61,6 @@ func NewRedisBalanceClient(addr string) (*RedisBalanceClient, error) {
 func (r *RedisBalanceClient) Close() error {
 	if r.client != nil {
 		if err := r.client.Close(); err != nil {
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return fmt.Errorf("failed to close Redis client: %w", err)
 		}
 	}
@@ -88,13 +86,11 @@ func (r *RedisBalanceClient) GetBalanceFromRedis(ctx context.Context, orgID, led
 			return nil, nil
 		}
 
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get balance from Redis key %s: %w", redisKey, err)
 	}
 
 	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(value), &balance); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("%w for key %s: %w", ErrRedisBalanceUnmarshal, redisKey, err)
 	}
 
@@ -110,13 +106,11 @@ func (r *RedisBalanceClient) GetBalanceFromRedisByFullKey(ctx context.Context, r
 			return nil, nil
 		}
 
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get balance from Redis key %s: %w", redisKey, err)
 	}
 
 	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(value), &balance); err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("%w for key %s: %w", ErrRedisBalanceUnmarshal, redisKey, err)
 	}
 
@@ -160,7 +154,6 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			//nolint:wrapcheck // Error already wrapped with context for test helpers
 			return lastValue, fmt.Errorf("context cancelled while waiting for convergence: %w", ctx.Err())
 		default:
 		}
@@ -185,12 +178,10 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergence(
 	}
 
 	if lastErr != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return lastValue, fmt.Errorf("%w: last error: %w, expected=%s, last=%s",
 			ErrRedisBalanceTimeout, lastErr, expectedAvailable.String(), lastValue.String())
 	}
 
-	//nolint:wrapcheck // Error already wrapped with context for test helpers
 	return lastValue, fmt.Errorf("%w: expected=%s, got=%s",
 		ErrRedisBalanceTimeout, expectedAvailable.String(), lastValue.String())
 }
@@ -222,12 +213,10 @@ func (r *RedisBalanceClient) WaitForRedisPostgresConvergenceWithHTTP(
 	// First get the Redis balance (source of truth)
 	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, balanceKey)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get Redis balance: %w", err)
 	}
 
 	if redisBalance == nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("%w for %s in org=%s ledger=%s",
 			ErrRedisBalanceNotFound, alias, orgID, ledgerID)
 	}
@@ -265,7 +254,6 @@ func (r *RedisBalanceClient) CompareBalances(
 	// Get Redis balance
 	redisBalance, err := r.GetBalanceFromRedis(ctx, orgID, ledgerID, alias, "default")
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get Redis balance: %w", err)
 	}
 
@@ -277,7 +265,6 @@ func (r *RedisBalanceClient) CompareBalances(
 	// Get PostgreSQL balance via HTTP API
 	pgAvailable, err := GetAvailableSumByAlias(ctx, httpClient, orgID, ledgerID, alias, assetCode, headers)
 	if err != nil {
-		//nolint:wrapcheck // Error already wrapped with context for test helpers
 		return nil, fmt.Errorf("failed to get PostgreSQL balance: %w", err)
 	}
 
