@@ -18,6 +18,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 )
 
+// Configuration validation constants.
+const (
+	maxMongoPoolSize = 1000
+)
+
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                 string `env:"ENV_NAME"`
@@ -60,7 +65,7 @@ func (cfg *Config) Validate() {
 		"field", "MongoDBName")
 	assert.That(assert.ValidPort(cfg.MongoDBPort), "MONGO_PORT must be valid port (1-65535)",
 		"field", "MongoDBPort", "value", cfg.MongoDBPort)
-	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, 1000), "MONGO_MAX_POOL_SIZE must be 1-1000",
+	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, maxMongoPoolSize), "MONGO_MAX_POOL_SIZE must be 1-1000",
 		"field", "MaxPoolSize", "value", cfg.MaxPoolSize)
 
 	// Crypto configuration (required for data security)
@@ -99,15 +104,13 @@ func InitServers() *Service {
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
-	}
+	maxPoolSize := uint64(cfg.MaxPoolSize) //nolint:gosec // G115: cfg.Validate() enforces 1-1000, safe conversion
 
 	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            maxPoolSize,
 	}
 
 	dataSecurity := &libCrypto.Crypto{
