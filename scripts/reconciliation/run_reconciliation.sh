@@ -188,10 +188,16 @@ BALANCE_CHECK=$(run_psql transaction "
 WITH balance_calc AS (
     SELECT
         b.available as current_balance,
+        -- Calculate expected balance from operations:
+        -- CREDITS add to available
+        -- DEBITS subtract from available
+        -- ON_HOLD subtracts from available (for APPROVED or PENDING, as CANCELED holds are fully reversed)
         COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) -
-        COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as expected
+        COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected = true AND t.status IN ('APPROVED', 'PENDING') THEN o.amount ELSE 0 END), 0) as expected
     FROM balance b
     LEFT JOIN operation o ON b.account_id = o.account_id AND b.asset_code = o.asset_code AND b.key = o.balance_key AND o.deleted_at IS NULL
+    LEFT JOIN transaction t ON o.transaction_id = t.id
     WHERE b.deleted_at IS NULL
     GROUP BY b.id, b.available
 )
