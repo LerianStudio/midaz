@@ -52,3 +52,29 @@ func TestNonZeroTotals(t *testing.T) {
 		})
 	}
 }
+
+// TestValidTransactionStatus tests the ValidTransactionStatus predicate.
+func TestValidTransactionStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		expected bool
+	}{
+		{"CREATED valid", "CREATED", true},
+		{"APPROVED valid", "APPROVED", true},
+		{"PENDING valid", "PENDING", true},
+		{"CANCELED valid", "CANCELED", true},
+		{"NOTED valid", "NOTED", true},
+		{"empty invalid", "", false},
+		{"lowercase invalid", "pending", false},
+		{"unknown invalid", "UNKNOWN", false},
+		{"partial invalid", "APPROV", false},
+		{"with spaces invalid", " PENDING ", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, ValidTransactionStatus(tt.status))
+		})
+	}
+}
