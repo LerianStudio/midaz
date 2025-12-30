@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"time"
 
@@ -34,7 +35,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
+	operationRouteList, err := uc.findOperationRoutesWithRetry(ctx, organizationID, ledgerID, payload.OperationRoutes, logger)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find operation routes", err)
 
@@ -94,6 +95,57 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	logger.Infof("Successfully created transaction route with %d operation routes", len(createdTransactionRoute.OperationRoutes))
 
 	return createdTransactionRoute, nil
+}
+
+func (uc *UseCase) findOperationRoutesWithRetry(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, logger interface{ Warnf(string, ...any) }) ([]*mmodel.OperationRoute, error) {
+	var lastErr error
+
+	maxAttempts := uc.RouteLookupMaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = DefaultRouteLookupMaxAttempts
+	}
+	// Cap to avoid integer shift overflow producing negative/garbage durations.
+	// This still allows very large backoffs (~days) if configured near the cap.
+	if maxAttempts > 30 {
+		maxAttempts = 30
+	}
+
+	baseBackoff := uc.RouteLookupBaseBackoff
+	if baseBackoff <= 0 {
+		baseBackoff = DefaultRouteLookupBaseBackoff
+	}
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, ids)
+		if err == nil {
+			return operationRouteList, nil
+		}
+
+		lastErr = err
+		if !isOperationRouteNotFoundErr(err) || attempt == maxAttempts-1 {
+			return nil, err
+		}
+
+		backoff := time.Duration(1<<attempt) * baseBackoff
+		logger.Warnf("Operation routes not found (attempt %d/%d), retrying in %s: %v", attempt+1, maxAttempts, backoff, err)
+
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	return nil, lastErr
+}
+
+func isOperationRouteNotFoundErr(err error) bool {
+	var notFoundErr pkg.EntityNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return notFoundErr.Code == constant.ErrOperationRouteNotFound.Error()
+	}
+
+	return false
 }
 
 // validateOperationRouteTypes validates that operation routes contain both source and destination types.

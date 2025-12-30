@@ -157,6 +157,10 @@ type Config struct {
 	MetadataOutboxWorkerEnabled              bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
 	MetadataOutboxMaxWorkers                 int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
 	MetadataOutboxRetentionDays              int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
+	// CreateTransactionRoute operation route lookup retry tuning.
+	// These are optional; invalid/zero values will be normalized to defaults during initialization.
+	OperationRouteLookupMaxAttempts   int `env:"OPERATION_ROUTE_LOOKUP_MAX_ATTEMPTS" default:"5"`
+	OperationRouteLookupBaseBackoffMs int `env:"OPERATION_ROUTE_LOOKUP_BASE_BACKOFF_MS" default:"200"`
 	// Migration auto-recovery configuration
 	MigrationAutoRecover bool `env:"MIGRATION_AUTO_RECOVER" default:"true"`
 	MigrationMaxRetries  int  `env:"MIGRATION_MAX_RETRIES" default:"3"`
@@ -395,18 +399,32 @@ func InitServers() *Service {
 	// Wrap dbresolver.DB to implement dbtx.TxBeginner interface
 	dbProvider := &dbProviderAdapter{db: dbConn}
 
+	routeLookupMaxAttempts := cfg.OperationRouteLookupMaxAttempts
+	if routeLookupMaxAttempts <= 0 {
+		routeLookupMaxAttempts = command.DefaultRouteLookupMaxAttempts
+		logger.Infof("CreateTransactionRoute using default: OPERATION_ROUTE_LOOKUP_MAX_ATTEMPTS=%d", command.DefaultRouteLookupMaxAttempts)
+	}
+
+	routeLookupBaseBackoff := time.Duration(cfg.OperationRouteLookupBaseBackoffMs) * time.Millisecond
+	if routeLookupBaseBackoff <= 0 {
+		routeLookupBaseBackoff = command.DefaultRouteLookupBaseBackoff
+		logger.Infof("CreateTransactionRoute using default: OPERATION_ROUTE_LOOKUP_BASE_BACKOFF_MS=%d", int(command.DefaultRouteLookupBaseBackoff/time.Millisecond))
+	}
+
 	useCase := &command.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
-		RedisRepo:            redisConsumerRepository,
-		OutboxRepo:           outboxPostgreSQLRepository,
-		DBProvider:           dbProvider,
+		TransactionRepo:        transactionPostgreSQLRepository,
+		OperationRepo:          operationPostgreSQLRepository,
+		AssetRateRepo:          assetRatePostgreSQLRepository,
+		BalanceRepo:            balancePostgreSQLRepository,
+		OperationRouteRepo:     operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:   transactionRoutePostgreSQLRepository,
+		MetadataRepo:           metadataMongoDBRepository,
+		RabbitMQRepo:           producerRabbitMQRepository,
+		RedisRepo:              redisConsumerRepository,
+		OutboxRepo:             outboxPostgreSQLRepository,
+		DBProvider:             dbProvider,
+		RouteLookupMaxAttempts: routeLookupMaxAttempts,
+		RouteLookupBaseBackoff: routeLookupBaseBackoff,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -417,6 +435,7 @@ func InitServers() *Service {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
+		OutboxRepo:           outboxPostgreSQLRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
 	}

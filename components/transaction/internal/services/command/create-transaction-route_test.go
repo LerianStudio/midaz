@@ -180,7 +180,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	mockOperationRouteRepo.EXPECT().
 		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
 		Return(nil, expectedError).
-		Times(1)
+		Times(DefaultRouteLookupMaxAttempts)
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 

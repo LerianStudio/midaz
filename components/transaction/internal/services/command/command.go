@@ -5,6 +5,7 @@ package command
 
 import (
 	"errors"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
@@ -61,6 +62,16 @@ type UseCase struct {
 	// DBProvider provides database connection for transaction management.
 	// Used to create database transactions that span multiple repository operations.
 	DBProvider DBProvider
+
+	// RouteLookupMaxAttempts controls how many times we retry operation route lookups
+	// when the repository returns ErrOperationRouteNotFound.
+	// If <= 0, a sensible default is used.
+	RouteLookupMaxAttempts int
+
+	// RouteLookupBaseBackoff is the base delay for exponential backoff when retrying
+	// operation route lookups.
+	// If <= 0, a sensible default is used.
+	RouteLookupBaseBackoff time.Duration
 }
 
 // isUniqueViolation checks if the error is a PostgreSQL unique violation error
@@ -68,3 +79,10 @@ func (uc *UseCase) isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode
 }
+
+const (
+	// DefaultRouteLookupMaxAttempts matches historical behavior in CreateTransactionRoute.
+	DefaultRouteLookupMaxAttempts = 5
+	// DefaultRouteLookupBaseBackoff matches historical behavior in CreateTransactionRoute.
+	DefaultRouteLookupBaseBackoff = 200 * time.Millisecond
+)
