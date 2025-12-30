@@ -47,6 +47,19 @@ var balanceColumnList = []string{
 	"key",
 }
 
+type balanceQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func primaryBalanceQueryer(db dbresolver.DB) balanceQueryer {
+	if primaries := db.PrimaryDBs(); len(primaries) > 0 && primaries[0] != nil {
+		return primaries[0]
+	}
+
+	return db
+}
+
 const (
 	aliasKeyParts            = 2
 	whereOrgIDOffset         = 3
@@ -224,7 +237,9 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 		return nil, pkg.ValidateInternalError(err, "Balance")
 	}
 
-	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	queryDB := primaryBalanceQueryer(db)
+
+	rows, err := queryDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -378,7 +393,9 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all.query")
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	queryDB := primaryBalanceQueryer(db)
+
+	rows, err := queryDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
 		logger.Errorf("Failed to get operations on repo: %v", err)
@@ -462,7 +479,9 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_account_id.query")
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	queryDB := primaryBalanceQueryer(db)
+
+	rows, err := queryDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
 		logger.Errorf("Failed to get operations on repo: %v", err)
@@ -982,7 +1001,9 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 			   AND key = $4
 			   AND deleted_at IS NULL`
 
-	row := db.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
+	queryDB := primaryBalanceQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
 
 	spanQuery.End()
 

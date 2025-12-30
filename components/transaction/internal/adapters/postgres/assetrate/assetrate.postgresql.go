@@ -39,6 +39,24 @@ var assetRateColumnList = []string{
 	"updated_at",
 }
 
+type assetRateQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func primaryAssetRateQueryer(db interface {
+	PrimaryDBs() []*sql.DB
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+},
+) assetRateQueryer {
+	if primaries := db.PrimaryDBs(); len(primaries) > 0 && primaries[0] != nil {
+		return primaries[0]
+	}
+
+	return db
+}
+
 const (
 	updateFieldOffset     = 1
 	rateFieldOffset       = 2
@@ -188,7 +206,9 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 		return nil, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
+	queryDB := primaryAssetRateQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -266,7 +286,9 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 		return nil, pkg.ValidateInternalError(err, "AssetRate")
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
+	queryDB := primaryAssetRateQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -342,7 +364,9 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	queryDB := primaryAssetRateQueryer(db)
+
+	rows, err := queryDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
