@@ -188,13 +188,15 @@ func applyPendingOperation(amount Amount, available, onHold decimal.Decimal) (de
 // applyCanceledOperation applies canceled transaction operations
 func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
 	if amount.Operation == constant.RELEASE {
-		// Precondition: onHold must be sufficient for release
-		assert.That(assert.BalanceSufficientForRelease(onHold, amount.Value),
-			"insufficient onHold balance for release operation",
-			"onHold", onHold, "releaseAmount", amount.Value,
-			"deficit", amount.Value.Sub(onHold))
-
-		return available.Add(amount.Value), onHold.Sub(amount.Value), true
+		newOnHold := onHold.Sub(amount.Value)
+		// OnHold can never be negative - this indicates a programming error
+		// (trying to release more than was held)
+		assert.That(assert.NonNegativeDecimal(newOnHold),
+			"onHold cannot go negative during RELEASE",
+			"original_onHold", onHold.String(),
+			"release_amount", amount.Value.String(),
+			"result", newOnHold.String())
+		return available.Add(amount.Value), newOnHold, true
 	}
 
 	return available, onHold, false
@@ -253,12 +255,28 @@ func applyBalanceOperation(amount Amount, available, onHold decimal.Decimal) (de
 
 // OperateBalances Function to sum or sub two balances and Normalize the scale
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
+	// Validate input precision - catches malformed amounts before processing
+	assert.That(assert.ValidAmount(amount.Value),
+		"amount value has invalid precision",
+		"value", amount.Value.String(),
+		"exponent", amount.Value.Exponent())
+
 	total, totalOnHold, changed := applyBalanceOperation(amount, balance.Available, balance.OnHold)
 
 	if !changed {
 		// For no-op transactions (e.g., NOTED), return the original balance without changing the version.
 		return balance, nil
 	}
+
+	// Validate output precision - ensures results are within valid bounds
+	assert.That(assert.ValidAmount(total),
+		"resulting available has invalid precision",
+		"value", total.String(),
+		"exponent", total.Exponent())
+	assert.That(assert.ValidAmount(totalOnHold),
+		"resulting onHold has invalid precision",
+		"value", totalOnHold.String(),
+		"exponent", totalOnHold.Exponent())
 
 	newVersion := balance.Version + 1
 	assert.That(assert.Positive(newVersion),

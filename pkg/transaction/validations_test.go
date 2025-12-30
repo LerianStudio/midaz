@@ -2,6 +2,8 @@ package transaction
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/lib-commons/v2/commons"
@@ -382,6 +384,97 @@ func TestOperateBalances(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOperateBalances_InvalidPrecision_Panics(t *testing.T) {
+	// Arrange: Create amount with extreme precision (exponent < -18)
+	// This creates a value with exponent -30 which is outside valid range
+	extremeValue := decimal.NewFromFloat(0.000000000000000000000000000001)
+
+	amount := Amount{
+		Value:           extremeValue,
+		Operation:       constant.DEBIT,
+		TransactionType: constant.CREATED,
+	}
+	balance := Balance{
+		Available: decimal.NewFromInt(1000),
+		OnHold:    decimal.Zero,
+		Version:   1,
+	}
+
+	// Act & Assert: Should panic because precision is invalid
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("Expected panic for invalid precision, got none")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "amount value has invalid precision") {
+			t.Errorf("Expected panic about invalid precision, got: %v", r)
+		}
+	}()
+
+	OperateBalances(amount, balance)
+}
+
+func TestApplyCanceledOperation_NegativeOnHold_Panics(t *testing.T) {
+	// Arrange: Try to release more than what's on hold
+	amount := Amount{
+		Value:     decimal.NewFromInt(500),
+		Operation: constant.RELEASE,
+	}
+	available := decimal.NewFromInt(1000)
+	onHold := decimal.NewFromInt(100) // Less than release amount
+
+	// Act & Assert: Should panic because onHold would go negative
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("Expected panic for negative onHold, got none")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "onHold cannot go negative during RELEASE") {
+			t.Errorf("Expected panic about negative onHold, got: %v", r)
+		}
+	}()
+
+	applyCanceledOperation(amount, available, onHold)
+}
+
+func TestCalculateTotal_ShareSumExceeds100_Panics(t *testing.T) {
+	// Arrange: Create fromTos with shares exceeding 100%
+	fromTos := []FromTo{
+		{
+			AccountAlias: "@account1",
+			IsFrom:       true,
+			Share:        &Share{Percentage: 60, PercentageOfPercentage: 0},
+		},
+		{
+			AccountAlias: "@account2",
+			IsFrom:       true,
+			Share:        &Share{Percentage: 50, PercentageOfPercentage: 0}, // Total: 110%
+		},
+	}
+	transaction := Transaction{
+		Send: Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(1000),
+		},
+	}
+
+	// Act & Assert: Should panic because shares exceed 100%
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("Expected panic for shares exceeding 100%%, got none")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "total share percentages cannot exceed 100") {
+			t.Errorf("Expected panic about share percentages, got: %v", r)
+		}
+	}()
+
+	CalculateTotal(fromTos, transaction, "CREATED")
 }
 
 func TestAliasKey(t *testing.T) {
