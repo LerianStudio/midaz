@@ -454,12 +454,14 @@ func TestWideEvent_SetResponse_OutcomeClassification(t *testing.T) {
 		statusCode     int
 		expectedResult string
 	}{
-		// Success outcomes (2xx and 3xx)
+		// Success outcomes (2xx)
 		{name: "200 OK is success", statusCode: 200, expectedResult: "success"},
 		{name: "201 Created is success", statusCode: 201, expectedResult: "success"},
 		{name: "204 No Content is success", statusCode: 204, expectedResult: "success"},
-		{name: "301 Redirect is success", statusCode: 301, expectedResult: "success"},
-		{name: "304 Not Modified is success", statusCode: 304, expectedResult: "success"},
+
+		// Redirect outcomes (3xx)
+		{name: "301 Redirect is redirect", statusCode: 301, expectedResult: "redirect"},
+		{name: "304 Not Modified is redirect", statusCode: 304, expectedResult: "redirect"},
 
 		// Client error outcomes (4xx)
 		{name: "400 Bad Request is client_error", statusCode: 400, expectedResult: "client_error"},

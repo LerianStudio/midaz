@@ -1,6 +1,7 @@
 package mlog
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync/atomic"
@@ -11,6 +12,9 @@ import (
 
 // responseSizeTrackerKey is the context key for storing the response size tracker.
 const responseSizeTrackerKey = "wide_event_response_size_tracker"
+
+// panicValueKey is the context key used to propagate a panic value from upstream middleware.
+const panicValueKey = "panic_value"
 
 // ResponseSizeTracker tracks the number of bytes written to the response.
 // This is useful for streaming/chunked responses where Content-Length may not be set.
@@ -81,6 +85,42 @@ type Config struct {
 	SkipPathFunc func(path string) bool
 }
 
+// shouldSkipPath checks if the given path should be skipped from wide event logging.
+func shouldSkipPath(path string, skipMap map[string]struct{}, skipPathFunc func(string) bool) bool {
+	if _, skip := skipMap[path]; skip {
+		return true
+	}
+
+	if skipPathFunc != nil && skipPathFunc(path) {
+		return true
+	}
+
+	return false
+}
+
+// handlePanicContext checks for panic context and sets it on the event.
+func handlePanicContext(c *fiber.Ctx, event *WideEvent, didPanic bool, panicVal any) {
+	if upstreamPanic := c.Locals(panicValueKey); upstreamPanic != nil {
+		event.SetPanic(fmt.Sprintf("%v", upstreamPanic))
+	} else if didPanic {
+		event.SetPanic(fmt.Sprintf("%v", panicVal))
+	}
+}
+
+// handleMiddlewareError sets error context on the event based on error type.
+func handleMiddlewareError(event *WideEvent, err error) {
+	if err == nil {
+		return
+	}
+
+	fiberErr := &fiber.Error{}
+	if errors.As(err, &fiberErr) {
+		event.SetError("fiber_error", strconv.Itoa(fiberErr.Code), fiberErr.Message, false)
+	} else {
+		event.SetError("handler_error", "", err.Error(), false)
+	}
+}
+
 // NewWideEventMiddleware creates a Fiber middleware that initializes WideEvent
 // at the start of each request and emits it at the end.
 func NewWideEventMiddleware(cfg Config) fiber.Handler {
@@ -96,14 +136,7 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 	}
 
 	return func(c *fiber.Ctx) error {
-		path := c.Path()
-
-		// Check if path should be skipped
-		if _, skip := skipMap[path]; skip {
-			return c.Next()
-		}
-
-		if cfg.SkipPathFunc != nil && cfg.SkipPathFunc(path) {
+		if shouldSkipPath(c.Path(), skipMap, cfg.SkipPathFunc) {
 			return c.Next()
 		}
 
@@ -128,6 +161,7 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 
 		func() {
 			defer func() {
+				//nolint:panicguard // HTTP middleware boundary - must capture panics for logging before re-panicking
 				if r := recover(); r != nil {
 					didPanic = true
 					panicVal = r
@@ -137,34 +171,24 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 			err = c.Next()
 		}()
 
-		// Check for panic context from upstream recovery middleware too
-		if upstreamPanic := c.Locals("panic_value"); upstreamPanic != nil {
-			event.SetPanic(fmt.Sprintf("%v", upstreamPanic))
-		} else if didPanic {
-			event.SetPanic(fmt.Sprintf("%v", panicVal))
-		}
+		handlePanicContext(c, event, didPanic, panicVal)
 
 		// Capture response details with accurate size calculation
 		responseSize := calculateResponseSize(c, tracker)
 		event.SetResponse(c.Response().StatusCode(), responseSize)
 
-		// Handle any error that occurred
-		if err != nil {
-			if fiberErr, ok := err.(*fiber.Error); ok {
-				event.SetError("fiber_error", strconv.Itoa(fiberErr.Code), fiberErr.Message, false)
-			} else {
-				event.SetError("handler_error", "", err.Error(), false)
-			}
-		}
+		handleMiddlewareError(event, err)
 
 		// Emit the wide event
 		event.Emit(cfg.Logger)
 
 		// Re-panic after logging to preserve stack trace for upstream handlers
 		if didPanic {
+			//nolint:panicguard // Intentional re-panic after logging - preserves stack trace for upstream recovery handlers
 			panic(panicVal)
 		}
 
+		//nolint:wrapcheck // Middleware must pass through handler errors without wrapping
 		return err
 	}
 }

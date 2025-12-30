@@ -1,12 +1,23 @@
 package mlog
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+)
+
+// Outcome constants for WideEvent.
+const (
+	OutcomeSuccess     = "success"
+	OutcomeRedirect    = "redirect"
+	OutcomeClientError = "client_error"
+	OutcomeServerError = "server_error"
+	OutcomePanic       = "panic"
+	OutcomeUnknown     = "unknown"
 )
 
 // WideEvent represents a comprehensive structured log event for a single request.
@@ -39,7 +50,7 @@ type WideEvent struct {
 
 	// Response
 	ResponseSize int64  `json:"response_size,omitempty"`
-	Outcome      string `json:"outcome,omitempty"` // "success", "client_error", "server_error", "panic"
+	Outcome      string `json:"outcome,omitempty"` // "success", "redirect", "client_error", "server_error", "panic"
 
 	// Service identification
 	Service     string `json:"service,omitempty"`
@@ -323,9 +334,9 @@ func (e *WideEvent) SetPanic(panicValue string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.Outcome = "panic"
+	e.Outcome = OutcomePanic
 	e.ErrorOccurred = true
-	e.ErrorType = "panic"
+	e.ErrorType = OutcomePanic
 	e.ErrorMessage = sanitizeErrorMessage(panicValue)
 }
 
@@ -434,7 +445,7 @@ func (e *WideEvent) SetResponse(statusCode int, responseSize int64) {
 	defer e.mu.Unlock()
 
 	// Don't overwrite panic outcome if already set
-	if e.Outcome == "panic" {
+	if e.Outcome == OutcomePanic {
 		e.StatusCode = statusCode
 		e.ResponseSize = responseSize
 		e.DurationMS = float64(time.Since(e.StartTime).Milliseconds())
@@ -448,14 +459,16 @@ func (e *WideEvent) SetResponse(statusCode int, responseSize int64) {
 
 	// Determine outcome based on status code
 	switch {
-	case statusCode >= 200 && statusCode < 400:
-		e.Outcome = "success"
-	case statusCode >= 400 && statusCode < 500:
-		e.Outcome = "client_error"
-	case statusCode >= 500:
-		e.Outcome = "server_error"
+	case statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices:
+		e.Outcome = OutcomeSuccess
+	case statusCode >= http.StatusMultipleChoices && statusCode < http.StatusBadRequest:
+		e.Outcome = OutcomeRedirect
+	case statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError:
+		e.Outcome = OutcomeClientError
+	case statusCode >= http.StatusInternalServerError:
+		e.Outcome = OutcomeServerError
 	default:
-		e.Outcome = "unknown"
+		e.Outcome = OutcomeUnknown
 	}
 }
 

@@ -34,6 +34,78 @@ func SetWideEvent(c *fiber.Ctx, event *WideEvent) {
 	c.Locals(string(wideEventKey), event)
 }
 
+// getLocalString extracts a string value from Fiber Locals.
+// It handles both types that implement String() method (like uuid.UUID) and plain strings.
+func getLocalString(c *fiber.Ctx, key string) (string, bool) {
+	if stringer, ok := c.Locals(key).(interface{ String() string }); ok {
+		return stringer.String(), true
+	}
+
+	if str, ok := c.Locals(key).(string); ok {
+		return str, true
+	}
+
+	return "", false
+}
+
+// enrichEntityIDs extracts and sets common entity IDs on the wide event.
+func enrichEntityIDs(c *fiber.Ctx, event *WideEvent) {
+	if orgID, ok := getLocalString(c, "organization_id"); ok {
+		event.SetOrganization(orgID)
+	}
+
+	if ledgerID, ok := getLocalString(c, "ledger_id"); ok {
+		event.SetLedger(ledgerID)
+	}
+
+	if txnID, ok := getLocalString(c, "transaction_id"); ok {
+		event.SetTransactionID(txnID)
+	}
+
+	if accountID, ok := getLocalString(c, "account_id"); ok {
+		event.SetAccount(accountID)
+	}
+
+	if balanceID, ok := getLocalString(c, "balance_id"); ok {
+		event.SetBalance(balanceID)
+	}
+
+	if operationID, ok := getLocalString(c, "operation_id"); ok {
+		event.SetOperation(operationID, 0)
+	}
+}
+
+// enrichAdditionalIDs extracts and sets additional entity IDs on the wide event.
+func enrichAdditionalIDs(c *fiber.Ctx, event *WideEvent) {
+	if assetCode, ok := getLocalString(c, "asset_code"); ok {
+		event.SetAsset(assetCode)
+	}
+
+	if holderID, ok := getLocalString(c, "holder_id"); ok {
+		event.SetHolder(holderID)
+	}
+
+	if portfolioID, ok := getLocalString(c, "portfolio_id"); ok {
+		event.SetPortfolio(portfolioID)
+	}
+
+	if segmentID, ok := getLocalString(c, "segment_id"); ok {
+		event.SetSegment(segmentID)
+	}
+
+	if externalID, ok := getLocalString(c, "external_id"); ok {
+		event.SetAssetRateExternalID(externalID)
+	}
+
+	if routeID, ok := getLocalString(c, "operation_route_id"); ok {
+		event.SetOperationRoute(routeID)
+	}
+
+	if routeID, ok := getLocalString(c, "transaction_route_id"); ok {
+		event.SetTransactionRoute(routeID)
+	}
+}
+
 // EnrichFromLocals extracts common entity IDs from Fiber Locals and enriches the wide event.
 // This should be called in handlers after the UUIDs have been parsed from path parameters.
 func EnrichFromLocals(c *fiber.Ctx) {
@@ -42,72 +114,8 @@ func EnrichFromLocals(c *fiber.Ctx) {
 		return
 	}
 
-	// Extract organization_id
-	if orgID, ok := c.Locals("organization_id").(interface{ String() string }); ok {
-		event.SetOrganization(orgID.String())
-	}
-
-	// Extract ledger_id
-	if ledgerID, ok := c.Locals("ledger_id").(interface{ String() string }); ok {
-		event.SetLedger(ledgerID.String())
-	}
-
-	// Extract transaction_id
-	if txnID, ok := c.Locals("transaction_id").(interface{ String() string }); ok {
-		event.SetTransaction(txnID.String(), "", "", "")
-	}
-
-	// Extract account_id
-	if accountID, ok := c.Locals("account_id").(interface{ String() string }); ok {
-		event.SetAccount(accountID.String())
-	}
-
-	// Extract balance_id
-	if balanceID, ok := c.Locals("balance_id").(interface{ String() string }); ok {
-		event.SetBalance(balanceID.String())
-	}
-
-	// Extract operation_id
-	if operationID, ok := c.Locals("operation_id").(interface{ String() string }); ok {
-		event.SetOperation(operationID.String(), 0)
-	}
-
-	// Extract asset_code (string, not UUID)
-	if assetCode, ok := c.Locals("asset_code").(string); ok {
-		event.SetAsset(assetCode)
-	}
-
-	// Extract holder_id
-	if holderID, ok := c.Locals("holder_id").(interface{ String() string }); ok {
-		event.SetHolder(holderID.String())
-	}
-
-	// Extract portfolio_id
-	if portfolioID, ok := c.Locals("portfolio_id").(interface{ String() string }); ok {
-		event.SetPortfolio(portfolioID.String())
-	}
-
-	// Extract segment_id
-	if segmentID, ok := c.Locals("segment_id").(interface{ String() string }); ok {
-		event.SetSegment(segmentID.String())
-	}
-
-	// Extract external_id for asset rates (check String() method first for uuid.UUID, then plain string)
-	if stringer, ok := c.Locals("external_id").(interface{ String() string }); ok {
-		event.SetAssetRateExternalID(stringer.String())
-	} else if externalID, ok := c.Locals("external_id").(string); ok {
-		event.SetAssetRateExternalID(externalID)
-	}
-
-	// Extract operation_route_id
-	if routeID, ok := c.Locals("operation_route_id").(interface{ String() string }); ok {
-		event.SetOperationRoute(routeID.String())
-	}
-
-	// Extract transaction_route_id
-	if routeID, ok := c.Locals("transaction_route_id").(interface{ String() string }); ok {
-		event.SetTransactionRoute(routeID.String())
-	}
+	enrichEntityIDs(c, event)
+	enrichAdditionalIDs(c, event)
 }
 
 // Emit logs the WideEvent using the provided logger.
@@ -141,24 +149,19 @@ func (e *WideEvent) Emit(logger libLog.Logger) {
 
 	// Log at appropriate level based on outcome
 	switch outcome {
-	case "server_error", "panic":
+	case OutcomeServerError, OutcomePanic:
 		logger.WithFields(fields...).Error("wide_event")
-	case "client_error":
+	case OutcomeClientError:
 		logger.WithFields(fields...).Warn("wide_event")
+	case OutcomeRedirect:
+		logger.WithFields(fields...).Info("wide_event")
 	default:
 		logger.WithFields(fields...).Info("wide_event")
 	}
 }
 
-// toFieldsLocked converts the WideEvent to a slice of key-value pairs for logging.
-// MUST be called with e.mu held. Does not acquire lock itself.
-// Only non-zero/non-empty fields are included (except status_code which is always included).
-//
-//nolint:gocyclo,gocognit // Field assembly is intentionally explicit for clarity and debuggability
-func (e *WideEvent) toFieldsLocked() []any {
-	fields := make([]any, 0, defaultWideEventFieldsCap)
-
-	// Request identification
+// appendRequestIdentification appends request identification fields to the slice.
+func (e *WideEvent) appendRequestIdentification(fields []any) []any {
 	if e.RequestID != "" {
 		fields = append(fields, "request_id", e.RequestID)
 	}
@@ -171,8 +174,11 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "span_id", e.SpanID)
 	}
 
-	// HTTP request details
-	// TODO(review): Validate HTTP method against known methods
+	return fields
+}
+
+// appendHTTPRequestDetails appends HTTP request detail fields to the slice.
+func (e *WideEvent) appendHTTPRequestDetails(fields []any) []any {
 	if e.Method != "" {
 		fields = append(fields, "method", e.Method)
 	}
@@ -205,17 +211,22 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "client_ip", e.ClientIP)
 	}
 
-	// Timing
+	return fields
+}
+
+// appendTimingAndResponse appends timing and response fields to the slice.
+func (e *WideEvent) appendTimingAndResponse(fields []any) []any {
 	if !e.StartTime.IsZero() {
 		fields = append(fields, "start_time", e.StartTime)
 	}
+
 	// Always include status_code, even if 0 (indicates incomplete request)
 	fields = append(fields, "status_code", e.StatusCode)
+
 	if e.DurationMS > 0 {
 		fields = append(fields, "duration_ms", e.DurationMS)
 	}
 
-	// Response
 	if e.ResponseSize > 0 {
 		fields = append(fields, "response_size", e.ResponseSize)
 	}
@@ -224,7 +235,11 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "outcome", e.Outcome)
 	}
 
-	// Service identification
+	return fields
+}
+
+// appendServiceIdentification appends service identification fields to the slice.
+func (e *WideEvent) appendServiceIdentification(fields []any) []any {
 	if e.Service != "" {
 		fields = append(fields, "service", e.Service)
 	}
@@ -237,7 +252,11 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "environment", e.Environment)
 	}
 
-	// Business context - Entity IDs
+	return fields
+}
+
+// appendCoreEntityIDs appends core entity ID fields to the slice.
+func (e *WideEvent) appendCoreEntityIDs(fields []any) []any {
 	if e.OrganizationID != "" {
 		fields = append(fields, "organization_id", e.OrganizationID)
 	}
@@ -262,6 +281,11 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "operation_id", e.OperationID)
 	}
 
+	return fields
+}
+
+// appendAdditionalEntityIDs appends additional entity ID fields to the slice.
+func (e *WideEvent) appendAdditionalEntityIDs(fields []any) []any {
 	if e.AssetCode != "" {
 		fields = append(fields, "asset_code", e.AssetCode)
 	}
@@ -278,7 +302,6 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "segment_id", e.SegmentID)
 	}
 
-	// TODO(review): Consider renaming AssetRateExternalID to AssetRateID for consistency
 	if e.AssetRateExternalID != "" {
 		fields = append(fields, "asset_rate_external_id", e.AssetRateExternalID)
 	}
@@ -291,12 +314,15 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "transaction_route_id", e.TransactionRouteID)
 	}
 
-	// Business context - Transaction details
+	return fields
+}
+
+// appendTransactionDetails appends transaction detail fields to the slice.
+func (e *WideEvent) appendTransactionDetails(fields []any) []any {
 	if e.TransactionType != "" {
 		fields = append(fields, "transaction_type", e.TransactionType)
 	}
 
-	// TODO(review): Validate transaction amount format
 	if e.TransactionAmount != "" {
 		fields = append(fields, "transaction_amount", e.TransactionAmount)
 	}
@@ -317,7 +343,11 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "destination_count", e.DestinationCount)
 	}
 
-	// User context
+	return fields
+}
+
+// appendUserContext appends user context fields to the slice.
+func (e *WideEvent) appendUserContext(fields []any) []any {
 	if e.UserID != "" {
 		fields = append(fields, "user_id", e.UserID)
 	}
@@ -330,26 +360,36 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "auth_method", e.AuthMethod)
 	}
 
-	// Error context
-	if e.ErrorOccurred {
-		fields = append(fields, "error_occurred", e.ErrorOccurred)
+	return fields
+}
 
-		if e.ErrorType != "" {
-			fields = append(fields, "error_type", e.ErrorType)
-		}
-
-		if e.ErrorCode != "" {
-			fields = append(fields, "error_code", e.ErrorCode)
-		}
-
-		if e.ErrorMessage != "" {
-			fields = append(fields, "error_message", e.ErrorMessage)
-		}
-
-		fields = append(fields, "error_retryable", e.ErrorRetryable)
+// appendErrorContext appends error context fields to the slice.
+func (e *WideEvent) appendErrorContext(fields []any) []any {
+	if !e.ErrorOccurred {
+		return fields
 	}
 
-	// Performance metrics
+	fields = append(fields, "error_occurred", e.ErrorOccurred)
+
+	if e.ErrorType != "" {
+		fields = append(fields, "error_type", e.ErrorType)
+	}
+
+	if e.ErrorCode != "" {
+		fields = append(fields, "error_code", e.ErrorCode)
+	}
+
+	if e.ErrorMessage != "" {
+		fields = append(fields, "error_message", e.ErrorMessage)
+	}
+
+	fields = append(fields, "error_retryable", e.ErrorRetryable)
+
+	return fields
+}
+
+// appendPerformanceMetrics appends performance metric fields to the slice.
+func (e *WideEvent) appendPerformanceMetrics(fields []any) []any {
 	if e.DBQueryCount > 0 {
 		fields = append(fields, "db_query_count", e.DBQueryCount)
 	}
@@ -374,16 +414,40 @@ func (e *WideEvent) toFieldsLocked() []any {
 		fields = append(fields, "external_call_time_ms", e.ExternalCallTimeMS)
 	}
 
-	// Idempotency
+	return fields
+}
+
+// appendIdempotencyAndCustom appends idempotency and custom fields to the slice.
+func (e *WideEvent) appendIdempotencyAndCustom(fields []any) []any {
 	if e.IdempotencyKey != "" {
 		fields = append(fields, "idempotency_key", e.IdempotencyKey)
 		fields = append(fields, "idempotency_hit", e.IdempotencyHit)
 	}
 
-	// Custom fields
 	if len(e.Custom) > 0 {
 		fields = append(fields, "custom", e.Custom)
 	}
+
+	return fields
+}
+
+// toFieldsLocked converts the WideEvent to a slice of key-value pairs for logging.
+// MUST be called with e.mu held. Does not acquire lock itself.
+// Only non-zero/non-empty fields are included (except status_code which is always included).
+func (e *WideEvent) toFieldsLocked() []any {
+	fields := make([]any, 0, defaultWideEventFieldsCap)
+
+	fields = e.appendRequestIdentification(fields)
+	fields = e.appendHTTPRequestDetails(fields)
+	fields = e.appendTimingAndResponse(fields)
+	fields = e.appendServiceIdentification(fields)
+	fields = e.appendCoreEntityIDs(fields)
+	fields = e.appendAdditionalEntityIDs(fields)
+	fields = e.appendTransactionDetails(fields)
+	fields = e.appendUserContext(fields)
+	fields = e.appendErrorContext(fields)
+	fields = e.appendPerformanceMetrics(fields)
+	fields = e.appendIdempotencyAndCustom(fields)
 
 	return fields
 }
