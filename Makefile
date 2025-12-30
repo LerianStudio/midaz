@@ -17,13 +17,14 @@ ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
+RECONCILIATION_DIR := ./components/reconciliation
 TESTS_DIR := ./tests
 
 # Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
+BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR) $(RECONCILIATION_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR) $(CRM_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR) $(CRM_DIR) $(RECONCILIATION_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -137,6 +138,7 @@ help:
 	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make console COMMAND=<cmd>        - Run command in console component"
+	@echo "  make reconciliation COMMAND=<cmd> - Run command in reconciliation component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
 	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
@@ -602,7 +604,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction console all-components
+.PHONY: infra onboarding transaction console reconciliation all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -634,6 +636,14 @@ console:
 		exit 1; \
 	fi
 	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
+
+reconciliation:
+	$(call print_title,"Running command in reconciliation component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(RECONCILIATION_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,"Running command across all components")

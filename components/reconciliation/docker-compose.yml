@@ -1,0 +1,28 @@
+services:
+  reconciliation:
+    container_name: midaz-reconciliation
+    restart: always
+    build:
+      context: ../../
+      dockerfile: ./components/reconciliation/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - infra-network
+      - onboarding-network
+      - transaction-network
+
+networks:
+  infra-network:
+    name: infra-network
+    external: true
+  onboarding-network:
+    name: onboarding-network
+    external: true
+  transaction-network:
+    name: transaction-network
+    external: true

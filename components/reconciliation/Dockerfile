@@ -1,0 +1,18 @@
+FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
+
+WORKDIR /reconciliation-app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ARG TARGETPLATFORM
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -tags netgo -ldflags '-s -w -extldflags "-static"' -o /app components/reconciliation/cmd/app/main.go
+
+FROM gcr.io/distroless/static-debian12
+
+COPY --from=builder /app /app
+
+EXPOSE 3005
+
+ENTRYPOINT ["/app"]
