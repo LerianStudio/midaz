@@ -225,5 +225,10 @@ func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organ
 	return a.grpcRepo.DeleteAllBalancesByAccountID(ctx, token, req)
 }
 
+// CheckHealth checks the gRPC connection health.
+func (a *BalanceAdapter) CheckHealth(ctx context.Context) error {
+	return a.grpcRepo.CheckHealth(ctx)
+}
+
 // Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time
 var _ mbootstrap.BalancePort = (*BalanceAdapter)(nil)

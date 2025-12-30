@@ -30,8 +30,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Infof("Trying to create asset (sync): %v", cii)
 
-	// Fail-fast: Check gRPC service health before proceeding
-	if err := uc.BalanceGRPCRepo.CheckHealth(ctx); err != nil {
+	// Fail-fast: Check balance service health before proceeding
+	if err := uc.BalancePort.CheckHealth(ctx); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
 		logger.Errorf("Balance service is unavailable: %v", err)
 

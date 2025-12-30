@@ -29,4 +29,9 @@ type BalancePort interface {
 
 	// DeleteAllBalancesByAccountID deletes all balances for a given account.
 	DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error
+
+	// CheckHealth verifies the balance service is available.
+	// In unified mode (in-process), returns nil immediately.
+	// In microservices mode (gRPC), checks gRPC connection health.
+	CheckHealth(ctx context.Context) error
 }

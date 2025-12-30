@@ -30,8 +30,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create account (sync): %v", cai)
 
-	// Fail-fast: Check gRPC service health before proceeding
-	if err := uc.BalanceGRPCRepo.CheckHealth(ctx); err != nil {
+	// Fail-fast: Check balance service health before proceeding
+	if err := uc.BalancePort.CheckHealth(ctx); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
 		logger.Errorf("Balance service is unavailable: %v", err)
 
