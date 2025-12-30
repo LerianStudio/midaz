@@ -691,3 +691,74 @@ func TestLocalHeader_MissingHeader_Panics(t *testing.T) {
 	_, err := app.Test(req, -1)
 	require.NoError(t, err)
 }
+
+func TestLocalHeaderUUID_ValidUUID(t *testing.T) {
+	app := fiber.New()
+	testUUID := "550e8400-e29b-41d4-a716-446655440000"
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		result := LocalHeaderUUID(c, "X-Organization-Id")
+		assert.Equal(t, testUUID, result)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Organization-Id", testUUID)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestLocalHeaderUUID_InvalidUUID_Panics(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "expected panic but none occurred")
+
+			panicMsg, ok := r.(string)
+			require.True(t, ok, "panic value should be string")
+
+			assert.Contains(t, panicMsg, "assertion failed: header must be valid UUID")
+			assert.Contains(t, panicMsg, "header=X-Organization-Id")
+			assert.Contains(t, panicMsg, "value=not-a-uuid")
+			assert.Contains(t, panicMsg, "path=/test")
+		}()
+
+		LocalHeaderUUID(c, "X-Organization-Id")
+		t.Error("expected panic but function returned normally")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Organization-Id", "not-a-uuid")
+	_, err := app.Test(req, -1)
+	require.NoError(t, err)
+}
+
+func TestLocalHeaderUUID_MissingHeader_Panics(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "expected panic but none occurred")
+
+			panicMsg, ok := r.(string)
+			require.True(t, ok, "panic value should be string")
+
+			assert.Contains(t, panicMsg, "assertion failed: header must be valid UUID")
+			assert.Contains(t, panicMsg, "header=X-Organization-Id")
+		}()
+
+		LocalHeaderUUID(c, "X-Organization-Id")
+		t.Error("expected panic but function returned normally")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	// No header set
+	_, err := app.Test(req, -1)
+	require.NoError(t, err)
+}

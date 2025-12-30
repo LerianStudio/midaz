@@ -167,3 +167,22 @@ func LocalHeader(c *fiber.Ctx, headerName string) string {
 
 	return val
 }
+
+// LocalHeaderUUID extracts a header value and asserts it's a valid UUID.
+// Use this for headers that must contain UUIDs like X-Organization-Id.
+// Panics with rich context if the header is missing or not a valid UUID.
+//
+// Example:
+//
+//	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
+func LocalHeaderUUID(c *fiber.Ctx, headerName string) string {
+	val := c.Get(headerName)
+	assert.That(assert.ValidUUID(val),
+		"header must be valid UUID",
+		"header", headerName,
+		"value", truncateValue(val),
+		"path", c.Path(),
+		"method", c.Method())
+
+	return val
+}
