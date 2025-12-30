@@ -78,6 +78,24 @@ var operationColumnList = []string{
 	"balance_version_after",
 }
 
+type operationQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func primaryOperationQueryer(db interface {
+	PrimaryDBs() []*sql.DB
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+},
+) operationQueryer {
+	if primaries := db.PrimaryDBs(); len(primaries) > 0 && primaries[0] != nil {
+		return primaries[0]
+	}
+
+	return db
+}
+
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given MigrationWrapper.
 func NewOperationPostgreSQLRepository(mw *mmigration.MigrationWrapper) *OperationPostgreSQLRepository {
 	assert.NotNil(mw, "MigrationWrapper must not be nil", "repository", "OperationPostgreSQLRepository")
@@ -548,7 +566,9 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
+	queryDB := primaryOperationQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -636,7 +656,9 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		return nil, pkg.ValidateInternalError(err, "Operation")
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
+	queryDB := primaryOperationQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, query, args...)
 
 	spanQuery.End()
 
@@ -718,7 +740,8 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 	qb = qb.Set("updated_at", record.UpdatedAt).
 		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "transaction_id": transactionID, "id": id}).
-		Where("deleted_at IS NULL")
+		Where("deleted_at IS NULL").
+		Suffix("RETURNING " + strings.Join(operationColumnList, ", "))
 
 	query, args, err := qb.ToSql()
 	if err != nil {
@@ -731,10 +754,47 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+	var updated OperationPostgreSQLModel
 
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.TransactionID,
+		&updated.Description,
+		&updated.Type,
+		&updated.AssetCode,
+		&updated.Amount,
+		&updated.AvailableBalance,
+		&updated.OnHoldBalance,
+		&updated.AvailableBalanceAfter,
+		&updated.OnHoldBalanceAfter,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.AccountID,
+		&updated.AccountAlias,
+		&updated.BalanceID,
+		&updated.ChartOfAccounts,
+		&updated.OrganizationID,
+		&updated.LedgerID,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+		&updated.Route,
+		&updated.BalanceAffected,
+		&updated.BalanceKey,
+		&updated.VersionBalance,
+		&updated.VersionBalanceAfter,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation. Rows affected is 0", notFoundErr)
+			logger.Warnf("Failed to update operation. Rows affected is 0: %v", notFoundErr)
+
+			return nil, notFoundErr
+		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 		logger.Errorf("Failed to execute query: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "Operation")
@@ -742,26 +802,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 	spanExec.End()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-		logger.Errorf("Failed to get rows affected: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, "Operation")
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Operation{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation. Rows affected is 0", err)
-
-		logger.Warnf("Failed to update operation. Rows affected is 0: %v", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete removes a Operation entity from the database using the provided IDs.

@@ -30,6 +30,21 @@ const (
 	whereOrgIDOffset = 2
 )
 
+var operationRouteColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"title",
+	"description",
+	"code",
+	"operation_type",
+	"account_rule_type",
+	"account_rule_valid_if",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to operation route entities.
 // It defines methods for creating, retrieving, updating, and deleting operation routes.
 //
@@ -377,20 +392,6 @@ func buildOperationRouteUpdateFields(operationRoute *mmodel.OperationRoute, reco
 	return updates, args
 }
 
-// validateUpdateResult validates the update operation result.
-func validateUpdateResult(result sql.Result) error {
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return pkg.ValidateInternalError(err, "OperationRoute")
-	}
-
-	if rowsAffected == 0 {
-		return services.ErrDatabaseItemNotFound
-	}
-
-	return nil
-}
-
 // Update updates an operation route by its ID.
 // It returns the updated operation route if found, otherwise it returns an error.
 func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
@@ -421,19 +422,38 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		` AND deleted_at IS NULL RETURNING ` + strings.Join(operationRouteColumnList, ", ")
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	result, err := db.ExecContext(ctx, query, args...)
+	var updated OperationRoutePostgreSQLModel
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.OrganizationID,
+		&updated.LedgerID,
+		&updated.Title,
+		&updated.Description,
+		&updated.Code,
+		&updated.OperationType,
+		&updated.AccountRuleType,
+		&updated.AccountRuleValidIf,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, services.ErrDatabaseItemNotFound
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
-			logger.Warnf("Failed to execute update query: %v", err)
+			validationErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", validationErr)
+			logger.Warnf("Failed to execute update query: %v", validationErr)
 
-			return nil, pkg.ValidateInternalError(err, "OperationRoute")
+			return nil, pkg.ValidateInternalError(validationErr, "OperationRoute")
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
@@ -444,14 +464,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	spanExec.End()
 
-	if err := validateUpdateResult(result); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Update validation failed", err)
-		logger.Warnf("Update validation failed: %v", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete an Operation Route entity from the database (soft delete) using the provided ID.
