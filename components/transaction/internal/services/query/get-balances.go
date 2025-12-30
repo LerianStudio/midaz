@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 		queryStart := time.Now()
 
-		balancesByAliases, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, logger)
+		balancesByAliases, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, len(aliases), logger, time.Sleep)
 
 		queryDuration := time.Since(queryStart)
 		if err != nil {
@@ -60,7 +61,9 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-			return nil, err
+			// NOTE: This can return a non-nil, partial balance slice along with err.
+			// Callers should treat a non-nil error as failure and decide whether partial results are acceptable.
+			return append(balances, balancesByAliases...), err
 		}
 
 		logger.Infof("DB_QUERY_SUCCESS: PostgreSQL returned %d balances in %v", len(balancesByAliases), queryDuration)
@@ -88,7 +91,18 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	return newBalances, nil
 }
 
-func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, logger interface{ Warnf(string, ...any) }) ([]*mmodel.Balance, error) {
+// listBalancesByAliasesWithKeysWithRetry retries balance lookup to handle transient connection issues during chaos scenarios.
+//
+// If expectedCount > 0, this enforces completeness: a successful query returning fewer than expectedCount balances is treated as incomplete and retried.
+// If expectedCount == 0, completeness is NOT enforced and the first successful query result (even if partial) is returned without this strict check.
+func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	aliases []string,
+	expectedCount int,
+	logger interface{ Warnf(string, ...any) },
+	sleep func(time.Duration),
+) ([]*mmodel.Balance, error) {
 	// Retry balance lookup to handle transient connection issues during chaos scenarios
 	// Attempts with exponential backoff: 200ms, 400ms, 800ms, 1600ms (total ~3s)
 	var lastErr error
@@ -96,6 +110,23 @@ func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, o
 	for attempt := 0; attempt < maxBalanceLookupAttempts; attempt++ {
 		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 		if err == nil {
+			if expectedCount > 0 && len(balancesByAliases) < expectedCount {
+				lastErr = fmt.Errorf("balances not ready: expected %d, got %d", expectedCount, len(balancesByAliases))
+				if attempt == maxBalanceLookupAttempts-1 {
+					return balancesByAliases, fmt.Errorf(
+						"balances incomplete after max retries: expected %d, got %d: %w",
+						expectedCount,
+						len(balancesByAliases),
+						lastErr,
+					)
+				}
+
+				backoff := time.Duration(1<<attempt) * balanceLookupBaseBackoff
+				logger.Warnf("Balance lookup incomplete (attempt %d/%d), retrying in %s: %v", attempt+1, maxBalanceLookupAttempts, backoff, lastErr)
+				sleep(backoff)
+				continue
+			}
+
 			return balancesByAliases, nil
 		}
 
@@ -106,7 +137,7 @@ func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(ctx context.Context, o
 
 		backoff := time.Duration(1<<attempt) * balanceLookupBaseBackoff
 		logger.Warnf("Balance lookup failed (attempt %d/%d), retrying in %s: %v", attempt+1, maxBalanceLookupAttempts, backoff, err)
-		time.Sleep(backoff)
+		sleep(backoff)
 	}
 
 	return nil, pkg.ValidateInternalError(lastErr, "Balance")

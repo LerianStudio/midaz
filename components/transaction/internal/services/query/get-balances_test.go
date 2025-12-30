@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -612,26 +613,62 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 	}
 }
 
+func TestListBalancesByAliasesWithKeysWithRetry_IncompleteAfterMaxRetries_ReturnsPartialAndError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
+
+	partial := []*mmodel.Balance{
+		{ID: uuid.New().String(), Alias: "alias1", Key: "default"},
+		{ID: uuid.New().String(), Alias: "alias2", Key: "default"},
+	}
+
+	mockBalanceRepo.
+		EXPECT().
+		ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, aliases).
+		Return(partial, nil).
+		Times(maxBalanceLookupAttempts)
+
+	logger := &MockLogger{}
+	sleep := func(time.Duration) {}
+
+	got, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, len(aliases), logger, sleep)
+	assert.Error(t, err)
+	assert.Len(t, got, len(partial))
+	assert.Contains(t, err.Error(), "balances incomplete after max retries")
+	assert.Contains(t, err.Error(), "expected 3, got 2")
+}
+
 type MockLogger struct{}
 
-func (m *MockLogger) Infof(format string, args ...interface{}) {}
-func (m *MockLogger) Warnf(format string, args ...interface{}) {}
-func (m *MockLogger) Errorf(format string, args ...interface{}) {}
-func (m *MockLogger) Error(args ...interface{})             {}
-func (m *MockLogger) Fatalf(format string, args ...interface{}) {}
-func (m *MockLogger) Fatal(args ...interface{})             {}
-func (m *MockLogger) Debugf(format string, args ...interface{}) {}
-func (m *MockLogger) Debug(args ...interface{})             {}
-func (m *MockLogger) Info(args ...interface{})              {}
-func (m *MockLogger) Warn(args ...interface{})              {}
-func (m *MockLogger) Debugln(args ...interface{})           {}
-func (m *MockLogger) Infoln(args ...interface{})            {}
-func (m *MockLogger) Warnln(args ...interface{})            {}
-func (m *MockLogger) Errorln(args ...interface{})           {}
-func (m *MockLogger) Fatalln(args ...interface{})           {}
-func (m *MockLogger) Sync() error                                      { return nil }
-func (m *MockLogger) WithDefaultMessageTemplate(string) libLog.Logger  { return m }
-func (m *MockLogger) WithFields(...any) libLog.Logger                  { return m }
+func (m *MockLogger) Infof(format string, args ...interface{})        {}
+func (m *MockLogger) Warnf(format string, args ...interface{})        {}
+func (m *MockLogger) Errorf(format string, args ...interface{})       {}
+func (m *MockLogger) Error(args ...interface{})                       {}
+func (m *MockLogger) Fatalf(format string, args ...interface{})       {}
+func (m *MockLogger) Fatal(args ...interface{})                       {}
+func (m *MockLogger) Debugf(format string, args ...interface{})       {}
+func (m *MockLogger) Debug(args ...interface{})                       {}
+func (m *MockLogger) Info(args ...interface{})                        {}
+func (m *MockLogger) Warn(args ...interface{})                        {}
+func (m *MockLogger) Debugln(args ...interface{})                     {}
+func (m *MockLogger) Infoln(args ...interface{})                      {}
+func (m *MockLogger) Warnln(args ...interface{})                      {}
+func (m *MockLogger) Errorln(args ...interface{})                     {}
+func (m *MockLogger) Fatalln(args ...interface{})                     {}
+func (m *MockLogger) Sync() error                                     { return nil }
+func (m *MockLogger) WithDefaultMessageTemplate(string) libLog.Logger { return m }
+func (m *MockLogger) WithFields(...any) libLog.Logger                 { return m }
 
 // Precondition tests for GetBalances
 
