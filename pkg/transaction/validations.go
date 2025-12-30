@@ -327,6 +327,10 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	aliases = make([]string, 0)
 	operationRoutes = make(map[string]string)
 
+	assert.That(assert.ValidTransactionStatus(transactionType),
+		"transaction type must be valid",
+		"transactionType", transactionType)
+
 	total = decimal.NewFromInt(0)
 
 	remaining := Amount{
@@ -335,12 +339,56 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		TransactionType: transactionType,
 	}
 
+	// Track total share percentage and remaining count for validation
+	var totalSharePercentage int64 = 0
+	anyShareUsed := false
+	remainingCount := 0
+
 	for i := range fromTos {
 		operationRoutes[fromTos[i].AccountAlias] = fromTos[i].Route
 
 		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
 
+		assert.That(!(fromTos[i].Amount != nil && fromTos[i].Share != nil),
+			"from/to entry cannot contain both amount and share",
+			"alias", fromTos[i].AccountAlias)
+
+		amountAsset := ""
+		if fromTos[i].Amount != nil {
+			amountAsset = fromTos[i].Amount.Asset
+		}
+		assert.That(fromTos[i].Amount == nil || amountAsset == transaction.Send.Asset,
+			"amount asset must match transaction asset",
+			"alias", fromTos[i].AccountAlias,
+			"amount_asset", amountAsset,
+			"transaction_asset", transaction.Send.Asset)
+
+		if fromTos[i].Rate != nil {
+			assert.That(fromTos[i].Rate.From != "" && fromTos[i].Rate.To != "",
+				"rate from/to must be set",
+				"alias", fromTos[i].AccountAlias)
+			assert.That(fromTos[i].Rate.Value.IsPositive(),
+				"rate value must be positive",
+				"alias", fromTos[i].AccountAlias)
+		}
+
+		if fromTos[i].Share != nil {
+			assert.That(assert.InRange(fromTos[i].Share.Percentage, 0, 100),
+				"share percentage must be 0-100",
+				"alias", fromTos[i].AccountAlias)
+			assert.That(fromTos[i].Share.PercentageOfPercentage == 0 || assert.InRange(fromTos[i].Share.PercentageOfPercentage, 0, 100),
+				"percentageOfPercentage must be 0-100",
+				"alias", fromTos[i].AccountAlias)
+		}
+
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
+			anyShareUsed = true
+			// Accumulate share percentages
+			totalSharePercentage += fromTos[i].Share.Percentage
+			assert.That(totalSharePercentage <= 100,
+				"total share percentages cannot exceed 100",
+				"total_percentage", totalSharePercentage)
+
 			oneHundred := decimal.NewFromInt(percentageMultiplier)
 
 			percentage := decimal.NewFromInt(fromTos[i].Share.Percentage)
@@ -363,6 +411,13 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 
 			total = total.Add(shareValue)
 			remaining.Value = remaining.Value.Sub(shareValue)
+
+			// Assert remaining never goes negative during distribution
+			assert.That(assert.NonNegativeDecimal(remaining.Value),
+				"remaining value cannot go negative during distribution",
+				"index", i,
+				"remaining", remaining.Value.String(),
+				"accountAlias", fromTos[i].AccountAlias)
 		}
 
 		if fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
@@ -380,6 +435,11 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		}
 
 		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+			remainingCount++
+			assert.That(remainingCount <= 1,
+				"only one remaining entry allowed",
+				"count", remainingCount)
+
 			total = total.Add(remaining.Value)
 
 			remaining.Operation = operation
@@ -390,6 +450,14 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 
 		aliases = append(aliases, AliasKey(fromTos[i].SplitAlias(), fromTos[i].BalanceKey))
 	}
+
+	// Assert total shares don't exceed 100%
+	assert.That(totalSharePercentage <= 100,
+		"total share percentages cannot exceed 100",
+		"total_percentage", totalSharePercentage)
+	assert.That(!anyShareUsed || totalSharePercentage == 100 || remainingCount == 1,
+		"remaining entry required when share total < 100",
+		"total_share", totalSharePercentage)
 
 	return total, amounts, aliases, operationRoutes
 }
