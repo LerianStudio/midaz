@@ -1,7 +1,10 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -33,15 +36,16 @@ func TestReferentialChecker_Check_NoOrphans(t *testing.T) {
 		WillReturnRows(transactionRows)
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
-	result, err := checker.Check(context.Background())
+	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Equal(t, 0, result.OrphanLedgers)
-	assert.Equal(t, 0, result.OrphanAssets)
-	assert.Equal(t, 0, result.OrphanAccounts)
-	assert.Equal(t, 0, result.OrphanOperations)
-	assert.Empty(t, result.Orphans)
+	typedResult := requireReferentialResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Equal(t, 0, typedResult.OrphanLedgers)
+	assert.Equal(t, 0, typedResult.OrphanAssets)
+	assert.Equal(t, 0, typedResult.OrphanAccounts)
+	assert.Equal(t, 0, typedResult.OrphanOperations)
+	assert.Empty(t, typedResult.Orphans)
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
 }
@@ -71,14 +75,15 @@ func TestReferentialChecker_Check_WithOrphans(t *testing.T) {
 		WillReturnRows(transactionRows)
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
-	result, err := checker.Check(context.Background())
+	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusWarning, result.Status) // 3 orphans < 10 threshold
-	assert.Equal(t, 1, result.OrphanLedgers)
-	assert.Equal(t, 1, result.OrphanAssets)
-	assert.Equal(t, 1, result.OrphanOperations)
-	assert.Len(t, result.Orphans, 3)
+	typedResult := requireReferentialResult(t, result)
+	assert.Equal(t, domain.StatusWarning, typedResult.Status) // 3 orphans < 10 threshold
+	assert.Equal(t, 1, typedResult.OrphanLedgers)
+	assert.Equal(t, 1, typedResult.OrphanAssets)
+	assert.Equal(t, 1, typedResult.OrphanOperations)
+	assert.Len(t, typedResult.Orphans, 3)
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
 }
@@ -97,25 +102,79 @@ func TestReferentialChecker_Check_CriticalOrphans(t *testing.T) {
 	// Create 10+ orphans for CRITICAL status
 	onboardingRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"})
 	for i := 0; i < 8; i++ {
-		onboardingRows.AddRow("acc-"+string(rune('a'+i)), "account", "ledger", "ldg-deleted")
+		onboardingRows.AddRow(fmt.Sprintf("acc-%c", 'a'+i), "account", "ledger", "ldg-deleted")
 	}
 	onboardingMock.ExpectQuery(`WITH orphan_ledgers AS`).
 		WillReturnRows(onboardingRows)
 
 	transactionRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"})
 	for i := 0; i < 5; i++ {
-		transactionRows.AddRow("op-"+string(rune('a'+i)), "operation", "transaction", "txn-deleted")
+		transactionRows.AddRow(fmt.Sprintf("op-%d", i), "operation", "transaction", "txn-deleted")
 	}
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(transactionRows)
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
-	result, err := checker.Check(context.Background())
+	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCritical, result.Status) // 13 orphans >= 10
-	assert.Equal(t, 8, result.OrphanAccounts)
-	assert.Equal(t, 5, result.OrphanOperations)
+	typedResult := requireReferentialResult(t, result)
+	assert.Equal(t, domain.StatusCritical, typedResult.Status) // 13 orphans >= 10
+	assert.Equal(t, 8, typedResult.OrphanAccounts)
+	assert.Equal(t, 5, typedResult.OrphanOperations)
+	assert.NoError(t, onboardingMock.ExpectationsWereMet())
+	assert.NoError(t, transactionMock.ExpectationsWereMet())
+}
+
+func TestReferentialChecker_Check_UnknownEntityType_IsCountedAndLogged(t *testing.T) {
+	t.Parallel()
+
+	var logBuf bytes.Buffer
+	prevOut := log.Writer()
+	prevFlags := log.Flags()
+	log.SetOutput(&logBuf)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+	})
+
+	onboardingDB, onboardingMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer onboardingDB.Close()
+
+	transactionDB, transactionMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer transactionDB.Close()
+
+	onboardingRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"}).
+		AddRow("weird-1", "new_entity_type", "ledger", "ldg-123")
+	onboardingMock.ExpectQuery(`WITH orphan_ledgers AS`).
+		WillReturnRows(onboardingRows)
+
+	// Transaction query returns no orphans
+	transactionRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"})
+	transactionMock.ExpectQuery(`SELECT`).
+		WillReturnRows(transactionRows)
+
+	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	result, err := checker.Check(context.Background(), CheckerConfig{})
+
+	require.NoError(t, err)
+	typedResult := requireReferentialResult(t, result)
+
+	assert.Equal(t, 1, typedResult.OrphanUnknown)
+	assert.Len(t, typedResult.Orphans, 1)
+	assert.Equal(t, "new_entity_type", typedResult.Orphans[0].EntityType)
+	assert.Equal(t, "weird-1", typedResult.Orphans[0].EntityID)
+
+	// Ensure the warning log contains the unexpected type and identifiers.
+	logLine := logBuf.String()
+	assert.Contains(t, logLine, `unexpected orphan entity_type="new_entity_type"`)
+	assert.Contains(t, logLine, `entity_id="weird-1"`)
+	assert.Contains(t, logLine, `reference_type="ledger"`)
+	assert.Contains(t, logLine, `reference_id="ldg-123"`)
+
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
 }
@@ -135,9 +194,18 @@ func TestReferentialChecker_Check_OnboardingQueryError(t *testing.T) {
 		WillReturnError(assert.AnError)
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
-	result, err := checker.Check(context.Background())
+	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "referential onboarding check failed")
+}
+
+func requireReferentialResult(t *testing.T, result CheckResult) *domain.ReferentialCheckResult {
+	t.Helper()
+
+	typedResult, ok := result.(*domain.ReferentialCheckResult)
+	require.True(t, ok)
+
+	return typedResult
 }

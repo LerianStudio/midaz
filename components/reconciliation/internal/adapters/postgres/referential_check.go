@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
@@ -27,8 +28,13 @@ func NewReferentialChecker(onboardingDB, transactionDB *sql.DB) *ReferentialChec
 	}
 }
 
+// Name returns the unique name of this checker.
+func (c *ReferentialChecker) Name() string {
+	return CheckerNameReferential
+}
+
 // Check finds orphan entities across databases
-func (c *ReferentialChecker) Check(ctx context.Context) (*domain.ReferentialCheckResult, error) {
+func (c *ReferentialChecker) Check(ctx context.Context, _ CheckerConfig) (CheckResult, error) {
 	result := &domain.ReferentialCheckResult{}
 
 	// Check onboarding DB orphans
@@ -43,16 +49,13 @@ func (c *ReferentialChecker) Check(ctx context.Context) (*domain.ReferentialChec
 
 	// Determine status
 	total := result.OrphanLedgers + result.OrphanAssets + result.OrphanAccounts +
-		result.OrphanOperations + result.OrphanPortfolios
+		result.OrphanOperations + result.OrphanPortfolios + result.OrphanUnknown +
+		result.OperationsWithoutBalance
 
-	switch {
-	case total == 0:
-		result.Status = domain.StatusHealthy
-	case total < referentialWarningThreshold:
-		result.Status = domain.StatusWarning
-	default:
-		result.Status = domain.StatusCritical
-	}
+	result.Status = DetermineStatus(total, StatusThresholds{
+		WarningThreshold:          referentialWarningThreshold,
+		WarningThresholdExclusive: true,
+	})
 
 	return result, nil
 }
@@ -116,6 +119,13 @@ func (c *ReferentialChecker) checkOnboardingOrphans(ctx context.Context, result 
 			result.OrphanAccounts++
 		case "portfolio":
 			result.OrphanPortfolios++
+		default:
+			// Count + log unknown entity types so schema changes aren't silently ignored.
+			result.OrphanUnknown++
+			log.Printf(
+				"reconciliation referential check: unexpected orphan entity_type=%q entity_id=%q reference_type=%q reference_id=%q",
+				o.EntityType, o.EntityID, o.ReferenceType, o.ReferenceID,
+			)
 		}
 	}
 
@@ -153,6 +163,20 @@ func (c *ReferentialChecker) checkTransactionOrphans(ctx context.Context, result
 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("%w: %w", ErrTransactionRowIteration, err)
+	}
+
+	// Count operations that reference missing balances
+	balanceQuery := `
+		SELECT COUNT(*)
+		FROM operation o
+		LEFT JOIN balance b ON o.balance_id = b.id AND b.deleted_at IS NULL
+		WHERE o.deleted_at IS NULL
+		  AND o.balance_id IS NOT NULL
+		  AND b.id IS NULL
+	`
+
+	if err := c.transactionDB.QueryRowContext(ctx, balanceQuery).Scan(&result.OperationsWithoutBalance); err != nil {
+		return fmt.Errorf("%w: %w", ErrTransactionQuery, err)
 	}
 
 	return nil
