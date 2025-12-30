@@ -103,18 +103,43 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 	return nil
 }
 
+// findAmountByAlias looks up an Amount in a map by alias, handling key format mismatch.
+// Keys in the map may be in concatenated format "index#alias#balanceKey" (e.g., "0#@external/USD#default")
+// while the lookup alias may be in simple format (e.g., "@external/USD").
+func findAmountByAlias(m map[string]Amount, alias string) Amount {
+	// Try direct lookup first
+	if amt, ok := m[alias]; ok {
+		return amt
+	}
+
+	// Try to find concatenated key containing this alias
+	// Concatenated format: "index#alias#balanceKey"
+	for key, amt := range m {
+		parts := strings.Split(key, "#")
+		if len(parts) >= 2 && parts[1] == alias {
+			return amt
+		}
+	}
+
+	return Amount{}
+}
+
 // ValidateFromToOperation func that validate operate balance
 func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (Amount, Balance, error) {
 	if !ft.IsFrom {
-		ba, err := OperateBalances(validate.To[ft.AccountAlias], *balance)
+		amt := findAmountByAlias(validate.To, ft.AccountAlias)
+
+		ba, err := OperateBalances(amt, *balance)
 		if err != nil {
 			return Amount{}, Balance{}, err
 		}
 
-		return validate.To[ft.AccountAlias], ba, nil
+		return amt, ba, nil
 	}
 
-	ba, err := OperateBalances(validate.From[ft.AccountAlias], *balance)
+	amt := findAmountByAlias(validate.From, ft.AccountAlias)
+
+	ba, err := OperateBalances(amt, *balance)
 	if err != nil {
 		return Amount{}, Balance{}, err
 	}
@@ -125,7 +150,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 		return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
 	}
 
-	return validate.From[ft.AccountAlias], ba, nil
+	return amt, ba, nil
 }
 
 // AliasKey function to concatenate alias with balance key

@@ -938,3 +938,86 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 		})
 	}
 }
+
+func TestFindAmountByAlias(t *testing.T) {
+	testAmount := Amount{
+		Asset:           "USD",
+		Value:           decimal.NewFromInt(100),
+		Operation:       constant.DEBIT,
+		TransactionType: constant.CREATED,
+	}
+
+	tests := []struct {
+		name     string
+		m        map[string]Amount
+		alias    string
+		expected Amount
+	}{
+		{
+			name: "direct lookup - simple alias",
+			m: map[string]Amount{
+				"@external/USD": testAmount,
+			},
+			alias:    "@external/USD",
+			expected: testAmount,
+		},
+		{
+			name: "direct lookup - alias with balance key",
+			m: map[string]Amount{
+				"@external/USD#default": testAmount,
+			},
+			alias:    "@external/USD#default",
+			expected: testAmount,
+		},
+		{
+			name: "concatenated key lookup - index#alias#balanceKey format",
+			m: map[string]Amount{
+				"0#@external/USD#default": testAmount,
+			},
+			alias:    "@external/USD",
+			expected: testAmount,
+		},
+		{
+			name: "concatenated key lookup - multiple entries",
+			m: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+				"1#@external/USD#default": testAmount,
+				"2#@account2#savings":     {Value: decimal.NewFromInt(25)},
+			},
+			alias:    "@external/USD",
+			expected: testAmount,
+		},
+		{
+			name: "not found - returns zero Amount",
+			m: map[string]Amount{
+				"@account1": testAmount,
+			},
+			alias:    "@nonexistent",
+			expected: Amount{},
+		},
+		{
+			name:     "empty map - returns zero Amount",
+			m:        map[string]Amount{},
+			alias:    "@external/USD",
+			expected: Amount{},
+		},
+		{
+			name: "concatenated key - alias with special chars",
+			m: map[string]Amount{
+				"0#@external/BRL#default": testAmount,
+			},
+			alias:    "@external/BRL",
+			expected: testAmount,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findAmountByAlias(tt.m, tt.alias)
+			assert.Equal(t, tt.expected.Value.String(), result.Value.String())
+			assert.Equal(t, tt.expected.Asset, result.Asset)
+			assert.Equal(t, tt.expected.Operation, result.Operation)
+			assert.Equal(t, tt.expected.TransactionType, result.TransactionType)
+		})
+	}
+}
