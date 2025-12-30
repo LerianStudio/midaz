@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"sync"
 	"time"
@@ -33,6 +34,60 @@ var (
 
 	// ErrMaxRetriesExceeded indicates retry limit was reached.
 	ErrMaxRetriesExceeded = errors.New("maximum migration retries exceeded")
+
+	// ErrContextCanceled wraps context cancellation errors for proper error handling.
+	ErrContextCanceled = errors.New("operation canceled")
+
+	// ErrMissingMigrationsPath indicates MigrationsPath config is not set.
+	ErrMissingMigrationsPath = errors.New("migrationsPath is required: use DefaultConfig() as a base and set cfg.MigrationsPath")
+
+	// ErrMissingComponent indicates Component config is not set.
+	ErrMissingComponent = errors.New("component is required: use DefaultConfig() as a base and set cfg.Component")
+
+	// ErrNoConnectionString indicates no connection string is available.
+	ErrNoConnectionString = errors.New("no connection string available")
+
+	// ErrPostRecoveryVerification indicates verification after recovery failed.
+	ErrPostRecoveryVerification = errors.New("post-recovery verification failed")
+
+	// ErrQuerySchemaMigrations indicates a failure querying the schema_migrations table.
+	ErrQuerySchemaMigrations = errors.New("failed to query schema_migrations")
+
+	// ErrAdvisoryLockRelease indicates a failure releasing an advisory lock.
+	ErrAdvisoryLockRelease = errors.New("failed to release advisory lock")
+
+	// ErrClearDirtyFlag indicates a failure clearing the dirty flag.
+	ErrClearDirtyFlag = errors.New("failed to clear dirty flag")
+
+	// ErrSearchMigrationFile indicates a failure searching for migration files.
+	ErrSearchMigrationFile = errors.New("failed to search for migration file")
+
+	// ErrRawConnection indicates a failure with raw database connection.
+	ErrRawConnection = errors.New("raw connection failed")
+
+	// ErrPreflightCheck indicates a preflight check failure.
+	ErrPreflightCheck = errors.New("preflight check failed")
+
+	// ErrGetDB indicates GetDB operation failed.
+	ErrGetDB = errors.New("GetDB failed")
+)
+
+// Default configuration values.
+const (
+	// defaultMaxRetries is the default number of retry attempts for migrations.
+	defaultMaxRetries = 3
+
+	// defaultMaxRecoveryPerVersion is the default maximum recovery attempts per version.
+	defaultMaxRecoveryPerVersion = 3
+
+	// defaultRetryBackoffSeconds is the default initial backoff in seconds.
+	defaultRetryBackoffSeconds = 1
+
+	// defaultMaxBackoffSeconds is the default maximum backoff in seconds.
+	defaultMaxBackoffSeconds = 30
+
+	// defaultLockTimeoutSeconds is the default lock timeout in seconds.
+	defaultLockTimeoutSeconds = 30
 )
 
 // MigrationConfig configures migration behavior including auto-recovery.
@@ -92,11 +147,11 @@ type MigrationConfig struct {
 func DefaultConfig() MigrationConfig {
 	return MigrationConfig{
 		AutoRecoverDirty:      true,
-		MaxRetries:            3,
-		MaxRecoveryPerVersion: 3,
-		RetryBackoff:          1 * time.Second,
-		MaxBackoff:            30 * time.Second,
-		LockTimeout:           30 * time.Second,
+		MaxRetries:            defaultMaxRetries,
+		MaxRecoveryPerVersion: defaultMaxRecoveryPerVersion,
+		RetryBackoff:          defaultRetryBackoffSeconds * time.Second,
+		MaxBackoff:            defaultMaxBackoffSeconds * time.Second,
+		LockTimeout:           defaultLockTimeoutSeconds * time.Second,
 		// Component and MigrationsPath are intentionally left as zero values.
 		// These are REQUIRED fields that must be set explicitly by the caller.
 	}
@@ -159,31 +214,31 @@ type MigrationWrapper struct {
 func NewMigrationWrapper(conn *libPostgres.PostgresConnection, config MigrationConfig, logger libLog.Logger) (*MigrationWrapper, error) {
 	// Validate required configuration
 	if config.MigrationsPath == "" {
-		return nil, errors.New("MigrationsPath is required: use DefaultConfig() as a base and set cfg.MigrationsPath = \"/path/to/migrations\"")
+		return nil, ErrMissingMigrationsPath
 	}
 
 	if config.Component == "" {
-		return nil, errors.New("Component is required: use DefaultConfig() as a base and set cfg.Component = \"your-service-name\"")
+		return nil, ErrMissingComponent
 	}
 
 	if config.MaxRetries <= 0 {
-		config.MaxRetries = 3
+		config.MaxRetries = defaultMaxRetries
 	}
 
 	if config.MaxRecoveryPerVersion <= 0 {
-		config.MaxRecoveryPerVersion = 3
+		config.MaxRecoveryPerVersion = defaultMaxRecoveryPerVersion
 	}
 
 	if config.RetryBackoff <= 0 {
-		config.RetryBackoff = 1 * time.Second
+		config.RetryBackoff = defaultRetryBackoffSeconds * time.Second
 	}
 
 	if config.MaxBackoff <= 0 {
-		config.MaxBackoff = 30 * time.Second
+		config.MaxBackoff = defaultMaxBackoffSeconds * time.Second
 	}
 
 	if config.LockTimeout <= 0 {
-		config.LockTimeout = 30 * time.Second
+		config.LockTimeout = defaultLockTimeoutSeconds * time.Second
 	}
 
 	return &MigrationWrapper{
@@ -233,7 +288,7 @@ func (w *MigrationWrapper) PreflightCheck(ctx context.Context, db *sql.DB) (Migr
 	if err != nil {
 		// Check for context cancellation first
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return status, err
+			return status, fmt.Errorf("%w: %w", ErrContextCanceled, err)
 		}
 
 		// No rows means fresh database or no migrations run yet
@@ -248,11 +303,12 @@ func (w *MigrationWrapper) PreflightCheck(ctx context.Context, db *sql.DB) (Migr
 		if errors.As(err, &pqErr) && pqErr.Code == "42P01" {
 			w.logger.Infof("schema_migrations table doesn't exist for %s (code=%s) - fresh database",
 				w.config.Component, pqErr.Code)
+
 			return status, nil
 		}
 
 		// All other errors should propagate - connection issues, auth failures, non-pq errors, etc.
-		return status, fmt.Errorf("failed to query schema_migrations: %w", err)
+		return status, fmt.Errorf("%w: %w", ErrQuerySchemaMigrations, err)
 	}
 
 	w.logger.Infof("Migration preflight check for %s: version=%d, dirty=%v",
@@ -298,9 +354,11 @@ func (w *MigrationWrapper) advisoryLockKey() int64 {
 	}
 
 	// Combine with namespace using XOR and cast to int64 for PostgreSQL advisory lock.
+	// Mask to MaxInt64 to preserve entropy while ensuring safe uint64 to int64 conversion.
 	combined := migrationLockNamespace ^ hash
+	combined &= uint64(math.MaxInt64)
 
-	return int64(combined)
+	return int64(combined) //nolint:gosec // G115: combined masked to MaxInt64, safe conversion
 }
 
 // staleLockQuery queries pg_stat_activity to find who holds an advisory lock.
@@ -336,6 +394,7 @@ func (w *MigrationWrapper) AcquireAdvisoryLock(ctx context.Context, db *sql.DB) 
 		attempt++
 
 		var acquired bool
+
 		err := db.QueryRowContext(lockCtx, "SELECT pg_try_advisory_lock($1)", lockKey).Scan(&acquired)
 		if err != nil {
 			// Check if the error is due to context timeout/cancellation
@@ -343,10 +402,13 @@ func (w *MigrationWrapper) AcquireAdvisoryLock(ctx context.Context, db *sql.DB) 
 				w.logger.Warnf("Timed out waiting for migration advisory lock for %s after %d attempts: %v",
 					w.config.Component, attempt, lockCtx.Err())
 				w.logStaleLockHolder(ctx, db, lockKey)
+
 				return fmt.Errorf("%w: timeout after %v (%d attempts)", ErrMigrationLockFailed, w.config.LockTimeout, attempt)
 			}
+
 			w.logger.Errorf("Failed to query advisory lock for %s (attempt %d): %v", w.config.Component, attempt, err)
-			return fmt.Errorf("%w: %v", ErrMigrationLockFailed, err)
+
+			return fmt.Errorf("%w: %w", ErrMigrationLockFailed, err)
 		}
 
 		if acquired {
@@ -365,6 +427,7 @@ func (w *MigrationWrapper) AcquireAdvisoryLock(ctx context.Context, db *sql.DB) 
 		case <-lockCtx.Done():
 			w.logger.Warnf("Timed out waiting for migration advisory lock for %s after %d attempts: %v",
 				w.config.Component, attempt, lockCtx.Err())
+
 			return fmt.Errorf("%w: timeout after %v (%d attempts)", ErrMigrationLockFailed, w.config.LockTimeout, attempt)
 		case <-ticker.C:
 			// Continue to next attempt
@@ -376,14 +439,17 @@ func (w *MigrationWrapper) AcquireAdvisoryLock(ctx context.Context, db *sql.DB) 
 // TODO(review): Consider reducing sensitive info in logs (PID, username, app_name)
 // to avoid information disclosure. See security review.
 func (w *MigrationWrapper) logStaleLockHolder(ctx context.Context, db *sql.DB, lockKey int64) {
-	var pid int
-	var username, appName sql.NullString
-	var backendStart sql.NullTime
+	var (
+		pid               int
+		username, appName sql.NullString
+		backendStart      sql.NullTime
+	)
 
 	err := db.QueryRowContext(ctx, staleLockQuery, lockKey).Scan(&pid, &username, &appName, &backendStart)
 	if err != nil {
 		w.logger.Warnf("Migration advisory lock for %s is held by another process (could not identify holder: %v)",
 			w.config.Component, err)
+
 		return
 	}
 
@@ -399,10 +465,11 @@ func (w *MigrationWrapper) ReleaseAdvisoryLock(ctx context.Context, db *sql.DB) 
 		w.config.Component, lockKey)
 
 	var released bool
+
 	err := db.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", lockKey).Scan(&released)
 	if err != nil {
 		w.logger.Errorf("Failed to release advisory lock for %s: %v", w.config.Component, err)
-		return fmt.Errorf("failed to release advisory lock: %w", err)
+		return fmt.Errorf("%w: %w", ErrAdvisoryLockRelease, err)
 	}
 
 	if !released {
@@ -446,6 +513,7 @@ func (w *MigrationWrapper) recoverDirtyMigration(ctx context.Context, db *sql.DB
 
 	// Check per-version recovery limit
 	w.mu.Lock()
+
 	attempts := w.recoveryAttemptsPerVersion[version]
 	if attempts >= w.config.MaxRecoveryPerVersion {
 		w.mu.Unlock()
@@ -464,6 +532,7 @@ func (w *MigrationWrapper) recoverDirtyMigration(ctx context.Context, db *sql.DB
 		return fmt.Errorf("%w: version %d has failed %d recovery attempts for %s",
 			ErrMaxRecoveryPerVersionExceeded, version, attempts, w.config.Component)
 	}
+
 	w.recoveryAttemptsPerVersion[version] = attempts + 1
 	w.mu.Unlock()
 
@@ -488,17 +557,19 @@ func (w *MigrationWrapper) recoverDirtyMigration(ctx context.Context, db *sql.DB
 	result, err := db.ExecContext(ctx, clearDirtyFlagQuery, version)
 	if err != nil {
 		w.logger.Errorf("Failed to clear dirty flag for %s at version %d: %v", w.config.Component, version, err)
-		return fmt.Errorf("failed to clear dirty flag: %w", err)
+		return fmt.Errorf("%w: %w", ErrClearDirtyFlag, err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
-	if err != nil {
+
+	switch {
+	case err != nil:
 		w.logger.Warnf("Could not determine rows affected for %s dirty recovery: %v",
 			w.config.Component, err)
-	} else if rowsAffected == 0 {
+	case rowsAffected == 0:
 		w.logger.Warnf("No rows affected when clearing dirty flag for %s at version %d - "+
 			"migration may have already been recovered", w.config.Component, version)
-	} else {
+	default:
 		w.logger.WithFields(
 			"event", "migration_recovery_success",
 			"component", w.config.Component,
@@ -523,9 +594,10 @@ func (w *MigrationWrapper) recoverDirtyMigration(ctx context.Context, db *sql.DB
 // validateMigrationFileExists checks that the migration file for the given version exists.
 func (w *MigrationWrapper) validateMigrationFileExists(version int) error {
 	pattern := filepath.Join(w.config.MigrationsPath, fmt.Sprintf("%06d_*.up.sql", version))
+
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		return fmt.Errorf("failed to search for migration file: %w", err)
+		return fmt.Errorf("%w: %w", ErrSearchMigrationFile, err)
 	}
 
 	if len(matches) == 0 {
@@ -536,6 +608,58 @@ func (w *MigrationWrapper) validateMigrationFileExists(version int) error {
 	w.logger.Infof("Found migration file for version %d: %s", version, filepath.Base(matches[0]))
 
 	return nil
+}
+
+// handleDirtyRecovery handles the recovery process for dirty migrations.
+// It attempts recovery, then verifies the dirty flag was cleared.
+// Returns nil on success, or an error if recovery or verification failed.
+func (w *MigrationWrapper) handleDirtyRecovery(ctx context.Context, rawDB *sql.DB, version int) error {
+	// Attempt recovery
+	if recoveryErr := w.recoverDirtyMigration(ctx, rawDB, version); recoveryErr != nil {
+		return fmt.Errorf("%w: %w", ErrMigrationRecoveryFailed, recoveryErr)
+	}
+
+	// Re-verify migration state after recovery to confirm dirty flag is cleared
+	w.logger.Infof("Re-verifying migration state after recovery for %s", w.config.Component)
+
+	verifyStatus, verifyErr := w.PreflightCheck(ctx, rawDB)
+	if verifyErr != nil {
+		// If verifyErr is ErrMigrationDirty, dirty flag is still set
+		if errors.Is(verifyErr, ErrMigrationDirty) {
+			return fmt.Errorf("%w: dirty flag still set at version %d for %s after recovery attempt",
+				ErrPostRecoveryVerification, verifyStatus.Version, w.config.Component)
+		}
+
+		return fmt.Errorf("%w for %s: %w", ErrPostRecoveryVerification, w.config.Component, verifyErr)
+	}
+
+	// Double-check dirty flag even if no error (defensive check)
+	if verifyStatus.Dirty {
+		return fmt.Errorf("%w: dirty flag unexpectedly still set at version %d for %s",
+			ErrPostRecoveryVerification, verifyStatus.Version, w.config.Component)
+	}
+
+	w.logger.Infof("Post-recovery verification successful for %s: dirty flag cleared, proceeding with GetDB()",
+		w.config.Component)
+
+	return nil
+}
+
+// cleanupRawConnection releases the advisory lock and closes the raw connection.
+// Errors are logged but not returned since these are cleanup operations.
+func (w *MigrationWrapper) cleanupRawConnection(ctx context.Context, rawDB *sql.DB) {
+	// Note: Advisory locks are session-scoped and auto-released when rawDB closes.
+	// We log failures for debugging but don't fail the operation since connection closure
+	// will release the lock anyway.
+	if releaseErr := w.ReleaseAdvisoryLock(ctx, rawDB); releaseErr != nil {
+		w.logger.Warnf("Failed to release migration lock for %s (will auto-release on close): %v",
+			w.config.Component, releaseErr)
+	}
+
+	if closeErr := rawDB.Close(); closeErr != nil {
+		w.logger.Warnf("Failed to close raw connection for %s: %v",
+			w.config.Component, closeErr)
+	}
 }
 
 // SafeGetDB wraps PostgresConnection.GetDB() with migration safety features.
@@ -555,57 +679,28 @@ func (w *MigrationWrapper) SafeGetDB(ctx context.Context) (dbresolver.DB, error)
 	// Get a raw connection for preflight checks (bypasses migration)
 	rawDB, err := w.getRawConnection(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get raw connection for preflight: %w", err)
+		return nil, fmt.Errorf("%w: preflight connection: %w", ErrRawConnection, err)
 	}
 
 	// Acquire advisory lock
 	if err := w.AcquireAdvisoryLock(ctx, rawDB); err != nil {
-		rawDB.Close()
-		return nil, fmt.Errorf("failed to acquire migration lock: %w", err)
+		w.cleanupRawConnection(ctx, rawDB)
+		return nil, fmt.Errorf("%w: %w", ErrMigrationLockFailed, err)
 	}
 
-	// Preflight check
+	// Preflight check and handle dirty state if needed
 	status, err := w.PreflightCheck(ctx, rawDB)
 	if err != nil {
-		if errors.Is(err, ErrMigrationDirty) {
-			// Attempt recovery
-			if recoveryErr := w.recoverDirtyMigration(ctx, rawDB, status.Version); recoveryErr != nil {
-				w.ReleaseAdvisoryLock(ctx, rawDB)
-				rawDB.Close()
-				return nil, fmt.Errorf("migration recovery failed: %w", recoveryErr)
-			}
+		// Handle non-dirty errors first (early return reduces nesting)
+		if !errors.Is(err, ErrMigrationDirty) {
+			w.cleanupRawConnection(ctx, rawDB)
+			return nil, fmt.Errorf("%w: %w", ErrPreflightCheck, err)
+		}
 
-			// Re-verify migration state after recovery to confirm dirty flag is cleared
-			w.logger.Infof("Re-verifying migration state after recovery for %s", w.config.Component)
-
-			verifyStatus, verifyErr := w.PreflightCheck(ctx, rawDB)
-			if verifyErr != nil {
-				// If verifyErr is ErrMigrationDirty, dirty flag is still set
-				w.ReleaseAdvisoryLock(ctx, rawDB)
-				rawDB.Close()
-
-				if errors.Is(verifyErr, ErrMigrationDirty) {
-					return nil, fmt.Errorf("post-recovery verification failed for %s: dirty flag still set at version %d after recovery attempt",
-						w.config.Component, verifyStatus.Version)
-				}
-
-				return nil, fmt.Errorf("post-recovery verification failed for %s: %w", w.config.Component, verifyErr)
-			}
-
-			// Double-check dirty flag even if no error (defensive check)
-			if verifyStatus.Dirty {
-				w.ReleaseAdvisoryLock(ctx, rawDB)
-				rawDB.Close()
-				return nil, fmt.Errorf("post-recovery verification failed for %s: dirty flag unexpectedly still set at version %d",
-					w.config.Component, verifyStatus.Version)
-			}
-
-			w.logger.Infof("Post-recovery verification successful for %s: dirty flag cleared, proceeding with GetDB()",
-				w.config.Component)
-		} else {
-			w.ReleaseAdvisoryLock(ctx, rawDB)
-			rawDB.Close()
-			return nil, fmt.Errorf("preflight check failed: %w", err)
+		// Handle dirty migration recovery
+		if recoveryErr := w.handleDirtyRecovery(ctx, rawDB, status.Version); recoveryErr != nil {
+			w.cleanupRawConnection(ctx, rawDB)
+			return nil, recoveryErr
 		}
 	}
 
@@ -614,24 +709,14 @@ func (w *MigrationWrapper) SafeGetDB(ctx context.Context) (dbresolver.DB, error)
 
 	db, err := w.conn.GetDB()
 
-	// Note: Advisory locks are session-scoped and auto-released when rawDB closes (next line).
-	// We log failures for debugging but don't fail the operation since connection closure
-	// will release the lock anyway.
-	if releaseErr := w.ReleaseAdvisoryLock(ctx, rawDB); releaseErr != nil {
-		w.logger.Warnf("Failed to release migration lock for %s (will auto-release on close): %v",
-			w.config.Component, releaseErr)
-	}
-	if closeErr := rawDB.Close(); closeErr != nil {
-		w.logger.Warnf("Failed to close raw connection for %s: %v",
-			w.config.Component, closeErr)
-	}
+	w.cleanupRawConnection(ctx, rawDB)
 
 	if err != nil {
 		w.updateStatus(func(s *MigrationStatus) {
 			s.LastError = err
 		})
 
-		return nil, fmt.Errorf("GetDB failed for %s: %w", w.config.Component, err)
+		return nil, fmt.Errorf("%w for %s: %w", ErrGetDB, w.config.Component, err)
 	}
 
 	// Update status to healthy
@@ -650,17 +735,17 @@ func (w *MigrationWrapper) SafeGetDB(ctx context.Context) (dbresolver.DB, error)
 func (w *MigrationWrapper) getRawConnection(ctx context.Context) (*sql.DB, error) {
 	connStr := w.conn.ConnectionStringPrimary
 	if connStr == "" {
-		return nil, errors.New("no connection string available")
+		return nil, ErrNoConnectionString
 	}
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open raw connection: %w", err)
+		return nil, fmt.Errorf("%w: open: %w", ErrRawConnection, err)
 	}
 
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to ping raw connection: %w", err)
+		return nil, fmt.Errorf("%w: ping: %w", ErrRawConnection, err)
 	}
 
 	return db, nil
@@ -721,7 +806,7 @@ func (w *MigrationWrapper) SafeGetDBWithRetry(ctx context.Context) (dbresolver.D
 
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, fmt.Errorf("%w: %w", ErrContextCanceled, ctx.Err())
 			case <-time.After(backoff):
 			}
 		}
@@ -742,5 +827,5 @@ func (w *MigrationWrapper) SafeGetDBWithRetry(ctx context.Context) (dbresolver.D
 			w.config.Component, attempt+1, w.config.MaxRetries, err)
 	}
 
-	return nil, fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
+	return nil, fmt.Errorf("%w: %w", ErrMaxRetriesExceeded, lastErr)
 }

@@ -197,7 +197,9 @@ func TestPreflightCheck_ContextCanceled(t *testing.T) {
 
 	_, err = wrapper.PreflightCheck(ctx, db)
 
-	assert.ErrorIs(t, err, context.Canceled)
+	// Check for our sentinel error (context.Canceled is not wrapped, just logged via %v)
+	assert.ErrorIs(t, err, ErrContextCanceled)
+	assert.Contains(t, err.Error(), "context canceled")
 }
 
 func TestAcquireAdvisoryLock_Success(t *testing.T) {
@@ -636,7 +638,7 @@ func TestNewMigrationWrapper_RequiresMigrationsPath(t *testing.T) {
 
 	assert.Nil(t, wrapper)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "MigrationsPath is required")
+	assert.Contains(t, err.Error(), "migrationsPath is required")
 	assert.Contains(t, err.Error(), "DefaultConfig()") // Verify helpful message
 }
 
@@ -652,7 +654,7 @@ func TestNewMigrationWrapper_RequiresComponent(t *testing.T) {
 
 	assert.Nil(t, wrapper)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Component is required")
+	assert.Contains(t, err.Error(), "component is required")
 	assert.Contains(t, err.Error(), "DefaultConfig()") // Verify helpful message
 }
 
