@@ -30,20 +30,22 @@ func (c *BalanceChecker) Check(ctx context.Context, threshold int64, limit int) 
 				b.available::DECIMAL as current_balance,
 				COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_credits,
 				COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_debits,
+				COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_on_hold,
 				COUNT(o.id) as operation_count
 			FROM balance b
 			LEFT JOIN operation o ON b.account_id = o.account_id
 				AND b.asset_code = o.asset_code
 				AND b.key = o.balance_key
 				AND o.deleted_at IS NULL
+			LEFT JOIN transaction t ON o.transaction_id = t.id
 			WHERE b.deleted_at IS NULL
 			GROUP BY b.id, b.available
 		)
 		SELECT
 			COUNT(*) as total_balances,
-			COUNT(*) FILTER (WHERE ABS(current_balance - (total_credits - total_debits)) > $1) as discrepancies,
-			COALESCE(SUM(ABS(current_balance - (total_credits - total_debits)))
-				FILTER (WHERE ABS(current_balance - (total_credits - total_debits)) > $1), 0)::BIGINT as total_discrepancy
+			COUNT(*) FILTER (WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold)) > $1) as discrepancies,
+			COALESCE(SUM(ABS(current_balance - (total_credits - total_debits - total_on_hold)))
+				FILTER (WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold)) > $1), 0)::BIGINT as total_discrepancy
 		FROM balance_calc
 	`
 
@@ -83,6 +85,7 @@ func (c *BalanceChecker) Check(ctx context.Context, threshold int64, limit int) 
 					b.available::DECIMAL as current_balance,
 					COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_credits,
 					COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_debits,
+					COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_on_hold,
 					COUNT(o.id) as operation_count,
 					b.updated_at
 				FROM balance b
@@ -90,17 +93,18 @@ func (c *BalanceChecker) Check(ctx context.Context, threshold int64, limit int) 
 					AND b.asset_code = o.asset_code
 					AND b.key = o.balance_key
 					AND o.deleted_at IS NULL
+				LEFT JOIN transaction t ON o.transaction_id = t.id
 				WHERE b.deleted_at IS NULL
 				GROUP BY b.id, b.account_id, b.alias, b.asset_code, b.available, b.updated_at
 			)
 			SELECT
 				balance_id, account_id, alias, asset_code,
-				current_balance::BIGINT, (total_credits - total_debits)::BIGINT as expected_balance,
-				(current_balance - (total_credits - total_debits))::BIGINT as discrepancy,
+				current_balance::BIGINT, (total_credits - total_debits - total_on_hold)::BIGINT as expected_balance,
+				(current_balance - (total_credits - total_debits - total_on_hold))::BIGINT as discrepancy,
 				operation_count, updated_at
 			FROM balance_calc
-			WHERE ABS(current_balance - (total_credits - total_debits)) > $1
-			ORDER BY ABS(current_balance - (total_credits - total_debits)) DESC
+			WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold)) > $1
+			ORDER BY ABS(current_balance - (total_credits - total_debits - total_on_hold)) DESC
 			LIMIT $2
 		`
 
