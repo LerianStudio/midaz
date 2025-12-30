@@ -39,7 +39,7 @@ var (
 // piiPatterns defines patterns to sanitize from error messages
 // TODO(review): Add IPv6 address patterns for complete IP sanitization
 var piiPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`),            // email
+	regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`),             // email
 	regexp.MustCompile(`\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}`), // phone (international)
 	regexp.MustCompile(`\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b`),                 // credit card (with separators)
 	regexp.MustCompile(`\b\d{4}[-\s]?\d{6}[-\s]?\d{5}\b`),                            // Amex (15 digits)
@@ -250,15 +250,23 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 	now := time.Now()
 	staleThreshold := now.Add(-StaleProcessingThreshold)
 
-	// Select entries with FOR UPDATE SKIP LOCKED to atomically claim them
-	// Includes: PENDING, retriable FAILED, and stale PROCESSING entries
+	// Select entries with FOR UPDATE SKIP LOCKED to atomically claim them.
+	// Includes: PENDING, retriable FAILED, and stale PROCESSING entries.
+	// IMPORTANT: De-duplicate by entity to avoid concurrent processing of multiple
+	// outbox entries for the same entity (e.g., FAILED + new PENDING).
 	query := `
 		SELECT id, entity_id, entity_type, metadata, status, retry_count, max_retries,
 		       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
-		FROM metadata_outbox
-		WHERE (status = $1)
-		   OR (status = $2 AND next_retry_at <= $3 AND retry_count < max_retries)
-		   OR (status = $4 AND processing_started_at < $5)
+		FROM (
+			SELECT DISTINCT ON (entity_id, entity_type)
+			       id, entity_id, entity_type, metadata, status, retry_count, max_retries,
+			       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
+			FROM metadata_outbox
+			WHERE (status = $1)
+			   OR (status = $2 AND next_retry_at <= $3 AND retry_count < max_retries)
+			   OR (status = $4 AND processing_started_at < $5)
+			ORDER BY entity_id, entity_type, created_at DESC
+		) AS dedup
 		ORDER BY created_at ASC
 		LIMIT $6
 		FOR UPDATE SKIP LOCKED
