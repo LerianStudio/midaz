@@ -16,3 +16,12 @@ var ParentUUIDCorruption = metrics.Metric{
 	Unit:        "1",
 	Description: "Counts corrupted UUIDs detected in parent account chains during hierarchy validation.",
 }
+
+// TransactionOutboxFetchFailures is the metric that tracks failures when fetching metadata from
+// the Postgres outbox during query-time enrichment.
+// This indicates that MongoDB metadata is missing and the outbox fallback also failed.
+var TransactionOutboxFetchFailures = metrics.Metric{
+	Name:        "transaction_outbox_fetch_failure_total",
+	Unit:        "1",
+	Description: "Total number of failures when fetching metadata from the Postgres outbox during query-time enrichment.",
+}

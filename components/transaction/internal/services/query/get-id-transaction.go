@@ -8,6 +8,8 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
@@ -46,6 +48,15 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 	if err := uc.enrichTransactionMetadata(ctx, &span, logger, tran, transactionID); err != nil {
 		return nil, err
+	}
+
+	if len(tran.Operations) > 0 {
+		if err := uc.enrichOperationsWithMetadata(ctx, &span, tran.Operations); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+			logger.Warnf("Error getting operation metadata: %v", err)
+
+			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
+		}
 	}
 
 	return tran, nil
@@ -98,6 +109,15 @@ func (uc *UseCase) enrichTransactionMetadata(ctx context.Context, span *trace.Sp
 	}
 
 	tran.Metadata = extractMetadataData(metadata)
+	if len(tran.Metadata) == 0 {
+		if outboxMetadata, ok, outboxErr := uc.fetchMetadataFromOutbox(ctx, outbox.EntityTypeTransaction, transactionID.String()); outboxErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to fetch transaction metadata from outbox", outboxErr)
+			logger.Warnf("Error fetching transaction metadata from outbox: %v", outboxErr)
+		} else if ok {
+			tran.Metadata = outboxMetadata
+		}
+	}
+	backfillTransactionMetadataFromBody(tran)
 
 	return nil
 }

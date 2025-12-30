@@ -11,11 +11,13 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -144,10 +146,17 @@ func (uc *UseCase) enrichSingleTransaction(ctx context.Context, tran *transactio
 	}
 
 	if len(operationIDs) == 0 {
+		backfillTransactionMetadataFromBody(tran)
 		return nil
 	}
 
-	return uc.enrichTransactionOperationsMetadata(ctx, tran.Operations, operationIDs)
+	if err := uc.enrichTransactionOperationsMetadata(ctx, tran.Operations, operationIDs); err != nil {
+		return err
+	}
+
+	backfillTransactionMetadataFromBody(tran)
+
+	return nil
 }
 
 // processTransactionOperations processes operations and extracts sources, destinations and IDs
@@ -172,7 +181,7 @@ func (uc *UseCase) processTransactionOperations(operations []*operation.Operatio
 
 // enrichTransactionOperationsMetadata retrieves and assigns metadata to operations
 func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
 	defer span.End()
@@ -194,6 +203,42 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 	for j := range operations {
 		if opData, ok := operationMetadataMap[operations[j].ID]; ok {
 			operations[j].Metadata = opData
+		}
+	}
+
+	if uc.OutboxRepo == nil {
+		return nil
+	}
+
+	for j := range operations {
+		if len(operations[j].Metadata) != 0 {
+			continue
+		}
+
+		outboxMetadata, ok, outboxErr := uc.fetchMetadataFromOutbox(ctx, outbox.EntityTypeOperation, operations[j].ID)
+		if outboxErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to fetch operation metadata from outbox", outboxErr)
+
+			// Lightweight observability: count failures and make them searchable.
+			if metricFactory != nil {
+				metricFactory.Counter(utils.TransactionOutboxFetchFailures).
+					WithLabels(map[string]string{
+						"entity_type": outbox.EntityTypeOperation,
+					}).
+					AddOne(ctx)
+			}
+
+			logger.WithFields(
+				"operation_id", operations[j].ID,
+				"entity_type", outbox.EntityTypeOperation,
+				"outbox_fetch_failed", true,
+				"outbox_error", outboxErr.Error(),
+			).Warnf("Error fetching operation metadata from outbox: %v", outboxErr)
+			continue
+		}
+
+		if ok {
+			operations[j].Metadata = outboxMetadata
 		}
 	}
 
@@ -237,6 +282,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	tran.Source = source
 	tran.Destination = destination
 	tran.Operations = operations
+	backfillTransactionMetadataFromBody(tran)
 
 	return tran, nil
 }

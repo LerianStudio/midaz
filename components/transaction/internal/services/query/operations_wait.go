@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"go.opentelemetry.io/otel/trace"
@@ -99,6 +101,7 @@ func ensureNonNilOperations(ops []*operation.Operation) []*operation.Operation {
 // enrichOperationsWithMetadata fetches metadata for operations and attaches it.
 // Returns an error if metadata fetch fails.
 func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, span *trace.Span, ops []*operation.Operation) error {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
 	operationIDs := extractOperationIDs(ops)
 
 	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
@@ -111,6 +114,27 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, span *trace
 
 	metadataMap := buildMetadataMap(metadata)
 	applyMetadataToOperations(ops, metadataMap)
+
+	if uc.OutboxRepo == nil {
+		return nil
+	}
+
+	for i := range ops {
+		if len(ops[i].Metadata) != 0 {
+			continue
+		}
+
+		outboxMetadata, ok, outboxErr := uc.fetchMetadataFromOutbox(ctx, outbox.EntityTypeOperation, ops[i].ID)
+		if outboxErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to fetch operation metadata from outbox", outboxErr)
+			logger.Warnf("Error fetching operation metadata from outbox: %v", outboxErr)
+			continue
+		}
+
+		if ok {
+			ops[i].Metadata = outboxMetadata
+		}
+	}
 
 	return nil
 }

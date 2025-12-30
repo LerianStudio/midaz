@@ -146,6 +146,10 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 	tran := t.Transaction
 	tran.Body = pkgTransaction.Transaction{}
+	if t.ParseDSL != nil && !t.ParseDSL.IsEmpty() {
+		// Preserve the parsed DSL for metadata fallback and revert support when available.
+		tran.Body = *t.ParseDSL
+	}
 
 	switch tran.Status.Code {
 	case constant.CREATED:
@@ -157,7 +161,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 		tran.Status = status
 	case constant.PENDING:
-		tran.Body = *t.ParseDSL
+		// Body already populated from ParseDSL when present.
 	}
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)
