@@ -1,24 +1,5 @@
 basePath: /
 definitions:
-  AddHolderLinkInput:
-    description: AddHolderLinkInput payload
-    properties:
-      holderId:
-        description: Unique identifier of the holder to be linked.
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      linkType:
-        description: Type of relationship between the holder and the alias (TpVinc).
-        enum:
-        - PRIMARY_HOLDER
-        - LEGAL_REPRESENTATIVE
-        - RESPONSIBLE_PARTY
-        example: LEGAL_REPRESENTATIVE
-        type: string
-    required:
-    - holderId
-    - linkType
-    type: object
   Address:
     description: Structured address information following standard postal address
       format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
@@ -108,10 +89,6 @@ definitions:
       holderId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      holderLinks:
-        items:
-          $ref: '#/definitions/HolderLinkResponse'
-        type: array
       id:
         example: 00000000-0000-0000-0000-000000000000
         type: string
@@ -121,9 +98,12 @@ definitions:
       metadata:
         additionalProperties: {}
         type: object
-      participantDocument:
-        example: "12345678901234"
-        type: string
+      regulatoryFields:
+        $ref: '#/definitions/RegulatoryFields'
+      relatedParties:
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
       type:
         example: LEGAL_PERSON
         type: string
@@ -199,29 +179,23 @@ definitions:
         description: Unique identifier of the ledger of the related account.
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      linkType:
-        description: Type of relationship between the holder and the alias (TpVinc).
-          Optional - if not provided, no HolderLink will be created.
-        enum:
-        - PRIMARY_HOLDER
-        - LEGAL_REPRESENTATIVE
-        - RESPONSIBLE_PARTY
-        example: PRIMARY_HOLDER
-        type: string
       metadata:
         additionalProperties: {}
         description: An object containing key-value pairs to add as metadata, where
           the field name is the key and the field value is the value.
         type: object
-      participantDocument:
-        description: Document of the participant (identifies which financial-group
-          entity owns the relationship)
-        example: "12345678912345"
-        type: string
+      regulatoryFields:
+        allOf:
+        - $ref: '#/definitions/RegulatoryFields'
+        description: Object with regulatory fields.
+      relatedParties:
+        description: List of related parties.
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
     required:
     - accountId
     - ledgerId
-    - participantDocument
     type: object
   CreateHolderRequest:
     description: CreateHolderRequest payload
@@ -276,39 +250,6 @@ definitions:
     - document
     - name
     - type
-    type: object
-  HolderLinkResponse:
-    description: HolderLinkResponse payload - represents the relationship (TpVinc)
-      between a Holder and an Alias
-    properties:
-      aliasId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      createdAt:
-        example: "2025-01-01T00:00:00Z"
-        type: string
-      deletedAt:
-        example: "2025-01-01T00:00:00Z"
-        type: string
-      holderId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      linkType:
-        enum:
-        - PRIMARY_HOLDER
-        - LEGAL_REPRESENTATIVE
-        - RESPONSIBLE_PARTY
-        example: PRIMARY_HOLDER
-        type: string
-      metadata:
-        additionalProperties: {}
-        type: object
-      updatedAt:
-        example: "2025-01-01T00:00:00Z"
-        type: string
     type: object
   HolderResponse:
     description: HolderResponse payload
@@ -446,6 +387,53 @@ definitions:
         type: string
         x-omitempty: true
     type: object
+  RegulatoryFields:
+    description: RegulatoryFields object
+    properties:
+      participantDocument:
+        description: Document of the participant (identifies which financial-group
+          entity owns the relationship)
+        example: "12345678912345"
+        type: string
+    type: object
+  RelatedParty:
+    description: RelatedParty object
+    properties:
+      document:
+        description: Document of the related party.
+        example: "12345678900"
+        type: string
+      endDate:
+        description: End date of the relationship (optional).
+        example: "2026-01-01T00:00:00Z"
+        type: string
+      id:
+        description: Unique identifier of the related party.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      name:
+        description: Name of the related party.
+        example: Maria de Jesus
+        type: string
+      role:
+        description: Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,
+          RESPONSIBLE_PARTY).
+        enum:
+        - PRIMARY_HOLDER
+        - LEGAL_REPRESENTATIVE
+        - RESPONSIBLE_PARTY
+        example: PRIMARY_HOLDER
+        type: string
+      startDate:
+        description: Start date of the relationship.
+        example: "2025-01-01T00:00:00Z"
+        type: string
+    required:
+    - document
+    - name
+    - role
+    - startDate
+    type: object
   Representative:
     description: Representative object from LegalPerson
     properties:
@@ -469,10 +457,6 @@ definitions:
   UpdateAliasRequest:
     description: UpdateAliasRequest payload
     properties:
-      addHolderLink:
-        allOf:
-        - $ref: '#/definitions/AddHolderLinkInput'
-        description: Add a new holder link to the alias (optional).
       bankingDetails:
         allOf:
         - $ref: '#/definitions/BankingDetails'
@@ -486,11 +470,15 @@ definitions:
         description: An object containing key-value pairs to add as metadata, where
           the field name is the key and the field value is the value.
         type: object
-      participantDocument:
-        description: Document of the participant (identifies which financial-group
-          entity owns the relationship)
-        example: "12345678912345"
-        type: string
+      regulatoryFields:
+        allOf:
+        - $ref: '#/definitions/RegulatoryFields'
+        description: Object with regulatory fields.
+      relatedParties:
+        description: List of related parties to add (appends to existing).
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
     type: object
   UpdateHolderRequest:
     description: UpdateHolderRequest payload
@@ -616,6 +604,18 @@ paths:
       - description: Filter alias by banking details iban
         in: query
         name: banking_details_iban
+        type: string
+      - description: Filter alias by regulatory fields participant document
+        in: query
+        name: regulatory_fields_participant_document
+        type: string
+      - description: Filter alias by related party document
+        in: query
+        name: related_party_document
+        type: string
+      - description: Filter alias by related party role
+        in: query
+        name: related_party_role
         type: string
       produces:
       - application/json
@@ -984,6 +984,55 @@ paths:
           schema:
             $ref: '#/definitions/pkg.HTTPError'
       summary: Update an Alias
+      tags:
+      - Aliases
+  /v1/holders/{holder_id}/aliases/{alias_id}/related-parties/{related_party_id}:
+    delete:
+      description: Delete a Related Party from an Alias. This operation performs a
+        physical deletion (hard delete) of the related party.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization associated with the
+          Ledger.
+        in: header
+        name: X-Organization-Id
+        required: true
+        type: string
+      - description: The unique identifier of the Holder.
+        in: path
+        name: holder_id
+        required: true
+        type: string
+      - description: The unique identifier of the Alias account.
+        in: path
+        name: alias_id
+        required: true
+        type: string
+      - description: The unique identifier of the Related Party.
+        in: path
+        name: related_party_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Delete a Related Party
       tags:
       - Aliases
   /v1/holders/{id}:
