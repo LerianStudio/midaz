@@ -4,7 +4,6 @@ package in
 import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
@@ -47,14 +46,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 
 	payload := http.Payload[*mmodel.CreateAliasInput](c, p)
 	holderID := http.LocalUUID(c, "holder_id")
-	organizationID := c.Get("X-Organization-Id")
-
-	// organizationID header should be validated by middleware before reaching handler.
-	// If we get here with invalid UUID, it indicates middleware misconfiguration.
-	assert.That(assert.ValidUUID(organizationID),
-		"X-Organization-Id header must be valid UUID - check middleware configuration",
-		"handler", "CreateAlias",
-		"organizationID", organizationID)
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -113,7 +105,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 
 	id := http.LocalUUID(c, "id")
 	holderID := http.LocalUUID(c, "holder_id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
@@ -173,7 +165,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 
 	id := http.LocalUUID(c, "id")
 	holderID := http.LocalUUID(c, "holder_id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	payload := http.Payload[*mmodel.UpdateAliasInput](c, p)
 
 	fieldsToRemove := http.LocalStringSlice(c, "patchRemove")
@@ -242,7 +234,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 
 	id := http.LocalUUID(c, "id")
 	holderID := http.LocalUUID(c, "holder_id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
 	span.SetAttributes(
@@ -330,7 +322,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	attrs := []attribute.KeyValue{
