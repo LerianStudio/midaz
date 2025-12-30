@@ -292,7 +292,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
-	code := c.Params("code")
+	code := http.LocalString(c, "code")
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
 
@@ -347,7 +347,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
-	alias := c.Params("alias")
+	alias := http.LocalString(c, "alias")
 
 	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
 
