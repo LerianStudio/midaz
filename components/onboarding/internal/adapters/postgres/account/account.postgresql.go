@@ -862,7 +862,8 @@ func (r *AccountPostgreSQLRepository) buildAccountUpdateQuery(acc *mmodel.Accoun
 		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	builder = builder.PlaceholderFormat(squirrel.Dollar)
+	builder = builder.Suffix("RETURNING " + strings.Join(accountColumnList, ", ")).
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -907,8 +908,38 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	result, err := db.ExecContext(ctx, query, args...)
+	var updated AccountPostgreSQLModel
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.ParentAccountID,
+		&updated.EntityID,
+		&updated.AssetCode,
+		&updated.OrganizationID,
+		&updated.LedgerID,
+		&updated.PortfolioID,
+		&updated.SegmentID,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.Alias,
+		&updated.Type,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+		&updated.Blocked,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", notFoundErr)
+
+			logger.Warnf("Failed to update account: %v", notFoundErr)
+
+			return nil, notFoundErr
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
@@ -929,24 +960,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	spanExec.End()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
-	}
-
-	if rowsAffected == 0 {
-		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", notFoundErr)
-
-		logger.Warnf("Failed to update account: %v", notFoundErr)
-
-		return nil, notFoundErr
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete an Account entity from the database (soft delete) using the provided ID.

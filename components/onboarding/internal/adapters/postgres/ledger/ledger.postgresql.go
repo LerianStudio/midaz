@@ -466,12 +466,31 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	query := `UPDATE ledger SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		` AND deleted_at IS NULL RETURNING ` + strings.Join(ledgerColumnList, ", ")
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	result, err := db.ExecContext(ctx, query, args...)
+	var updated LedgerPostgreSQLModel
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.OrganizationID,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger. Rows affected is 0", notFoundErr)
+
+			return nil, notFoundErr
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
@@ -492,24 +511,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	spanExec.End()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-		logger.Errorf("Failed to get rows affected: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Ledger{}).Name())
-	}
-
-	if rowsAffected == 0 {
-		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger. Rows affected is 0", notFoundErr)
-
-		return nil, notFoundErr
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete removes a Ledger entity from the database using the provided ID.

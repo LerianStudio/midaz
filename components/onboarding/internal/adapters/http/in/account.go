@@ -416,7 +416,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	_, err = handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
+	updatedAccount, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Account on command", err)
 
@@ -429,22 +429,9 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		return nil
 	}
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
-
-		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
-	}
-
 	logger.Infof("Successfully updated Account with ID: %s", id.String())
 
-	if err := http.OK(c, account); err != nil {
+	if err := http.OK(c, updatedAccount); err != nil {
 		return err
 	}
 

@@ -269,7 +269,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
+	updatedLedger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger on command", err)
 
@@ -282,22 +282,9 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 		return nil
 	}
 
-	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve ledger on query", err)
-
-		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
-	}
-
 	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 
-	if err := http.OK(c, ledger); err != nil {
+	if err := http.OK(c, updatedLedger); err != nil {
 		return err
 	}
 
