@@ -117,3 +117,27 @@ func TestTransactionCanTransitionTo(t *testing.T) {
 		})
 	}
 }
+
+// TestTransactionCanBeReverted tests the TransactionCanBeReverted predicate.
+func TestTransactionCanBeReverted(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    string
+		hasParent bool
+		expected  bool
+	}{
+		{"APPROVED without parent can revert", "APPROVED", false, true},
+		{"APPROVED with parent cannot revert", "APPROVED", true, false},
+		{"PENDING cannot revert", "PENDING", false, false},
+		{"CANCELED cannot revert", "CANCELED", false, false},
+		{"CREATED cannot revert", "CREATED", false, false},
+		{"NOTED cannot revert", "NOTED", false, false},
+		{"invalid status cannot revert", "INVALID", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, TransactionCanBeReverted(tt.status, tt.hasParent))
+		})
+	}
+}
