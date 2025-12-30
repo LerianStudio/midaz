@@ -693,6 +693,35 @@ func totalsMatchAmount(debitTotal, creditTotal, amount decimal.Decimal) bool {
 	return debitTotal.Equal(amount) && creditTotal.Equal(amount)
 }
 
+// validateDoubleEntry enforces the double-entry accounting invariant.
+// Panics if debits != credits or if totals are zero.
+// This is a programming bug assertion - user input errors should be handled before this point.
+func validateDoubleEntry(operations []*mmodel.Operation) {
+	debitTotal := decimal.Zero
+	creditTotal := decimal.Zero
+
+	for _, op := range operations {
+		if op == nil || op.Amount.Value == nil {
+			continue
+		}
+		switch op.Type {
+		case constant.DEBIT:
+			debitTotal = debitTotal.Add(*op.Amount.Value)
+		case constant.CREDIT:
+			creditTotal = creditTotal.Add(*op.Amount.Value)
+		}
+	}
+
+	assert.That(assert.NonZeroTotals(debitTotal, creditTotal),
+		"double-entry violation: transaction totals must be non-zero",
+		"debitTotal", debitTotal, "creditTotal", creditTotal)
+
+	assert.That(assert.DebitsEqualCredits(debitTotal, creditTotal),
+		"double-entry violation: debits must equal credits",
+		"debitTotal", debitTotal, "creditTotal", creditTotal,
+		"difference", debitTotal.Sub(creditTotal))
+}
+
 func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *mmodel.Transaction) pkgTransaction.Transaction {
 	if operationsReadyForRevert(tran) {
 		return tran.TransactionRevert()
