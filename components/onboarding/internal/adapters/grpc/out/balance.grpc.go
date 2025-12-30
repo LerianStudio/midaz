@@ -15,6 +15,7 @@ import (
 //go:generate mockgen --destination=balance.grpc_mock.go --package=out . Repository
 type Repository interface {
 	CreateBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
+	CheckHealth(ctx context.Context) error
 }
 
 // BalanceGRPCRepository is a gRPC implementation for balance.proto
@@ -32,6 +33,11 @@ func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
 	}
 
 	return agrpc
+}
+
+// CheckHealth verifies that the gRPC connection to the balance service is healthy.
+func (b *BalanceGRPCRepository) CheckHealth(ctx context.Context) error {
+	return b.conn.CheckHealth(ctx)
 }
 
 // CreateBalance creates a balance via gRPC using the provided request.

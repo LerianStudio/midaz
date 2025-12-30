@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -150,15 +150,18 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
+	// Extract port and parameters for MongoDB connection
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -314,6 +317,12 @@ func InitServers() *Service {
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
+
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
