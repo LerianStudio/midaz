@@ -306,3 +306,14 @@ func DateNotInFuture(t time.Time) bool {
 	}
 	return !t.After(time.Now())
 }
+
+// DateAfter returns true if date is strictly after reference.
+//
+// Example:
+//
+//	assert.That(assert.DateAfter(closingDate, createdAt),
+//	    "closing date must be after creation date",
+//	    "closingDate", closingDate, "createdAt", createdAt)
+func DateAfter(date, reference time.Time) bool {
+	return date.After(reference)
+}
