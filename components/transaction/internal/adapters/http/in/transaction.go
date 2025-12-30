@@ -1229,16 +1229,17 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 		return handler.handleIdempotencyResult(c, existingTran, err)
 	}
 
-	// Apply concatenated aliases to parserDSL for validation.
+	// Create a validation copy of parserDSL with concatenated aliases.
 	// This must happen AFTER idempotency hash (to preserve client input format for deduplication)
 	// but BEFORE validateAndGetBalances (which needs unique keys in From/To maps).
-	// HandleAccountFields returns copies, so we assign them back to parserDSL.
-	parserDSL.Send.Source.From = handler.HandleAccountFields(parserDSL.Send.Source.From, true)
-	if transactionStatus != constant.PENDING {
-		parserDSL.Send.Distribute.To = handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
-	}
+	// Both Source.From and Distribute.To need concatenated aliases because ValidateSendSourceAndDistribute
+	// always builds both From and To maps, and ValidateBalancesRules checks the total count.
+	// IMPORTANT: We keep the original parserDSL unchanged for storage in transaction Body (used by revert).
+	validationDSL := parserDSL
+	validationDSL.Send.Source.From = handler.HandleAccountFields(parserDSL.Send.Source.From, true)
+	validationDSL.Send.Distribute.To = handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
 
-	validate, balances, err := handler.validateAndGetBalances(ctx, tracer, &span, logger, organizationID, ledgerID, transactionID, parserDSL, transactionStatus, transactionDate, key)
+	validate, balances, err := handler.validateAndGetBalances(ctx, tracer, &span, logger, organizationID, ledgerID, transactionID, validationDSL, transactionStatus, transactionDate, key)
 	if err != nil {
 		if httpErr := http.WithError(c, err); httpErr != nil {
 			return httpErr
@@ -1578,7 +1579,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	fromTo := handler.buildCommitFromToList(parserDSL, transactionStatus)
 
-	validate, balances, err := handler.validateAndGetBalancesForCommit(ctx, tracer, &span, logger, organizationID, ledgerID, tran, parserDSL, transactionStatus, deleteLockOnError)
+	// Create a validation copy with concatenated aliases for unique map keys.
+	// ValidateSendSourceAndDistribute needs unique keys in From/To maps.
+	validationDSL := parserDSL
+	validationDSL.Send.Source.From = handler.HandleAccountFields(parserDSL.Send.Source.From, true)
+	validationDSL.Send.Distribute.To = handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
+
+	validate, balances, err := handler.validateAndGetBalancesForCommit(ctx, tracer, &span, logger, organizationID, ledgerID, tran, validationDSL, transactionStatus, deleteLockOnError)
 	if err != nil {
 		if httpErr := http.WithError(c, err); httpErr != nil {
 			return httpErr

@@ -224,6 +224,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 			from := pkgTransaction.FromTo{
 				IsFrom:       true,
 				AccountAlias: op.AccountAlias,
+				BalanceKey:   op.BalanceKey,
 				Amount: &pkgTransaction.Amount{
 					Asset: op.AssetCode,
 					Value: *op.Amount.Value,
@@ -239,6 +240,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 			to := pkgTransaction.FromTo{
 				IsFrom:       false,
 				AccountAlias: op.AccountAlias,
+				BalanceKey:   op.BalanceKey,
 				Amount: &pkgTransaction.Amount{
 					Asset: op.AssetCode,
 					Value: *op.Amount.Value,
