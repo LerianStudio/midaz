@@ -2,6 +2,7 @@ package assert
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -289,4 +290,19 @@ func BalanceSufficientForRelease(onHold, releaseAmount decimal.Decimal) bool {
 		return false
 	}
 	return onHold.GreaterThanOrEqual(releaseAmount)
+}
+
+// DateNotInFuture returns true if the date is not in the future.
+// Zero time is considered valid (not in future).
+//
+// Example:
+//
+//	assert.That(assert.DateNotInFuture(transactionDate),
+//	    "transaction date cannot be in the future",
+//	    "date", transactionDate)
+func DateNotInFuture(t time.Time) bool {
+	if t.IsZero() {
+		return true
+	}
+	return !t.After(time.Now())
 }
