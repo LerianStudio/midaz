@@ -229,3 +229,32 @@ var validTransactionStatuses = map[string]bool{
 func ValidTransactionStatus(status string) bool {
 	return validTransactionStatuses[status]
 }
+
+// validTransitions defines the allowed state machine transitions.
+// Key: current state, Value: set of valid target states.
+// Only PENDING transactions can be committed (APPROVED) or canceled (CANCELED).
+var validTransitions = map[string]map[string]bool{
+	"PENDING": {
+		"APPROVED": true,
+		"CANCELED": true,
+	},
+	// CREATED, APPROVED, CANCELED, NOTED are terminal states - no forward transitions
+}
+
+// TransactionCanTransitionTo returns true if transitioning from current to target is valid.
+// The transaction state machine only allows: PENDING -> APPROVED or PENDING -> CANCELED.
+//
+// Note: This is for forward transitions only. Revert is a separate operation.
+//
+// Example:
+//
+//	assert.That(assert.TransactionCanTransitionTo(tran.Status.Code, targetStatus),
+//	    "invalid transaction state transition",
+//	    "current", tran.Status.Code, "target", targetStatus)
+func TransactionCanTransitionTo(current, target string) bool {
+	allowed, exists := validTransitions[current]
+	if !exists {
+		return false
+	}
+	return allowed[target]
+}
