@@ -16,6 +16,7 @@ func TestReconciliationReport_DetermineOverallStatus_Healthy(t *testing.T) {
 		SyncCheck:        &SyncCheckResult{Status: StatusHealthy},
 		OrphanCheck:      &OrphanCheckResult{Status: StatusHealthy},
 		MetadataCheck:    &MetadataCheckResult{Status: StatusHealthy},
+		DLQCheck:         &DLQCheckResult{Status: StatusHealthy},
 	}
 
 	report.DetermineOverallStatus()
@@ -33,6 +34,7 @@ func TestReconciliationReport_DetermineOverallStatus_Warning(t *testing.T) {
 		SyncCheck:        &SyncCheckResult{Status: StatusHealthy},
 		OrphanCheck:      &OrphanCheckResult{Status: StatusHealthy},
 		MetadataCheck:    &MetadataCheckResult{Status: StatusHealthy},
+		DLQCheck:         &DLQCheckResult{Status: StatusHealthy},
 	}
 
 	report.DetermineOverallStatus()
@@ -50,6 +52,7 @@ func TestReconciliationReport_DetermineOverallStatus_Critical(t *testing.T) {
 		SyncCheck:        &SyncCheckResult{Status: StatusHealthy},
 		OrphanCheck:      &OrphanCheckResult{Status: StatusHealthy},
 		MetadataCheck:    &MetadataCheckResult{Status: StatusHealthy},
+		DLQCheck:         &DLQCheckResult{Status: StatusHealthy},
 	}
 
 	report.DetermineOverallStatus()
@@ -67,6 +70,7 @@ func TestReconciliationReport_DetermineOverallStatus_MultipleWarnings(t *testing
 		SyncCheck:        &SyncCheckResult{Status: StatusWarning},
 		OrphanCheck:      &OrphanCheckResult{Status: StatusHealthy},
 		MetadataCheck:    &MetadataCheckResult{Status: StatusHealthy},
+		DLQCheck:         &DLQCheckResult{Status: StatusHealthy},
 	}
 
 	report.DetermineOverallStatus()
@@ -85,6 +89,7 @@ func TestReconciliationReport_DetermineOverallStatus_NilChecks(t *testing.T) {
 		SyncCheck:        &SyncCheckResult{Status: StatusHealthy},
 		OrphanCheck:      nil,
 		MetadataCheck:    nil,
+		DLQCheck:         nil,
 	}
 
 	report.DetermineOverallStatus()
@@ -113,6 +118,7 @@ func TestReconciliationReport_DetermineOverallStatus_CriticalOverridesWarning(t 
 		SyncCheck:        &SyncCheckResult{Status: StatusWarning},
 		OrphanCheck:      &OrphanCheckResult{Status: StatusWarning},
 		MetadataCheck:    &MetadataCheckResult{Status: StatusWarning},
+		DLQCheck:         &DLQCheckResult{Status: StatusWarning},
 	}
 
 	report.DetermineOverallStatus()

@@ -178,6 +178,11 @@ func (s *HTTPServer) getStatus(c *fiber.Ctx) error {
 	} else {
 		checks["metadata"] = "UNKNOWN"
 	}
+	if report.DLQCheck != nil {
+		checks["dlq"] = report.DLQCheck.Status
+	} else {
+		checks["dlq"] = "UNKNOWN"
+	}
 
 	return c.Status(statusCode).JSON(fiber.Map{
 		"status":    report.Status,
@@ -284,6 +289,10 @@ func (s *HTTPServer) buildHumanReportHTML(report *domain.ReconciliationReport) s
 		html.WriteString(fmt.Sprintf(`<div class="card"><div class="card-title">Balances</div><div class="card-value">%d</div></div>`, report.EntityCounts.Balances))
 		html.WriteString(fmt.Sprintf(`<div class="card"><div class="card-title">Accounts</div><div class="card-value">%d</div></div>`, report.EntityCounts.Accounts))
 		html.WriteString(fmt.Sprintf(`<div class="card"><div class="card-title">Operations</div><div class="card-value">%d</div></div>`, report.EntityCounts.Operations))
+	}
+	if report.DLQCheck != nil {
+		html.WriteString(fmt.Sprintf(`<div class="card"><div class="card-title">DLQ Entries</div><div class="card-value">%d</div><div class="card-sub">Txn: %d | Op: %d</div></div>`,
+			report.DLQCheck.Total, report.DLQCheck.TransactionEntries, report.DLQCheck.OperationEntries))
 	}
 
 	html.WriteString(`</div>`)
@@ -401,6 +410,27 @@ func (s *HTTPServer) buildHumanReportHTML(report *domain.ReconciliationReport) s
 			mc.PostgreSQLCount, mc.MongoDBCount, mc.MissingCount))
 	} else {
 		html.WriteString(`<p class="empty">Metadata check not available</p>`)
+	}
+	html.WriteString(`</div>`)
+
+	// DLQ Check Section
+	html.WriteString(`<div class="section">`)
+	if report.DLQCheck != nil {
+		dc := report.DLQCheck
+		html.WriteString(fmt.Sprintf(`<div class="section-header"><h3 class="section-title">Metadata Outbox DLQ</h3><span class="badge" style="background: %s;">%s</span></div>`, getColor(dc.Status), dc.Status))
+		html.WriteString(fmt.Sprintf(`<p>Total DLQ entries: <strong>%d</strong> (Transactions: <strong>%d</strong>, Operations: <strong>%d</strong>)</p>`,
+			dc.Total, dc.TransactionEntries, dc.OperationEntries))
+
+		if len(dc.Entries) > 0 {
+			html.WriteString(`<table><thead><tr><th>Entry ID</th><th>Entity Type</th><th>Entity ID</th><th class="num">Retries</th><th>Created</th><th>Last Error</th></tr></thead><tbody>`)
+			for _, e := range dc.Entries {
+				html.WriteString(fmt.Sprintf(`<tr><td class="mono">%s</td><td>%s</td><td class="mono">%s</td><td class="num">%d</td><td>%s</td><td>%s</td></tr>`,
+					truncateID(e.ID), e.EntityType, truncateID(e.EntityID), e.RetryCount, e.CreatedAt.Format("2006-01-02 15:04"), e.LastError))
+			}
+			html.WriteString(`</tbody></table>`)
+		}
+	} else {
+		html.WriteString(`<p class="empty">DLQ check not available</p>`)
 	}
 	html.WriteString(`</div>`)
 

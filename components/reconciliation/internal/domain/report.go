@@ -32,6 +32,7 @@ type ReconciliationReport struct {
 	SyncCheck        *SyncCheckResult        `json:"sync_check"`
 	OrphanCheck      *OrphanCheckResult      `json:"orphan_check"`
 	MetadataCheck    *MetadataCheckResult    `json:"metadata_check"`
+	DLQCheck         *DLQCheckResult         `json:"dlq_check"`
 
 	// Entity counts
 	EntityCounts *EntityCounts `json:"entity_counts"`
@@ -146,6 +147,25 @@ type MetadataCheckResult struct {
 	Status          ReconciliationStatus `json:"status"`
 }
 
+// DLQCheckResult holds metadata outbox DLQ results
+type DLQCheckResult struct {
+	Total              int64                `json:"total"`
+	TransactionEntries int64                `json:"transaction_entries"`
+	OperationEntries   int64                `json:"operation_entries"`
+	Entries            []DLQEntry           `json:"entries,omitempty"`
+	Status             ReconciliationStatus `json:"status"`
+}
+
+// DLQEntry represents a single DLQ entry
+type DLQEntry struct {
+	ID         string    `json:"id"`
+	EntityID   string    `json:"entity_id"`
+	EntityType string    `json:"entity_type"`
+	RetryCount int       `json:"retry_count"`
+	LastError  string    `json:"last_error,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // EntityCounts holds PostgreSQL entity counts
 type EntityCounts struct {
 	// Onboarding
@@ -187,6 +207,10 @@ func (r *ReconciliationReport) DetermineOverallStatus() {
 
 	if r.MetadataCheck != nil {
 		checkStatuses = append(checkStatuses, r.MetadataCheck.Status)
+	}
+
+	if r.DLQCheck != nil {
+		checkStatuses = append(checkStatuses, r.DLQCheck.Status)
 	}
 
 	// Check for critical status first - any critical means overall critical

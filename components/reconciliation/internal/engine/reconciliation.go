@@ -30,6 +30,7 @@ type checkResult struct {
 	orphanCheck      *domain.OrphanCheckResult
 	referentialCheck *domain.ReferentialCheckResult
 	syncCheck        *domain.SyncCheckResult
+	dlqCheck         *domain.DLQCheckResult
 }
 
 // ReconciliationEngine orchestrates all reconciliation checks
@@ -40,6 +41,7 @@ type ReconciliationEngine struct {
 	orphanChecker      *postgres.OrphanChecker
 	referentialChecker *postgres.ReferentialChecker
 	syncChecker        *postgres.SyncChecker
+	dlqChecker         *postgres.DLQChecker
 	settlementDetector *postgres.SettlementDetector
 	entityCounter      *postgres.EntityCounter
 
@@ -73,6 +75,7 @@ func NewReconciliationEngine(
 		orphanChecker:         postgres.NewOrphanChecker(transactionDB),
 		referentialChecker:    postgres.NewReferentialChecker(onboardingDB, transactionDB),
 		syncChecker:           postgres.NewSyncChecker(transactionDB),
+		dlqChecker:            postgres.NewDLQChecker(transactionDB),
 		settlementDetector:    postgres.NewSettlementDetector(transactionDB),
 		entityCounter:         postgres.NewEntityCounter(onboardingDB, transactionDB),
 		onboardingMongo:       onboardingMongo,
@@ -95,7 +98,7 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 	}
 
 	// Get settlement info
-	unsettled, err := e.settlementDetector.GetUnsettledCount(ctx)
+	unsettled, err := e.settlementDetector.GetUnsettledCount(ctx, e.settlementWaitSeconds)
 	if err != nil {
 		e.logger.Warnf("Failed to get unsettled count: %v", err)
 	} else {
@@ -114,7 +117,7 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 
 	// Run all checks in parallel with panic recovery
 	// Use channel-based collection to avoid data race on report fields
-	const numChecks = 5
+	const numChecks = 6
 	resultCh := make(chan checkResult, numChecks)
 
 	var wg sync.WaitGroup
@@ -175,6 +178,17 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 		}
 	})
 
+	safego.Go(e.logger, "dlq-check", func() {
+		defer wg.Done()
+		result, err := e.dlqChecker.Check(ctx, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("DLQ check failed: %v", err)
+			resultCh <- checkResult{name: "dlq", dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "dlq", dlqCheck: result}
+		}
+	})
+
 	wg.Wait()
 	close(resultCh)
 
@@ -191,12 +205,18 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 			report.ReferentialCheck = res.referentialCheck
 		case "sync":
 			report.SyncCheck = res.syncCheck
+		case "dlq":
+			report.DLQCheck = res.dlqCheck
 		}
 	}
 
 	// Set defaults for nil checks
 	if report.MetadataCheck == nil {
 		report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusSkipped}
+	}
+
+	if report.DLQCheck == nil {
+		report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusSkipped}
 	}
 
 	// Determine overall status
