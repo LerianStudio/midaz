@@ -205,3 +205,27 @@ func DebitsEqualCredits(debits, credits decimal.Decimal) bool {
 func NonZeroTotals(debits, credits decimal.Decimal) bool {
 	return !debits.IsZero() && !credits.IsZero()
 }
+
+// validTransactionStatuses contains valid transaction status values.
+// Package-level for zero-allocation lookups.
+var validTransactionStatuses = map[string]bool{
+	"CREATED":  true,
+	"APPROVED": true,
+	"PENDING":  true,
+	"CANCELED": true,
+	"NOTED":    true,
+}
+
+// ValidTransactionStatus returns true if status is a valid transaction status.
+// Valid statuses are: CREATED, APPROVED, PENDING, CANCELED, NOTED.
+//
+// Note: Statuses are case-sensitive and must match exactly.
+//
+// Example:
+//
+//	assert.That(assert.ValidTransactionStatus(tran.Status.Code),
+//	    "invalid transaction status",
+//	    "status", tran.Status.Code)
+func ValidTransactionStatus(status string) bool {
+	return validTransactionStatuses[status]
+}
