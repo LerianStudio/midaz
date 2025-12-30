@@ -648,3 +648,46 @@ func TestLocalString_EmptyParam_Panics(t *testing.T) {
 	_, err := app.Test(req, -1)
 	require.NoError(t, err)
 }
+
+func TestLocalHeader_ValidHeader(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		result := LocalHeader(c, "Authorization")
+		assert.Equal(t, "Bearer token123", result)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer token123")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestLocalHeader_MissingHeader_Panics(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "expected panic but none occurred")
+
+			panicMsg, ok := r.(string)
+			require.True(t, ok, "panic value should be string")
+
+			assert.Contains(t, panicMsg, "assertion failed: required header missing")
+			assert.Contains(t, panicMsg, "header=X-Custom-Header")
+			assert.Contains(t, panicMsg, "path=/test")
+			assert.Contains(t, panicMsg, "method=GET")
+		}()
+
+		LocalHeader(c, "X-Custom-Header")
+		t.Error("expected panic but function returned normally")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	_, err := app.Test(req, -1)
+	require.NoError(t, err)
+}

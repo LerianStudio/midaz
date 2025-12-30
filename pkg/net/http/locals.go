@@ -150,3 +150,20 @@ func LocalString(c *fiber.Ctx, paramName string) string {
 
 	return val
 }
+
+// LocalHeader extracts a header value and asserts it's not empty.
+// Use this for required headers like Authorization.
+// Panics with rich context if the header is missing or empty.
+//
+// Example:
+//
+//	token := http.LocalHeader(c, "Authorization")
+func LocalHeader(c *fiber.Ctx, headerName string) string {
+	val := c.Get(headerName)
+	assert.NotEmpty(val, "required header missing",
+		"header", headerName,
+		"path", c.Path(),
+		"method", c.Method())
+
+	return val
+}
