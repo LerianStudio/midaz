@@ -164,6 +164,16 @@ func (r *OutboxPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Exec
 
 // Create inserts a new outbox entry. If a transaction is in context, participates in it.
 func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *MetadataOutbox) error {
+	// Validate preconditions
+	assert.NotNil(entry, "outbox entry must not be nil", "method", "Create")
+	assert.That(entry.Status == StatusPending,
+		"new outbox entry must have PENDING status",
+		"actual_status", entry.Status, "method", "Create")
+	assert.That(assert.NonNegative(int64(entry.RetryCount)),
+		"retry_count must be non-negative", "retry_count", entry.RetryCount, "method", "Create")
+	assert.That(entry.MaxRetries > 0,
+		"max_retries must be greater than zero", "max_retries", entry.MaxRetries, "method", "Create")
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.outbox.create")
@@ -214,9 +224,17 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 	rows, rowsErr := result.RowsAffected()
 	if rowsErr != nil {
 		logger.Warnf("Failed to read outbox insert rows affected: %v", rowsErr)
-	} else if rows == 0 {
-		logger.Infof("Outbox entry already exists for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
-		return nil
+	} else {
+		assert.That(rows == 0 || rows == 1,
+			"outbox entry insert must affect at most one row",
+			"rows_affected", rows,
+			"entity_id", entry.EntityID,
+			"entity_type", entry.EntityType)
+		if rows == 0 {
+			logger.Infof("Outbox entry already exists for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
+
+			return nil
+		}
 	}
 
 	logger.Infof("Created outbox entry: entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
