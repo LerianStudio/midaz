@@ -8,7 +8,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -21,7 +20,6 @@ func TestValidateAliasClosingDate(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
-	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	organizationID := libCommons.GenerateUUIDv7().String()
 	holderID := libCommons.GenerateUUIDv7()
@@ -29,8 +27,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 	createdAt := time.Now().Add(-24 * time.Hour)
 
 	uc := &UseCase{
-		AliasRepo:      mockAliasRepo,
-		HolderLinkRepo: mockHolderLinkRepo,
+		AliasRepo: mockAliasRepo,
 	}
 
 	testCases := []struct {
@@ -66,9 +63,6 @@ func TestValidateAliasClosingDate(t *testing.T) {
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectError:   true,
 			expectedError: cn.ErrAliasClosingDateBeforeCreationDate,
@@ -89,9 +83,6 @@ func TestValidateAliasClosingDate(t *testing.T) {
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectError: false,
 		},
@@ -142,9 +133,6 @@ func TestValidateAliasClosingDate(t *testing.T) {
 						HolderID:  &holderID,
 						CreatedAt: createdAt,
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), organizationID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectError: false,
 		},

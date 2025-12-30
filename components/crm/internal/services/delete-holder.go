@@ -31,7 +31,6 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 	count, err := uc.AliasRepo.Count(ctx, organizationID, id)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to check linked aliases for holder: %v", err)
-
 		logger.Errorf("Failed to check linked aliases for holder: %v", err)
 
 		return err
@@ -41,30 +40,9 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name())
 	}
 
-	holderLinks, err := uc.HolderLinkRepo.FindByHolderID(ctx, organizationID, id, false)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder links by holder id: %v", err)
-
-		logger.Errorf("Failed to find holder links by holder id: %v", err)
-
-		return err
-	}
-
-	for _, holderLink := range holderLinks {
-		err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
-
-			logger.Errorf("Failed to delete holder link by id: %v", err)
-
-			return err
-		}
-	}
-
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder by id: %v", err)
-
 		logger.Errorf("Failed to delete holder by id: %v", err)
 
 		return err

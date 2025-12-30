@@ -33,6 +33,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error)
 	FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error)
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
+	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error
 	Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error)
 }
 
@@ -420,6 +421,20 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 		filter = append(filter, bson.E{Key: "banking_details.branch", Value: *query.BankingDetailsBranch})
 	}
 
+	if !libCommons.IsNilOrEmpty(query.RegulatoryFieldsParticipantDocument) {
+		participantDocHash := am.DataSecurity.GenerateHash(query.RegulatoryFieldsParticipantDocument)
+		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: participantDocHash})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.RelatedPartyDocument) {
+		relatedPartyDocHash := am.DataSecurity.GenerateHash(query.RelatedPartyDocument)
+		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: relatedPartyDocHash})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.RelatedPartyRole) {
+		filter = append(filter, bson.E{Key: "related_parties.role", Value: *query.RelatedPartyRole})
+	}
+
 	if query.Metadata != nil {
 		for k, v := range *query.Metadata {
 			safeValue, err := http.ValidateMetadataValue(v)
@@ -552,6 +567,67 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 	return count, nil
 }
 
+// DeleteRelatedParty removes a related party from an alias by ID (hard delete)
+func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.delete_related_party")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.related_party_id", relatedPartyID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := am.connection.GetDB(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		return err
+	}
+
+	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+
+	filter := bson.D{
+		{Key: "_id", Value: aliasID},
+		{Key: "holder_id", Value: holderID},
+		{Key: "deleted_at", Value: nil},
+	}
+
+	update := bson.D{
+		{Key: "$pull", Value: bson.D{
+			{Key: "related_parties", Value: bson.D{
+				{Key: "_id", Value: relatedPartyID},
+			}},
+		}},
+		{Key: "$set", Value: bson.D{
+			{Key: "updated_at", Value: time.Now()},
+		}},
+	}
+
+	result, err := coll.UpdateOne(ctx, filter, update)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+	}
+
+	if result.ModifiedCount == 0 {
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+	}
+
+	logger.Infoln("Deleted related party with id: ", relatedPartyID.String(), " from alias: ", aliasID.String())
+
+	return nil
+}
+
 // createIndexes creates indexes for specific fields, if it not exists
 func createIndexes(collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
@@ -623,7 +699,21 @@ func createIndexes(collection *mongo.Collection) error {
 				}),
 		},
 		{
-			Keys: bson.D{{Key: "participant_document", Value: 1}},
+			Keys: bson.D{{Key: "search.regulatory_fields_participant_document", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{
+					{Key: "deleted_at", Value: nil},
+				}),
+		},
+		{
+			Keys: bson.D{{Key: "search.related_party_documents", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{
+					{Key: "deleted_at", Value: nil},
+				}),
+		},
+		{
+			Keys: bson.D{{Key: "related_parties.role", Value: 1}},
 			Options: options.Index().
 				SetPartialFilterExpression(bson.D{
 					{Key: "deleted_at", Value: nil},

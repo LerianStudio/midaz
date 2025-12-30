@@ -30,14 +30,9 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 	aliases, err := uc.AliasRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get aliases", err)
-
 		logger.Errorf("Failed to get aliases: %v", err)
 
 		return nil, err
-	}
-
-	for _, alias := range aliases {
-		uc.enrichAliasWithLinkType(ctx, organizationID, alias)
 	}
 
 	return aliases, nil

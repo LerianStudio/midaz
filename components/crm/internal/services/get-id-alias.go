@@ -35,7 +35,5 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 		return nil, err
 	}
 
-	uc.enrichAliasWithLinkType(ctx, organizationID, alias)
-
 	return alias, nil
 }
