@@ -299,18 +299,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	if cfg.TransactionGRPCAddress == "" {
-		cfg.TransactionGRPCAddress = "midaz-transaction"
-
-		logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
-	}
-
-	if cfg.TransactionGRPCPort == "" {
-		cfg.TransactionGRPCPort = "3011"
-
-		logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
-	}
-
 	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
@@ -357,8 +345,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 		balancePort = opts.BalancePort
 	} else {
-		if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-			return nil, fmt.Errorf("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
+		if cfg.TransactionGRPCAddress == "" {
+			cfg.TransactionGRPCAddress = "midaz-transaction"
+			logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+		}
+
+		if cfg.TransactionGRPCPort == "" {
+			cfg.TransactionGRPCPort = "3011"
+			logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
 		}
 
 		grpcConnection := &mgrpc.GRPCConnection{
