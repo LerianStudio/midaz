@@ -76,7 +76,7 @@ func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middl
 					"/balance.BalanceProto/DeleteBalance":                {Resource: "balances", Action: "delete"},
 					"/balance.BalanceProto/DeleteAllBalancesByAccountID": {Resource: "balances", Action: "delete"},
 				},
-				SubResolver: func(ctx context.Context, _ string, _ any) (string, error) { return midazName, nil },
+				SubResolver: func(_ context.Context, _ string, _ any) (string, error) { return midazName, nil },
 			}),
 		),
 	)

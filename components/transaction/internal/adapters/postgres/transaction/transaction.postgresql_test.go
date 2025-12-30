@@ -35,6 +35,7 @@ or containerized PostgreSQL database.
 // Compile-time interface check
 var (
 	_ Repository = (*TransactionPostgreSQLRepository)(nil)
+	_ Repository = (*mockRepository)(nil)
 )
 
 // Create a mock for the real repository to test
@@ -261,7 +262,7 @@ func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, led
 	return &transaction, nil
 }
 
-func (r *mockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
+func (r *mockRepository) ListByIDs(_ context.Context, _, _ uuid.UUID, _ []uuid.UUID) ([]*Transaction, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -332,7 +333,7 @@ func (r *mockRepository) Delete(ctx context.Context, organizationID, ledgerID, i
 	return nil
 }
 
-func (r *mockRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
+func (r *mockRepository) Count(_ context.Context, _ uuid.UUID) (int64, error) {
 	if r.err != nil {
 		return 0, r.err
 	}
@@ -393,7 +394,7 @@ func (r *mockRepository) FindWithOperations(ctx context.Context, organizationID,
 	return &transaction, nil
 }
 
-func (r *mockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+func (r *mockRepository) FindOrListAllWithOperations(_ context.Context, organizationID, ledgerID uuid.UUID, _ []uuid.UUID, _ http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	if r.err != nil {
 		return nil, libHTTP.CursorPagination{}, r.err
 	}

@@ -105,7 +105,7 @@ func isLastAttempt(attempt int) bool {
 //
 //nolint:cyclop // Complexity is inherent to retry logic with context checks and backoff
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
@@ -155,7 +155,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	backoff := utils.InitialBackoff
 
 	headers := amqp.Table{
-		libConstants.HeaderID: reqId,
+		libConstants.HeaderID: reqID,
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))

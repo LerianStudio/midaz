@@ -316,7 +316,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		Where("deleted_at IS NULL").
 		PlaceholderFormat(squirrel.Dollar)
 
-	findByIDsSql, args, err := query.ToSql()
+	findByIDsSQL, args, err := query.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
@@ -326,7 +326,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, findByIDsSql, args...)
+	rows, err := db.QueryContext(ctx, findByIDsSQL, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 		logger.Errorf("Failed to execute query: %v", err)

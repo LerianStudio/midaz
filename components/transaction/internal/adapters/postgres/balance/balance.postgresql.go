@@ -200,7 +200,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 }
 
 // ListByAccountIDs list Balances entity from the database using the provided accountIDs.
-func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIds []uuid.UUID) ([]*mmodel.Balance, error) {
+func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_ids")
@@ -223,7 +223,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("account_id = ANY(?)", pq.Array(accountIds))).
+		Where(squirrel.Expr("account_id = ANY(?)", pq.Array(accountIDs))).
 		Where("deleted_at IS NULL").
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)

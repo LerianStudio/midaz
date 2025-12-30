@@ -115,7 +115,7 @@ func NewOperationPostgreSQLRepository(mw *mmigration.MigrationWrapper) *Operatio
 func (r *OperationPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Executor, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get database connection: %w", err) //nolint:wrapcheck // GetDB returns low-level DB error, context added via fmt.Errorf
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	return dbtx.GetExecutor(ctx, db), nil

@@ -234,7 +234,6 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	return nil
 }
 
-// performOperationRouteUpdate executes the update command for an operation route.
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
 //
 //	@Summary		Delete an operation route

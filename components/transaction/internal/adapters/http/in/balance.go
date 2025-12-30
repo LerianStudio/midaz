@@ -15,10 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	defaultPaginationLimit = 10
-)
-
 // BalanceHandler struct contains a cqrs use case for managing balances.
 type BalanceHandler struct {
 	Command *command.UseCase
