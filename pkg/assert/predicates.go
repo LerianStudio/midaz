@@ -193,3 +193,15 @@ func InRangeInt(n, minVal, maxVal int) bool {
 func DebitsEqualCredits(debits, credits decimal.Decimal) bool {
 	return debits.Equal(credits)
 }
+
+// NonZeroTotals returns true if both debits and credits are non-zero.
+// A transaction with zero totals is meaningless and indicates a bug.
+//
+// Example:
+//
+//	assert.That(assert.NonZeroTotals(debitTotal, creditTotal),
+//	    "transaction totals must be non-zero",
+//	    "debits", debitTotal, "credits", creditTotal)
+func NonZeroTotals(debits, credits decimal.Decimal) bool {
+	return !debits.IsZero() && !credits.IsZero()
+}
