@@ -661,6 +661,12 @@ func (r *OutboxPostgreSQLRepository) MarkPublished(ctx context.Context, id strin
 // MarkFailed increments retry count and schedules next retry.
 // Error message is sanitized to remove PII before storage.
 func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, errMsg string, nextRetryAt time.Time) error {
+	// Validate preconditions
+	assert.That(assert.ValidUUID(id), "outbox entry ID must be valid UUID",
+		"id", id, "method", "MarkFailed")
+	assert.NotEmpty(errMsg, "error message must not be empty",
+		"id", id, "method", "MarkFailed")
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_failed")
@@ -675,19 +681,28 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 
 	// Sanitize error message to remove PII before storing
 	sanitizedErr := SanitizeErrorMessage(errMsg)
+	assert.NotEmpty(sanitizedErr, "sanitized error message must not be empty",
+		"id", id, "method", "MarkFailed")
 
+	now := time.Now()
+	assert.That(!nextRetryAt.Before(now), "next_retry_at must not be in the past",
+		"id", id, "next_retry_at", nextRetryAt, "now", now)
+
+	// Enforce state machine: only PROCESSING -> FAILED is valid
 	query := `
 		UPDATE metadata_outbox
 		SET status = $1, retry_count = retry_count + 1, last_error = $2, next_retry_at = $3, updated_at = $4
-		WHERE id = $5
+		WHERE id = $5 AND status = $6 AND processing_started_at IS NOT NULL AND retry_count < max_retries
+		RETURNING retry_count, max_retries, processing_started_at
 	`
 
-	result, err := db.ExecContext(ctx, query,
+	rows, err := db.QueryContext(ctx, query,
 		string(StatusFailed),
 		sanitizedErr,
 		nextRetryAt,
-		time.Now(),
+		now,
 		id,
+		string(StatusProcessing),
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as failed", err)
@@ -695,17 +710,46 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
+	defer rows.Close()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+	var (
+		retryCount          int
+		maxRetries          int
+		processingStartedAt time.Time
+		rowsAffected        int64
+	)
+	for rows.Next() {
+		if scanErr := rows.Scan(&retryCount, &maxRetries, &processingStartedAt); scanErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan marked failed row", scanErr)
+			logger.Errorf("Failed to scan marked failed row: %v", scanErr)
 
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
+			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
+		}
+		rowsAffected++
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked failed rows", rowsErr)
+		logger.Errorf("Failed to iterate marked failed rows: %v", rowsErr)
 
+		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
+	}
 	if rowsAffected == 0 {
+		// Could be: entry not found OR entry not in PROCESSING status
+		logger.Warnf("MarkFailed: no rows affected - entry may not exist or not in PROCESSING status: id=%s", id)
+
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
+
+	assert.That(retryCount <= maxRetries, "retry_count must not exceed max_retries",
+		"id", id, "retry_count", retryCount, "max_retries", maxRetries)
+	assert.That(!processingStartedAt.IsZero(), "processing_started_at must be set when failing",
+		"id", id)
+	assert.That(!processingStartedAt.After(now), "processing_started_at must be <= now",
+		"id", id, "processing_started_at", processingStartedAt, "now", now)
+
+	// Postcondition: exactly one row should be affected
+	assert.That(rowsAffected == 1, "mark failed must affect exactly one row",
+		"rows_affected", rowsAffected, "id", id)
 
 	// Log with correlation ID only, not the error message (to avoid PII in logs)
 	logger.Warnf("Marked outbox entry as failed: id=%s, next_retry=%v", id, nextRetryAt)
