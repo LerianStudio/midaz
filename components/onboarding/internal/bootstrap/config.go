@@ -48,6 +48,20 @@ const (
 	indexCreationTimeout = 60 * time.Second
 )
 
+// Configuration validation constants.
+const (
+	// maxOpenConnectionsLimit is the maximum allowed value for database open connections.
+	maxOpenConnectionsLimit = 10000
+	// maxIdleConnectionsLimit is the maximum allowed value for database idle connections.
+	maxIdleConnectionsLimit = 5000
+	// maxPoolSizeLimit is the maximum allowed value for MongoDB and Redis pool sizes.
+	maxPoolSizeLimit = 1000
+	// defaultMaxRecoveryPerVersion is the default number of recovery attempts per migration version.
+	defaultMaxRecoveryPerVersion = 3
+	// defaultMigrationBackoffSeconds is the default backoff duration in seconds for migrations.
+	defaultMigrationBackoffSeconds = 30
+)
+
 // Sentinel errors for bootstrap initialization.
 var (
 	// ErrInitializationFailed indicates a panic occurred during initialization.
@@ -153,9 +167,9 @@ func (cfg *Config) Validate() {
 		"field", "ReplicaDBSSLMode", "value", cfg.ReplicaDBSSLMode)
 
 	// Database pool configuration
-	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, 10000), "DB_MAX_OPEN_CONNS must be 1-10000",
+	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, maxOpenConnectionsLimit), "DB_MAX_OPEN_CONNS must be 1-10000",
 		"field", "MaxOpenConnections", "value", cfg.MaxOpenConnections)
-	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, 5000), "DB_MAX_IDLE_CONNS must be 1-5000",
+	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, maxIdleConnectionsLimit), "DB_MAX_IDLE_CONNS must be 1-5000",
 		"field", "MaxIdleConnections", "value", cfg.MaxIdleConnections)
 
 	// MongoDB configuration
@@ -165,13 +179,13 @@ func (cfg *Config) Validate() {
 		"field", "MongoDBName")
 	assert.That(assert.ValidPort(cfg.MongoDBPort), "MONGO_PORT must be valid port (1-65535)",
 		"field", "MongoDBPort", "value", cfg.MongoDBPort)
-	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, 1000), "MONGO_MAX_POOL_SIZE must be 1-1000",
+	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, maxPoolSizeLimit), "MONGO_MAX_POOL_SIZE must be 1-1000",
 		"field", "MaxPoolSize", "value", cfg.MaxPoolSize)
 
 	// Redis configuration
 	assert.NotEmpty(cfg.RedisHost, "REDIS_HOST is required",
 		"field", "RedisHost")
-	assert.That(assert.InRangeInt(cfg.RedisPoolSize, 1, 1000), "REDIS_POOL_SIZE must be 1-1000",
+	assert.That(assert.InRangeInt(cfg.RedisPoolSize, 1, maxPoolSizeLimit), "REDIS_POOL_SIZE must be 1-1000",
 		"field", "RedisPoolSize", "value", cfg.RedisPoolSize)
 
 	// gRPC configuration (required for transaction service communication)
@@ -182,8 +196,6 @@ func (cfg *Config) Validate() {
 }
 
 // InitServers initiate http and grpc servers.
-//
-//nolint:panicguardwarn // Legacy function used internally; panics are caught by InitServersWithOptions.
 func InitServers() *Service {
 	cfg := &Config{}
 
@@ -233,6 +245,7 @@ func InitServers() *Service {
 	// Perform preflight check with retry for migration safety
 	// CRITICAL: Fail fast on migration errors - do not continue with broken database state
 	ctx := context.Background()
+
 	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
 	if err != nil {
 		logger.Fatalf("Migration preflight failed for %s: %v - cannot proceed with broken database state", ApplicationName, err)
@@ -254,7 +267,7 @@ func InitServers() *Service {
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            getMongoMaxPoolSize(cfg),
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -428,8 +441,9 @@ func buildMongoSource(cfg *Config) string {
 const defaultMongoMaxPoolSize = 100
 
 // getMongoMaxPoolSize returns the max pool size, defaulting to defaultMongoMaxPoolSize if not set or invalid.
+// The function validates bounds to prevent integer overflow during int to uint64 conversion.
 func getMongoMaxPoolSize(cfg *Config) uint64 {
-	if cfg.MaxPoolSize <= 0 {
+	if cfg.MaxPoolSize <= 0 || cfg.MaxPoolSize > maxPoolSizeLimit {
 		return defaultMongoMaxPoolSize
 	}
 
@@ -441,10 +455,10 @@ func newMigrationConfig(cfg *Config) mmigration.MigrationConfig {
 	return mmigration.MigrationConfig{
 		AutoRecoverDirty:      cfg.MigrationAutoRecover,
 		MaxRetries:            cfg.MigrationMaxRetries,
-		MaxRecoveryPerVersion: 3,
+		MaxRecoveryPerVersion: defaultMaxRecoveryPerVersion,
 		RetryBackoff:          1 * time.Second,
-		MaxBackoff:            30 * time.Second,
-		LockTimeout:           30 * time.Second,
+		MaxBackoff:            defaultMigrationBackoffSeconds * time.Second,
+		LockTimeout:           defaultMigrationBackoffSeconds * time.Second,
 		Component:             ApplicationName,
 		MigrationsPath:        "/app/components/onboarding/migrations",
 	}
@@ -532,12 +546,13 @@ func InitServersWithOptions(opts *Options) (service *Service, err error) {
 	// Create migration wrapper for safe database access with auto-recovery
 	migrationWrapper, err := mmigration.NewMigrationWrapper(postgresConnection, newMigrationConfig(cfg), logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create migration wrapper for %s: %w", ApplicationName, err)
+		return nil, pkg.ValidateInternalError(err, "MigrationWrapper")
 	}
 
 	// Perform preflight check with retry for migration safety
 	// CRITICAL: Fail fast on migration errors - do not continue with broken database state
 	ctx := context.Background()
+
 	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
 	if err != nil {
 		logger.Fatalf("Migration preflight failed for %s: %v - cannot proceed with broken database state", ApplicationName, err)
