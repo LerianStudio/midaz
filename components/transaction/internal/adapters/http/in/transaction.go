@@ -1252,12 +1252,15 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	tran := handler.buildTransaction(transactionID, parentID, organizationID, ledgerID, parserDSL, transactionStatus, transactionDate)
 
-	operations, _, err := handler.BuildOperations(ctx, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
+	operations, preBalances, err := handler.BuildOperations(ctx, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
 		return handler.handleBuildOperationsError(c, &span, logger, err)
 	}
 
-	return handler.executeAndRespondTransaction(ctx, c, &span, logger, organizationID, ledgerID, key, hash, ttl, tran, operations, validate, balances, parserDSL)
+	// Use preBalances (only balances with matching operations) to avoid updating
+	// balances that don't have corresponding operations (e.g., destination accounts
+	// during PENDING transactions shouldn't have their version incremented)
+	return handler.executeAndRespondTransaction(ctx, c, &span, logger, organizationID, ledgerID, key, hash, ttl, tran, operations, validate, preBalances, parserDSL)
 }
 
 // validateTransactionInput validates the transaction input data.

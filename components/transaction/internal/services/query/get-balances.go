@@ -12,6 +12,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -238,6 +239,8 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		}
 	}
 
+	balanceOperations = filterBalanceOperationsForStatus(balanceOperations, validate, transactionStatus)
+
 	newBalances, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to lock balance", err)
@@ -266,4 +269,30 @@ func (uc *UseCase) validateParserDSLBalances(ctx context.Context, span *trace.Sp
 	}
 
 	return nil
+}
+
+func filterBalanceOperationsForStatus(operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, transactionStatus string) []mmodel.BalanceOperation {
+	if transactionStatus != constant.PENDING && transactionStatus != constant.CANCELED {
+		return operations
+	}
+
+	if validate == nil || len(operations) == 0 {
+		return operations
+	}
+
+	// For PENDING/CANCELED we intentionally keep only "From" entries.
+	// In two-phase flows, only source-side operations affect balances (PENDING=ON_HOLD, CANCELED=RELEASE);
+	// destination-side entries are no-ops for these statuses and retaining them can waste work/memory.
+	capEstimate := len(validate.From)
+	if capEstimate > len(operations) {
+		capEstimate = len(operations)
+	}
+	filtered := make([]mmodel.BalanceOperation, 0, capEstimate)
+	for _, op := range operations {
+		if _, ok := validate.From[op.Alias]; ok {
+			filtered = append(filtered, op)
+		}
+	}
+
+	return filtered
 }
