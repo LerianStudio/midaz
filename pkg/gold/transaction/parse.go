@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/antlr4-go/antlr/v4"
@@ -409,6 +410,11 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 		return pkgTransaction.Share{}
 	}
 
+	// Validate percentage is within valid range [0, 100]
+	assert.That(assert.InRange(percentage, 0, 100),
+		"share percentage must be between 0 and 100",
+		"value", percentage)
+
 	return pkgTransaction.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: 0,
@@ -430,6 +436,11 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 		return pkgTransaction.Share{}
 	}
 
+	// Validate percentage is within valid range [0, 100]
+	assert.That(assert.InRange(percentage, 0, 100),
+		"share percentage must be between 0 and 100",
+		"value", percentage)
+
 	percentageOfPercentageStr := v.VisitNumericValue(numericValueContext(ctx.NumericValue(1))).(string)
 
 	percentageOfPercentage, err := strconv.ParseInt(percentageOfPercentageStr, 10, 64)
@@ -437,6 +448,11 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 		v.setError(fmt.Errorf("%w: %w", ErrInvalidSharePercentageOfPercent, err))
 		return pkgTransaction.Share{}
 	}
+
+	// Validate percentageOfPercentage is within valid range [0, 100]
+	assert.That(assert.InRange(percentageOfPercentage, 0, 100),
+		"share percentageOfPercentage must be between 0 and 100",
+		"value", percentageOfPercentage)
 
 	return pkgTransaction.Share{
 		Percentage:             percentage,
@@ -624,6 +640,20 @@ func Parse(dsl string) any {
 		return nil
 	}
 
+	// Validate parsed transaction invariants
+	if t, ok := transaction.(pkgTransaction.Transaction); ok {
+		assert.That(len(t.Send.Source.From) > 0,
+			"parsed transaction must have at least one source",
+			"dsl_preview", truncateString(dsl, 100))
+		assert.That(len(t.Send.Distribute.To) > 0,
+			"parsed transaction must have at least one destination",
+			"dsl_preview", truncateString(dsl, 100))
+		assert.That(assert.PositiveDecimal(t.Send.Value),
+			"send value must be positive",
+			"value", t.Send.Value.String(),
+			"dsl_preview", truncateString(dsl, 100))
+	}
+
 	return transaction
 }
 
@@ -646,4 +676,12 @@ func numericValueContext(ctx parser.INumericValueContext) *parser.NumericValueCo
 	}
 
 	return valueNode
+}
+
+// truncateString truncates a string to maxLen characters for logging
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
