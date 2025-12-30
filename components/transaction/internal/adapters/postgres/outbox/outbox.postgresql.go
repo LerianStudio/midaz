@@ -502,6 +502,11 @@ func (r *OutboxPostgreSQLRepository) markEntriesAsProcessing(
 
 // FindByEntityID checks if an entry exists for the given entity (for idempotency checks).
 func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error) {
+	// Validate preconditions - early return for empty parameters
+	assert.NotEmpty(entityID, "entityID must not be empty", "method", "FindByEntityID")
+	assert.NotEmpty(entityType, "entityType must not be empty",
+		"entityID", entityID, "method", "FindByEntityID")
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.outbox.find_by_entity_id")
@@ -552,7 +557,21 @@ func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityI
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	return model.ToEntity()
+	entry, err := model.ToEntity()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert model to entity", err)
+		logger.Errorf("Failed to convert model to entity: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	assertValidOutboxStatus(entry.Status, "FindByEntityID", "entry_id", entry.ID.String())
+	assert.That(assert.NonNegative(int64(entry.RetryCount)),
+		"retry_count must be non-negative", "retry_count", entry.RetryCount, "method", "FindByEntityID")
+	assert.That(entry.MaxRetries > 0,
+		"max_retries must be greater than zero", "max_retries", entry.MaxRetries, "method", "FindByEntityID")
+
+	return entry, nil
 }
 
 // FindMetadataByEntityIDs retrieves the latest metadata for each entity ID (if any) in a single query.
