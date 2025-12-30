@@ -27,6 +27,7 @@ type OnboardingCounts struct {
 	Assets        int64
 	Accounts      int64
 	Portfolios    int64
+	Segments      int64
 }
 
 // TransactionCounts holds transaction entity counts
@@ -34,6 +35,7 @@ type TransactionCounts struct {
 	Transactions int64
 	Operations   int64
 	Balances     int64
+	AssetRates   int64
 }
 
 // GetOnboardingCounts returns counts from onboarding DB
@@ -44,7 +46,8 @@ func (c *EntityCounter) GetOnboardingCounts(ctx context.Context) (*OnboardingCou
 			(SELECT COUNT(*) FROM ledger WHERE deleted_at IS NULL) as ledgers,
 			(SELECT COUNT(*) FROM asset WHERE deleted_at IS NULL) as assets,
 			(SELECT COUNT(*) FROM account WHERE deleted_at IS NULL) as accounts,
-			(SELECT COUNT(*) FROM portfolio WHERE deleted_at IS NULL) as portfolios
+			(SELECT COUNT(*) FROM portfolio WHERE deleted_at IS NULL) as portfolios,
+			(SELECT COUNT(*) FROM segment WHERE deleted_at IS NULL) as segments
 	`
 
 	counts := &OnboardingCounts{}
@@ -55,6 +58,7 @@ func (c *EntityCounter) GetOnboardingCounts(ctx context.Context) (*OnboardingCou
 		&counts.Assets,
 		&counts.Accounts,
 		&counts.Portfolios,
+		&counts.Segments,
 	)
 	if err != nil {
 		// Avoid returning partially populated counts on scan/query errors.
@@ -70,7 +74,8 @@ func (c *EntityCounter) GetTransactionCounts(ctx context.Context) (*TransactionC
 		SELECT
 			(SELECT COUNT(*) FROM transaction WHERE deleted_at IS NULL) as transactions,
 			(SELECT COUNT(*) FROM operation WHERE deleted_at IS NULL) as operations,
-			(SELECT COUNT(*) FROM balance WHERE deleted_at IS NULL) as balances
+			(SELECT COUNT(*) FROM balance WHERE deleted_at IS NULL) as balances,
+			(SELECT COUNT(*) FROM asset_rate) as asset_rates
 	`
 
 	counts := &TransactionCounts{}
@@ -79,6 +84,7 @@ func (c *EntityCounter) GetTransactionCounts(ctx context.Context) (*TransactionC
 		&counts.Transactions,
 		&counts.Operations,
 		&counts.Balances,
+		&counts.AssetRates,
 	)
 	if err != nil {
 		// Avoid returning partially populated counts on scan/query errors.

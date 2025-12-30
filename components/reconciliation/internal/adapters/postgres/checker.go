@@ -14,6 +14,11 @@ const (
 	CheckerNameReferential = "referential"
 	CheckerNameSync        = "sync"
 	CheckerNameDLQ         = "dlq"
+	CheckerNameOutbox      = "outbox"
+	CheckerNameMetadata    = "metadata"
+	CheckerNameRedis       = "redis"
+	CheckerNameCrossDB     = "cross-db"
+	CheckerNameCRMAlias    = "crm-alias"
 )
 
 // CheckerConfig holds configuration parameters for reconciliation checkers.
@@ -27,6 +32,24 @@ type CheckerConfig struct {
 
 	// StaleThresholdSeconds is the staleness threshold for sync checks.
 	StaleThresholdSeconds int
+
+	// OutboxStaleSeconds is the staleness threshold for outbox PROCESSING entries.
+	OutboxStaleSeconds int
+
+	// LookbackDays limits metadata checks to recent outbox entries.
+	LookbackDays int
+
+	// CrossDBBatchSize controls batch size for cross-database checks.
+	CrossDBBatchSize int
+
+	// CrossDBMaxScan limits the maximum number of IDs scanned.
+	CrossDBMaxScan int
+
+	// RedisSampleSize limits Redis balance sampling.
+	RedisSampleSize int
+
+	// MetadataMaxScan limits the number of outbox entries scanned for metadata checks.
+	MetadataMaxScan int
 }
 
 // CheckResult is the common interface for all check results.
