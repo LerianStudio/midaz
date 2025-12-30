@@ -8,6 +8,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
+// DLQ check threshold constants.
+const (
+	dlqWarningThreshold = 10
+)
+
 // DLQChecker reports metadata outbox entries stuck in DLQ.
 type DLQChecker struct {
 	db *sql.DB
@@ -16,6 +21,20 @@ type DLQChecker struct {
 // NewDLQChecker creates a new DLQ checker.
 func NewDLQChecker(db *sql.DB) *DLQChecker {
 	return &DLQChecker{db: db}
+}
+
+// determineDLQStatus determines the reconciliation status based on DLQ entry count.
+func determineDLQStatus(total int64) domain.ReconciliationStatus {
+	switch {
+	case total == 0:
+		return domain.StatusHealthy
+	// Warning is only triggered when total is strictly below the threshold (exclusive),
+	// matching the semantics used by other reconciliation checkers.
+	case total < dlqWarningThreshold:
+		return domain.StatusWarning
+	default:
+		return domain.StatusCritical
+	}
 }
 
 // Check returns DLQ summary and a limited set of entries.
@@ -41,57 +60,66 @@ func (c *DLQChecker) Check(ctx context.Context, limit int) (*domain.DLQCheckResu
 		&result.TransactionEntries,
 		&result.OperationEntries,
 	); err != nil {
-		return nil, fmt.Errorf("dlq summary query failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDLQSummaryQuery, err)
 	}
 
-	switch {
-	case result.Total == 0:
-		result.Status = domain.StatusHealthy
-	case result.Total <= 10:
-		result.Status = domain.StatusWarning
-	default:
-		result.Status = domain.StatusCritical
-	}
+	result.Status = determineDLQStatus(result.Total)
 
 	if result.Total > 0 && limit > 0 {
-		detailQuery := `
-			SELECT
-				id::text,
-				entity_id,
-				entity_type,
-				retry_count,
-				COALESCE(last_error, ''),
-				created_at
-			FROM metadata_outbox
-			WHERE status = 'DLQ'
-			ORDER BY created_at DESC
-			LIMIT $1
-		`
-
-		rows, err := c.db.QueryContext(ctx, detailQuery, limit)
+		entries, err := c.fetchDLQEntries(ctx, limit)
 		if err != nil {
-			return nil, fmt.Errorf("dlq detail query failed: %w", err)
+			return nil, err
 		}
-		defer rows.Close()
 
-		for rows.Next() {
-			var entry domain.DLQEntry
-			if err := rows.Scan(
-				&entry.ID,
-				&entry.EntityID,
-				&entry.EntityType,
-				&entry.RetryCount,
-				&entry.LastError,
-				&entry.CreatedAt,
-			); err != nil {
-				return nil, fmt.Errorf("dlq row scan failed: %w", err)
-			}
-			result.Entries = append(result.Entries, entry)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("dlq row iteration failed: %w", err)
-		}
+		result.Entries = entries
 	}
 
 	return result, nil
+}
+
+// fetchDLQEntries retrieves detailed DLQ entry records.
+func (c *DLQChecker) fetchDLQEntries(ctx context.Context, limit int) ([]domain.DLQEntry, error) {
+	detailQuery := `
+		SELECT
+			id::text,
+			entity_id,
+			entity_type,
+			retry_count,
+			COALESCE(last_error, ''),
+			created_at
+		FROM metadata_outbox
+		WHERE status = 'DLQ'
+		ORDER BY created_at DESC
+		LIMIT $1
+	`
+
+	rows, err := c.db.QueryContext(ctx, detailQuery, limit)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrDLQDetailQuery, err)
+	}
+	defer rows.Close()
+
+	var entries []domain.DLQEntry
+
+	for rows.Next() {
+		var entry domain.DLQEntry
+		if err := rows.Scan(
+			&entry.ID,
+			&entry.EntityID,
+			&entry.EntityType,
+			&entry.RetryCount,
+			&entry.LastError,
+			&entry.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrDLQRowScan, err)
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrDLQRowIteration, err)
+	}
+
+	return entries, nil
 }

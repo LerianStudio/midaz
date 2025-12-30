@@ -139,5 +139,5 @@ func TestReferentialChecker_Check_OnboardingQueryError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "onboarding orphan check failed")
+	assert.Contains(t, err.Error(), "referential onboarding check failed")
 }

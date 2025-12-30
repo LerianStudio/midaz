@@ -8,6 +8,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
+// Double-entry check constants.
+const (
+	doubleEntryPercentageMultiplier = 100
+)
+
 // DoubleEntryChecker validates credits = debits for transactions
 type DoubleEntryChecker struct {
 	db *sql.DB
@@ -52,11 +57,11 @@ func (c *DoubleEntryChecker) Check(ctx context.Context, limit int) (*domain.Doub
 		&result.TransactionsNoOperations,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("double-entry summary query failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDoubleEntrySummaryQuery, err)
 	}
 
 	if result.TotalTransactions > 0 {
-		result.UnbalancedPercentage = float64(result.UnbalancedTransactions) / float64(result.TotalTransactions) * 100
+		result.UnbalancedPercentage = float64(result.UnbalancedTransactions) / float64(result.TotalTransactions) * doubleEntryPercentageMultiplier
 	}
 
 	// Status - unbalanced transactions are CRITICAL
@@ -96,23 +101,26 @@ func (c *DoubleEntryChecker) Check(ctx context.Context, limit int) (*domain.Doub
 
 		rows, err := c.db.QueryContext(ctx, detailQuery, limit)
 		if err != nil {
-			return nil, fmt.Errorf("double-entry detail query failed: %w", err)
+			return nil, fmt.Errorf("%w: %w", ErrDoubleEntryDetailQuery, err)
 		}
 		defer rows.Close()
 
 		for rows.Next() {
 			var i domain.TransactionImbalance
+
 			err := rows.Scan(
 				&i.TransactionID, &i.Status, &i.AssetCode,
 				&i.TotalCredits, &i.TotalDebits, &i.Imbalance, &i.OperationCount,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("double-entry row scan failed: %w", err)
+				return nil, fmt.Errorf("%w: %w", ErrDoubleEntryRowScan, err)
 			}
+
 			result.Imbalances = append(result.Imbalances, i)
 		}
+
 		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("double-entry row iteration failed: %w", err)
+			return nil, fmt.Errorf("%w: %w", ErrDoubleEntryRowIteration, err)
 		}
 	}
 

@@ -8,6 +8,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
+// Referential check threshold constants.
+const (
+	referentialWarningThreshold = 10
+)
+
 // ReferentialChecker finds orphan entities
 type ReferentialChecker struct {
 	onboardingDB  *sql.DB
@@ -28,22 +33,24 @@ func (c *ReferentialChecker) Check(ctx context.Context) (*domain.ReferentialChec
 
 	// Check onboarding DB orphans
 	if err := c.checkOnboardingOrphans(ctx, result); err != nil {
-		return nil, fmt.Errorf("onboarding orphan check failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrReferentialOnboardingCheck, err)
 	}
 
 	// Check transaction DB orphans
 	if err := c.checkTransactionOrphans(ctx, result); err != nil {
-		return nil, fmt.Errorf("transaction orphan check failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrReferentialTransactionCheck, err)
 	}
 
 	// Determine status
 	total := result.OrphanLedgers + result.OrphanAssets + result.OrphanAccounts +
 		result.OrphanOperations + result.OrphanPortfolios
-	if total == 0 {
+
+	switch {
+	case total == 0:
 		result.Status = domain.StatusHealthy
-	} else if total < 10 {
+	case total < referentialWarningThreshold:
 		result.Status = domain.StatusWarning
-	} else {
+	default:
 		result.Status = domain.StatusCritical
 	}
 
@@ -88,15 +95,16 @@ func (c *ReferentialChecker) checkOnboardingOrphans(ctx context.Context, result 
 
 	rows, err := c.onboardingDB.QueryContext(ctx, query)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrOnboardingQuery, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var o domain.OrphanEntity
 		if err := rows.Scan(&o.EntityID, &o.EntityType, &o.ReferenceType, &o.ReferenceID); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrOnboardingRowScan, err)
 		}
+
 		result.Orphans = append(result.Orphans, o)
 
 		switch o.EntityType {
@@ -111,7 +119,11 @@ func (c *ReferentialChecker) checkOnboardingOrphans(ctx context.Context, result 
 		}
 	}
 
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("%w: %w", ErrOnboardingRowIteration, err)
+	}
+
+	return nil
 }
 
 func (c *ReferentialChecker) checkTransactionOrphans(ctx context.Context, result *domain.ReferentialCheckResult) error {
@@ -125,18 +137,23 @@ func (c *ReferentialChecker) checkTransactionOrphans(ctx context.Context, result
 
 	rows, err := c.transactionDB.QueryContext(ctx, query)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrTransactionQuery, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var o domain.OrphanEntity
 		if err := rows.Scan(&o.EntityID, &o.EntityType, &o.ReferenceType, &o.ReferenceID); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrTransactionRowScan, err)
 		}
+
 		result.Orphans = append(result.Orphans, o)
 		result.OrphanOperations++
 	}
 
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("%w: %w", ErrTransactionRowIteration, err)
+	}
+
+	return nil
 }

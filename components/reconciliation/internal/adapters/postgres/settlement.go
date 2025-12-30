@@ -45,7 +45,7 @@ func (s *SettlementDetector) GetUnsettledCount(ctx context.Context, settlementWa
 
 	var count int
 	if err := s.db.QueryRowContext(ctx, query, settlementWaitSeconds).Scan(&count); err != nil {
-		return 0, fmt.Errorf("GetUnsettledCount failed: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrUnsettledCountQuery, err)
 	}
 
 	return count, nil
@@ -75,7 +75,7 @@ func (s *SettlementDetector) GetSettledCount(ctx context.Context, settlementWait
 
 	var count int
 	if err := s.db.QueryRowContext(ctx, query, settlementWaitSeconds).Scan(&count); err != nil {
-		return 0, fmt.Errorf("GetSettledCount failed: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrSettledCountQuery, err)
 	}
 
 	return count, nil

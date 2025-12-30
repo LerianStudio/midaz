@@ -126,3 +126,12 @@ func TestDLQChecker_Check_QueryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestDetermineDLQStatus_ThresholdIsExclusive(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, domain.StatusHealthy, determineDLQStatus(0))
+	assert.Equal(t, domain.StatusWarning, determineDLQStatus(dlqWarningThreshold-1))
+	assert.Equal(t, domain.StatusCritical, determineDLQStatus(dlqWarningThreshold))
+	assert.Equal(t, domain.StatusCritical, determineDLQStatus(dlqWarningThreshold+1))
+}

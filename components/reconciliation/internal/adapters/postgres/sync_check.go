@@ -8,6 +8,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
+// Sync check threshold constants.
+const (
+	syncWarningThreshold = 10
+)
+
 // SyncChecker detects Redis-PostgreSQL version mismatches
 type SyncChecker struct {
 	db *sql.DB
@@ -16,6 +21,31 @@ type SyncChecker struct {
 // NewSyncChecker creates a new sync checker
 func NewSyncChecker(db *sql.DB) *SyncChecker {
 	return &SyncChecker{db: db}
+}
+
+// determineSyncStatus determines the reconciliation status based on issue count.
+func determineSyncStatus(issueCount int) domain.ReconciliationStatus {
+	switch {
+	case issueCount == 0:
+		return domain.StatusHealthy
+	case issueCount < syncWarningThreshold:
+		return domain.StatusWarning
+	default:
+		return domain.StatusCritical
+	}
+}
+
+// processSyncIssue updates result counters based on the sync issue type.
+func processSyncIssue(result *domain.SyncCheckResult, issue domain.SyncIssue, staleThresholdSeconds int) {
+	result.Issues = append(result.Issues, issue)
+
+	if issue.DBVersion != issue.MaxOpVersion {
+		result.VersionMismatches++
+	}
+
+	if issue.StalenessSeconds > int64(staleThresholdSeconds) {
+		result.StaleBalances++
+	}
 }
 
 // Check detects version mismatches and stale balances
@@ -54,7 +84,7 @@ func (c *SyncChecker) Check(ctx context.Context, staleThresholdSeconds int, limi
 
 	rows, err := c.db.QueryContext(ctx, query, staleThresholdSeconds, limit)
 	if err != nil {
-		return nil, fmt.Errorf("sync check query failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSyncCheckQuery, err)
 	}
 	defer rows.Close()
 
@@ -64,34 +94,17 @@ func (c *SyncChecker) Check(ctx context.Context, staleThresholdSeconds int, limi
 			&s.BalanceID, &s.Alias, &s.AssetCode, &s.DBVersion,
 			&s.MaxOpVersion, &s.StalenessSeconds,
 		); err != nil {
-			return nil, fmt.Errorf("sync row scan failed: %w", err)
+			return nil, fmt.Errorf("%w: %w", ErrSyncRowScan, err)
 		}
-		result.Issues = append(result.Issues, s)
 
-		if s.DBVersion != s.MaxOpVersion {
-			result.VersionMismatches++
-		}
-		if s.StalenessSeconds > int64(staleThresholdSeconds) {
-			result.StaleBalances++
-		}
+		processSyncIssue(result, s, staleThresholdSeconds)
 	}
+
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sync row iteration failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSyncRowIteration, err)
 	}
 
-	// Status based on distinct issue count (not sum of categories which double-counts)
-	total := 0
-	if result.Issues != nil {
-		total = len(result.Issues)
-	}
-
-	if total == 0 {
-		result.Status = domain.StatusHealthy
-	} else if total < 10 {
-		result.Status = domain.StatusWarning
-	} else {
-		result.Status = domain.StatusCritical
-	}
+	result.Status = determineSyncStatus(len(result.Issues))
 
 	return result, nil
 }

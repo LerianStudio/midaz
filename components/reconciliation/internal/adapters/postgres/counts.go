@@ -48,6 +48,7 @@ func (c *EntityCounter) GetOnboardingCounts(ctx context.Context) (*OnboardingCou
 	`
 
 	counts := &OnboardingCounts{}
+
 	err := c.onboardingDB.QueryRowContext(ctx, query).Scan(
 		&counts.Organizations,
 		&counts.Ledgers,
@@ -57,7 +58,7 @@ func (c *EntityCounter) GetOnboardingCounts(ctx context.Context) (*OnboardingCou
 	)
 	if err != nil {
 		// Avoid returning partially populated counts on scan/query errors.
-		return nil, fmt.Errorf("GetOnboardingCounts: query failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOnboardingCountsQuery, err)
 	}
 
 	return counts, nil
@@ -73,6 +74,7 @@ func (c *EntityCounter) GetTransactionCounts(ctx context.Context) (*TransactionC
 	`
 
 	counts := &TransactionCounts{}
+
 	err := c.transactionDB.QueryRowContext(ctx, query).Scan(
 		&counts.Transactions,
 		&counts.Operations,
@@ -80,7 +82,7 @@ func (c *EntityCounter) GetTransactionCounts(ctx context.Context) (*TransactionC
 	)
 	if err != nil {
 		// Avoid returning partially populated counts on scan/query errors.
-		return nil, fmt.Errorf("GetTransactionCounts: query failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrTransactionCountsQuery, err)
 	}
 
 	return counts, nil
