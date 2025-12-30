@@ -1,0 +1,32 @@
+package assert
+
+import (
+	"testing"
+
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
+)
+
+// TestDebitsEqualCredits tests the DebitsEqualCredits predicate for double-entry accounting.
+func TestDebitsEqualCredits(t *testing.T) {
+	tests := []struct {
+		name     string
+		debits   decimal.Decimal
+		credits  decimal.Decimal
+		expected bool
+	}{
+		{"equal positive amounts", decimal.NewFromInt(100), decimal.NewFromInt(100), true},
+		{"equal with decimals", decimal.NewFromFloat(123.45), decimal.NewFromFloat(123.45), true},
+		{"equal zero", decimal.Zero, decimal.Zero, true},
+		{"debits greater", decimal.NewFromInt(100), decimal.NewFromInt(99), false},
+		{"credits greater", decimal.NewFromInt(99), decimal.NewFromInt(100), false},
+		{"tiny difference", decimal.NewFromFloat(100.001), decimal.NewFromFloat(100.002), false},
+		{"large equal", decimal.NewFromInt(1000000000), decimal.NewFromInt(1000000000), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, DebitsEqualCredits(tt.debits, tt.credits))
+		})
+	}
+}
