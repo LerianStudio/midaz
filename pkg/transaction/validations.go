@@ -188,6 +188,12 @@ func applyPendingOperation(amount Amount, available, onHold decimal.Decimal) (de
 // applyCanceledOperation applies canceled transaction operations
 func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
 	if amount.Operation == constant.RELEASE {
+		// Precondition: onHold must be sufficient for release
+		assert.That(assert.BalanceSufficientForRelease(onHold, amount.Value),
+			"insufficient onHold balance for release operation",
+			"onHold", onHold, "releaseAmount", amount.Value,
+			"deficit", amount.Value.Sub(onHold))
+
 		return available.Add(amount.Value), onHold.Sub(amount.Value), true
 	}
 
