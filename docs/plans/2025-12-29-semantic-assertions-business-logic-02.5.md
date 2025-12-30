@@ -34,13 +34,13 @@ Proceeding with standard planning approach.
 
 ## Overview
 
-This plan adds ~25 business logic assertions across transaction, onboarding, and CRM components. Tasks are organized by priority:
+This plan adds ~26 business logic assertions across transaction, onboarding, and CRM components. Tasks are organized by priority:
 
 | Priority | Tasks | Focus |
 |----------|-------|-------|
 | CRITICAL | 1-6 | Double-entry accounting invariant |
 | HIGH | 7-20 | Transaction state machine, balance sufficiency, parent account |
-| MEDIUM | 21-31 | Temporal constraints, balance deletion, external account rules |
+| MEDIUM | 21-32 | Temporal constraints, balance deletion, external account rules |
 
 **New Predicates to Add:**
 - `ValidTransactionStatus(status string) bool`
@@ -1571,6 +1571,91 @@ TDD green phase - validates date is not in the future.
 Zero time treated as valid.
 EOF
 )"
+```
+
+---
+
+### Task 23.5: Assert Revert Timestamp Is Not In The Future
+
+**Why:** Revert is a semantic action on historical transactions. A transaction created in the future indicates corrupted data or a bug in upstream persistence. This is not user input validation — it is an invariant check.
+
+**Files:**
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+
+**Prerequisites:**
+- Task 23 completed (DateNotInFuture predicate available)
+
+**Step 1: Add assertion in validateTransactionCanBeReverted**
+
+In `validateTransactionCanBeReverted`, after the nil/parent checks and before status validation, add:
+
+```go
+	assert.That(assert.DateNotInFuture(tran.CreatedAt),
+		"transaction created_at must not be in the future for revert",
+		"transaction_id", transactionID.String(),
+		"created_at", tran.CreatedAt)
+```
+
+**Step 2: (Optional) Add a regression test**
+
+If `components/transaction/internal/adapters/http/in/transaction_assertions_test.go` exists (from earlier tasks), add a test that builds a minimal `mmodel.Transaction` with `CreatedAt = time.Now().Add(1 * time.Hour)` and confirms the assertion panics.
+
+---
+
+### Task 23.6: Assert Transaction Chronology Invariants
+
+**Why:** Transactions should never time-travel. `UpdatedAt` cannot be before `CreatedAt`, and `TransactionDate` should not be after `CreatedAt` (it represents business time, not persistence time).
+
+**Files:**
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+
+**Step 1: Add assertions in fetch-and-respond paths**
+
+In handlers that return a transaction (`GetTransaction`, `UpdateTransaction`, `CommitTransaction`, `CancelTransaction`, `RevertTransaction`), after `tran` is retrieved:
+
+```go
+	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", tran.ID,
+		"created_at", tran.CreatedAt,
+		"updated_at", tran.UpdatedAt)
+```
+
+If the code path has access to `transactionDate` (from `checkTransactionDate`), assert:
+
+```go
+	assert.That(!transactionDate.After(tran.CreatedAt),
+		"transaction_date must be <= created_at",
+		"transaction_id", tran.ID,
+		"transaction_date", transactionDate,
+		"created_at", tran.CreatedAt)
+```
+
+---
+
+### Task 23.7: Operation/Transaction Consistency Checks
+
+**Why:** Operations are a materialized view of the transaction. A mismatch here is always a bug.
+
+**Files:**
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+
+**Step 1: Add assertions when operations are present**
+
+Whenever `tran.Operations` is populated (e.g., in revert path or GetTransaction with operations), assert:
+
+```go
+	for _, op := range tran.Operations {
+		assert.NotNil(op, "operation must not be nil", "transaction_id", tran.ID)
+		assert.That(op.TransactionID == tran.ID, "operation transaction_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_transaction_id", op.TransactionID)
+		assert.That(op.OrganizationID == tran.OrganizationID, "operation organization_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_organization_id", op.OrganizationID)
+		assert.That(op.LedgerID == tran.LedgerID, "operation ledger_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_ledger_id", op.LedgerID)
+		assert.That(op.AssetCode == tran.AssetCode, "operation asset_code must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_asset_code", op.AssetCode)
+	}
 ```
 
 ---

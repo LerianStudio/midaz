@@ -1205,6 +1205,58 @@ This plan adds:
 
 **Expected Outcome:** HTTP layer catches middleware wiring bugs immediately with clear context instead of propagating empty strings to database layer. All handlers now validate required path parameters and headers consistently.
 
+---
+
+## Semantic Consistency Assertions (Review Outcome)
+
+Add lightweight **cross-field invariants** after safe extraction to detect repository/middleware mismatches (not user input errors). These should sit **after** a successful service call, before responding.
+
+**Transaction handlers**
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+  - After fetching or mutating a transaction (`GetTransaction`, `UpdateTransaction`, `CommitTransaction`, `CancelTransaction`, `RevertTransaction`), assert:
+    - `tran.OrganizationID == organizationID.String()`
+    - `tran.LedgerID == ledgerID.String()`
+  - Rationale: ensures repo/query layer never returns a transaction from a different org/ledger.
+
+**Balance handlers**
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/balance.go`
+  - After `GetBalanceByID`, `DeleteBalanceByID`, `UpdateBalance`, assert:
+    - `balance.OrganizationID == organizationID.String()`
+    - `balance.LedgerID == ledgerID.String()`
+
+**Operation handlers**
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/operation.go`
+  - After `GetOperationByAccount` / `UpdateOperation`, assert:
+    - `operation.OrganizationID == organizationID.String()`
+    - `operation.LedgerID == ledgerID.String()`
+    - `operation.TransactionID == transactionID.String()` (when path includes transaction)
+
+**Onboarding handlers**
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/adapters/http/in/account.go`
+  - After `GetAccountByID`, `UpdateAccount`, assert:
+    - `account.OrganizationID == organizationID.String()`
+    - `account.LedgerID == ledgerID.String()`
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/adapters/http/in/ledger.go`
+  - After `GetLedgerByID`, `UpdateLedger`, assert:
+    - `ledger.OrganizationID == organizationID.String()`
+
+---
+
+## Semantic Consistency Assertions (Round 2)
+
+Extend cross-entity checks for list endpoints:
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/balance.go`
+  - In `GetAllBalances` / `GetAllBalancesByAccountID`, iterate `balances.Items` and assert each balance has matching `OrganizationID` and `LedgerID`.
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/adapters/http/in/account.go`
+  - In `GetAllAccounts`, assert each account in the list matches org/ledger path parameters.
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+  - In `GetAllTransactions`, assert each transaction in the list matches org/ledger.
+
+These are cheap list invariants that catch data leakage across tenants.
+
 **Files Modified:**
 - `/Users/fredamaral/repos/lerianstudio/midaz/pkg/assert/predicates.go`
 - `/Users/fredamaral/repos/lerianstudio/midaz/pkg/assert/assert_test.go`

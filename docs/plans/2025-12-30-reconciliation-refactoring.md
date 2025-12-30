@@ -1528,6 +1528,30 @@ Run: `cd /Users/fredamaral/repos/lerianstudio/midaz && golangci-lint run ./compo
 
 ---
 
+## Semantic Assertion Additions (Review Outcome)
+
+Add **business-level invariants** to the reconciliation domain to catch subtle data corruption (not user input errors).
+
+**Files and invariants:**
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/reconciliation/internal/domain/report.go`
+  - Assert **counts are non-negative** for all check result fields (e.g., `TotalBalances`, `UnbalancedTransactions`, `OrphanTransactions`, etc.).
+  - Assert **percentages are within [0, 100]** (`DiscrepancyPercentage`, `UnbalancedPercentage`).
+  - Assert **status is valid** (must be one of `HEALTHY/WARNING/CRITICAL/ERROR/SKIPPED/UNKNOWN`).
+  - Assert **percentage consistency**:
+    - If `TotalBalances == 0`, then `DiscrepancyPercentage == 0`.
+    - Else `DiscrepancyPercentage` equals `BalancesWithDiscrepancy / TotalBalances * 100` within a small epsilon.
+    - Same for `UnbalancedPercentage` vs `UnbalancedTransactions / TotalTransactions * 100`.
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/reconciliation/internal/engine/reconciliation.go`
+  - After `RunReconciliation` completes, assert `report.Timestamp` is not in the future and `report.Duration` is non-empty.
+  - When applying results, assert that `report.Status` is consistent with worst status returned by checks (i.e., no downgrade).
+  - Assert `report.Timestamp` is not zero and `report.Duration` parses to a non-negative duration.
+
+These assertions will make refactoring safer by flagging invariant violations immediately during tests.
+
+---
+
 ## Plan Checklist
 
 - [x] Historical precedent queried (artifact-query --mode planning)

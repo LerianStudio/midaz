@@ -2056,7 +2056,7 @@ EOF
 
 ## Summary
 
-This plan adds **~18 assertions** across 8 files:
+This plan adds **~18 structural assertions** across 8 files (plus the semantic consistency checks below):
 
 | File | Assertions Added | Purpose |
 |------|------------------|---------|
@@ -2068,3 +2068,69 @@ This plan adds **~18 assertions** across 8 files:
 | `create-idempotency-key.go` | 2 | Input UUID validation |
 
 **Expected Outcome:** Async processing catches corrupted messages immediately with clear context, preventing silent failures and data corruption.
+
+---
+
+## Semantic Assertion Additions (Review Outcome)
+
+These are **business-level invariants** that go beyond non-nil/UUID checks. Add them where noted to catch silent corruption between queue envelopes and payloads.
+
+### RabbitMQ Balance Create Queue
+**Files:**  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/rabbitmq.server.go`  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-balance.go`
+
+**Assertions to add:**
+- Envelope consistency:
+  - `message.AccountID != uuid.Nil` (queue envelope must identify account).
+  - For each `QueueData` item: `item.ID == message.AccountID` when a single account is expected.
+  - `len(item.Value) > 0` (payload must exist).
+- Payload consistency (after `json.Unmarshal` into `mmodel.Account` in `CreateBalance`):
+  - `account.ID == item.ID.String()` and matches `message.AccountID`.
+  - `account.OrganizationID == message.OrganizationID.String()`
+  - `account.LedgerID == message.LedgerID.String()`
+  - `account.AssetCode` is not empty (semantic invariant for balance creation).
+
+### RabbitMQ BTO Queue
+**Files:**  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/rabbitmq.server.go`  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-balance-transaction-operations-async.go`
+
+**Assertions to add:**
+- Envelope structure:
+  - `len(message.QueueData) == 1` (current producer always sends a single transaction payload).
+  - `message.QueueData[0].ID != uuid.Nil`.
+- TransactionQueue consistency (after msgpack unmarshal in `unmarshalQueueData`):
+  - `t.Transaction != nil`, `t.Validate != nil`.
+  - `t.Transaction.IDtoUUID() == message.QueueData[0].ID` (payload ID must match envelope).
+  - `t.Transaction.OrganizationID == message.OrganizationID.String()` and `t.Transaction.LedgerID == message.LedgerID.String()`.
+  - `assert.ValidTransactionStatus(t.Transaction.Status.Code)` (semantic status validity).
+
+### Redis Queue Consumer
+**File:**  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/redis.consumer.go`
+
+**Assertions to add in `unmarshalAndValidateMessage`:**
+- `transaction.HeaderID` not empty (traceability invariant).
+- `assert.ValidTransactionStatus(transaction.TransactionStatus)` (status validity).
+- `assert.DateNotInFuture(transaction.TransactionDate)` (transaction timestamp should not be in the future).
+- `transaction.TTL` not in the future (queue metadata must be from the past).
+- `transaction.Validate != nil` (used downstream to build operations).
+- If `transaction.TransactionStatus != constant.NOTED`, then `len(transaction.Balances) > 0`.
+- `transaction.TransactionID != uuid.Nil` and `transaction.OrganizationID`/`transaction.LedgerID` not nil.
+- `transaction.ParserDSL.Send.Asset` not empty and `transaction.ParserDSL.Send.Value` is positive.
+
+**Additional envelope-to-key check (semantic):**
+- In `processMessages`, parse `key` (format `transaction:{transactions}:org:ledger:transaction_id`) and assert:
+  - Parsed org/ledger IDs match `transaction.OrganizationID`/`transaction.LedgerID`.
+  - Parsed transaction ID matches `transaction.TransactionID`.
+  - This catches queue key corruption or misrouting.
+
+### Worker Constructors
+**Files:**  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/balance.worker.go`  
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/metadata_outbox.worker.go`
+
+**Assertions to add:**
+- `maxWorkers > 0` (semantic runtime guard).
+- `retentionDays > 0` for `MetadataOutboxWorker` (avoid negative expiry behavior).

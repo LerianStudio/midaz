@@ -1162,7 +1162,7 @@ EOF
 | `MarkDLQ` | `NotEmpty` | Reason not empty |
 | `MarkDLQ` | `That` | Exactly one row affected |
 
-**Total: ~14 assertions across 6 methods**
+**Total: ~14 structural assertions across 6 methods (plus semantic invariants below)**
 
 ## SQL-Level State Machine Enforcement
 
@@ -1173,6 +1173,37 @@ EOF
 | `MarkDLQ` | `status IN ('PROCESSING', 'FAILED')` | PROCESSING or FAILED |
 
 This provides defense-in-depth: Go assertions catch programmer errors early, SQL constraints prevent invalid database states.
+
+---
+
+## Semantic Assertion Additions (Review Outcome)
+
+Enforce **time/order and retry invariants** in addition to status transitions. These should live in the same methods already being updated with assertions:
+
+**File:** `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/postgres/outbox/outbox.postgresql.go`
+
+- **markEntriesAsProcessing**
+  - `processing_started_at` must be set and **>= created_at** for all updated rows (assert in Go after update and re-fetch, or via SQL update + select).
+  - Reason: processing timestamps must be monotonic.
+
+- **MarkPublished**
+  - `processed_at` must be set and **>= processing_started_at** (if processing_started_at exists).
+  - `status` transitions only from PROCESSING (already enforced by SQL); add assertion that `processing_started_at` is present when publishing.
+
+- **MarkFailed**
+  - `next_retry_at` must be **after** `now` (or at least not in the past).
+  - `retry_count` must be incremented by 1 and **<= max_retries**.
+  - `last_error` must be non-empty (already in plan) and `processing_started_at` must be present.
+
+- **MarkDLQ**
+  - `retry_count >= max_retries` before moving to DLQ (semantic invariant of “exhausted retries”).
+  - `last_error` must be non-empty (already in plan) and `processed_at` should remain nil (DLQ is terminal but not “published”).
+
+**Additional invariants in repo methods:**
+- `RetryCount` and `MaxRetries` must be non-negative, and `MaxRetries > 0` (assert in `Create` and `FindByEntityID` results).
+- `Status` loaded from DB must be one of `PENDING/PROCESSING/FAILED/PUBLISHED/DLQ`; otherwise `assert.Never` (prevents silent enum drift).
+
+These checks prevent silent time-travel bugs (future timestamps) and enforce that retry/DLQ semantics stay consistent with the state machine.
 
 ---
 

@@ -1417,7 +1417,7 @@ Run: `golangci-lint run ./components/transaction/... ./components/onboarding/...
 
 ## Summary
 
-**Total Assertions Added:** ~15 assertions across 12 files
+**Total Assertions Added:** ~15 structural assertions across 12 files (plus semantic postconditions below)
 
 | File | Assertions Added |
 |------|-----------------|
@@ -1434,3 +1434,65 @@ Run: `golangci-lint run ./components/transaction/... ./components/onboarding/...
 | create-assetrate.go | 2 (postconditions) |
 
 **Expected Outcome:** Repository bugs caught at service layer boundary with clear context for debugging. Prevents nil propagation through the system.
+
+---
+
+## Semantic Postcondition Additions (Review Outcome)
+
+These assertions validate **business consistency** of repository outputs, not just non-nil results. Add them immediately after the existing `assert.NotNil(...)` guards.
+
+**Files and invariants:**
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/update-operation.go`  
+  - `operationUpdated.ID == operationID.String()`  
+  - `operationUpdated.TransactionID == transactionID.String()`  
+  - `operationUpdated.OrganizationID == organizationID.String()`  
+  - `operationUpdated.LedgerID == ledgerID.String()`
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-operation-route.go`  
+  - `createdOperationRoute.OrganizationID == organizationID`  
+  - `createdOperationRoute.LedgerID == ledgerID`  
+  - `createdOperationRoute.ID != uuid.Nil` (ID must be generated)
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-transaction-route.go`  
+  - `createdTransactionRoute.OrganizationID == organizationID`  
+  - `createdTransactionRoute.LedgerID == ledgerID`  
+  - `len(createdTransactionRoute.OperationRoutes) == len(operationRoutes)` (route expansion integrity)
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/services/command/update-account.go`  
+  - `accountUpdated.ID == id.String()`  
+  - `accountUpdated.OrganizationID == organizationID.String()`  
+  - `accountUpdated.LedgerID == ledgerID.String()`
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/services/command/update-organization.go`  
+  - `organizationUpdated.ID == organizationID.String()`
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/services/command/update-ledger.go`  
+  - `ledgerUpdated.ID == id.String()`  
+  - `ledgerUpdated.OrganizationID == organizationID.String()`
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-assetrate.go`  
+  - `assetRate.ExternalID == payload.ExternalID`  
+  - `assetRate.OrganizationID == organizationID.String()`  
+  - `assetRate.LedgerID == ledgerID.String()`
+
+---
+
+## Semantic Postcondition Additions (Round 2)
+
+Further invariants that catch subtle repository mis-writes:
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-transaction-route.go`  
+  - `len(operationRoutes) == len(payload.OperationRoutes)` (no silent drop)  
+  - `operationRouteList` IDs match `payload.OperationRoutes` (set equality)
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-operation-route.go`  
+  - `createdOperationRoute.OperationType == payload.OperationType`  
+  - `createdOperationRoute.Code == payload.Code` (immutable business key)
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/onboarding/internal/services/command/update-account.go`  
+  - If `uai.Metadata == nil`, ensure `accountUpdated.Metadata` remains unchanged (repo should not wipe metadata).  
+    - Implementation note: compare to `accFound.Metadata` before update; assert equality.
+
+- `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/update-operation.go`  
+  - If `uoi.Description != ""`, ensure `operationUpdated.Description == uoi.Description`.

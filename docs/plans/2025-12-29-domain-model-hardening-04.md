@@ -1624,7 +1624,7 @@ EOF
 
 ## Summary
 
-**Total assertions added:** ~20-25
+**Total assertions added:** ~20-25 (plus semantic invariants below)
 
 **Files modified:**
 1. `/Users/fredamaral/repos/lerianstudio/midaz/pkg/transaction/validations.go` - Share sum validation, onHold non-negativity, decimal precision
@@ -1650,3 +1650,44 @@ EOF
 - Operation constructor validates all inputs
 - Status codes must be known
 - Status transitions must be valid
+
+---
+
+## Semantic Assertion Additions (Review Outcome)
+
+These checks target **business semantics** in the transaction DSL and share/amount distribution logic.
+
+**File:** `/Users/fredamaral/repos/lerianstudio/midaz/pkg/transaction/validations.go` (within `CalculateTotal`)
+
+Add the following invariants alongside the existing share-sum and non-negative checks:
+
+- **Amount vs. Share exclusivity:** A `FromTo` entry must not specify both `Amount` and `Share`.
+  - `assert.That(!(fromTos[i].Amount != nil && fromTos[i].Share != nil), "from/to entry cannot contain both amount and share", "alias", fromTos[i].AccountAlias)`
+
+- **Asset consistency:** Any explicit `Amount.Asset` must match `transaction.Send.Asset`.
+  - `assert.That(fromTos[i].Amount == nil || fromTos[i].Amount.Asset == transaction.Send.Asset, "amount asset must match transaction asset", "alias", fromTos[i].AccountAlias, "amount_asset", fromTos[i].Amount.Asset, "transaction_asset", transaction.Send.Asset)`
+
+- **Single remaining entry:** Only one entry per side should have `Remaining` set.
+  - Track `remainingCount` and `assert.That(remainingCount <= 1, "only one remaining entry allowed", "count", remainingCount)`
+
+- **Remaining required when shares < 100:** If total share percentage is **less than 100**, at least one `Remaining` entry must exist (otherwise the remainder is silently dropped).
+  - `assert.That(totalSharePercentage == 100 || remainingCount == 1, "remaining entry required when share total < 100", "total_share", totalSharePercentage)`
+
+---
+
+## Semantic Assertion Additions (Round 2)
+
+Additional invariants for transaction DSL correctness:
+
+**File:** `/Users/fredamaral/repos/lerianstudio/midaz/pkg/transaction/validations.go`
+
+- **Transaction type validity:** before distribution logic, assert the transactionType is known:
+  - `assert.That(assert.ValidTransactionStatus(transactionType), "transaction type must be valid", "transactionType", transactionType)`
+
+- **Share percentage range:** each `Share.Percentage` must be within `[0, 100]` and `PercentageOfPercentage` within `[0, 100]` (or 0 for "not set"):
+  - `assert.That(assert.InRangeInt64(share.Percentage, 0, 100), "share percentage must be 0-100", "alias", fromTos[i].AccountAlias)`
+  - `assert.That(share.PercentageOfPercentage == 0 || assert.InRangeInt64(share.PercentageOfPercentage, 0, 100), "percentageOfPercentage must be 0-100", "alias", fromTos[i].AccountAlias)`
+
+- **Rate consistency:** when `Rate` is provided, assert `Rate.From`/`Rate.To` not empty and `Rate.Value` is positive:
+  - `assert.That(fromTos[i].Rate == nil || (fromTos[i].Rate.From != "" && fromTos[i].Rate.To != ""), "rate from/to must be set", "alias", fromTos[i].AccountAlias)`
+  - `assert.That(fromTos[i].Rate == nil || fromTos[i].Rate.Value.IsPositive(), "rate value must be positive", "alias", fromTos[i].AccountAlias)`

@@ -1390,9 +1390,25 @@ EOF
 
 ---
 
+## Semantic Assertion Fuzz Additions (Review Outcome)
+
+Add fuzz coverage for the **new business-logic predicates** introduced in the semantic assertions plan:
+
+**File:** `/Users/fredamaral/repos/lerianstudio/midaz/tests/fuzzy/predicates_fuzz_test.go`
+
+- `FuzzDateNotInFuture`: generate random `time.Time` values (past, now, future) and assert expected predicate behavior.
+- `FuzzDateAfter`: generate pairs of dates and verify strict ordering.
+- `FuzzTransactionCanBeReverted`: randomize status codes + parent flag to validate predicate behavior (APPROVED + no parent only).
+- `FuzzBalanceIsZero`: randomize available/onHold and validate predicate behavior.
+- `FuzzDebitsEqualCredits`: generate paired decimals with slight perturbations and ensure exact-equality requirement holds.
+
+These fuzzers should use the same `assertionPanicRecovery` helper to treat assertion panics as expected outcomes.
+
+---
+
 ## Summary
 
-This plan creates 5 new fuzz test files with 12 new fuzz tests:
+This plan creates 5 new fuzz test files with 12+ new fuzz tests (plus the semantic predicate fuzzers above):
 
 | File | Tests | Coverage |
 |------|-------|----------|
