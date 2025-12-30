@@ -760,6 +760,12 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 // MarkDLQ marks an entry as permanently failed (Dead Letter Queue).
 // Error message is sanitized to remove PII before storage.
 func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, errMsg string) error {
+	// Validate preconditions
+	assert.That(assert.ValidUUID(id), "outbox entry ID must be valid UUID",
+		"id", id, "method", "MarkDLQ")
+	assert.NotEmpty(errMsg, "DLQ reason must not be empty",
+		"id", id, "method", "MarkDLQ")
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_dlq")
@@ -774,18 +780,28 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 
 	// Sanitize error message to remove PII before storing
 	sanitizedErr := SanitizeErrorMessage(errMsg)
+	assert.NotEmpty(sanitizedErr, "sanitized DLQ reason must not be empty",
+		"id", id, "method", "MarkDLQ")
 
+	now := time.Now()
+
+	// Enforce state machine: PROCESSING -> DLQ or FAILED -> DLQ are valid
+	// Note: PROCESSING -> DLQ happens when processing fails and max retries already exceeded
+	// FAILED -> DLQ happens when retry count check happens before retry attempt
 	query := `
 		UPDATE metadata_outbox
 		SET status = $1, last_error = $2, updated_at = $3
-		WHERE id = $4
+		WHERE id = $4 AND status IN ($5, $6) AND retry_count >= max_retries AND processed_at IS NULL
+		RETURNING retry_count, max_retries, processed_at
 	`
 
-	result, err := db.ExecContext(ctx, query,
+	rows, err := db.QueryContext(ctx, query,
 		string(StatusDLQ),
 		sanitizedErr,
-		time.Now(),
+		now,
 		id,
+		string(StatusProcessing),
+		string(StatusFailed),
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as DLQ", err)
@@ -793,17 +809,44 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
+	defer rows.Close()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+	var (
+		retryCount   int
+		maxRetries   int
+		processedAt  sql.NullTime
+		rowsAffected int64
+	)
+	for rows.Next() {
+		if scanErr := rows.Scan(&retryCount, &maxRetries, &processedAt); scanErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan marked DLQ row", scanErr)
+			logger.Errorf("Failed to scan marked DLQ row: %v", scanErr)
 
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
+			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
+		}
+		rowsAffected++
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked DLQ rows", rowsErr)
+		logger.Errorf("Failed to iterate marked DLQ rows: %v", rowsErr)
 
+		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
+	}
 	if rowsAffected == 0 {
+		// Could be: entry not found OR entry not in PROCESSING/FAILED status
+		logger.Warnf("MarkDLQ: no rows affected - entry may not exist or in invalid status: id=%s", id)
+
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
+
+	assert.That(retryCount >= maxRetries, "retry_count must be >= max_retries before DLQ",
+		"id", id, "retry_count", retryCount, "max_retries", maxRetries)
+	assert.That(!processedAt.Valid, "processed_at must be nil for DLQ entries",
+		"id", id)
+
+	// Postcondition: exactly one row should be affected
+	assert.That(rowsAffected == 1, "mark DLQ must affect exactly one row",
+		"rows_affected", rowsAffected, "id", id)
 
 	// Log DLQ event for alerting (no PII in message)
 	// TODO(review): Consider adding metrics/alerting hook for DLQ entries
