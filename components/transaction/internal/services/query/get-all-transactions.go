@@ -9,10 +9,12 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/contextutils"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -181,7 +183,7 @@ func (uc *UseCase) processTransactionOperations(operations []*operation.Operatio
 
 // enrichTransactionOperationsMetadata retrieves and assigns metadata to operations
 func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
 	defer span.End()
@@ -189,7 +191,6 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
-
 		logger.Warnf("Error getting operation metadata: %v", err)
 
 		return pkg.ValidateInternalError(err, reflect.TypeOf(operation.Operation{}).Name())
@@ -206,8 +207,53 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 		}
 	}
 
+	uc.enrichMissingMetadataFromOutbox(ctx, operations, &span, logger)
+
+	return nil
+}
+
+// enrichMissingMetadataFromOutbox fills in missing operation metadata from the outbox.
+func (uc *UseCase) enrichMissingMetadataFromOutbox(ctx context.Context, operations []*operation.Operation, span *trace.Span, logger libLog.Logger) {
 	if uc.OutboxRepo == nil {
-		return nil
+		return
+	}
+
+	ids := uc.collectOperationIDsNeedingMetadata(operations)
+	if len(ids) == 0 {
+		return
+	}
+
+	metadataByID, errorsByID := uc.fetchMetadataFromOutboxBatch(ctx, outbox.EntityTypeOperation, ids)
+	metricFactory := contextutils.MetricsFromContext(ctx)
+
+	uc.applyOutboxMetadataToOperations(ctx, operations, metadataByID, errorsByID, span, logger, metricFactory)
+}
+
+// collectOperationIDsNeedingMetadata returns deduplicated IDs of operations missing metadata.
+func (uc *UseCase) collectOperationIDsNeedingMetadata(operations []*operation.Operation) []string {
+	ids := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for j := range operations {
+		if len(operations[j].Metadata) != 0 {
+			continue
+		}
+
+		if _, ok := seen[operations[j].ID]; ok {
+			continue
+		}
+
+		seen[operations[j].ID] = struct{}{}
+		ids = append(ids, operations[j].ID)
+	}
+
+	return ids
+}
+
+// applyOutboxMetadataToOperations applies fetched metadata to operations that need it.
+func (uc *UseCase) applyOutboxMetadataToOperations(ctx context.Context, operations []*operation.Operation, metadataByID map[string]map[string]any, errorsByID map[string]error, span *trace.Span, logger libLog.Logger, metricFactory *metrics.MetricsFactory) {
+	if len(metadataByID) == 0 && len(errorsByID) == 0 {
+		return
 	}
 
 	for j := range operations {
@@ -215,34 +261,35 @@ func (uc *UseCase) enrichTransactionOperationsMetadata(ctx context.Context, oper
 			continue
 		}
 
-		outboxMetadata, ok, outboxErr := uc.fetchMetadataFromOutbox(ctx, outbox.EntityTypeOperation, operations[j].ID)
-		if outboxErr != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to fetch operation metadata from outbox", outboxErr)
-
-			// Lightweight observability: count failures and make them searchable.
-			if metricFactory != nil {
-				metricFactory.Counter(utils.TransactionOutboxFetchFailures).
-					WithLabels(map[string]string{
-						"entity_type": outbox.EntityTypeOperation,
-					}).
-					AddOne(ctx)
-			}
-
-			logger.WithFields(
-				"operation_id", operations[j].ID,
-				"entity_type", outbox.EntityTypeOperation,
-				"outbox_fetch_failed", true,
-				"outbox_error", outboxErr.Error(),
-			).Warnf("Error fetching operation metadata from outbox: %v", outboxErr)
+		if err, ok := errorsByID[operations[j].ID]; ok && err != nil {
+			uc.logOutboxFetchError(ctx, span, logger, metricFactory, operations[j].ID, err)
 			continue
 		}
 
-		if ok {
-			operations[j].Metadata = outboxMetadata
+		if md, ok := metadataByID[operations[j].ID]; ok && len(md) != 0 {
+			operations[j].Metadata = md
 		}
 	}
+}
 
-	return nil
+// logOutboxFetchError logs and records metrics for outbox fetch failures.
+func (uc *UseCase) logOutboxFetchError(ctx context.Context, span *trace.Span, logger libLog.Logger, metricFactory *metrics.MetricsFactory, operationID string, err error) {
+	libOpentelemetry.HandleSpanError(span, "Failed to fetch operation metadata from outbox", err)
+
+	if metricFactory != nil {
+		metricFactory.Counter(utils.TransactionOutboxFetchFailures).
+			WithLabels(map[string]string{
+				"entity_type": outbox.EntityTypeOperation,
+			}).
+			AddOne(ctx)
+	}
+
+	logger.WithFields(
+		"operation_id", operationID,
+		"entity_type", outbox.EntityTypeOperation,
+		"outbox_fetch_failed", true,
+		"outbox_error", err.Error(),
+	).Warnf("Error fetching operation metadata from outbox: %v", err)
 }
 
 // GetOperationsByTransaction retrieves all operations associated with a transaction and attaches them to the transaction object.

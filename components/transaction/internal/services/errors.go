@@ -17,6 +17,23 @@ var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 // ErrInvalidOperationRouteType is thrown when operation route type is invalid
 var ErrInvalidOperationRouteType = errors.New("invalid operation route type")
 
+// ErrOperationRouteLookup is thrown when operation route lookup fails
+var ErrOperationRouteLookup = errors.New("operation route lookup failed")
+
+// ErrContextCanceled is thrown when context is canceled during operation
+var ErrContextCanceled = errors.New("context canceled")
+
+// ErrOperationRouteUpdate is thrown when operation route update fails
+var ErrOperationRouteUpdate = errors.New("operation route update failed")
+
+// ErrOperationRouteNotFound is thrown when an operation route is not found.
+// This sentinel is intended for callers that want to detect "not found" via errors.Is,
+// even when the underlying error is a typed business error (e.g. *pkg.EntityNotFoundError).
+var ErrOperationRouteNotFound = errors.New("operation route not found")
+
+// ErrOutboxLookup is thrown when outbox lookup fails
+var ErrOutboxLookup = errors.New("outbox lookup failed")
+
 // ValidatePGError validate pgError and return business error
 func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
 	switch {

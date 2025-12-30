@@ -2,10 +2,20 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+)
+
+// Alias parsing constants.
+const (
+	// aliasWithKeySeparatorParts is the number of parts when alias contains exactly one '#' separator.
+	// Format: "alias#key" splits into ["alias", "key"] = 2 parts.
+	aliasWithKeySeparatorParts = 2
 )
 
 func shallowCopyMetadata(src map[string]any) map[string]any {
@@ -28,10 +38,19 @@ func backfillTransactionMetadataFromBody(tran *transaction.Transaction) {
 		return
 	}
 
+	backfillTransactionMetadata(tran)
+	backfillOperationsMetadata(tran)
+}
+
+// backfillTransactionMetadata copies metadata from body to transaction if missing.
+func backfillTransactionMetadata(tran *transaction.Transaction) {
 	if len(tran.Metadata) == 0 && len(tran.Body.Metadata) > 0 {
 		tran.Metadata = shallowCopyMetadata(tran.Body.Metadata)
 	}
+}
 
+// backfillOperationsMetadata fills in missing operation metadata from transaction body.
+func backfillOperationsMetadata(tran *transaction.Transaction) {
 	if len(tran.Operations) == 0 {
 		return
 	}
@@ -45,13 +64,25 @@ func backfillTransactionMetadataFromBody(tran *transaction.Transaction) {
 		return
 	}
 
-	for i := range tran.Operations {
-		if len(tran.Operations[i].Metadata) != 0 {
+	applyOperationMetadataFromMap(tran.Operations, opMetadata)
+}
+
+// applyOperationMetadataFromMap assigns metadata to operations that don't have it.
+func applyOperationMetadataFromMap(operations []*operation.Operation, opMetadata map[string]map[string]any) {
+	for i := range operations {
+		if len(operations[i].Metadata) != 0 {
 			continue
 		}
 
-		if metadata, ok := lookupOperationMetadata(opMetadata, tran.Operations[i].Type, normalizeAlias(tran.Operations[i].AccountAlias), tran.Operations[i].BalanceKey, tran.Operations[i].Route); ok && len(metadata) != 0 {
-			tran.Operations[i].Metadata = shallowCopyMetadata(metadata)
+		metadata, ok := lookupOperationMetadata(
+			opMetadata,
+			operations[i].Type,
+			normalizeAlias(operations[i].AccountAlias),
+			operations[i].BalanceKey,
+			operations[i].Route,
+		)
+		if ok && len(metadata) != 0 {
+			operations[i].Metadata = shallowCopyMetadata(metadata)
 		}
 	}
 }
@@ -63,7 +94,7 @@ func (uc *UseCase) fetchMetadataFromOutbox(ctx context.Context, entityType, enti
 
 	entry, err := uc.OutboxRepo.FindByEntityID(ctx, entityID, entityType)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("%w: %w", services.ErrOutboxLookup, err)
 	}
 
 	if entry == nil || len(entry.Metadata) == 0 {
@@ -71,6 +102,37 @@ func (uc *UseCase) fetchMetadataFromOutbox(ctx context.Context, entityType, enti
 	}
 
 	return entry.Metadata, true, nil
+}
+
+// fetchMetadataFromOutboxBatch retrieves metadata for multiple entities in a single outbox repo call.
+// It preserves the same error wrapping semantics as fetchMetadataFromOutbox (ErrOutboxLookup).
+func (uc *UseCase) fetchMetadataFromOutboxBatch(ctx context.Context, entityType string, entityIDs []string) (map[string]map[string]any, map[string]error) {
+	if uc == nil || uc.OutboxRepo == nil || len(entityIDs) == 0 {
+		return nil, nil
+	}
+
+	metadataByID, errorsByID, err := uc.OutboxRepo.FindMetadataByEntityIDs(ctx, entityIDs, entityType)
+	if err != nil {
+		// Preserve per-ID logging/metrics behavior by returning an error for every requested ID.
+		perID := make(map[string]error, len(entityIDs))
+
+		wrapped := fmt.Errorf("%w: %w", services.ErrOutboxLookup, err)
+		for _, id := range entityIDs {
+			perID[id] = wrapped
+		}
+
+		return nil, perID
+	}
+
+	if len(errorsByID) != 0 {
+		for id, e := range errorsByID {
+			if e != nil {
+				errorsByID[id] = fmt.Errorf("%w: %w", services.ErrOutboxLookup, e)
+			}
+		}
+	}
+
+	return metadataByID, errorsByID
 }
 
 func buildOperationMetadataMapFromBody(tran *transaction.Transaction) map[string]map[string]any {
@@ -116,7 +178,7 @@ func normalizeAlias(alias string) string {
 	switch len(parts) {
 	case 1:
 		return alias
-	case 2:
+	case aliasWithKeySeparatorParts:
 		return parts[0]
 	default:
 		return parts[1]

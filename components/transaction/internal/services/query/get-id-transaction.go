@@ -117,6 +117,7 @@ func (uc *UseCase) enrichTransactionMetadata(ctx context.Context, span *trace.Sp
 			tran.Metadata = outboxMetadata
 		}
 	}
+
 	backfillTransactionMetadataFromBody(tran)
 
 	return nil

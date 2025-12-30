@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -645,8 +646,10 @@ func TestListBalancesByAliasesWithKeysWithRetry_IncompleteAfterMaxRetries_Return
 	got, err := uc.listBalancesByAliasesWithKeysWithRetry(ctx, organizationID, ledgerID, aliases, len(aliases), logger, sleep)
 	assert.Error(t, err)
 	assert.Len(t, got, len(partial))
-	assert.Contains(t, err.Error(), "balances incomplete after max retries")
-	assert.Contains(t, err.Error(), "expected 3, got 2")
+	var unprocessable pkg.UnprocessableOperationError
+	if assert.ErrorAs(t, err, &unprocessable) {
+		assert.Equal(t, constant.ErrAccountIneligibility.Error(), unprocessable.Code)
+	}
 }
 
 type MockLogger struct{}
@@ -672,7 +675,7 @@ func (m *MockLogger) WithFields(...any) libLog.Logger                 { return m
 
 // Precondition tests for GetBalances
 
-func TestValidateIfBalanceExistsOnRedis_MalformedAlias_Panics(t *testing.T) {
+func TestValidateIfBalanceExistsOnRedis_MalformedAlias_DoesNotPanic_AndFallsBackToDB(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -691,17 +694,13 @@ func TestValidateIfBalanceExistsOnRedis_MalformedAlias_Panics(t *testing.T) {
 		Get(gomock.Any(), gomock.Any()).
 		Return(`{"id":"test-id","accountId":"acc-123","available":"100","onHold":"0","version":1}`, nil)
 
-	defer func() {
-		r := recover()
-		assert.NotNil(t, r, "expected panic on malformed alias without # separator")
-		panicMsg := fmt.Sprintf("%v", r)
-		assert.True(t, strings.Contains(panicMsg, "alias must contain exactly one '#' separator"),
-			"panic message should mention alias separator, got: %s", panicMsg)
-	}()
-
 	ctx := context.Background()
 	logger := &MockLogger{}
-	_, _ = uc.ValidateIfBalanceExistsOnRedis(ctx, logger, orgID, ledgerID, []string{malformedAlias})
+	balances, remaining := uc.ValidateIfBalanceExistsOnRedis(ctx, logger, orgID, ledgerID, []string{malformedAlias})
+
+	assert.Len(t, balances, 0)
+	assert.Len(t, remaining, 1)
+	assert.Equal(t, malformedAlias, remaining[0])
 }
 
 func TestGetBalances_NilOrganizationID_Panics(t *testing.T) {

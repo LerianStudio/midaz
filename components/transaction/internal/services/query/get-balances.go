@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/contextutils"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -21,9 +23,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// ErrBalancesNotReady indicates that the expected number of balances was not found.
+var ErrBalancesNotReady = errors.New("balances not ready")
+
+// ErrInvalidAliasFormat indicates that an alias string is not in the expected "alias#key" format.
+var ErrInvalidAliasFormat = errors.New("invalid alias#key format")
+
 const (
 	maxBalanceLookupAttempts = 5
 	balanceLookupBaseBackoff = 200 * time.Millisecond
+	// aliasKeySeparatorParts is the expected number of parts when splitting alias by '#'.
+	// Format: "alias#key" -> ["alias", "key"]
+	aliasKeySeparatorParts = 2
 )
 
 // GetBalances methods responsible to get balances from a database.
@@ -111,19 +122,16 @@ func (uc *UseCase) listBalancesByAliasesWithKeysWithRetry(
 		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 		if err == nil {
 			if expectedCount > 0 && len(balancesByAliases) < expectedCount {
-				lastErr = fmt.Errorf("balances not ready: expected %d, got %d", expectedCount, len(balancesByAliases))
+				lastErr = fmt.Errorf("%w: expected %d, got %d", ErrBalancesNotReady, expectedCount, len(balancesByAliases))
 				if attempt == maxBalanceLookupAttempts-1 {
-					return balancesByAliases, fmt.Errorf(
-						"balances incomplete after max retries: expected %d, got %d: %w",
-						expectedCount,
-						len(balancesByAliases),
-						lastErr,
-					)
+					logger.Warnf("Balance lookup incomplete on final attempt: got %d/%d: %v", len(balancesByAliases), expectedCount, lastErr)
+					return balancesByAliases, pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 				}
 
 				backoff := time.Duration(1<<attempt) * balanceLookupBaseBackoff
 				logger.Warnf("Balance lookup incomplete (attempt %d/%d), retrying in %s: %v", attempt+1, maxBalanceLookupAttempts, backoff, lastErr)
 				sleep(backoff)
+
 				continue
 			}
 
@@ -158,7 +166,7 @@ func isRetriableBalanceLookupErr(err error) bool {
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
 func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	tracer := contextutils.TracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_if_balance_exists_on_redis")
 	defer span.End()
@@ -183,10 +191,24 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, logger li
 			}
 
 			aliasAndKey := strings.Split(alias, "#")
-			assert.That(len(aliasAndKey) == 2,
-				"alias must contain exactly one '#' separator",
-				"alias", alias,
-				"parts", len(aliasAndKey))
+			if len(aliasAndKey) != aliasKeySeparatorParts {
+				// Defensive handling: malformed alias strings must never crash the query path.
+				// Treat this as a cache miss so the DB path can return a typed error (or recover)
+				// according to the caller's expectations.
+				err := fmt.Errorf("%w: %q", ErrInvalidAliasFormat, alias)
+				libOpentelemetry.HandleSpanError(&span, "Invalid alias#key format from Redis cache hit", err)
+
+				logger.Errorf(
+					"Invalid alias#key format from Redis cache hit (source=validate.Aliases): alias=%q internalKey=%q parts=%d",
+					alias,
+					internalKey,
+					len(aliasAndKey),
+				)
+
+				newAliases = append(newAliases, alias)
+
+				continue
+			}
 
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,
@@ -318,7 +340,9 @@ func filterBalanceOperationsForStatus(operations []mmodel.BalanceOperation, vali
 	if capEstimate > len(operations) {
 		capEstimate = len(operations)
 	}
+
 	filtered := make([]mmodel.BalanceOperation, 0, capEstimate)
+
 	for _, op := range operations {
 		if _, ok := validate.From[op.Alias]; ok {
 			filtered = append(filtered, op)
