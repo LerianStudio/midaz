@@ -55,7 +55,7 @@ func TestEntityCounter_GetOnboardingCounts_Error(t *testing.T) {
 	counts, err := counter.GetOnboardingCounts(context.Background())
 
 	require.Error(t, err)
-	assert.NotNil(t, counts) // Still returns struct, just empty
+	assert.Nil(t, counts)
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 }
 
@@ -103,6 +103,6 @@ func TestEntityCounter_GetTransactionCounts_Error(t *testing.T) {
 	counts, err := counter.GetTransactionCounts(context.Background())
 
 	require.Error(t, err)
-	assert.NotNil(t, counts)
+	assert.Nil(t, counts)
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
 }
