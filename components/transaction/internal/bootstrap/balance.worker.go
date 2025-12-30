@@ -129,6 +129,12 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 
 			defer wg.Done()
 
+			defer func() {
+				if r := recover(); r != nil {
+					w.logger.Errorf("BalanceSyncWorker: panic recovered while processing %s: %v", member, r)
+				}
+			}()
+
 			if w.shouldShutdown(ctx) {
 				return
 			}
@@ -166,6 +172,10 @@ func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.
 // processBalanceToExpire handles a single scheduled member lifecycle.
 // WHY: Reduce cognitive complexity of Run by isolating the per-member logic.
 func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redis.UniversalClient, member string) {
+	// Timeout shorter than lock TTL (600s) to ensure operations don't exceed the lock duration
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
 	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "balance.worker.process_balance_to_expire")

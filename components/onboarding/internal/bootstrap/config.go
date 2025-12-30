@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "onboarding"
@@ -128,15 +133,18 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
+	// Extract port and parameters for MongoDB connection
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -171,8 +179,16 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	if cfg.TransactionGRPCAddress == "" || cfg.TransactionGRPCPort == "" {
-		logger.Fatal("TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT must be configured")
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
 	}
 
 	grpcConnection := &mgrpc.GRPCConnection{
@@ -191,6 +207,23 @@ func InitServers() *Service {
 	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+
+	// Ensure indexes also for known base collections on fresh installs
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelEnsureIndexes()
+
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(false),
+	}
+
+	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
 
 	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
 

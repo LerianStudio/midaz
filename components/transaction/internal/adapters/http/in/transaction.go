@@ -3,6 +3,8 @@ package in
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -561,6 +564,13 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
+	// Try to get transaction from idempotency cache first
+	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
+		c.Set("X-Cache-Hit", "true")
+
+		return http.OK(c, cachedTran)
+	}
+
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
@@ -941,9 +951,28 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		return http.WithError(c, err)
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	handler.Command.SendTransactionToRedisQueue(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
+
+		logger.Errorf("Failed to send transaction to backup cache: %v", err.Error())
+
+		// Only delete idempotency key if marshal failed
+		// If Redis is down, Del would also fail
+		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
+			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, key)
+		}
+
+		spanSendTransactionToRedisQueue.End()
+
+		return http.WithError(c, pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name()))
+	}
+
+	spanSendTransactionToRedisQueue.End()
+
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
@@ -1022,6 +1051,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
+	handler.Command.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, tran.ID, key, 5)
+
 	return http.Created(c, tran)
 }
 
@@ -1035,6 +1066,41 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
+
+	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
+
+	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
+	ttl := time.Duration(300)
+
+	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
+
+		logger.Errorf("Failed to set on redis: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	// if it could not acquire the lock, the pending transaction is already being processed
+	if !success {
+		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction is locked", err)
+
+		logger.Errorf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	// deleteLockOnError removes the lock only when an error occurs, allowing immediate retry.
+	// On success, the lock remains until TTL expires to prevent duplicate processing.
+	deleteLockOnError := func() {
+		if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+
+			logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
+		}
+	}
 
 	parserDSL := tran.Body
 
@@ -1057,6 +1123,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error())
 
+		deleteLockOnError()
+
 		return http.WithError(c, err)
 	}
 
@@ -1067,6 +1135,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		logger.Error("Failed to validate send source and distribute: %v", err.Error())
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1079,6 +1149,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 		spanGetBalances.End()
+
+		deleteLockOnError()
 
 		return http.WithError(c, err)
 	}
@@ -1108,6 +1180,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
+
+	// immediately update transaction status if application is configured to persist transaction asynchronously
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction status synchronously", err)
+
+			logger.Errorf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error())
+		}
+	}
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {

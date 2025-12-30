@@ -1,8 +1,8 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -27,6 +27,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "transaction"
@@ -146,15 +150,18 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
+	// Extract port and parameters for MongoDB connection
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
 	}
 
-	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" + cfg.MongoDBParameters
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -199,6 +206,23 @@ func InitServers() *Service {
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+
+	// Ensure indexes also for known base collections on fresh installs
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelEnsureIndexes()
+
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(false),
+	}
+
+	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
@@ -293,6 +317,12 @@ func InitServers() *Service {
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
+
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)

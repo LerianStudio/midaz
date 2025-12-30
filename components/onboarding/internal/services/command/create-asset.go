@@ -19,12 +19,20 @@ import (
 // account exists for the asset. If a new external account is created, it also
 // creates the default balance for that account via gRPC.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
 
 	logger.Infof("Trying to create asset (sync): %v", cii)
+
+	// Fail-fast: Check gRPC service health before proceeding
+	if err := uc.BalanceGRPCRepo.CheckHealth(ctx); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
+		logger.Errorf("Balance service is unavailable: %v", err)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
+	}
 
 	var status mmodel.Status
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
@@ -146,6 +154,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
 		balanceReq := &balanceproto.BalanceRequest{
+			RequestId:      requestID,
 			OrganizationId: organizationID.String(),
 			LedgerId:       ledgerID.String(),
 			AccountId:      acc.ID,
