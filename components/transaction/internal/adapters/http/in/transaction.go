@@ -1069,7 +1069,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
-	lockPendingTransactionKey := utils.GenericInternalKeyWithContext("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
+	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tran.ID)
 
 	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
 	ttl := time.Duration(300)

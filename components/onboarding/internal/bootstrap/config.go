@@ -347,11 +347,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	} else {
 		if cfg.TransactionGRPCAddress == "" {
 			cfg.TransactionGRPCAddress = "midaz-transaction"
+
 			logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
 		}
 
 		if cfg.TransactionGRPCPort == "" {
 			cfg.TransactionGRPCPort = "3011"
+
 			logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
 		}
 

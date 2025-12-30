@@ -13,52 +13,40 @@ const beginningKey = "{"
 const keySeparator = ":"
 const endKey = "}"
 
-// GenericInternalKeyWithContext returns a key with the following format to be used on redis cluster:
-// "name:{contextName}:organizationID:ledgerID:key"
-func GenericInternalKeyWithContext(name, contextName, organizationID, ledgerID, key string) string {
+// TransactionInternalKey returns a key with the following format to be used on redis cluster:
+// "transaction:{transactions}:organizationID:ledgerID:key"
+func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
-	builder.WriteString(name)
+	builder.WriteString("transaction")
 	builder.WriteString(keySeparator)
 	builder.WriteString(beginningKey)
-	builder.WriteString(contextName)
+	builder.WriteString("transactions")
 	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
-	builder.WriteString(organizationID)
+	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
-	builder.WriteString(ledgerID)
+	builder.WriteString(ledgerID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(key)
 
 	return builder.String()
 }
 
-// TransactionInternalKey returns a key with the following format to be used on redis cluster:
-// "transaction:{contextName}:organizationID:ledgerID:key"
-func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	transaction := GenericInternalKeyWithContext("transaction", "transactions", organizationID.String(), ledgerID.String(), key)
-
-	return transaction
-}
-
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
-// "balance:{contextName}:organizationID:ledgerID:key"
+// "balance:{transactions}:organizationID:ledgerID:key"
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	balance := GenericInternalKeyWithContext("balance", "transactions", organizationID.String(), ledgerID.String(), key)
-
-	return balance
-}
-
-// GenericInternalKey returns a key with the following format to be used on non-cluster Redis:
-// "name:{organizationID}:{ledgerID}:{key}"
-func GenericInternalKey(name, organizationID, ledgerID, key string) string {
 	var builder strings.Builder
 
-	builder.WriteString(name)
+	builder.WriteString("balance")
 	builder.WriteString(keySeparator)
-	builder.WriteString(organizationID)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transactions")
+	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
-	builder.WriteString(ledgerID)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(key)
 
@@ -84,20 +72,61 @@ func IdempotencyReverseKey(organizationID, ledgerID uuid.UUID, transactionID str
 	return builder.String()
 }
 
-// IdempotencyInternalKey returns a non-contextual key (no cluster):
-// "idempotency:{organizationID}:{ledgerID}:{key}"
+// IdempotencyInternalKey returns a key with the following format to be used on redis cluster:
+// "idempotency:{organizationID:ledgerID:key}"
 func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	idempotency := GenericInternalKey("idempotency", organizationID.String(), ledgerID.String(), key)
+	var builder strings.Builder
 
-	return idempotency
+	builder.WriteString("idempotency")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(key)
+	builder.WriteString(endKey)
+
+	return builder.String()
 }
 
-// AccountingRoutesInternalKey returns a non-contextual key (no cluster):
-// "accounting_routes:{organizationID}:{ledgerID}:{key}"
+// AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
+// "accounting_routes:{organizationID:ledgerID:key}"
 func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
-	accountingRoutes := GenericInternalKey("accounting_routes", organizationID.String(), ledgerID.String(), key.String())
+	var builder strings.Builder
 
-	return accountingRoutes
+	builder.WriteString("accounting_routes")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(key.String())
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// PendingTransactionLockKey returns a key with the following format to be used on redis cluster:
+// "pending_transaction:{transaction}:organizationID:ledgerID:transactionID"
+// This key is used to lock pending transactions during commit/cancel operations.
+func PendingTransactionLockKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("pending_transaction")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transaction")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionID)
+
+	return builder.String()
 }
 
 // RedisConsumerLockKey returns a key with the following format to be used on redis cluster:

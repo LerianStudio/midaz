@@ -156,12 +156,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			logger.Errorf("Failed to delete account during compensation: %v", delErr)
 		}
 
-		var (
-			unauthorized pkg.UnauthorizedError
-			forbidden    pkg.ForbiddenError
-		)
-
-		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+		if isAuthorizationError(err) {
 			return nil, err
 		}
 
@@ -182,6 +177,16 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	logger.Infof("Account created synchronously with default balance")
 
 	return acc, nil
+}
+
+// isAuthorizationError checks if the error is an authorization-related error.
+func isAuthorizationError(err error) bool {
+	var (
+		unauthorized pkg.UnauthorizedError
+		forbidden    pkg.ForbiddenError
+	)
+
+	return errors.As(err, &unauthorized) || errors.As(err, &forbidden)
 }
 
 // resolveAccountAlias resolves and validates the account alias.
