@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
+	"github.com/shopspring/decimal"
 )
 
 func TestBalanceChecker_Check_NoDiscrepancies(t *testing.T) {
@@ -21,19 +22,23 @@ func TestBalanceChecker_Check_NoDiscrepancies(t *testing.T) {
 
 	// Setup summary query expectation
 	summaryRows := sqlmock.NewRows([]string{"total_balances", "discrepancies", "total_discrepancy"}).
-		AddRow(100, 0, 0)
+		AddRow(100, 0, "0")
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(0)).
 		WillReturnRows(summaryRows)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 0, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 0,
+		MaxResults:           10,
+	})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Equal(t, 100, result.TotalBalances)
-	assert.Equal(t, 0, result.BalancesWithDiscrepancy)
-	assert.Empty(t, result.Discrepancies)
+	typedResult := requireBalanceResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Equal(t, 100, typedResult.TotalBalances)
+	assert.Equal(t, 0, typedResult.BalancesWithDiscrepancy)
+	assert.Empty(t, typedResult.Discrepancies)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -46,7 +51,7 @@ func TestBalanceChecker_Check_WithDiscrepancies(t *testing.T) {
 
 	// Setup summary query expectation - 5 discrepancies (WARNING status)
 	summaryRows := sqlmock.NewRows([]string{"total_balances", "discrepancies", "total_discrepancy"}).
-		AddRow(100, 5, 500)
+		AddRow(100, 5, "500")
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(0)).
 		WillReturnRows(summaryRows)
@@ -57,21 +62,25 @@ func TestBalanceChecker_Check_WithDiscrepancies(t *testing.T) {
 		"current_balance", "expected_balance", "discrepancy",
 		"operation_count", "updated_at",
 	}).
-		AddRow("bal-1", "acc-1", "account1", "USD", int64(1000), int64(900), int64(100), int64(10), time.Now())
+		AddRow("bal-1", "acc-1", "account1", "USD", "1000", "900", "100", int64(10), time.Now())
 
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(0), 10).
 		WillReturnRows(detailRows)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 0, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 0,
+		MaxResults:           10,
+	})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusWarning, result.Status)
-	assert.Equal(t, 100, result.TotalBalances)
-	assert.Equal(t, 5, result.BalancesWithDiscrepancy)
-	assert.Len(t, result.Discrepancies, 1)
-	assert.Equal(t, "bal-1", result.Discrepancies[0].BalanceID)
+	typedResult := requireBalanceResult(t, result)
+	assert.Equal(t, domain.StatusWarning, typedResult.Status)
+	assert.Equal(t, 100, typedResult.TotalBalances)
+	assert.Equal(t, 5, typedResult.BalancesWithDiscrepancy)
+	assert.Len(t, typedResult.Discrepancies, 1)
+	assert.Equal(t, "bal-1", typedResult.Discrepancies[0].BalanceID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -84,7 +93,7 @@ func TestBalanceChecker_Check_CriticalDiscrepancies(t *testing.T) {
 
 	// Setup summary query expectation - 15 discrepancies (CRITICAL status)
 	summaryRows := sqlmock.NewRows([]string{"total_balances", "discrepancies", "total_discrepancy"}).
-		AddRow(100, 15, 1500)
+		AddRow(100, 15, "1500")
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(0)).
 		WillReturnRows(summaryRows)
@@ -100,11 +109,15 @@ func TestBalanceChecker_Check_CriticalDiscrepancies(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 0, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 0,
+		MaxResults:           10,
+	})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCritical, result.Status)
-	assert.Equal(t, 15, result.BalancesWithDiscrepancy)
+	typedResult := requireBalanceResult(t, result)
+	assert.Equal(t, domain.StatusCritical, typedResult.Status)
+	assert.Equal(t, 15, typedResult.BalancesWithDiscrepancy)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -117,16 +130,20 @@ func TestBalanceChecker_Check_WithThreshold(t *testing.T) {
 
 	// With threshold of 100, minor discrepancies are ignored
 	summaryRows := sqlmock.NewRows([]string{"total_balances", "discrepancies", "total_discrepancy"}).
-		AddRow(50, 0, 0)
+		AddRow(50, 0, "0")
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(100)).
 		WillReturnRows(summaryRows)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 100, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 100,
+		MaxResults:           10,
+	})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
+	typedResult := requireBalanceResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -142,7 +159,10 @@ func TestBalanceChecker_Check_QueryError(t *testing.T) {
 		WillReturnError(assert.AnError)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 0, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 0,
+		MaxResults:           10,
+	})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -159,7 +179,7 @@ func TestBalanceChecker_Check_DiscrepancyPercentage(t *testing.T) {
 
 	// 10 out of 100 = 10%
 	summaryRows := sqlmock.NewRows([]string{"total_balances", "discrepancies", "total_discrepancy"}).
-		AddRow(100, 10, 1000)
+		AddRow(100, 10, "1000")
 	mock.ExpectQuery(`WITH balance_calc AS`).
 		WithArgs(int64(0)).
 		WillReturnRows(summaryRows)
@@ -174,9 +194,23 @@ func TestBalanceChecker_Check_DiscrepancyPercentage(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewBalanceChecker(db)
-	result, err := checker.Check(context.Background(), 0, 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{
+		DiscrepancyThreshold: 0,
+		MaxResults:           10,
+	})
 
 	require.NoError(t, err)
-	assert.Equal(t, 10.0, result.DiscrepancyPercentage)
+	typedResult := requireBalanceResult(t, result)
+	assert.Equal(t, 10.0, typedResult.DiscrepancyPercentage)
+	assert.True(t, decimal.NewFromInt(1000).Equal(typedResult.TotalAbsoluteDiscrepancy))
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func requireBalanceResult(t *testing.T, result CheckResult) *domain.BalanceCheckResult {
+	t.Helper()
+
+	typedResult, ok := result.(*domain.BalanceCheckResult)
+	require.True(t, ok)
+
+	return typedResult
 }

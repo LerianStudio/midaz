@@ -24,14 +24,15 @@ func TestDoubleEntryChecker_Check_AllBalanced(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewDoubleEntryChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Equal(t, 500, result.TotalTransactions)
-	assert.Equal(t, 0, result.UnbalancedTransactions)
-	assert.Equal(t, 0, result.TransactionsNoOperations)
-	assert.Empty(t, result.Imbalances)
+	typedResult := requireDoubleEntryResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Equal(t, 500, typedResult.TotalTransactions)
+	assert.Equal(t, 0, typedResult.UnbalancedTransactions)
+	assert.Equal(t, 0, typedResult.TransactionsNoOperations)
+	assert.Empty(t, typedResult.Imbalances)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -60,14 +61,15 @@ func TestDoubleEntryChecker_Check_WithUnbalanced(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewDoubleEntryChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCritical, result.Status)
-	assert.Equal(t, 2, result.UnbalancedTransactions)
-	assert.Len(t, result.Imbalances, 2)
-	assert.Equal(t, "txn-1", result.Imbalances[0].TransactionID)
-	assert.Equal(t, int64(100), result.Imbalances[0].Imbalance)
+	typedResult := requireDoubleEntryResult(t, result)
+	assert.Equal(t, domain.StatusCritical, typedResult.Status)
+	assert.Equal(t, 2, typedResult.UnbalancedTransactions)
+	assert.Len(t, typedResult.Imbalances, 2)
+	assert.Equal(t, "txn-1", typedResult.Imbalances[0].TransactionID)
+	assert.Equal(t, int64(100), typedResult.Imbalances[0].Imbalance)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -82,7 +84,7 @@ func TestDoubleEntryChecker_Check_QueryError(t *testing.T) {
 		WillReturnError(assert.AnError)
 
 	checker := NewDoubleEntryChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -112,10 +114,11 @@ func TestDoubleEntryChecker_Check_UnbalancedPercentage(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewDoubleEntryChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, 5.0, result.UnbalancedPercentage)
+	typedResult := requireDoubleEntryResult(t, result)
+	assert.Equal(t, 5.0, typedResult.UnbalancedPercentage)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -132,11 +135,27 @@ func TestDoubleEntryChecker_Check_ZeroTransactions(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewDoubleEntryChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Equal(t, 0, result.TotalTransactions)
-	assert.Equal(t, 0.0, result.UnbalancedPercentage) // Avoid division by zero
+	typedResult := requireDoubleEntryResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Equal(t, 0, typedResult.TotalTransactions)
+	assert.Equal(t, 0.0, typedResult.UnbalancedPercentage) // Avoid division by zero
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func requireDoubleEntryResult(t *testing.T, result CheckResult) *domain.DoubleEntryCheckResult {
+	t.Helper()
+
+	typedResult, ok := result.(*domain.DoubleEntryCheckResult)
+	require.Truef(
+		t,
+		ok,
+		"expected result to be *domain.DoubleEntryCheckResult, got %T: %#v",
+		result,
+		result,
+	)
+
+	return typedResult
 }

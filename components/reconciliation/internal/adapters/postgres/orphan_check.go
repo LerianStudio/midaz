@@ -18,20 +18,13 @@ func NewOrphanChecker(db *sql.DB) *OrphanChecker {
 	return &OrphanChecker{db: db}
 }
 
-// determineOrphanStatus determines the reconciliation status based on orphan counts.
-func determineOrphanStatus(orphanCount, partialCount int) domain.ReconciliationStatus {
-	switch {
-	case orphanCount == 0 && partialCount == 0:
-		return domain.StatusHealthy
-	case orphanCount == 0:
-		return domain.StatusWarning
-	default:
-		return domain.StatusCritical
-	}
+// Name returns the unique name of this checker.
+func (c *OrphanChecker) Name() string {
+	return CheckerNameOrphans
 }
 
 // Check finds transactions without operations
-func (c *OrphanChecker) Check(ctx context.Context, limit int) (*domain.OrphanCheckResult, error) {
+func (c *OrphanChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
 	result := &domain.OrphanCheckResult{}
 
 	// Summary query
@@ -57,11 +50,11 @@ func (c *OrphanChecker) Check(ctx context.Context, limit int) (*domain.OrphanChe
 		return nil, fmt.Errorf("%w: %w", ErrOrphanSummaryQuery, err)
 	}
 
-	result.Status = determineOrphanStatus(result.OrphanTransactions, result.PartialTransactions)
+	result.Status = DetermineStatusWithPartial(result.OrphanTransactions, result.PartialTransactions)
 
 	// Get detailed orphans
-	if (result.OrphanTransactions > 0 || result.PartialTransactions > 0) && limit > 0 {
-		orphans, err := c.fetchOrphanTransactions(ctx, limit)
+	if (result.OrphanTransactions > 0 || result.PartialTransactions > 0) && config.MaxResults > 0 {
+		orphans, err := c.fetchOrphanTransactions(ctx, config.MaxResults)
 		if err != nil {
 			return nil, err
 		}

@@ -23,9 +23,14 @@ func NewDoubleEntryChecker(db *sql.DB) *DoubleEntryChecker {
 	return &DoubleEntryChecker{db: db}
 }
 
+// Name returns the unique name of this checker.
+func (c *DoubleEntryChecker) Name() string {
+	return CheckerNameDoubleEntry
+}
+
 // Check verifies every transaction has balanced credits and debits
 // NOTE: ALL transactions (including NOTED) must have balanced operations for audit integrity
-func (c *DoubleEntryChecker) Check(ctx context.Context, limit int) (*domain.DoubleEntryCheckResult, error) {
+func (c *DoubleEntryChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
 	result := &domain.DoubleEntryCheckResult{}
 
 	// Summary query - only exclude PENDING (no operations yet)
@@ -65,14 +70,12 @@ func (c *DoubleEntryChecker) Check(ctx context.Context, limit int) (*domain.Doub
 	}
 
 	// Status - unbalanced transactions are CRITICAL
-	if result.UnbalancedTransactions == 0 {
-		result.Status = domain.StatusHealthy
-	} else {
-		result.Status = domain.StatusCritical
-	}
+	result.Status = DetermineStatus(result.UnbalancedTransactions, StatusThresholds{
+		CriticalOnAny: true,
+	})
 
 	// Get detailed imbalances
-	if result.UnbalancedTransactions > 0 && limit > 0 {
+	if result.UnbalancedTransactions > 0 && config.MaxResults > 0 {
 		detailQuery := `
 			WITH transaction_balance AS (
 				SELECT
@@ -99,7 +102,7 @@ func (c *DoubleEntryChecker) Check(ctx context.Context, limit int) (*domain.Doub
 			LIMIT $1
 		`
 
-		rows, err := c.db.QueryContext(ctx, detailQuery, limit)
+		rows, err := c.db.QueryContext(ctx, detailQuery, config.MaxResults)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrDoubleEntryDetailQuery, err)
 		}

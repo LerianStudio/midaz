@@ -25,13 +25,14 @@ func TestOrphanChecker_Check_NoOrphans(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewOrphanChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Equal(t, 0, result.OrphanTransactions)
-	assert.Equal(t, 0, result.PartialTransactions)
-	assert.Empty(t, result.Orphans)
+	typedResult := requireOrphanResult(t, result)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Equal(t, 0, typedResult.OrphanTransactions)
+	assert.Equal(t, 0, typedResult.PartialTransactions)
+	assert.Empty(t, typedResult.Orphans)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -62,13 +63,14 @@ func TestOrphanChecker_Check_WithOrphans(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewOrphanChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCritical, result.Status)
-	assert.Equal(t, 2, result.OrphanTransactions)
-	assert.Equal(t, 1, result.PartialTransactions)
-	assert.Len(t, result.Orphans, 3)
+	typedResult := requireOrphanResult(t, result)
+	assert.Equal(t, domain.StatusCritical, typedResult.Status)
+	assert.Equal(t, 2, typedResult.OrphanTransactions)
+	assert.Equal(t, 1, typedResult.PartialTransactions)
+	assert.Len(t, typedResult.Orphans, 3)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -97,12 +99,13 @@ func TestOrphanChecker_Check_OnlyPartial(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewOrphanChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusWarning, result.Status)
-	assert.Equal(t, 0, result.OrphanTransactions)
-	assert.Equal(t, 3, result.PartialTransactions)
+	typedResult := requireOrphanResult(t, result)
+	assert.Equal(t, domain.StatusWarning, typedResult.Status)
+	assert.Equal(t, 0, typedResult.OrphanTransactions)
+	assert.Equal(t, 3, typedResult.PartialTransactions)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -117,10 +120,19 @@ func TestOrphanChecker_Check_QueryError(t *testing.T) {
 		WillReturnError(assert.AnError)
 
 	checker := NewOrphanChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "orphan summary query failed")
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func requireOrphanResult(t *testing.T, result CheckResult) *domain.OrphanCheckResult {
+	t.Helper()
+
+	typedResult, ok := result.(*domain.OrphanCheckResult)
+	require.True(t, ok)
+
+	return typedResult
 }
