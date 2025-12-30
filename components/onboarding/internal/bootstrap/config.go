@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -246,9 +247,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
 	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
 	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPort := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParameters := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+
+	// Extract port and parameters for MongoDB connection (handles backward compatibility)
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
@@ -293,6 +297,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxRetries:                   cfg.RedisMaxRetries,
 		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+	}
+
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
 	}
 
 	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)

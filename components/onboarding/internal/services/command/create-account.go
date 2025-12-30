@@ -30,6 +30,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create account (sync): %v", cai)
 
+	// Fail-fast: Check gRPC service health before proceeding
+	if err := uc.BalanceGRPCRepo.CheckHealth(ctx); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
+		logger.Errorf("Balance service is unavailable: %v", err)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting validations failed", err)
 
@@ -93,10 +101,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	blocked := false
-	if cai.Blocked != nil {
-		blocked = *cai.Blocked
-	}
+	blocked := cai.Blocked != nil && *cai.Blocked
 
 	account := &mmodel.Account{
 		ID:              ID,

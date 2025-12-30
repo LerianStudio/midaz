@@ -359,6 +359,11 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		b.OnHold = decimal.NewFromFloat(f)
 	}
 
+	// Set default value for Key if not provided (backwards compatibility)
+	if b.Key == "" {
+		b.Key = "default"
+	}
+
 	return nil
 }
 

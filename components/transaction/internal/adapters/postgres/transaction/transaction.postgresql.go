@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 var transactionColumnList = []string{
@@ -138,9 +139,9 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction query", err)
+			libOpentelemetry.HandleSpanEvent(&spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
-			logger.Errorf("Failed to execute insert transaction query: %v", err)
+			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry)")
 
 			return nil, err
 		}
@@ -875,6 +876,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 }
 
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
+//
+//nolint:gocyclo // Complexity due to LEFT JOIN NULL handling for transactions without operations
 func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -968,9 +971,21 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}
 
-		op := operation.OperationPostgreSQLModel{}
-
 		var body *string
+
+		// Nullable pointers for operation fields (LEFT JOIN may return NULL)
+		var (
+			opID, opTransactionID, opDescription, opType, opAssetCode    *string
+			opStatus, opStatusDescription, opAccountID, opAccountAlias   *string
+			opBalanceID, opChartOfAccounts, opOrganizationID, opLedgerID *string
+			opRoute, opBalanceKey                                        *string
+			opAmount, opAvailableBalance, opOnHoldBalance                *decimal.Decimal
+			opAvailableBalanceAfter, opOnHoldBalanceAfter                *decimal.Decimal
+			opCreatedAt, opUpdatedAt                                     *time.Time
+			opDeletedAt                                                  sql.NullTime
+			opBalanceAffected                                            *bool
+			opVersionBalance, opVersionBalanceAfter                      *int64
+		)
 
 		if err := rows.Scan(
 			&tran.ID,
@@ -988,32 +1003,32 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.UpdatedAt,
 			&tran.DeletedAt,
 			&tran.Route,
-			&op.ID,
-			&op.TransactionID,
-			&op.Description,
-			&op.Type,
-			&op.AssetCode,
-			&op.Amount,
-			&op.AvailableBalance,
-			&op.OnHoldBalance,
-			&op.AvailableBalanceAfter,
-			&op.OnHoldBalanceAfter,
-			&op.Status,
-			&op.StatusDescription,
-			&op.AccountID,
-			&op.AccountAlias,
-			&op.BalanceID,
-			&op.ChartOfAccounts,
-			&op.OrganizationID,
-			&op.LedgerID,
-			&op.CreatedAt,
-			&op.UpdatedAt,
-			&op.DeletedAt,
-			&op.Route,
-			&op.BalanceAffected,
-			&op.BalanceKey,
-			&op.VersionBalance,
-			&op.VersionBalanceAfter,
+			&opID,
+			&opTransactionID,
+			&opDescription,
+			&opType,
+			&opAssetCode,
+			&opAmount,
+			&opAvailableBalance,
+			&opOnHoldBalance,
+			&opAvailableBalanceAfter,
+			&opOnHoldBalanceAfter,
+			&opStatus,
+			&opStatusDescription,
+			&opAccountID,
+			&opAccountAlias,
+			&opBalanceID,
+			&opChartOfAccounts,
+			&opOrganizationID,
+			&opLedgerID,
+			&opCreatedAt,
+			&opUpdatedAt,
+			&opDeletedAt,
+			&opRoute,
+			&opBalanceAffected,
+			&opBalanceKey,
+			&opVersionBalance,
+			&opVersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -1038,12 +1053,45 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		t, exists := transactionsMap[transactionUUID]
 		if !exists {
 			t = tran.ToEntity()
+			t.Operations = make([]*operation.Operation, 0)
 			transactionsMap[transactionUUID] = t
 
 			transactionOrder = append(transactionOrder, transactionUUID)
 		}
 
-		t.Operations = append(t.Operations, op.ToEntity())
+		// Only append operation if it exists (opID not NULL)
+		if opID != nil {
+			op := operation.OperationPostgreSQLModel{
+				ID:                    *opID,
+				TransactionID:         *opTransactionID,
+				Description:           *opDescription,
+				Type:                  *opType,
+				AssetCode:             *opAssetCode,
+				Amount:                opAmount,
+				AvailableBalance:      opAvailableBalance,
+				OnHoldBalance:         opOnHoldBalance,
+				AvailableBalanceAfter: opAvailableBalanceAfter,
+				OnHoldBalanceAfter:    opOnHoldBalanceAfter,
+				Status:                *opStatus,
+				StatusDescription:     opStatusDescription,
+				AccountID:             *opAccountID,
+				AccountAlias:          *opAccountAlias,
+				BalanceID:             *opBalanceID,
+				ChartOfAccounts:       *opChartOfAccounts,
+				OrganizationID:        *opOrganizationID,
+				LedgerID:              *opLedgerID,
+				CreatedAt:             *opCreatedAt,
+				UpdatedAt:             *opUpdatedAt,
+				DeletedAt:             opDeletedAt,
+				Route:                 opRoute,
+				BalanceAffected:       *opBalanceAffected,
+				BalanceKey:            *opBalanceKey,
+				VersionBalance:        opVersionBalance,
+				VersionBalanceAfter:   opVersionBalanceAfter,
+			}
+
+			t.Operations = append(t.Operations, op.ToEntity())
+		}
 	}
 
 	if err = rows.Err(); err != nil {

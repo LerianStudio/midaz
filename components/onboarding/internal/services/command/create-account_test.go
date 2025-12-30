@@ -38,7 +38,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -439,7 +439,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -796,7 +796,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalancePort: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -992,7 +992,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		AccountRepo:     mockAccountRepo,
 		MetadataRepo:    mockMetadataRepo,
 		AccountTypeRepo: mockAccountTypeRepo,
-		BalancePort: mockBalanceGRPC,
+		BalancePort:     mockBalanceGRPC,
 	}
 
 	mockAssetRepo.EXPECT().

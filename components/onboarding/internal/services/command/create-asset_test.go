@@ -59,6 +59,10 @@ func TestCreateAsset(t *testing.T) {
 				Metadata: nil,
 			},
 			mockSetup: func() {
+				mockBalanceGRPC.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).Times(1)
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -116,7 +120,11 @@ func TestCreateAsset(t *testing.T) {
 				Type: "invalidType",
 				Code: "INV",
 			},
-			mockSetup: func() {},
+			mockSetup: func() {
+				mockBalanceGRPC.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).Times(1)
+			},
 
 			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type."),
 			expectedRes: nil,
@@ -129,6 +137,10 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 			},
 			mockSetup: func() {
+				mockBalanceGRPC.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).Times(1)
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -150,6 +162,10 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 			},
 			mockSetup: func() {
+				mockBalanceGRPC.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).Times(1)
+
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
