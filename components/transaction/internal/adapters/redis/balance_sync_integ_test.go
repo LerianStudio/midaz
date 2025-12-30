@@ -4,6 +4,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -333,4 +334,74 @@ func TestAddSumBalancesRedis_NotedStatus_SkipsLuaScript(t *testing.T) {
 	count, err := client.ZCard(ctx, scheduleKey).Result()
 	require.NoError(t, err, "failed to get ZCARD for schedule key")
 	assert.Equal(t, int64(0), count, "schedule key should be empty for NOTED transactions")
+}
+
+func TestAddSumBalancesRedis_LargeNegativeCredit_NoPrecisionLoss(t *testing.T) {
+	// Arrange
+	client, cleanup := setupRedisContainer(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	addr := client.Options().Addr
+	conn := createTestRedisConnection(t, addr)
+
+	repo := &RedisConsumerRepository{
+		conn:               conn,
+		balanceSyncEnabled: false,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	amount, err := decimal.NewFromString("9999999999999999999999")
+	require.NoError(t, err, "failed to parse amount")
+
+	available, err := decimal.NewFromString("-10000000000000000000047.765432109876543211")
+	require.NoError(t, err, "failed to parse available balance")
+
+	expected, err := decimal.NewFromString("-48.765432109876543211")
+	require.NoError(t, err, "failed to parse expected balance")
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "@external/USD#default")
+
+	balanceOp := mmodel.BalanceOperation{
+		Balance: &mmodel.Balance{
+			ID:             uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Alias:          "@external/USD",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      available,
+			OnHold:         decimal.Zero,
+			Version:        3,
+			AccountType:    "external",
+			AllowSending:   true,
+			AllowReceiving: true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		},
+		Alias: "@external/USD",
+		Amount: libTransaction.Amount{
+			Asset:     "USD",
+			Value:     amount,
+			Operation: constant.CREDIT,
+		},
+		InternalKey: internalKey,
+	}
+
+	// Act
+	_, err = repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{balanceOp})
+	require.NoError(t, err, "AddSumBalancesRedis should not return error")
+
+	// Assert: verify stored Redis balance reflects correct negative result
+	raw, err := client.Get(ctx, internalKey).Result()
+	require.NoError(t, err, "failed to get balance from Redis")
+
+	var cached mmodel.BalanceRedis
+	require.NoError(t, json.Unmarshal([]byte(raw), &cached), "failed to unmarshal cached balance")
+	assert.True(t, cached.Available.Equal(expected), "available should match expected negative value")
 }

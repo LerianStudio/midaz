@@ -166,6 +166,95 @@ local function rtrim_zeros(frac)
 end -- End of rtrim_zeros function
 
 
+--[[
+    normalize_decimal_str(s) - Normalizes common decimal string variants
+
+    INPUT:  Decimal-like string (e.g., ".5", "1.", "-.5")
+    OUTPUT: Normalized string (e.g., "0.5", "1.0", "-0.5")
+
+    WHY: Ensures split_decimal and digit loops receive canonical forms.
+--]]
+local function normalize_decimal_str(s)
+    s = tostring(s)
+
+    -- Handle trailing decimal point (e.g., "1." -> "1.0")
+    if s:match("^%-?%d+%.$") then
+        return s .. "0"
+    end
+
+    -- Handle leading decimal point (e.g., ".5" -> "0.5", "-.5" -> "-0.5")
+    if s:match("^%-?%.%d+$") then
+        if s:sub(1, 1) == "-" then
+            return "-0" .. s:sub(2)
+        end
+        return "0" .. s
+    end
+
+    return s
+end -- End of normalize_decimal_str function
+
+
+--[[
+    is_decimal_string(s) - Validates strict decimal string format
+
+    INPUT:  String value
+    OUTPUT: true if format is integer or decimal, false otherwise
+
+    WHY: Rejects scientific notation or corrupted values that break arithmetic.
+--]]
+local function is_decimal_string(s)
+    s = tostring(s)
+    if s:match("^%-?%d+$") then return true end
+    if s:match("^%-?%d+%.%d+$") then return true end
+    return false
+end -- End of is_decimal_string function
+
+
+--[[
+    compare_positive_decimals(a, b) - Compares two non-negative decimal strings
+
+    INPUT:  Two decimal strings without sign (e.g., "123.45", "67.89", "0")
+    OUTPUT: -1 if a < b, 0 if a == b, 1 if a > b
+
+    WHY: Avoids tonumber() precision loss for large values. We compare
+         by integer length, lexicographic integer digits, then fractional digits.
+--]]
+local function compare_positive_decimals(a, b)
+    -- Split into integer and fractional parts (signs ignored if present)
+    local ai, af = split_decimal(a)
+    local bi, bf = split_decimal(b)
+
+    -- Defensive: strip any minus sign (shouldn't be present for positive inputs)
+    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
+    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
+
+    -- Normalize integer parts by removing leading zeros
+    ai = ai:gsub("^0+", "")
+    bi = bi:gsub("^0+", "")
+    if ai == "" then ai = "0" end
+    if bi == "" then bi = "0" end
+
+    -- Compare integer length first
+    if #ai < #bi then return -1 end
+    if #ai > #bi then return 1 end
+
+    -- Same length: lexicographic compare integer digits
+    if ai < bi then return -1 end
+    if ai > bi then return 1 end
+
+    -- Integers equal: compare fractional parts
+    local maxf = math.max(#af, #bf)
+    if maxf == 0 then return 0 end
+
+    if #af < maxf then af = af .. string.rep("0", maxf - #af) end
+    if #bf < maxf then bf = bf .. string.rep("0", maxf - #bf) end
+
+    if af < bf then return -1 end
+    if af > bf then return 1 end
+    return 0
+end -- End of compare_positive_decimals function
+
+
 -- Forward declaration of sub_decimal function
 -- WHY: Lua requires forward declaration because add_decimal and sub_decimal
 --      are mutually recursive (add_decimal may call sub_decimal and vice versa).
@@ -431,14 +520,16 @@ sub_decimal = function(a, b)
     -- Check if a < b (result would be negative)
     -- WHY: We need to know which number is larger to ensure
     --      the subtraction algorithm works (subtracting smaller from larger)
-    local a_num = tonumber(a)
-    -- Convert b to number for comparison
-    -- WHY: Numeric comparison is needed to determine sign of result
-    local b_num = tonumber(b)
+    -- NOTE: Use string-based comparison to avoid tonumber() precision loss
+    local cmp = compare_positive_decimals(a, b)
+    -- If equal, result is zero
+    if cmp == 0 then
+        return "0"
+    end
     -- If a < b, swap and negate: a - b = -(b - a)
     -- WHY: Our subtraction algorithm requires the larger number first;
     --      if a < b, we compute b - a and flip the sign
-    if a_num < b_num then
+    if cmp < 0 then
         -- Recursively compute b - a (which will be positive)
         -- WHY: b - a is positive when b > a, then we negate
         local result = sub_decimal(b, a)
@@ -929,6 +1020,7 @@ local function main()
                 -- Return error code 0061: Balance cache corruption detected
                 -- WHY: This indicates a serious data integrity issue;
                 --      the balance existed (SET NX failed) but GET returned nil
+                rollback(rollbackBalances, ttl)
                 return redis.error_reply("0061")
             end
             -- Decode the cached balance JSON to Lua table
@@ -951,6 +1043,18 @@ local function main()
             -- These were already set from ARGV at lines 248-259
             -- WHY: Identity/config fields may have changed in PostgreSQL;
             --      ARGV always has the latest values from the source of truth
+        end
+
+        -- Normalize and validate decimal inputs to avoid corruption
+        -- WHY: Prevents scientific notation or malformed strings from
+        --      breaking arithmetic or silently producing wrong values
+        balance.Available = normalize_decimal_str(balance.Available)
+        balance.OnHold = normalize_decimal_str(balance.OnHold)
+        amount = normalize_decimal_str(amount)
+
+        if not is_decimal_string(balance.Available) or not is_decimal_string(balance.OnHold) or not is_decimal_string(amount) then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0061")
         end
 
         -- Store original balance state for rollback (only if not already stored)
