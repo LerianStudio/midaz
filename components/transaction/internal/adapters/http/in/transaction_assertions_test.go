@@ -86,3 +86,38 @@ func TestValidateDoubleEntry_ZeroTotals_Panics(t *testing.T) {
 
 	validateDoubleEntry(operations)
 }
+
+func TestValidateTransactionStateTransition_InvalidTransition_Panics(t *testing.T) {
+	tests := []struct {
+		name        string
+		current     string
+		target      string
+		shouldPanic bool
+	}{
+		{"PENDING to APPROVED valid", "PENDING", "APPROVED", false},
+		{"PENDING to CANCELED valid", "PENDING", "CANCELED", false},
+		{"APPROVED to CANCELED invalid", "APPROVED", "CANCELED", true},
+		{"CANCELED to APPROVED invalid", "CANCELED", "APPROVED", true},
+		{"CREATED to APPROVED invalid", "CREATED", "APPROVED", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					r := recover()
+					assert.NotNil(t, r, "expected panic on invalid transition")
+					panicMsg := fmt.Sprintf("%v", r)
+					assert.True(t, strings.Contains(panicMsg, "state transition") || strings.Contains(panicMsg, "transition"),
+						"panic message should mention transition, got: %s", panicMsg)
+				}()
+			}
+
+			validateTransactionStateTransition(tt.current, tt.target)
+
+			if tt.shouldPanic {
+				t.Fatal("expected panic but none occurred")
+			}
+		})
+	}
+}
