@@ -78,3 +78,42 @@ func TestValidTransactionStatus(t *testing.T) {
 		})
 	}
 }
+
+// TestTransactionCanTransitionTo tests the TransactionCanTransitionTo predicate.
+func TestTransactionCanTransitionTo(t *testing.T) {
+	tests := []struct {
+		name     string
+		current  string
+		target   string
+		expected bool
+	}{
+		// Valid transitions from PENDING
+		{"PENDING to APPROVED", "PENDING", "APPROVED", true},
+		{"PENDING to CANCELED", "PENDING", "CANCELED", true},
+		// Invalid transitions from PENDING
+		{"PENDING to CREATED", "PENDING", "CREATED", false},
+		{"PENDING to PENDING", "PENDING", "PENDING", false},
+		// Invalid transitions from APPROVED (terminal state for forward)
+		{"APPROVED to CANCELED", "APPROVED", "CANCELED", false},
+		{"APPROVED to PENDING", "APPROVED", "PENDING", false},
+		{"APPROVED to CREATED", "APPROVED", "CREATED", false},
+		// Invalid transitions from CANCELED (terminal state)
+		{"CANCELED to APPROVED", "CANCELED", "APPROVED", false},
+		{"CANCELED to PENDING", "CANCELED", "PENDING", false},
+		// Invalid transitions from CREATED
+		{"CREATED to APPROVED", "CREATED", "APPROVED", false},
+		{"CREATED to CANCELED", "CREATED", "CANCELED", false},
+		// Invalid statuses
+		{"invalid current", "INVALID", "APPROVED", false},
+		{"invalid target", "PENDING", "INVALID", false},
+		{"both invalid", "INVALID", "UNKNOWN", false},
+		{"empty current", "", "APPROVED", false},
+		{"empty target", "PENDING", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, TransactionCanTransitionTo(tt.current, tt.target))
+		})
+	}
+}
