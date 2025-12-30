@@ -120,3 +120,15 @@ func typeName(v any) string {
 
 	return fmt.Sprintf("%T", v)
 }
+
+const maxValueLength = 100 // Truncate values longer than this for logging
+
+// truncateValue truncates long values for logging safety.
+// This prevents log bloat and reduces risk of sensitive data exposure.
+func truncateValue(v string) string {
+	if len(v) <= maxValueLength {
+		return v
+	}
+
+	return v[:maxValueLength] + "..."
+}
