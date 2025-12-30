@@ -583,6 +583,10 @@ func (r *OutboxPostgreSQLRepository) FindMetadataByEntityIDs(ctx context.Context
 
 // MarkPublished marks an entry as successfully processed.
 func (r *OutboxPostgreSQLRepository) MarkPublished(ctx context.Context, id string) error {
+	// Validate UUID format
+	assert.That(assert.ValidUUID(id), "outbox entry ID must be valid UUID",
+		"id", id, "method", "MarkPublished")
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.outbox.mark_published")
@@ -596,30 +600,58 @@ func (r *OutboxPostgreSQLRepository) MarkPublished(ctx context.Context, id strin
 	}
 
 	now := time.Now()
+	// Enforce state machine: only PROCESSING -> PUBLISHED is valid
 	query := `
 		UPDATE metadata_outbox
 		SET status = $1, updated_at = $2, processed_at = $3
-		WHERE id = $4
+		WHERE id = $4 AND status = $5 AND processing_started_at IS NOT NULL
+		RETURNING processing_started_at
 	`
 
-	result, err := db.ExecContext(ctx, query, string(StatusPublished), now, now, id)
+	rows, err := db.QueryContext(ctx, query, string(StatusPublished), now, now, id, string(StatusProcessing))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to mark entry as published", err)
 		logger.Errorf("Failed to mark entry as published: %v", err)
 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
+	defer rows.Close()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+	var (
+		processingStartedAt time.Time
+		rowsAffected        int64
+	)
+	for rows.Next() {
+		if scanErr := rows.Scan(&processingStartedAt); scanErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan marked published row", scanErr)
+			logger.Errorf("Failed to scan marked published row: %v", scanErr)
 
-		return pkg.ValidateInternalError(err, "MetadataOutbox")
+			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
+		}
+		rowsAffected++
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked published rows", rowsErr)
+		logger.Errorf("Failed to iterate marked published rows: %v", rowsErr)
 
+		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
+	}
 	if rowsAffected == 0 {
+		// Could be: entry not found OR entry not in PROCESSING status
+		logger.Warnf("MarkPublished: no rows affected - entry may not exist or not in PROCESSING status: id=%s", id)
+
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
+
+	// Postcondition: processing must have started before publish
+	assert.That(!processingStartedAt.IsZero(), "processing_started_at must be set when publishing",
+		"id", id)
+	assert.That(!now.Before(processingStartedAt), "processed_at must be >= processing_started_at",
+		"id", id, "processed_at", now, "processing_started_at", processingStartedAt)
+
+	// Postcondition: exactly one row should be affected
+	assert.That(rowsAffected == 1, "mark published must affect exactly one row",
+		"rows_affected", rowsAffected, "id", id)
 
 	logger.Infof("Marked outbox entry as published: id=%s", id)
 
