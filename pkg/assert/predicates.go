@@ -177,3 +177,19 @@ func PositiveInt(n int) bool {
 func InRangeInt(n, minVal, maxVal int) bool {
 	return n >= minVal && n <= maxVal
 }
+
+// DebitsEqualCredits returns true if debits and credits are exactly equal.
+// This validates the fundamental double-entry accounting invariant:
+// for every transaction, total debits MUST equal total credits.
+//
+// Note: Uses decimal.Equal() for exact comparison without floating point issues.
+// Even a tiny difference indicates a bug in amount calculation.
+//
+// Example:
+//
+//	assert.That(assert.DebitsEqualCredits(debitTotal, creditTotal),
+//	    "double-entry violation: debits must equal credits",
+//	    "debits", debitTotal, "credits", creditTotal)
+func DebitsEqualCredits(debits, credits decimal.Decimal) bool {
+	return debits.Equal(credits)
+}
