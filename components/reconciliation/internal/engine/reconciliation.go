@@ -23,6 +23,9 @@ type Logger interface {
 	Warnf(format string, args ...any)
 }
 
+// CheckerConfigMap maps checker names to their configuration.
+type CheckerConfigMap map[string]postgres.CheckerConfig
+
 // checkResult holds the result of a single reconciliation check for channel-based collection
 type checkResult struct {
 	name             string
@@ -37,12 +40,8 @@ type checkResult struct {
 // ReconciliationEngine orchestrates all reconciliation checks
 type ReconciliationEngine struct {
 	// Checkers
-	balanceChecker     *postgres.BalanceChecker
-	doubleEntryChecker *postgres.DoubleEntryChecker
-	orphanChecker      *postgres.OrphanChecker
-	referentialChecker *postgres.ReferentialChecker
-	syncChecker        *postgres.SyncChecker
-	dlqChecker         *postgres.DLQChecker
+	checkers           map[string]postgres.ReconciliationChecker
+	checkerConfigs     CheckerConfigMap
 	settlementDetector *postgres.SettlementDetector
 	entityCounter      *postgres.EntityCounter
 
@@ -52,8 +51,6 @@ type ReconciliationEngine struct {
 
 	// Config
 	logger                Logger
-	discrepancyThreshold  int64
-	maxDiscrepancies      int
 	settlementWaitSeconds int
 
 	// State
@@ -66,24 +63,45 @@ func NewReconciliationEngine(
 	onboardingDB, transactionDB *sql.DB,
 	onboardingMongo, transactionMongo *mongo.Database,
 	logger Logger,
-	discrepancyThreshold int64,
-	maxDiscrepancies int,
 	settlementWaitSeconds int,
+	checkers []postgres.ReconciliationChecker,
+	checkerConfigs CheckerConfigMap,
 ) *ReconciliationEngine {
+	if checkerConfigs == nil {
+		checkerConfigs = CheckerConfigMap{}
+	}
+
+	checkerMap := make(map[string]postgres.ReconciliationChecker, len(checkers))
+	for _, checker := range checkers {
+		if checker == nil {
+			continue
+		}
+
+		name := checker.Name()
+		if name == "" {
+			if logger != nil {
+				logger.Warnf("Ignoring checker with empty name")
+			}
+			continue
+		}
+
+		if _, exists := checkerMap[name]; exists {
+			if logger != nil {
+				logger.Warnf("Overriding checker with duplicate name: %s", name)
+			}
+		}
+
+		checkerMap[name] = checker
+	}
+
 	return &ReconciliationEngine{
-		balanceChecker:        postgres.NewBalanceChecker(transactionDB),
-		doubleEntryChecker:    postgres.NewDoubleEntryChecker(transactionDB),
-		orphanChecker:         postgres.NewOrphanChecker(transactionDB),
-		referentialChecker:    postgres.NewReferentialChecker(onboardingDB, transactionDB),
-		syncChecker:           postgres.NewSyncChecker(transactionDB),
-		dlqChecker:            postgres.NewDLQChecker(transactionDB),
+		checkers:              checkerMap,
+		checkerConfigs:        checkerConfigs,
 		settlementDetector:    postgres.NewSettlementDetector(transactionDB),
 		entityCounter:         postgres.NewEntityCounter(onboardingDB, transactionDB),
 		onboardingMongo:       onboardingMongo,
 		transactionMongo:      transactionMongo,
 		logger:                logger,
-		discrepancyThreshold:  discrepancyThreshold,
-		maxDiscrepancies:      maxDiscrepancies,
 		settlementWaitSeconds: settlementWaitSeconds,
 	}
 }
@@ -140,19 +158,28 @@ func (e *ReconciliationEngine) collectSettlementInfo(ctx context.Context, report
 }
 
 func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *domain.ReconciliationReport) {
-	const numChecks = 6
+	checkerCount := len(e.checkers)
+	if checkerCount == 0 {
+		return
+	}
 
-	resultCh := make(chan checkResult, numChecks)
+	resultCh := make(chan checkResult, checkerCount)
 
 	var wg sync.WaitGroup
-	wg.Add(numChecks)
+	wg.Add(checkerCount)
 
-	e.startBalanceCheck(ctx, &wg, resultCh)
-	e.startDoubleEntryCheck(ctx, &wg, resultCh)
-	e.startOrphanCheck(ctx, &wg, resultCh)
-	e.startReferentialCheck(ctx, &wg, resultCh)
-	e.startSyncCheck(ctx, &wg, resultCh)
-	e.startDLQCheck(ctx, &wg, resultCh)
+	for name, checker := range e.checkers {
+		checkerName := name
+		checkerInstance := checker
+
+		safego.Go(e.logger, checkerName+"-check", func() {
+			defer wg.Done()
+
+			cfg := e.checkerConfigs[checkerName]
+			result, err := checkerInstance.Check(ctx, cfg)
+			resultCh <- e.buildCheckResult(checkerName, result, err)
+		})
+	}
 
 	wg.Wait()
 	close(resultCh)
@@ -163,109 +190,90 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 	}
 }
 
-func (e *ReconciliationEngine) startBalanceCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "balance-check", func() {
-		defer wg.Done()
+func (e *ReconciliationEngine) buildCheckResult(name string, result postgres.CheckResult, err error) checkResult {
+	if err != nil {
+		e.logCheckError(name, err)
+		return errorCheckResult(name)
+	}
 
-		result, err := e.balanceChecker.Check(ctx, e.discrepancyThreshold, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Balance check failed: %v", err)
-
-			resultCh <- checkResult{name: "balance", balanceCheck: &domain.BalanceCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "balance", balanceCheck: result}
+	if result == nil {
+		if e.logger != nil {
+			e.logger.Errorf("%s check returned nil result", checkerLabel(name))
 		}
-	})
+		return errorCheckResult(name)
+	}
+
+	switch name {
+	case postgres.CheckerNameBalance:
+		typedResult, ok := result.(*domain.BalanceCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, balanceCheck: typedResult}
+	case postgres.CheckerNameDoubleEntry:
+		typedResult, ok := result.(*domain.DoubleEntryCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, doubleEntryCheck: typedResult}
+	case postgres.CheckerNameOrphans:
+		typedResult, ok := result.(*domain.OrphanCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, orphanCheck: typedResult}
+	case postgres.CheckerNameReferential:
+		typedResult, ok := result.(*domain.ReferentialCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, referentialCheck: typedResult}
+	case postgres.CheckerNameSync:
+		typedResult, ok := result.(*domain.SyncCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, syncCheck: typedResult}
+	case postgres.CheckerNameDLQ:
+		typedResult, ok := result.(*domain.DLQCheckResult)
+		if !ok {
+			return e.unexpectedResult(name, result)
+		}
+		return checkResult{name: name, dlqCheck: typedResult}
+	default:
+		if e.logger != nil {
+			e.logger.Warnf("Unknown checker name: %s", name)
+		}
+		return checkResult{name: name}
+	}
 }
 
-func (e *ReconciliationEngine) startDoubleEntryCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "double-entry-check", func() {
-		defer wg.Done()
-
-		result, err := e.doubleEntryChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Double-entry check failed: %v", err)
-
-			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: &domain.DoubleEntryCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: result}
-		}
-	})
+func (e *ReconciliationEngine) unexpectedResult(name string, result postgres.CheckResult) checkResult {
+	if e.logger != nil {
+		e.logger.Errorf("%s check returned unexpected result type: %T", checkerLabel(name), result)
+	}
+	return errorCheckResult(name)
 }
 
-func (e *ReconciliationEngine) startOrphanCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "orphan-check", func() {
-		defer wg.Done()
-
-		result, err := e.orphanChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Orphan check failed: %v", err)
-
-			resultCh <- checkResult{name: "orphan", orphanCheck: &domain.OrphanCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "orphan", orphanCheck: result}
-		}
-	})
-}
-
-func (e *ReconciliationEngine) startReferentialCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "referential-check", func() {
-		defer wg.Done()
-
-		result, err := e.referentialChecker.Check(ctx)
-		if err != nil {
-			e.logger.Errorf("Referential check failed: %v", err)
-
-			resultCh <- checkResult{name: "referential", referentialCheck: &domain.ReferentialCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "referential", referentialCheck: result}
-		}
-	})
-}
-
-func (e *ReconciliationEngine) startSyncCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "sync-check", func() {
-		defer wg.Done()
-
-		result, err := e.syncChecker.Check(ctx, e.settlementWaitSeconds, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Sync check failed: %v", err)
-
-			resultCh <- checkResult{name: "sync", syncCheck: &domain.SyncCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "sync", syncCheck: result}
-		}
-	})
-}
-
-func (e *ReconciliationEngine) startDLQCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
-	safego.Go(e.logger, "dlq-check", func() {
-		defer wg.Done()
-
-		result, err := e.dlqChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("DLQ check failed: %v", err)
-
-			resultCh <- checkResult{name: "dlq", dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "dlq", dlqCheck: result}
-		}
-	})
+func (e *ReconciliationEngine) logCheckError(name string, err error) {
+	if e.logger != nil {
+		e.logger.Errorf("%s check failed: %v", checkerLabel(name), err)
+	}
 }
 
 func (e *ReconciliationEngine) applyCheckResult(report *domain.ReconciliationReport, res checkResult) {
 	switch res.name {
-	case "balance":
+	case postgres.CheckerNameBalance:
 		report.BalanceCheck = res.balanceCheck
-	case "double-entry":
+	case postgres.CheckerNameDoubleEntry:
 		report.DoubleEntryCheck = res.doubleEntryCheck
-	case "orphan":
+	case postgres.CheckerNameOrphans:
 		report.OrphanCheck = res.orphanCheck
-	case "referential":
+	case postgres.CheckerNameReferential:
 		report.ReferentialCheck = res.referentialCheck
-	case "sync":
+	case postgres.CheckerNameSync:
 		report.SyncCheck = res.syncCheck
-	case "dlq":
+	case postgres.CheckerNameDLQ:
 		report.DLQCheck = res.dlqCheck
 	}
 }
@@ -275,11 +283,47 @@ func (e *ReconciliationEngine) setCheckDefaults(report *domain.ReconciliationRep
 		report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusSkipped}
 	}
 
-	// DLQCheck is expected to always be set today: `runParallelChecks` always starts `startDLQCheck`,
-	// and `DLQChecker.Check` returns a non-nil result on success. This fallback is defensive (e.g.
-	// if the goroutine panics and is recovered, or if DLQ checking becomes optional in the future).
+	// DLQCheck is usually set by the checker. This fallback is defensive (e.g. missing checker).
 	if report.DLQCheck == nil {
 		report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusSkipped}
+	}
+}
+
+func checkerLabel(name string) string {
+	switch name {
+	case postgres.CheckerNameBalance:
+		return "Balance"
+	case postgres.CheckerNameDoubleEntry:
+		return "Double-entry"
+	case postgres.CheckerNameOrphans:
+		return "Orphan"
+	case postgres.CheckerNameReferential:
+		return "Referential"
+	case postgres.CheckerNameSync:
+		return "Sync"
+	case postgres.CheckerNameDLQ:
+		return "DLQ"
+	default:
+		return name
+	}
+}
+
+func errorCheckResult(name string) checkResult {
+	switch name {
+	case postgres.CheckerNameBalance:
+		return checkResult{name: name, balanceCheck: &domain.BalanceCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameDoubleEntry:
+		return checkResult{name: name, doubleEntryCheck: &domain.DoubleEntryCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameOrphans:
+		return checkResult{name: name, orphanCheck: &domain.OrphanCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameReferential:
+		return checkResult{name: name, referentialCheck: &domain.ReferentialCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameSync:
+		return checkResult{name: name, syncCheck: &domain.SyncCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameDLQ:
+		return checkResult{name: name, dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
+	default:
+		return checkResult{name: name}
 	}
 }
 
@@ -294,6 +338,7 @@ func (e *ReconciliationEngine) collectEntityCounts(ctx context.Context, report *
 		report.EntityCounts.Assets = onboarding.Assets
 		report.EntityCounts.Accounts = onboarding.Accounts
 		report.EntityCounts.Portfolios = onboarding.Portfolios
+		report.EntityCounts.Segments = onboarding.Segments
 	}
 
 	// Transaction counts
@@ -304,6 +349,7 @@ func (e *ReconciliationEngine) collectEntityCounts(ctx context.Context, report *
 		report.EntityCounts.Transactions = transaction.Transactions
 		report.EntityCounts.Operations = transaction.Operations
 		report.EntityCounts.Balances = transaction.Balances
+		report.EntityCounts.AssetRates = transaction.AssetRates
 	}
 }
 
