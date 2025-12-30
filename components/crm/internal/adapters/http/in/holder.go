@@ -42,7 +42,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	defer span.End()
 
 	payload := http.Payload[*mmodel.CreateHolderInput](c, p)
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -98,7 +98,7 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	defer span.End()
 
 	id := http.LocalUUID(c, "id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
@@ -155,7 +155,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	defer span.End()
 
 	id := http.LocalUUID(c, "id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	payload := http.Payload[*mmodel.UpdateHolderInput](c, p)
 
 	fieldsToRemove := http.LocalStringSlice(c, "patchRemove")
@@ -221,7 +221,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	defer span.End()
 
 	id := http.LocalUUID(c, "id")
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
 	span.SetAttributes(
@@ -299,7 +299,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 	}
 
-	organizationID := c.Get("X-Organization-Id")
+	organizationID := http.LocalHeaderUUID(c, "X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
 	span.SetAttributes(
