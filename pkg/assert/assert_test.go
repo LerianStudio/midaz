@@ -678,3 +678,27 @@ func TestInRangeInt(t *testing.T) {
 		})
 	}
 }
+
+// TestNotEmptyString tests the NotEmptyString predicate.
+func TestNotEmptyString(t *testing.T) {
+	tests := []struct {
+		name     string
+		s        string
+		expected bool
+	}{
+		{"non-empty string", "hello", true},
+		{"string with spaces", "  hello  ", true},
+		{"single space", " ", false},
+		{"multiple spaces", "   ", false},
+		{"tab", "\t", false},
+		{"newline", "\n", false},
+		{"empty string", "", false},
+		{"mixed whitespace", " \t\n ", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, NotEmptyString(tt.s))
+		})
+	}
+}

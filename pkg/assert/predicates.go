@@ -2,6 +2,7 @@ package assert
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -349,4 +350,14 @@ func TransactionHasOperations[T any](operations []*T) bool {
 	}
 
 	return true
+}
+
+// NotEmptyString returns true if s is not empty and not just whitespace.
+// This is stricter than NotEmpty which only checks for empty string.
+//
+// Example:
+//
+//	assert.That(assert.NotEmptyString(alias), "alias must not be empty", "alias", alias)
+func NotEmptyString(s string) bool {
+	return strings.TrimSpace(s) != ""
 }
