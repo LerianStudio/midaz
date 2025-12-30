@@ -387,6 +387,12 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", tran.ID,
+		"created_at", tran.CreatedAt,
+		"updated_at", tran.UpdatedAt)
+
 	return handler.commitOrCancelTransaction(c, tran, constant.APPROVED)
 }
 
@@ -433,6 +439,12 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", tran.ID,
+		"created_at", tran.CreatedAt,
+		"updated_at", tran.UpdatedAt)
 
 	return handler.commitOrCancelTransaction(c, tran, constant.CANCELED)
 }
@@ -491,6 +503,12 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", tran.ID,
+		"created_at", tran.CreatedAt,
+		"updated_at", tran.UpdatedAt)
+
 	transactionReverted := handler.buildRevertTransaction(logger, tran)
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
@@ -542,6 +560,18 @@ func (handler *TransactionHandler) fetchAndValidateTransactionForRevert(ctx cont
 
 	if err := handler.validateTransactionCanBeReverted(span, logger, transactionID, tran); err != nil {
 		return nil, err
+	}
+
+	for _, op := range tran.Operations {
+		assert.NotNil(op, "operation must not be nil", "transaction_id", tran.ID)
+		assert.That(op.TransactionID == tran.ID, "operation transaction_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_transaction_id", op.TransactionID)
+		assert.That(op.OrganizationID == tran.OrganizationID, "operation organization_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_organization_id", op.OrganizationID)
+		assert.That(op.LedgerID == tran.LedgerID, "operation ledger_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_ledger_id", op.LedgerID)
+		assert.That(op.AssetCode == tran.AssetCode, "operation asset_code must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_asset_code", op.AssetCode)
 	}
 
 	return tran, nil
@@ -632,6 +662,11 @@ func (handler *TransactionHandler) validateTransactionCanBeReverted(span *trace.
 
 		return err
 	}
+
+	assert.That(assert.DateNotInFuture(tran.CreatedAt),
+		"transaction created_at must not be in the future for revert",
+		"transaction_id", transactionID.String(),
+		"created_at", tran.CreatedAt)
 
 	if tran.Status.Code != constant.APPROVED {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
@@ -856,6 +891,12 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 		return nil
 	}
 
+	assert.That(!trans.UpdatedAt.Before(trans.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", trans.ID,
+		"created_at", trans.CreatedAt,
+		"updated_at", trans.UpdatedAt)
+
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
 	ensureTransactionDefaults(trans)
@@ -910,6 +951,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
+		"transaction updated_at must be >= created_at",
+		"transaction_id", tran.ID,
+		"created_at", tran.CreatedAt,
+		"updated_at", tran.UpdatedAt)
+
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
@@ -938,6 +985,18 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		}
 
 		return nil
+	}
+
+	for _, op := range tran.Operations {
+		assert.NotNil(op, "operation must not be nil", "transaction_id", tran.ID)
+		assert.That(op.TransactionID == tran.ID, "operation transaction_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_transaction_id", op.TransactionID)
+		assert.That(op.OrganizationID == tran.OrganizationID, "operation organization_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_organization_id", op.OrganizationID)
+		assert.That(op.LedgerID == tran.LedgerID, "operation ledger_id must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_ledger_id", op.LedgerID)
+		assert.That(op.AssetCode == tran.AssetCode, "operation asset_code must match transaction",
+			"transaction_id", tran.ID, "operation_id", op.ID, "operation_asset_code", op.AssetCode)
 	}
 
 	spanGetTransaction.End()
