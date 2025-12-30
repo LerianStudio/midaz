@@ -32,6 +32,36 @@ const (
 	argsOffsetForWhereClause = 2
 )
 
+var accountTypeColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"name",
+	"description",
+	"key_value",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
+type accountTypeQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func primaryAccountTypeQueryer(db interface {
+	PrimaryDBs() []*sql.DB
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+},
+) accountTypeQueryer {
+	if primaries := db.PrimaryDBs(); len(primaries) > 0 && primaries[0] != nil {
+		return primaries[0]
+	}
+
+	return db
+}
+
 // Repository provides an interface for operations related to account type entities.
 //
 //go:generate mockgen --destination=accounttype.postgresql_mock.go --package=accounttype . Repository
@@ -162,7 +192,9 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 
-	row := db.QueryRowContext(ctx, `
+	queryDB := primaryAccountTypeQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, `
 		SELECT
 			id,
 			organization_id,
@@ -227,7 +259,9 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
 
-	row := db.QueryRowContext(ctx, `
+	queryDB := primaryAccountTypeQueryer(db)
+
+	row := queryDB.QueryRowContext(ctx, `
 		SELECT
 			id,
 			organization_id,
@@ -312,13 +346,33 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-argsOffsetForWhereClause) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		` AND deleted_at IS NULL RETURNING ` + strings.Join(accountTypeColumnList, ", ")
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
+	var updated AccountTypePostgreSQLModel
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(
+		&updated.ID,
+		&updated.OrganizationID,
+		&updated.LedgerID,
+		&updated.Name,
+		&updated.Description,
+		&updated.KeyValue,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			notFoundErr := services.ErrDatabaseItemNotFound
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", notFoundErr)
+
+			return nil, notFoundErr
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			validatedErr := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
@@ -337,24 +391,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to get rows affected", err)
-
-		logger.Errorf("Failed to get rows affected: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AccountType{}).Name())
-	}
-
-	if rowsAffected == 0 {
-		notFoundErr := services.ErrDatabaseItemNotFound
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", notFoundErr)
-
-		return nil, notFoundErr
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // prepareCursorPagination prepares cursor pagination parameters
@@ -434,7 +471,9 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	queryDB := primaryAccountTypeQueryer(db)
+
+	rows, err := queryDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 

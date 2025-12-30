@@ -2,6 +2,7 @@ package in
 
 import (
 	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -10,9 +11,12 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -113,6 +117,17 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account Type with ID: %s", id.String())
 
+	if id == uuid.Nil {
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account type not found", notFoundErr)
+
+		if httpErr := http.WithError(c, notFoundErr); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
+	}
+
 	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Type on query", err)
@@ -176,7 +191,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 	logger.Infof("Request to update account type with ID: %s and details: %#v", id, payload)
 
-	_, err = handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
+	updatedAccountType, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type", err)
 
@@ -189,22 +204,9 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 		return nil
 	}
 
-	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get updated account type", err)
-
-		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
-	}
-
 	logger.Infof("Successfully updated account type with ID: %s", id)
 
-	if err := http.OK(c, accountType); err != nil {
+	if err := http.OK(c, updatedAccountType); err != nil {
 		return err
 	}
 
