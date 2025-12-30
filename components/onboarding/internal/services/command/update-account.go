@@ -9,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -34,6 +35,14 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	// Precondition: if account found, ID should match the requested ID
+	if accFound != nil {
+		assert.That(accFound.ID == id.String(),
+			"found account ID must match requested ID",
+			"requestedID", id.String(),
+			"foundID", accFound.ID)
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == accountTypeExternal {
