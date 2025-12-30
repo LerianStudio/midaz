@@ -184,7 +184,7 @@ func NewWideEventMiddleware(cfg Config) fiber.Handler {
 
 		// Re-panic after logging to preserve stack trace for upstream handlers
 		if didPanic {
-			//nolint:panicguard // Intentional re-panic after logging - preserves stack trace for upstream recovery handlers
+			//nolint:panicguardwarn // Intentional re-panic after logging - preserves stack trace for upstream recovery handlers
 			panic(panicVal)
 		}
 
