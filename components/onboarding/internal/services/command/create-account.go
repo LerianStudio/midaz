@@ -86,6 +86,10 @@ func (uc *UseCase) validateParentAccount(ctx context.Context, organizationID, le
 
 	assert.NotNil(acc, "parent account must exist after successful Find",
 		"parent_account_id", parsedParentID.String())
+	// Assert: If parent exists, the asset code relationship is a business rule
+	// but the fact that we got here with a valid parent is an invariant
+	assert.NotEmpty(acc.AssetCode, "parent account asset code must not be empty",
+		"parent_account_id", parsedParentID.String())
 
 	if acc.AssetCode != cai.AssetCode {
 		businessErr := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
