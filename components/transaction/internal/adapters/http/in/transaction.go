@@ -1035,16 +1035,18 @@ func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.
 	result := make([]pkgTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
+		entry := entries[i] // Make a copy to avoid mutating the original
+
 		var newAlias string
 		if isConcat {
-			newAlias = entries[i].ConcatAlias(i)
+			newAlias = entry.ConcatAlias(i)
 		} else {
-			newAlias = entries[i].SplitAlias()
+			newAlias = entry.SplitAlias()
 		}
 
-		entries[i].AccountAlias = newAlias
+		entry.AccountAlias = newAlias
 
-		result = append(result, entries[i])
+		result = append(result, entry)
 	}
 
 	return result
@@ -1225,6 +1227,15 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	existingTran, err := handler.handleIdempotency(ctx, c, tracer, logger, organizationID, ledgerID, key, hash, ttl)
 	if err != nil || existingTran != nil {
 		return handler.handleIdempotencyResult(c, existingTran, err)
+	}
+
+	// Apply concatenated aliases to parserDSL for validation.
+	// This must happen AFTER idempotency hash (to preserve client input format for deduplication)
+	// but BEFORE validateAndGetBalances (which needs unique keys in From/To maps).
+	// HandleAccountFields returns copies, so we assign them back to parserDSL.
+	parserDSL.Send.Source.From = handler.HandleAccountFields(parserDSL.Send.Source.From, true)
+	if transactionStatus != constant.PENDING {
+		parserDSL.Send.Distribute.To = handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
 	}
 
 	validate, balances, err := handler.validateAndGetBalances(ctx, tracer, &span, logger, organizationID, ledgerID, transactionID, parserDSL, transactionStatus, transactionDate, key)
@@ -1580,7 +1591,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 }
 
 // executeCommitOrCancel builds operations and executes the commit or cancel transaction.
+// Note: fromTo contains concatenated aliases from buildCommitFromToList (for validation maps).
+// We also add split aliases below (for matching balance.Alias in BuildOperations).
+// HandleAccountFields returns copies, so calling it multiple times is safe.
 func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tran *mmodel.Transaction, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, fromTo []pkgTransaction.FromTo, transactionStatus string) error {
+	// Add split-alias entries for matching balance.Alias in BuildOperations
+	// Note: HandleAccountFields now returns copies, so this won't corrupt the original parserDSL
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
