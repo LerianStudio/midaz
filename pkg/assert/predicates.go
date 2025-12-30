@@ -273,3 +273,20 @@ func TransactionCanTransitionTo(current, target string) bool {
 func TransactionCanBeReverted(status string, hasParent bool) bool {
 	return status == "APPROVED" && !hasParent
 }
+
+// BalanceSufficientForRelease returns true if onHold >= releaseAmount.
+// This ensures a release operation won't result in negative onHold balance.
+//
+// Note: Also returns false if onHold is negative (invalid state).
+//
+// Example:
+//
+//	assert.That(assert.BalanceSufficientForRelease(balance.OnHold, releaseAmount),
+//	    "insufficient onHold balance for release",
+//	    "onHold", balance.OnHold, "releaseAmount", releaseAmount)
+func BalanceSufficientForRelease(onHold, releaseAmount decimal.Decimal) bool {
+	if onHold.IsNegative() {
+		return false
+	}
+	return onHold.GreaterThanOrEqual(releaseAmount)
+}
