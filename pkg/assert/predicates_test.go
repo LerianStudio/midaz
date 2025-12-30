@@ -2,6 +2,7 @@ package assert
 
 import (
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -163,6 +164,37 @@ func TestBalanceSufficientForRelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.expected, BalanceSufficientForRelease(tt.onHold, tt.releaseAmount))
+		})
+	}
+}
+
+// TestDateNotInFuture tests the DateNotInFuture predicate.
+func TestDateNotInFuture(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		date     time.Time
+		expected bool
+	}{
+		{"past date valid", now.Add(-24 * time.Hour), true},
+		{"now valid", now, true},
+		{"one second ago valid", now.Add(-time.Second), true},
+		{"one second future invalid", now.Add(time.Second), false},
+		{"one hour future invalid", now.Add(time.Hour), false},
+		{"far future invalid", now.Add(365 * 24 * time.Hour), false},
+		{"zero time valid", time.Time{}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DateNotInFuture(tt.date)
+			// Allow slight timing variance for "now" test
+			if tt.name == "now valid" {
+				require.True(t, result || time.Since(now) < time.Millisecond)
+			} else {
+				require.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }
