@@ -413,7 +413,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
-	alias := c.Params("alias")
+	alias := http.LocalString(c, "alias")
 
 	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
 	mlog.SetHandler(c, "get_balances_by_alias")
@@ -492,7 +492,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
-	code := c.Params("code")
+	code := http.LocalString(c, "code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
 	mlog.EnrichBalance(c, organizationID, ledgerID, uuid.Nil, uuid.Nil)
