@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -51,7 +52,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 			logger.Warnf("Error updating operation route on repo by id: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", services.ErrOperationRouteNotFound, err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation route on repo by id", err)

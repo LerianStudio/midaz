@@ -34,17 +34,9 @@ import (
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	var t transaction.TransactionQueue
-
-	for _, item := range data.QueueData {
-		logger.Infof("Unmarshal account ID: %v", item.ID.String())
-
-		err := msgpack.Unmarshal(item.Value, &t)
-		if err != nil {
-			logger.Errorf("failed to unmarshal response: %v", err.Error())
-
-			return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
-		}
+	t, err := uc.unmarshalQueueData(logger, data)
+	if err != nil {
+		return err
 	}
 
 	// Use the result outside the transaction
@@ -56,34 +48,18 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctx, spanAtomic := tracer.Start(ctx, "command.create_balance_transaction_operations.atomic")
 	defer spanAtomic.End()
 
-	err := dbtx.RunInTransaction(ctx, uc.DBProvider, func(txCtx context.Context) error {
+	err = dbtx.RunInTransaction(ctx, uc.DBProvider, func(txCtx context.Context) error {
 		// Step 1: Update balances (if not NOTED status)
-		if t.Transaction.Status.Code != constant.NOTED {
-			ctxProcessBalances, spanUpdateBalances := tracer.Start(txCtx, "command.create_balance_transaction_operations.update_balances")
-			defer spanUpdateBalances.End()
-
-			logger.Infof("Trying to update balances")
-
-			if err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances); err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
-				logger.Errorf("Failed to update balances: %v", err.Error())
-
-				return err
-			}
+		if err := uc.updateBalancesStep(txCtx, tracer, logger, data, t); err != nil {
+			return err
 		}
 
 		// Step 2: Create or update transaction
-		ctxProcessTransaction, spanUpdateTransaction := tracer.Start(txCtx, "command.create_balance_transaction_operations.create_transaction")
-		defer spanUpdateTransaction.End()
+		var txErr error
 
-		var err error
-
-		tran, err = uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
-			logger.Errorf("Failed to create or update transaction: %v", err.Error())
-
-			return err
+		tran, txErr = uc.createTransactionStep(txCtx, tracer, logger, t)
+		if txErr != nil {
+			return txErr
 		}
 
 		// Step 3: Create operations (PostgreSQL only - metadata moved outside transaction)
@@ -92,29 +68,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 
 		// Step 4: Queue metadata to outbox (INSIDE transaction for atomicity)
-		if tran.Metadata != nil {
-			entry, err := outbox.NewMetadataOutbox(tran.ID, outbox.EntityTypeTransaction, tran.Metadata)
-			if err != nil {
-				return fmt.Errorf("failed to create outbox entry for transaction: %w", err)
-			}
-			if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
-				return fmt.Errorf("failed to queue transaction metadata to outbox: %w", err)
-			}
-		}
-
-		for _, oper := range tran.Operations {
-			if oper.Metadata != nil {
-				entry, err := outbox.NewMetadataOutbox(oper.ID, outbox.EntityTypeOperation, oper.Metadata)
-				if err != nil {
-					return fmt.Errorf("failed to create outbox entry for operation: %w", err)
-				}
-				if err := uc.OutboxRepo.Create(txCtx, entry); err != nil {
-					return fmt.Errorf("failed to queue operation metadata to outbox: %w", err)
-				}
-			}
-		}
-
-		return nil
+		return uc.queueMetadataToOutbox(txCtx, tran)
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAtomic, "Atomic transaction failed", err)
@@ -137,6 +91,106 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
+// unmarshalQueueData extracts transaction queue data from the message queue.
+func (uc *UseCase) unmarshalQueueData(logger libLog.Logger, data mmodel.Queue) (transaction.TransactionQueue, error) {
+	var t transaction.TransactionQueue
+
+	for _, item := range data.QueueData {
+		logger.Infof("Unmarshal account ID: %v", item.ID.String())
+
+		if err := msgpack.Unmarshal(item.Value, &t); err != nil {
+			logger.Errorf("failed to unmarshal response: %v", err.Error())
+			return t, pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
+		}
+	}
+
+	return t, nil
+}
+
+// updateBalancesStep updates balances if the transaction status is not NOTED.
+func (uc *UseCase) updateBalancesStep(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, data mmodel.Queue, t transaction.TransactionQueue) error {
+	if t.Transaction.Status.Code == constant.NOTED {
+		return nil
+	}
+
+	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+	defer spanUpdateBalances.End()
+
+	logger.Infof("Trying to update balances")
+
+	if err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
+		logger.Errorf("Failed to update balances: %v", err.Error())
+
+		return err
+	}
+
+	return nil
+}
+
+// createTransactionStep creates or updates the transaction.
+func (uc *UseCase) createTransactionStep(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, t transaction.TransactionQueue) (*transaction.Transaction, error) {
+	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	defer spanUpdateTransaction.End()
+
+	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
+		logger.Errorf("Failed to create or update transaction: %v", err.Error())
+
+		return nil, err
+	}
+
+	return tran, nil
+}
+
+// queueMetadataToOutbox queues transaction and operation metadata to the outbox for async processing.
+func (uc *UseCase) queueMetadataToOutbox(ctx context.Context, tran *transaction.Transaction) error {
+	if err := uc.queueTransactionMetadata(ctx, tran); err != nil {
+		return err
+	}
+
+	return uc.queueOperationsMetadata(ctx, tran.Operations)
+}
+
+// queueTransactionMetadata queues transaction metadata to the outbox.
+func (uc *UseCase) queueTransactionMetadata(ctx context.Context, tran *transaction.Transaction) error {
+	if tran.Metadata == nil {
+		return nil
+	}
+
+	entry, err := outbox.NewMetadataOutbox(tran.ID, outbox.EntityTypeTransaction, tran.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to create outbox entry for transaction: %w", err)
+	}
+
+	if err := uc.OutboxRepo.Create(ctx, entry); err != nil {
+		return fmt.Errorf("failed to queue transaction metadata to outbox: %w", err)
+	}
+
+	return nil
+}
+
+// queueOperationsMetadata queues operation metadata to the outbox.
+func (uc *UseCase) queueOperationsMetadata(ctx context.Context, operations []*operation.Operation) error {
+	for _, oper := range operations {
+		if oper.Metadata == nil {
+			continue
+		}
+
+		entry, err := outbox.NewMetadataOutbox(oper.ID, outbox.EntityTypeOperation, oper.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to create outbox entry for operation: %w", err)
+		}
+
+		if err := uc.OutboxRepo.Create(ctx, entry); err != nil {
+			return fmt.Errorf("failed to queue operation metadata to outbox: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
 func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
@@ -145,6 +199,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
+
 	tran.Body = pkgTransaction.Transaction{}
 	if t.ParseDSL != nil && !t.ParseDSL.IsEmpty() {
 		// Preserve the parsed DSL for metadata fallback and revert support when available.

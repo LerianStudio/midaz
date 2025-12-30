@@ -36,7 +36,7 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 }
 
 // Run starts consumers for all registered queues.
-func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
+func (mq *MultiQueueConsumer) Run(_ *libCommons.Launcher) error {
 	if err := mq.consumerRoutes.RunConsumers(); err != nil {
 		return pkg.ValidateInternalError(err, "MultiQueueConsumer")
 	}

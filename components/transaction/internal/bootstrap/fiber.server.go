@@ -32,7 +32,7 @@ func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *lib
 }
 
 // Run runs the server.
-func (s *Server) Run(l *libCommons.Launcher) error {
+func (s *Server) Run(_ *libCommons.Launcher) error {
 	libCommonsServer.NewServerManager(nil, &s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).
 		StartWithGracefulShutdown()

@@ -3,6 +3,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -36,6 +37,9 @@ const (
 	// metadataOutboxHealthCheckTimeout is the timeout for infrastructure health checks.
 	metadataOutboxHealthCheckTimeout = 5 * time.Second
 
+	// metadataOutboxProcessingTimeout is the timeout for processing a single metadata outbox entry.
+	metadataOutboxProcessingTimeout = 30 * time.Second
+
 	// metadataOutboxInitialBackoff is the initial delay for retry backoff (1 second).
 	metadataOutboxInitialBackoff = 1 * time.Second
 
@@ -55,7 +59,7 @@ const (
 )
 
 // ErrMetadataOutboxPanicRecovered is returned when a panic is recovered during outbox processing.
-var ErrMetadataOutboxPanicRecovered = fmt.Errorf("panic recovered during metadata outbox processing")
+var ErrMetadataOutboxPanicRecovered = errors.New("panic recovered during metadata outbox processing")
 
 // MetadataOutboxWorker processes pending metadata outbox entries.
 // It polls PostgreSQL for pending entries and creates metadata in MongoDB.
@@ -170,13 +174,35 @@ func (w *MetadataOutboxWorker) processPendingEntries(ctx context.Context) {
 
 	// Process entries concurrently with worker pool
 	sem := make(chan struct{}, w.maxWorkers)
+
 	var wg sync.WaitGroup
 
+entriesLoop:
 	for _, entry := range entries {
 		e := entry // capture for goroutine
 
-		sem <- struct{}{}
+		// Increment before any potentially-blocking operation so wg.Wait() can't hang on cancellation.
 		wg.Add(1)
+
+		// Acquire a worker slot or bail if the context is already cancelled.
+		select {
+		case sem <- struct{}{}:
+			// slot acquired
+		case <-ctx.Done():
+			wg.Done()
+			break entriesLoop
+		}
+
+		// If we acquired a slot but context got cancelled before launching the goroutine,
+		// release the slot and decrement the waitgroup to avoid leaks.
+		select {
+		case <-ctx.Done():
+			<-sem
+			wg.Done()
+
+			break entriesLoop
+		default:
+		}
 
 		mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "metadata_outbox_worker", mruntime.KeepRunning, func(ctx context.Context) {
 			defer func() { <-sem }()
@@ -192,7 +218,7 @@ func (w *MetadataOutboxWorker) processPendingEntries(ctx context.Context) {
 // processEntry processes a single outbox entry.
 func (w *MetadataOutboxWorker) processEntry(ctx context.Context, entry *outbox.MetadataOutbox) {
 	// Add processing timeout to prevent hanging on slow MongoDB operations
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, metadataOutboxProcessingTimeout)
 	defer cancel()
 
 	// Setup context with correlation ID for this entry

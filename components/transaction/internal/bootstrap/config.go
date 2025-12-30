@@ -45,7 +45,21 @@ import (
 const ApplicationName = "transaction"
 
 const (
-	ensureIndexesTimeoutSeconds = 60
+	ensureIndexesTimeoutSeconds        = 60
+	defaultBalanceSyncMaxWorkers       = 5
+	defaultMetadataOutboxMaxWorkers    = 5
+	defaultMetadataOutboxRetentionDays = 7
+
+	// Database pool validation limits
+	maxOpenConnectionsLimit = 10000
+	maxIdleConnectionsLimit = 5000
+	maxPoolSizeLimit        = 1000
+	redisPoolSizeLimit      = 1000
+
+	// Migration configuration defaults
+	defaultMaxRecoveryPerVersion = 3
+	defaultMaxBackoffSeconds     = 30
+	defaultLockTimeoutSeconds    = 30
 )
 
 // Sentinel errors for bootstrap initialization.
@@ -68,7 +82,7 @@ type dbProviderAdapter struct {
 func (a *dbProviderAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbtx.Tx, error) {
 	tx, err := a.db.BeginTx(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err) //nolint:wrapcheck // BeginTx is infrastructure-level, context added via fmt.Errorf
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	return &dbTxAdapter{tx}, nil
@@ -199,9 +213,9 @@ func (cfg *Config) Validate() {
 		"field", "ReplicaDBSSLMode", "value", cfg.ReplicaDBSSLMode)
 
 	// Database pool configuration
-	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, 10000), "DB_MAX_OPEN_CONNS must be 1-10000",
+	assert.That(assert.InRangeInt(cfg.MaxOpenConnections, 1, maxOpenConnectionsLimit), "DB_MAX_OPEN_CONNS must be 1-10000",
 		"field", "MaxOpenConnections", "value", cfg.MaxOpenConnections)
-	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, 5000), "DB_MAX_IDLE_CONNS must be 1-5000",
+	assert.That(assert.InRangeInt(cfg.MaxIdleConnections, 1, maxIdleConnectionsLimit), "DB_MAX_IDLE_CONNS must be 1-5000",
 		"field", "MaxIdleConnections", "value", cfg.MaxIdleConnections)
 
 	// MongoDB configuration
@@ -211,13 +225,13 @@ func (cfg *Config) Validate() {
 		"field", "MongoDBName")
 	assert.That(assert.ValidPort(cfg.MongoDBPort), "MONGO_PORT must be valid port (1-65535)",
 		"field", "MongoDBPort", "value", cfg.MongoDBPort)
-	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, 1000), "MONGO_MAX_POOL_SIZE must be 1-1000",
+	assert.That(assert.InRangeInt(cfg.MaxPoolSize, 1, maxPoolSizeLimit), "MONGO_MAX_POOL_SIZE must be 1-1000",
 		"field", "MaxPoolSize", "value", cfg.MaxPoolSize)
 
 	// Redis configuration
 	assert.NotEmpty(cfg.RedisHost, "REDIS_HOST is required",
 		"field", "RedisHost")
-	assert.That(assert.InRangeInt(cfg.RedisPoolSize, 1, 1000), "REDIS_POOL_SIZE must be 1-1000",
+	assert.That(assert.InRangeInt(cfg.RedisPoolSize, 1, redisPoolSizeLimit), "REDIS_POOL_SIZE must be 1-1000",
 		"field", "RedisPoolSize", "value", cfg.RedisPoolSize)
 
 	// RabbitMQ configuration
@@ -227,6 +241,85 @@ func (cfg *Config) Validate() {
 		"field", "RabbitMQPortHost", "value", cfg.RabbitMQPortHost)
 	assert.That(assert.ValidPort(cfg.RabbitMQPortAMQP), "RABBITMQ_PORT_AMQP must be valid port (1-65535)",
 		"field", "RabbitMQPortAMQP", "value", cfg.RabbitMQPortAMQP)
+}
+
+// normalizeBalanceSyncMaxWorkers normalizes balance sync worker count and logs defaults.
+func normalizeBalanceSyncMaxWorkers(maxWorkers int, logger libLog.Logger) int {
+	if maxWorkers <= 0 {
+		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
+		return defaultBalanceSyncMaxWorkers
+	}
+
+	return maxWorkers
+}
+
+// initBalanceSyncWorker initializes the balance sync worker if enabled.
+func initBalanceSyncWorker(enabled bool, redisConn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+	if !enabled {
+		logger.Info("BalanceSyncWorker disabled.")
+		return nil
+	}
+
+	worker := NewBalanceSyncWorker(redisConn, logger, useCase, maxWorkers)
+	logger.Infof("BalanceSyncWorker enabled with %d max workers.", maxWorkers)
+
+	return worker
+}
+
+// initDLQConsumer initializes the DLQ consumer if enabled.
+func initDLQConsumer(cfg *Config, logger libLog.Logger, rabbitConn *libRabbitmq.RabbitMQConnection, pgConn *libPostgres.PostgresConnection, redisConn *libRedis.RedisConnection) *DLQConsumer {
+	if !cfg.DLQConsumerEnabled {
+		logger.Info("DLQConsumer disabled (set DLQ_CONSUMER_ENABLED=true to enable)")
+		return nil
+	}
+
+	queueNames := []string{
+		cfg.RabbitMQBalanceCreateQueue,
+		cfg.RabbitMQTransactionBalanceOperationQueue,
+	}
+
+	consumer := NewDLQConsumer(logger, rabbitConn, pgConn, redisConn, queueNames)
+	logger.Info("DLQConsumer enabled - will monitor and replay failed messages")
+
+	return consumer
+}
+
+// normalizeMetadataOutboxConfig normalizes metadata outbox configuration values.
+func normalizeMetadataOutboxConfig(cfg *Config, logger libLog.Logger) (maxWorkers, retentionDays int) {
+	maxWorkers = cfg.MetadataOutboxMaxWorkers
+	if maxWorkers <= 0 {
+		maxWorkers = defaultMetadataOutboxMaxWorkers
+		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_MAX_WORKERS=%d", defaultMetadataOutboxMaxWorkers)
+	}
+
+	retentionDays = cfg.MetadataOutboxRetentionDays
+	if retentionDays <= 0 {
+		retentionDays = defaultMetadataOutboxRetentionDays
+		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_RETENTION_DAYS=%d", defaultMetadataOutboxRetentionDays)
+	}
+
+	return maxWorkers, retentionDays
+}
+
+// initMetadataOutboxWorker initializes the metadata outbox worker if enabled.
+func initMetadataOutboxWorker(
+	enabled bool,
+	logger libLog.Logger,
+	outboxRepo *outbox.OutboxPostgreSQLRepository,
+	metadataRepo *mongodb.MetadataMongoDBRepository,
+	pgConn *libPostgres.PostgresConnection,
+	mongoConn *libMongo.MongoConnection,
+	maxWorkers, retentionDays int,
+) *MetadataOutboxWorker {
+	if !enabled {
+		logger.Info("MetadataOutboxWorker disabled (set METADATA_OUTBOX_WORKER_ENABLED=true to enable)")
+		return nil
+	}
+
+	worker := NewMetadataOutboxWorker(logger, outboxRepo, metadataRepo, pgConn, mongoConn, maxWorkers, retentionDays)
+	logger.Infof("MetadataOutboxWorker enabled with %d max workers and %d days retention.", maxWorkers, retentionDays)
+
+	return worker
 }
 
 // InitServers initiate http and grpc servers.
@@ -278,10 +371,10 @@ func InitServers() *Service {
 	migrationConfig := mmigration.MigrationConfig{
 		AutoRecoverDirty:      cfg.MigrationAutoRecover,
 		MaxRetries:            cfg.MigrationMaxRetries,
-		MaxRecoveryPerVersion: 3,
+		MaxRecoveryPerVersion: defaultMaxRecoveryPerVersion,
 		RetryBackoff:          1 * time.Second,
-		MaxBackoff:            30 * time.Second,
-		LockTimeout:           30 * time.Second,
+		MaxBackoff:            defaultMaxBackoffSeconds * time.Second,
+		LockTimeout:           defaultLockTimeoutSeconds * time.Second,
 		Component:             ApplicationName,
 		MigrationsPath:        "/app/components/transaction/migrations",
 	}
@@ -294,6 +387,7 @@ func InitServers() *Service {
 	// Perform preflight check with retry for migration safety
 	// CRITICAL: Fail fast on migration errors - do not continue with broken database state
 	ctx := context.Background()
+
 	_, err = migrationWrapper.SafeGetDBWithRetry(ctx)
 	if err != nil {
 		logger.Fatalf("Migration preflight failed for %s: %v - cannot proceed with broken database state", ApplicationName, err)
@@ -311,11 +405,14 @@ func InitServers() *Service {
 		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
+	// MaxPoolSize is validated above (1-1000), safe for uint64 conversion.
+	maxPoolSize := uint64(cfg.MaxPoolSize) //nolint:gosec // G115: cfg.Validate() enforces 1-1000, safe conversion
+
 	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            maxPoolSize,
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -499,89 +596,22 @@ func InitServers() *Service {
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 
-	const (
-		defaultBalanceSyncWorkerEnabled = false
-		defaultBalanceSyncMaxWorkers    = 5
+	balanceSyncMaxWorkers := normalizeBalanceSyncMaxWorkers(cfg.BalanceSyncMaxWorkers, logger)
+	balanceSyncWorker := initBalanceSyncWorker(cfg.BalanceSyncWorkerEnabled, redisConnection, logger, useCase, balanceSyncMaxWorkers)
+
+	dlqConsumer := initDLQConsumer(cfg, logger, rabbitMQConsumerConnection, postgresConnection, redisConnection)
+
+	metadataOutboxMaxWorkers, metadataOutboxRetentionDays := normalizeMetadataOutboxConfig(cfg, logger)
+	metadataOutboxWorker := initMetadataOutboxWorker(
+		cfg.MetadataOutboxWorkerEnabled,
+		logger,
+		outboxPostgreSQLRepository,
+		metadataMongoDBRepository,
+		postgresConnection,
+		mongoConnection,
+		metadataOutboxMaxWorkers,
+		metadataOutboxRetentionDays,
 	)
-
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
-	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if !balanceSyncWorkerEnabled {
-		logger.Info("BalanceSyncWorker using default: BALANCE_SYNC_WORKER_ENABLED=false")
-	}
-
-	if balanceSyncMaxWorkers <= 0 {
-		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
-	}
-
-	var balanceSyncWorker *BalanceSyncWorker
-	if balanceSyncWorkerEnabled {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, useCase, balanceSyncMaxWorkers)
-		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
-	} else {
-		logger.Info("BalanceSyncWorker disabled.")
-	}
-
-	// DLQ Consumer - monitors Dead Letter Queues and replays messages after infrastructure recovery
-	var dlqConsumer *DLQConsumer
-
-	// H5: Use cfg field instead of os.Getenv (configuration inconsistency fix)
-	if cfg.DLQConsumerEnabled {
-		// Get queue names from environment (same ones used by MultiQueueConsumer)
-		queueNames := []string{
-			cfg.RabbitMQBalanceCreateQueue,
-			cfg.RabbitMQTransactionBalanceOperationQueue,
-		}
-
-		dlqConsumer = NewDLQConsumer(
-			logger,
-			rabbitMQConsumerConnection,
-			postgresConnection,
-			redisConnection,
-			queueNames,
-		)
-		logger.Info("DLQConsumer enabled - will monitor and replay failed messages")
-	} else {
-		logger.Info("DLQConsumer disabled (set DLQ_CONSUMER_ENABLED=true to enable)")
-	}
-
-	// Metadata Outbox Worker - processes pending metadata entries from outbox to MongoDB
-	const (
-		defaultMetadataOutboxMaxWorkers    = 5
-		defaultMetadataOutboxRetentionDays = 7
-	)
-
-	var metadataOutboxWorker *MetadataOutboxWorker
-
-	metadataOutboxMaxWorkers := cfg.MetadataOutboxMaxWorkers
-	if metadataOutboxMaxWorkers <= 0 {
-		metadataOutboxMaxWorkers = defaultMetadataOutboxMaxWorkers
-		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_MAX_WORKERS=%d", defaultMetadataOutboxMaxWorkers)
-	}
-
-	metadataOutboxRetentionDays := cfg.MetadataOutboxRetentionDays
-	if metadataOutboxRetentionDays <= 0 {
-		metadataOutboxRetentionDays = defaultMetadataOutboxRetentionDays
-		logger.Infof("MetadataOutboxWorker using default: METADATA_OUTBOX_RETENTION_DAYS=%d", defaultMetadataOutboxRetentionDays)
-	}
-
-	if cfg.MetadataOutboxWorkerEnabled {
-		metadataOutboxWorker = NewMetadataOutboxWorker(
-			logger,
-			outboxPostgreSQLRepository,
-			metadataMongoDBRepository,
-			postgresConnection,
-			mongoConnection,
-			metadataOutboxMaxWorkers,
-			metadataOutboxRetentionDays,
-		)
-		logger.Infof("MetadataOutboxWorker enabled with %d max workers and %d days retention.",
-			metadataOutboxMaxWorkers, metadataOutboxRetentionDays)
-	} else {
-		logger.Info("MetadataOutboxWorker disabled (set METADATA_OUTBOX_WORKER_ENABLED=true to enable)")
-	}
 
 	return &Service{
 		Server:                      server,

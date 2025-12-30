@@ -3,12 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -106,8 +108,8 @@ func (uc *UseCase) findOperationRoutesWithRetry(ctx context.Context, organizatio
 	}
 	// Cap to avoid integer shift overflow producing negative/garbage durations.
 	// This still allows very large backoffs (~days) if configured near the cap.
-	if maxAttempts > 30 {
-		maxAttempts = 30
+	if maxAttempts > MaxRouteLookupAttemptsCap {
+		maxAttempts = MaxRouteLookupAttemptsCap
 	}
 
 	baseBackoff := uc.RouteLookupBaseBackoff
@@ -123,7 +125,7 @@ func (uc *UseCase) findOperationRoutesWithRetry(ctx context.Context, organizatio
 
 		lastErr = err
 		if !isOperationRouteNotFoundErr(err) || attempt == maxAttempts-1 {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", services.ErrOperationRouteLookup, err)
 		}
 
 		backoff := time.Duration(1<<attempt) * baseBackoff
@@ -132,7 +134,7 @@ func (uc *UseCase) findOperationRoutesWithRetry(ctx context.Context, organizatio
 		select {
 		case <-time.After(backoff):
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("%w: %w", services.ErrContextCanceled, ctx.Err())
 		}
 	}
 
@@ -140,6 +142,10 @@ func (uc *UseCase) findOperationRoutesWithRetry(ctx context.Context, organizatio
 }
 
 func isOperationRouteNotFoundErr(err error) bool {
+	if errors.Is(err, services.ErrOperationRouteNotFound) {
+		return true
+	}
+
 	var notFoundErr pkg.EntityNotFoundError
 	if errors.As(err, &notFoundErr) {
 		return notFoundErr.Code == constant.ErrOperationRouteNotFound.Error()

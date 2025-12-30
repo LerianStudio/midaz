@@ -64,7 +64,9 @@ type UseCase struct {
 	DBProvider DBProvider
 
 	// RouteLookupMaxAttempts controls how many times we retry operation route lookups
-	// when the repository returns ErrOperationRouteNotFound.
+	// when the repository returns an operation route "not found" error (e.g. errors
+	// wrapping services.ErrOperationRouteNotFound or a typed *pkg.EntityNotFoundError
+	// with code constant.ErrOperationRouteNotFound).
 	// If <= 0, a sensible default is used.
 	RouteLookupMaxAttempts int
 
@@ -85,4 +87,7 @@ const (
 	DefaultRouteLookupMaxAttempts = 5
 	// DefaultRouteLookupBaseBackoff matches historical behavior in CreateTransactionRoute.
 	DefaultRouteLookupBaseBackoff = 200 * time.Millisecond
+	// MaxRouteLookupAttemptsCap prevents integer shift overflow in exponential backoff.
+	// Values above this cap would produce negative/garbage durations due to overflow.
+	MaxRouteLookupAttemptsCap = 30
 )

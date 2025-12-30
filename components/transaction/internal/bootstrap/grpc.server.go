@@ -33,7 +33,7 @@ func NewServerGRPC(cfg *Config, server *grpc.Server, logger libLog.Logger, telem
 }
 
 // Run starts the gRPC server and blocks until graceful shutdown is triggered.
-func (sgrpc *ServerGRPC) Run(l *libCommons.Launcher) error {
+func (sgrpc *ServerGRPC) Run(_ *libCommons.Launcher) error {
 	libCommonsServer.NewServerManager(nil, &sgrpc.Telemetry, sgrpc.Logger).
 		WithGRPCServer(sgrpc.server, sgrpc.protoAddress).
 		StartWithGracefulShutdown()
