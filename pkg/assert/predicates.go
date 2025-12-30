@@ -329,3 +329,24 @@ func DateAfter(date, reference time.Time) bool {
 func BalanceIsZero(available, onHold decimal.Decimal) bool {
 	return available.IsZero() && onHold.IsZero()
 }
+
+// TransactionHasOperations returns true if operations contains at least one non-nil entry.
+//
+// Example:
+//
+//	assert.That(assert.TransactionHasOperations(tran.Operations),
+//	    "transaction must include at least one operation",
+//	    "transaction_id", tran.ID)
+func TransactionHasOperations[T any](operations []*T) bool {
+	if len(operations) == 0 {
+		return false
+	}
+
+	for _, op := range operations {
+		if op == nil {
+			return false
+		}
+	}
+
+	return true
+}
