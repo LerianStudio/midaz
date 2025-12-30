@@ -252,6 +252,12 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 			}
 
 			tos = append(tos, to)
+		default:
+			// Unknown operation types indicate a programming error
+			assert.Never("unhandled operation type in TransactionRevert",
+				"operation_type", op.Type,
+				"operation_id", op.ID,
+				"transaction_id", t.ID)
 		}
 	}
 
