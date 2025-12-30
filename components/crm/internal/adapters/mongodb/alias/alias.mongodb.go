@@ -73,11 +73,6 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", alias)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
 	db, err := am.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
@@ -213,11 +208,6 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", alias)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
 	db, err := am.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
@@ -317,11 +307,6 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", query)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
 
 	db, err := am.connection.GetDB(ctx)
 	if err != nil {

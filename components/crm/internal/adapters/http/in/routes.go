@@ -24,6 +24,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
+	f.Use(http.WithRecover(http.WithRecoverLogger(lg)))
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))

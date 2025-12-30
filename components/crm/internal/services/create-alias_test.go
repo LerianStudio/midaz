@@ -177,6 +177,38 @@ func TestCreateAlias(t *testing.T) {
 			expectedErr:    cn.ErrRelatedPartyDocumentRequired,
 			expectedResult: nil,
 		},
+		{
+			name:     "Success with nil LinkType (optional field)",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+			},
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+
+				mockAliasRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						AccountID: &accountID,
+						LedgerID:  &ledgerID,
+					}, nil)
+			},
+			expectedErr: nil,
+			expectedResult: &mmodel.Alias{
+				ID:        &id,
+				Document:  &holderDocument,
+				AccountID: &accountID,
+				LedgerID:  &ledgerID,
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

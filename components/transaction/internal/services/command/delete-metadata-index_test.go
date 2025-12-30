@@ -84,7 +84,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			indexName:   "tier_1",
 			setupMocks:  func() {},
 			expectedErr: true,
-			errContains: "0134",
+			errContains: "0137",
 		},
 		{
 			name:        "failure - index name with wrong prefix",
@@ -92,7 +92,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			indexName:   "custom.tier_1",
 			setupMocks:  func() {},
 			expectedErr: true,
-			errContains: "0134",
+			errContains: "0137",
 		},
 		{
 			name:        "failure - empty index name",
@@ -100,7 +100,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			indexName:   "",
 			setupMocks:  func() {},
 			expectedErr: true,
-			errContains: "0134",
+			errContains: "0137",
 		},
 		{
 			name:       "failure - repository error",
@@ -190,7 +190,7 @@ func TestDeleteMetadataIndexValidatesPrefix(t *testing.T) {
 			err := uc.DeleteMetadataIndex(ctx, "transaction", indexName)
 
 			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "0134")
+			assert.Contains(t, err.Error(), "0137")
 		})
 	}
 }
