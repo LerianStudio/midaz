@@ -31,21 +31,23 @@ WITH balance_calc AS (
         b.ledger_id,
         COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as total_credits,
         COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as total_debits,
+        COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected = true AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0) as total_on_hold_ops,
         COUNT(o.id) as operation_count
     FROM balance b
     LEFT JOIN operation o ON b.account_id = o.account_id
         AND b.asset_code = o.asset_code
         AND b.key = o.balance_key
         AND o.deleted_at IS NULL
+    LEFT JOIN transaction t ON o.transaction_id = t.id
     WHERE b.deleted_at IS NULL
     GROUP BY b.id, b.account_id, b.alias, b.asset_code, b.available, b.on_hold,
              b.version, b.organization_id, b.ledger_id
 )
 SELECT
     COUNT(*) as total_balances,
-    SUM(CASE WHEN ABS(current_balance - (total_credits - total_debits)) > :discrepancy_threshold THEN 1 ELSE 0 END) as balances_with_discrepancy,
-    ROUND(100.0 * SUM(CASE WHEN ABS(current_balance - (total_credits - total_debits)) > :discrepancy_threshold THEN 1 ELSE 0 END) / COUNT(*), 2) as discrepancy_percentage,
-    SUM(ABS(current_balance - (total_credits - total_debits))) as total_absolute_discrepancy
+    SUM(CASE WHEN ABS(current_balance - (total_credits - total_debits - total_on_hold_ops)) > :discrepancy_threshold THEN 1 ELSE 0 END) as balances_with_discrepancy,
+    ROUND(100.0 * SUM(CASE WHEN ABS(current_balance - (total_credits - total_debits - total_on_hold_ops)) > :discrepancy_threshold THEN 1 ELSE 0 END) / COUNT(*), 2) as discrepancy_percentage,
+    SUM(ABS(current_balance - (total_credits - total_debits - total_on_hold_ops))) as total_absolute_discrepancy
 FROM balance_calc;
 
 -- ============================================================================
@@ -69,6 +71,7 @@ WITH balance_calc AS (
         b.updated_at as balance_updated_at,
         COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as total_credits,
         COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as total_debits,
+        COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected = true AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0) as total_on_hold_ops,
         COUNT(o.id) as operation_count,
         MAX(o.created_at) as last_operation_at
     FROM balance b
@@ -76,6 +79,7 @@ WITH balance_calc AS (
         AND b.asset_code = o.asset_code
         AND b.key = o.balance_key
         AND o.deleted_at IS NULL
+    LEFT JOIN transaction t ON o.transaction_id = t.id
     WHERE b.deleted_at IS NULL
     GROUP BY b.id, b.account_id, b.alias, b.asset_code, b.key, b.available,
              b.on_hold, b.version, b.organization_id, b.ledger_id, b.updated_at
@@ -89,8 +93,8 @@ SELECT
     current_balance,
     total_credits,
     total_debits,
-    (total_credits - total_debits) as expected_balance,
-    current_balance - (total_credits - total_debits) as discrepancy,
+    (total_credits - total_debits - total_on_hold_ops) as expected_balance,
+    current_balance - (total_credits - total_debits - total_on_hold_ops) as discrepancy,
     operation_count,
     version as balance_version,
     balance_updated_at,
@@ -98,8 +102,8 @@ SELECT
     organization_id,
     ledger_id
 FROM balance_calc
-WHERE ABS(current_balance - (total_credits - total_debits)) > :discrepancy_threshold
-ORDER BY ABS(current_balance - (total_credits - total_debits)) DESC
+WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold_ops)) > :discrepancy_threshold
+ORDER BY ABS(current_balance - (total_credits - total_debits - total_on_hold_ops)) DESC
 LIMIT 100;
 
 -- ============================================================================
@@ -174,12 +178,14 @@ WITH balance_calc AS (
         b.ledger_id,
         b.available as current_balance,
         COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) -
-        COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) as expected_balance
+        COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected = true THEN o.amount ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected = true AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0) as expected_balance
     FROM balance b
     LEFT JOIN operation o ON b.account_id = o.account_id
         AND b.asset_code = o.asset_code
         AND b.key = o.balance_key
         AND o.deleted_at IS NULL
+    LEFT JOIN transaction t ON o.transaction_id = t.id
     WHERE b.deleted_at IS NULL
     GROUP BY b.id, b.organization_id, b.ledger_id, b.available
 )
