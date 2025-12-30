@@ -315,6 +315,22 @@ func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
 	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
 }
 
+// GetUUIDFromLocals safely extracts a UUID from fiber context locals.
+// Returns an error if the value is nil or not a valid UUID.
+func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
+	val := c.Locals(key)
+	if val == nil {
+		return uuid.Nil, constant.ErrInvalidPathParameter
+	}
+
+	id, ok := val.(uuid.UUID)
+	if !ok {
+		return uuid.Nil, constant.ErrInvalidPathParameter
+	}
+
+	return id, nil
+}
+
 // ValidateMetadataValue validates a metadata value, ensuring it meets specific criteria for type and length.
 // It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
 func ValidateMetadataValue(value any) (any, error) {
