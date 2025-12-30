@@ -1,14 +1,19 @@
 package in
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestValidateDoubleEntry_DebitsNotEqualCredits_Panics(t *testing.T) {
@@ -85,6 +90,34 @@ func TestValidateDoubleEntry_ZeroTotals_Panics(t *testing.T) {
 	}()
 
 	validateDoubleEntry(operations)
+}
+
+func TestValidateTransactionCanBeReverted_FutureCreatedAt_Panics(t *testing.T) {
+	handler := &TransactionHandler{}
+	logger := &libLog.NoneLogger{}
+
+	tracer := trace.NewNoopTracerProvider().Tracer("test")
+	ctx := context.Background()
+	_, span := tracer.Start(ctx, "test.validateTransactionCanBeReverted")
+
+	transactionID := uuid.New()
+	tran := &mmodel.Transaction{
+		ID:        transactionID.String(),
+		Status:    mmodel.Status{Code: constant.APPROVED},
+		CreatedAt: time.Now().Add(time.Hour),
+	}
+
+	defer func() {
+		r := recover()
+		assert.NotNil(t, r, "expected panic when created_at is in the future")
+		panicMsg := fmt.Sprintf("%v", r)
+		assert.True(t, strings.Contains(panicMsg, "created_at") || strings.Contains(panicMsg, "future"),
+			"panic message should mention created_at or future, got: %s", panicMsg)
+	}()
+
+	_ = handler.validateTransactionCanBeReverted(&span, logger, transactionID, tran)
+
+	t.Fatal("expected panic but none occurred")
 }
 
 func TestValidateTransactionStateTransition_InvalidTransition_Panics(t *testing.T) {
