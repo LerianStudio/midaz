@@ -1,6 +1,8 @@
 package mmodel
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,6 +188,122 @@ func TestOperation_ToLog_WithMinimalData(t *testing.T) {
 	assert.False(t, log.BalanceAffected)
 	assert.Empty(t, log.AssetCode)
 	assert.Empty(t, log.AccountID)
+}
+
+func TestNewOperation_ValidInputs_ReturnsOperation(t *testing.T) {
+	// Arrange
+	id := "123e4567-e89b-12d3-a456-426614174000"
+	transactionID := "123e4567-e89b-12d3-a456-426614174001"
+	opType := "DEBIT"
+	assetCode := "USD"
+	amountValue := decimal.NewFromInt(100)
+
+	// Act
+	op := NewOperation(id, transactionID, opType, assetCode, amountValue)
+
+	// Assert
+	if op == nil {
+		t.Fatal("Expected non-nil operation")
+	}
+	if op.ID != id {
+		t.Errorf("Expected ID %s, got %s", id, op.ID)
+	}
+	if op.TransactionID != transactionID {
+		t.Errorf("Expected TransactionID %s, got %s", transactionID, op.TransactionID)
+	}
+	if op.Type != opType {
+		t.Errorf("Expected Type %s, got %s", opType, op.Type)
+	}
+	if op.AssetCode != assetCode {
+		t.Errorf("Expected AssetCode %s, got %s", assetCode, op.AssetCode)
+	}
+	if !op.Amount.Value.Equal(amountValue) {
+		t.Errorf("Expected Amount %s, got %s", amountValue.String(), op.Amount.Value.String())
+	}
+	if op.CreatedAt.IsZero() {
+		t.Error("Expected CreatedAt to be set")
+	}
+}
+
+func TestNewOperation_InvalidID_Panics(t *testing.T) {
+	// Arrange
+	invalidID := "not-a-uuid"
+	transactionID := "123e4567-e89b-12d3-a456-426614174001"
+
+	// Act & Assert
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("Expected panic for invalid ID")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "operation ID must be valid UUID") {
+			t.Errorf("Expected panic about invalid UUID, got: %v", r)
+		}
+	}()
+
+	NewOperation(invalidID, transactionID, "DEBIT", "USD", decimal.NewFromInt(100))
+}
+
+func TestNewOperation_InvalidType_Panics(t *testing.T) {
+	// Arrange
+	id := "123e4567-e89b-12d3-a456-426614174000"
+	transactionID := "123e4567-e89b-12d3-a456-426614174001"
+
+	// Act & Assert
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("Expected panic for invalid type")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "operation type must be DEBIT or CREDIT") {
+			t.Errorf("Expected panic about operation type, got: %v", r)
+		}
+	}()
+
+	NewOperation(id, transactionID, "INVALID", "USD", decimal.NewFromInt(100))
+}
+
+func TestNewOperation_NegativeAmount_Panics(t *testing.T) {
+	// Arrange
+	id := "123e4567-e89b-12d3-a456-426614174000"
+	transactionID := "123e4567-e89b-12d3-a456-426614174001"
+	negativeAmount := decimal.NewFromInt(-100)
+
+	// Act & Assert
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("Expected panic for negative amount")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "amount must be non-negative") {
+			t.Errorf("Expected panic about non-negative amount, got: %v", r)
+		}
+	}()
+
+	NewOperation(id, transactionID, "DEBIT", "USD", negativeAmount)
+}
+
+func TestNewOperation_EmptyAssetCode_Panics(t *testing.T) {
+	// Arrange
+	id := "123e4567-e89b-12d3-a456-426614174000"
+	transactionID := "123e4567-e89b-12d3-a456-426614174001"
+
+	// Act & Assert
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("Expected panic for empty asset code")
+		}
+		panicMsg := fmt.Sprintf("%v", r)
+		if !strings.Contains(panicMsg, "assetCode must not be empty") {
+			t.Errorf("Expected panic about empty asset code, got: %v", r)
+		}
+	}()
+
+	NewOperation(id, transactionID, "DEBIT", "", decimal.NewFromInt(100))
 }
 
 // Helper functions for creating pointers

@@ -3,6 +3,8 @@ package mmodel
 import (
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 
@@ -290,5 +292,35 @@ func (o *Operation) ToLog() *OperationLog {
 		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
 		BalanceAffected: o.BalanceAffected,
+	}
+}
+
+// NewOperation creates a new Operation with validated invariants.
+// Panics if any invariant is violated (programming errors).
+func NewOperation(id, transactionID, opType, assetCode string, amountValue decimal.Decimal) *Operation {
+	assert.That(assert.ValidUUID(id),
+		"operation ID must be valid UUID",
+		"id", id)
+	assert.That(assert.ValidUUID(transactionID),
+		"transaction ID must be valid UUID",
+		"transactionID", transactionID)
+	assert.That(opType == constant.DEBIT || opType == constant.CREDIT,
+		"operation type must be DEBIT or CREDIT",
+		"type", opType)
+	assert.NotEmpty(assetCode,
+		"assetCode must not be empty")
+	assert.That(assert.NonNegativeDecimal(amountValue),
+		"amount must be non-negative",
+		"value", amountValue.String())
+
+	now := time.Now()
+	return &Operation{
+		ID:            id,
+		TransactionID: transactionID,
+		Type:          opType,
+		AssetCode:     assetCode,
+		Amount:        OperationAmount{Value: &amountValue},
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
