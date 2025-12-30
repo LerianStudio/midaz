@@ -6,6 +6,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -96,6 +97,22 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 		}
 
 		return nil
+	}
+
+	for _, balance := range balances {
+		assert.NotNil(balance, "balance must not be nil",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String())
+		assert.That(balance.OrganizationID == organizationID.String(),
+			"balance organization_id must match request",
+			"balance_id", balance.ID,
+			"expected_organization_id", organizationID.String(),
+			"actual_organization_id", balance.OrganizationID)
+		assert.That(balance.LedgerID == ledgerID.String(),
+			"balance ledger_id must match request",
+			"balance_id", balance.ID,
+			"expected_ledger_id", ledgerID.String(),
+			"actual_ledger_id", balance.LedgerID)
 	}
 
 	logger.Infof("Successfully retrieved all Balances")
@@ -190,6 +207,23 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 		return nil
 	}
 
+	for _, balance := range balances {
+		assert.NotNil(balance, "balance must not be nil",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String(),
+			"account_id", accountID.String())
+		assert.That(balance.OrganizationID == organizationID.String(),
+			"balance organization_id must match request",
+			"balance_id", balance.ID,
+			"expected_organization_id", organizationID.String(),
+			"actual_organization_id", balance.OrganizationID)
+		assert.That(balance.LedgerID == ledgerID.String(),
+			"balance ledger_id must match request",
+			"balance_id", balance.ID,
+			"expected_ledger_id", ledgerID.String(),
+			"actual_ledger_id", balance.LedgerID)
+	}
+
 	logger.Infof("Successfully retrieved all Balances by account id")
 
 	pagination.SetItems(balances)
@@ -249,6 +283,21 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.NotNil(op, "balance must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"balance_id", balanceID.String())
+	assert.That(op.OrganizationID == organizationID.String(),
+		"balance organization_id must match request",
+		"balance_id", op.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", op.OrganizationID)
+	assert.That(op.LedgerID == ledgerID.String(),
+		"balance ledger_id must match request",
+		"balance_id", op.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", op.LedgerID)
+
 	logger.Infof("Successfully retrieved balance by id")
 
 	if err := http.OK(c, op); err != nil {
@@ -293,7 +342,35 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating delete balance by id")
 
-	err := handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+	balance, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balance by id", err)
+
+		logger.Errorf("Failed to retrieve balance by id, Error: %s", err.Error())
+
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
+	}
+
+	assert.NotNil(balance, "balance must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"balance_id", balanceID.String())
+	assert.That(balance.OrganizationID == organizationID.String(),
+		"balance organization_id must match request",
+		"balance_id", balance.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", balance.OrganizationID)
+	assert.That(balance.LedgerID == ledgerID.String(),
+		"balance ledger_id must match request",
+		"balance_id", balance.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", balance.LedgerID)
+
+	err = handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance by id", err)
 
@@ -374,6 +451,21 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(balance, "balance must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"balance_id", balanceID.String())
+	assert.That(balance.OrganizationID == organizationID.String(),
+		"balance organization_id must match request",
+		"balance_id", balance.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", balance.OrganizationID)
+	assert.That(balance.LedgerID == ledgerID.String(),
+		"balance ledger_id must match request",
+		"balance_id", balance.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", balance.LedgerID)
 
 	logger.Infof("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID)
 

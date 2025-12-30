@@ -9,6 +9,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mlog"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -204,6 +205,22 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.NotNil(op, "operation must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"account_id", accountID.String(),
+		"operation_id", operationID.String())
+	assert.That(op.OrganizationID == organizationID.String(),
+		"operation organization_id must match request",
+		"operation_id", op.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", op.OrganizationID)
+	assert.That(op.LedgerID == ledgerID.String(),
+		"operation ledger_id must match request",
+		"operation_id", op.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", op.LedgerID)
+
 	logger.Infof("Successfully retrieved Operation by account")
 
 	if err := http.OK(c, op); err != nil {
@@ -272,6 +289,27 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(updatedOp, "operation must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"transaction_id", transactionID.String(),
+		"operation_id", operationID.String())
+	assert.That(updatedOp.OrganizationID == organizationID.String(),
+		"operation organization_id must match request",
+		"operation_id", updatedOp.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", updatedOp.OrganizationID)
+	assert.That(updatedOp.LedgerID == ledgerID.String(),
+		"operation ledger_id must match request",
+		"operation_id", updatedOp.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", updatedOp.LedgerID)
+	assert.That(updatedOp.TransactionID == transactionID.String(),
+		"operation transaction_id must match request",
+		"operation_id", updatedOp.ID,
+		"expected_transaction_id", transactionID.String(),
+		"actual_transaction_id", updatedOp.TransactionID)
 
 	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
 

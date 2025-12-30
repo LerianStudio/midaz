@@ -387,6 +387,17 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		return nil
 	}
 
+	assert.That(tran.OrganizationID == organizationID.String(),
+		"transaction organization_id must match request",
+		"transaction_id", tran.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", tran.OrganizationID)
+	assert.That(tran.LedgerID == ledgerID.String(),
+		"transaction ledger_id must match request",
+		"transaction_id", tran.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", tran.LedgerID)
+
 	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
 		"transaction updated_at must be >= created_at",
 		"transaction_id", tran.ID,
@@ -439,6 +450,17 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.That(tran.OrganizationID == organizationID.String(),
+		"transaction organization_id must match request",
+		"transaction_id", tran.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", tran.OrganizationID)
+	assert.That(tran.LedgerID == ledgerID.String(),
+		"transaction ledger_id must match request",
+		"transaction_id", tran.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", tran.LedgerID)
 
 	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
 		"transaction updated_at must be >= created_at",
@@ -502,6 +524,17 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if tran == nil {
 		return nil
 	}
+
+	assert.That(tran.OrganizationID == organizationID.String(),
+		"transaction organization_id must match request",
+		"transaction_id", tran.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", tran.OrganizationID)
+	assert.That(tran.LedgerID == ledgerID.String(),
+		"transaction ledger_id must match request",
+		"transaction_id", tran.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", tran.LedgerID)
 
 	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
 		"transaction updated_at must be >= created_at",
@@ -902,6 +935,17 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 		return nil
 	}
 
+	assert.That(trans.OrganizationID == organizationID.String(),
+		"transaction organization_id must match request",
+		"transaction_id", trans.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", trans.OrganizationID)
+	assert.That(trans.LedgerID == ledgerID.String(),
+		"transaction ledger_id must match request",
+		"transaction_id", trans.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", trans.LedgerID)
+
 	assert.That(!trans.UpdatedAt.Before(trans.CreatedAt),
 		"transaction updated_at must be >= created_at",
 		"transaction_id", trans.ID,
@@ -961,6 +1005,17 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.That(tran.OrganizationID == organizationID.String(),
+		"transaction organization_id must match request",
+		"transaction_id", tran.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", tran.OrganizationID)
+	assert.That(tran.LedgerID == ledgerID.String(),
+		"transaction ledger_id must match request",
+		"transaction_id", tran.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", tran.LedgerID)
 
 	assert.That(!tran.UpdatedAt.Before(tran.CreatedAt),
 		"transaction updated_at must be >= created_at",
@@ -1103,6 +1158,22 @@ func (handler *TransactionHandler) getTransactionsWithMetadata(ctx context.Conte
 		return nil
 	}
 
+	for _, tran := range trans {
+		assert.NotNil(tran, "transaction must not be nil",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String())
+		assert.That(tran.OrganizationID == organizationID.String(),
+			"transaction organization_id must match request",
+			"transaction_id", tran.ID,
+			"expected_organization_id", organizationID.String(),
+			"actual_organization_id", tran.OrganizationID)
+		assert.That(tran.LedgerID == ledgerID.String(),
+			"transaction ledger_id must match request",
+			"transaction_id", tran.ID,
+			"expected_ledger_id", ledgerID.String(),
+			"actual_ledger_id", tran.LedgerID)
+	}
+
 	logger.Infof("Successfully retrieved all Transactions by metadata")
 
 	pagination.SetItems(trans)
@@ -1131,6 +1202,22 @@ func (handler *TransactionHandler) getTransactionsWithoutMetadata(ctx context.Co
 		}
 
 		return nil
+	}
+
+	for _, tran := range trans {
+		assert.NotNil(tran, "transaction must not be nil",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String())
+		assert.That(tran.OrganizationID == organizationID.String(),
+			"transaction organization_id must match request",
+			"transaction_id", tran.ID,
+			"expected_organization_id", organizationID.String(),
+			"actual_organization_id", tran.OrganizationID)
+		assert.That(tran.LedgerID == ledgerID.String(),
+			"transaction ledger_id must match request",
+			"transaction_id", tran.ID,
+			"expected_ledger_id", ledgerID.String(),
+			"actual_ledger_id", tran.LedgerID)
 	}
 
 	logger.Infof("Successfully retrieved all Transactions")

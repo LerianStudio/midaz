@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -123,6 +124,15 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(ledger, "ledger must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", id.String())
+	assert.That(ledger.OrganizationID == organizationID.String(),
+		"ledger organization_id must match request",
+		"ledger_id", ledger.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", ledger.OrganizationID)
 
 	logger.Infof("Successfully retrieved Ledger with ID: %s", id.String())
 
@@ -281,6 +291,15 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(updatedLedger, "ledger must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", id.String())
+	assert.That(updatedLedger.OrganizationID == organizationID.String(),
+		"ledger organization_id must match request",
+		"ledger_id", updatedLedger.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", updatedLedger.OrganizationID)
 
 	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 

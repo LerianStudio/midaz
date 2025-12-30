@@ -146,6 +146,24 @@ func (handler *AccountHandler) respondWithAccounts(c *fiber.Ctx, pagination *lib
 	return nil
 }
 
+func assertAccountsMatch(organizationID, ledgerID uuid.UUID, accounts []*mmodel.Account) {
+	for _, account := range accounts {
+		assert.NotNil(account, "account must not be nil",
+			"organization_id", organizationID.String(),
+			"ledger_id", ledgerID.String())
+		assert.That(account.OrganizationID == organizationID.String(),
+			"account organization_id must match request",
+			"account_id", account.ID,
+			"expected_organization_id", organizationID.String(),
+			"actual_organization_id", account.OrganizationID)
+		assert.That(account.LedgerID == ledgerID.String(),
+			"account ledger_id must match request",
+			"account_id", account.ID,
+			"expected_ledger_id", ledgerID.String(),
+			"actual_ledger_id", account.LedgerID)
+	}
+}
+
 // GetAllAccounts retrieves all accounts for a given organization, ledger, and optional portfolio without pagination.
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -197,6 +215,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 			return handler.handleAccountsError(c, &span, logger, err, "Failed to retrieve all Accounts on query")
 		}
 
+		assertAccountsMatch(organizationID, ledgerID, accounts)
+
 		return handler.respondWithAccounts(c, &pagination, accounts, logger, "Successfully retrieved all Accounts by metadata")
 	}
 
@@ -208,6 +228,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if err != nil {
 		return handler.handleAccountsError(c, &span, logger, err, "Failed to retrieve all Accounts on query")
 	}
+
+	assertAccountsMatch(organizationID, ledgerID, accounts)
 
 	return handler.respondWithAccounts(c, &pagination, accounts, logger, "Successfully retrieved all Accounts")
 }
@@ -255,6 +277,21 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(account, "account must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"account_id", id.String())
+	assert.That(account.OrganizationID == organizationID.String(),
+		"account organization_id must match request",
+		"account_id", account.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", account.OrganizationID)
+	assert.That(account.LedgerID == ledgerID.String(),
+		"account ledger_id must match request",
+		"account_id", account.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", account.LedgerID)
 
 	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
@@ -428,6 +465,21 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 		return nil
 	}
+
+	assert.NotNil(updatedAccount, "account must not be nil",
+		"organization_id", organizationID.String(),
+		"ledger_id", ledgerID.String(),
+		"account_id", id.String())
+	assert.That(updatedAccount.OrganizationID == organizationID.String(),
+		"account organization_id must match request",
+		"account_id", updatedAccount.ID,
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", updatedAccount.OrganizationID)
+	assert.That(updatedAccount.LedgerID == ledgerID.String(),
+		"account ledger_id must match request",
+		"account_id", updatedAccount.ID,
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", updatedAccount.LedgerID)
 
 	logger.Infof("Successfully updated Account with ID: %s", id.String())
 
