@@ -260,6 +260,16 @@ func normalizeBatchSize(batchSize int) int {
 	return batchSize
 }
 
+func assertValidOutboxStatus(status OutboxStatus, context string, kv ...any) {
+	switch status {
+	case StatusPending, StatusProcessing, StatusPublished, StatusFailed, StatusDLQ:
+		return
+	default:
+		args := append([]any{"status", status, "context", context}, kv...)
+		assert.Never("invalid outbox status", args...)
+	}
+}
+
 // scanOutboxRow scans a single row into a MetadataOutboxPostgreSQLModel.
 func scanOutboxRow(rows *sql.Rows) (*MetadataOutboxPostgreSQLModel, error) {
 	var model MetadataOutboxPostgreSQLModel
@@ -330,7 +340,8 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		return entries, nil
 	}
 
-	if err := r.markEntriesAsProcessing(ctx, tx, ids, &span, logger); err != nil {
+	now := time.Now()
+	if err := r.markEntriesAsProcessing(ctx, tx, ids, now, &span, logger); err != nil {
 		return nil, err
 	}
 
@@ -339,6 +350,33 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		logger.Errorf("Failed to commit transaction: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	// Update in-memory entries to reflect PROCESSING status
+	// (the database was already updated in the transaction)
+	for i, entry := range entries {
+		assertValidOutboxStatus(entry.Status, "ClaimPendingBatch", "entry_id", entry.ID.String())
+		assert.That(entry.Status == StatusPending || entry.Status == StatusProcessing || entry.Status == StatusFailed,
+			"claimed entry must have been in claimable status",
+			"index", i,
+			"entry_id", entry.ID.String(),
+			"status", entry.Status)
+		assert.That(!now.Before(entry.CreatedAt),
+			"processing_started_at must be >= created_at",
+			"entry_id", entry.ID.String(),
+			"created_at", entry.CreatedAt,
+			"processing_started_at", now)
+		entry.Status = StatusProcessing
+		entry.ProcessingStartedAt = &now
+	}
+
+	// Postcondition: all returned entries must be in PROCESSING status
+	for i, entry := range entries {
+		assert.That(entry.Status == StatusProcessing,
+			"claimed entry must be in PROCESSING status after claim",
+			"index", i,
+			"entry_id", entry.ID.String(),
+			"actual_status", entry.Status)
 	}
 
 	logger.Infof("Claimed %d outbox entries for processing", len(entries))
@@ -440,10 +478,10 @@ func (r *OutboxPostgreSQLRepository) markEntriesAsProcessing(
 	ctx context.Context,
 	tx dbtx.Tx,
 	ids []string,
+	now time.Time,
 	span *trace.Span,
 	logger libLog.Logger,
 ) error {
-	now := time.Now()
 	updateQuery := `
 		UPDATE metadata_outbox
 		SET status = $1,

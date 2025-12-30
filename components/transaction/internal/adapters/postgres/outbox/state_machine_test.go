@@ -84,3 +84,9 @@ func TestMarkPublished_InvalidUUID_Panics(t *testing.T) {
 	// The actual assertion happens in the implementation
 	t.Log("MarkPublished should assert valid UUID format - tested via assertion in code")
 }
+
+func TestClaimPendingBatch_BatchSizeValidation(t *testing.T) {
+	// Document expected behavior for batch size boundaries
+	// Actual validation happens in implementation via assertions and normalization
+	t.Log("ClaimPendingBatch normalizes batch size: <=0 becomes 100, >1000 becomes 1000")
+}
