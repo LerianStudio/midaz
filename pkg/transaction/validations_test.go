@@ -980,7 +980,7 @@ func TestFindAmountByAlias(t *testing.T) {
 		{
 			name: "concatenated key lookup - multiple entries",
 			m: map[string]Amount{
-				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+				"0#@account1#default":     {Value: decimal.NewFromInt(50)},
 				"1#@external/USD#default": testAmount,
 				"2#@account2#savings":     {Value: decimal.NewFromInt(25)},
 			},

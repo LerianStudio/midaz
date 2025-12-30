@@ -139,7 +139,7 @@ func TestIntegration_DirtyRecovery(t *testing.T) {
 	// Create temp directory with a dummy migration file for recovery
 	migrationsDir := t.TempDir()
 	dummyMigrationFile := filepath.Join(migrationsDir, "000015_dummy.up.sql")
-	err = os.WriteFile(dummyMigrationFile, []byte("-- dummy migration for test"), 0644)
+	err = os.WriteFile(dummyMigrationFile, []byte("-- dummy migration for test"), 0o644)
 	require.NoError(t, err)
 
 	wrapper, ctrl := newTestWrapper(t, MigrationConfig{

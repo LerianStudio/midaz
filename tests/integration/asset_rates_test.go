@@ -387,9 +387,9 @@ func TestIntegration_AssetRates_GetByAssetCode(t *testing.T) {
 		rate       string
 		externalID string
 	}{
-		{"EUR", "0.92", uuid.New().String()},  // 0.92 EUR per USD
-		{"BRL", "5.50", uuid.New().String()},  // 5.50 BRL per USD
-		{"GBP", "0.79", uuid.New().String()},  // 0.79 GBP per USD
+		{"EUR", "0.92", uuid.New().String()}, // 0.92 EUR per USD
+		{"BRL", "5.50", uuid.New().String()}, // 5.50 BRL per USD
+		{"GBP", "0.79", uuid.New().String()}, // 0.79 GBP per USD
 	}
 
 	createdExternalIDs := make(map[string]bool)

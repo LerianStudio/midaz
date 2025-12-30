@@ -23,19 +23,19 @@ type (
 //
 // @Description Database model for storing asset rate information in PostgreSQL
 type AssetRatePostgreSQLModel struct {
-	ID             string         // Unique identifier (UUID format)
-	OrganizationID string         // Organization that owns this asset rate
-	LedgerID       string         // Ledger containing this asset rate
-	ExternalID     string         // External identifier for integration
+	ID             string          // Unique identifier (UUID format)
+	OrganizationID string          // Organization that owns this asset rate
+	LedgerID       string          // Ledger containing this asset rate
+	ExternalID     string          // External identifier for integration
 	From           string          // Source asset code
 	To             string          // Target asset code
 	Rate           decimal.Decimal // Conversion rate value
 	RateScale      int             // Decimal places for the rate
 	Source         *string         // Source of rate information (e.g., "External System")
-	TTL            int            // Time-to-live in seconds
-	CreatedAt      time.Time      // Timestamp when created
-	UpdatedAt      time.Time      // Timestamp when last updated
-	Metadata       map[string]any // Additional custom attributes
+	TTL            int             // Time-to-live in seconds
+	CreatedAt      time.Time       // Timestamp when created
+	UpdatedAt      time.Time       // Timestamp when last updated
+	Metadata       map[string]any  // Additional custom attributes
 }
 
 // ToEntity converts an AssetRatePostgreSQLModel to entity AssetRate
