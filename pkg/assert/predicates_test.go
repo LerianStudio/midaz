@@ -141,3 +141,28 @@ func TestTransactionCanBeReverted(t *testing.T) {
 		})
 	}
 }
+
+// TestBalanceSufficientForRelease tests the BalanceSufficientForRelease predicate.
+func TestBalanceSufficientForRelease(t *testing.T) {
+	tests := []struct {
+		name          string
+		onHold        decimal.Decimal
+		releaseAmount decimal.Decimal
+		expected      bool
+	}{
+		{"sufficient onHold", decimal.NewFromInt(100), decimal.NewFromInt(50), true},
+		{"exactly sufficient", decimal.NewFromInt(100), decimal.NewFromInt(100), true},
+		{"insufficient onHold", decimal.NewFromInt(50), decimal.NewFromInt(100), false},
+		{"zero onHold zero release", decimal.Zero, decimal.Zero, true},
+		{"zero onHold positive release", decimal.Zero, decimal.NewFromInt(1), false},
+		{"decimal precision sufficient", decimal.NewFromFloat(100.50), decimal.NewFromFloat(100.49), true},
+		{"decimal precision insufficient", decimal.NewFromFloat(100.49), decimal.NewFromFloat(100.50), false},
+		{"negative onHold always fails", decimal.NewFromInt(-10), decimal.NewFromInt(5), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, BalanceSufficientForRelease(tt.onHold, tt.releaseAmount))
+		})
+	}
+}
