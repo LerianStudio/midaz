@@ -198,3 +198,27 @@ func TestDateNotInFuture(t *testing.T) {
 		})
 	}
 }
+
+// TestDateAfter tests the DateAfter predicate.
+func TestDateAfter(t *testing.T) {
+	base := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		date      time.Time
+		reference time.Time
+		expected  bool
+	}{
+		{"date after reference", base.Add(24 * time.Hour), base, true},
+		{"date equal to reference", base, base, false},
+		{"date before reference", base.Add(-24 * time.Hour), base, false},
+		{"date one second after", base.Add(time.Second), base, true},
+		{"date one second before", base.Add(-time.Second), base, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, DateAfter(tt.date, tt.reference))
+		})
+	}
+}
