@@ -97,7 +97,8 @@ func (w *ReconciliationWorker) runReconciliation(ctx context.Context) {
 	}
 
 	w.logger.Infof(
-		"Reconciliation: status=%s, balances=%d (disc=%d), txns=%d (unbal=%d), settled=%d, unsettled=%d",
+		"Reconciliation: run_id=%s, status=%s, balances=%d (disc=%d), txns=%d (unbal=%d), settled=%d, unsettled=%d",
+		report.RunID,
 		report.Status,
 		balanceTotal,
 		balanceDisc,

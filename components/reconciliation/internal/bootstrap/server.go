@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/engine"
+	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/reportstore"
 	"github.com/shopspring/decimal"
 )
 
@@ -43,6 +45,7 @@ const (
 	rateLimitTriggerMax    = 1
 	rateLimitTriggerExpiry = 60 * time.Second
 	triggerRunTimeout      = 2 * time.Minute
+	maxReportsLimit        = 100
 	truncateIDMinLen       = 12
 	truncateIDPrefixLen    = 8
 	truncateIDSuffixLen    = 4
@@ -62,6 +65,7 @@ type HTTPServer struct {
 	engine    *engine.ReconciliationEngine
 	logger    libLog.Logger
 	telemetry *libOpentelemetry.Telemetry
+	store     reportstore.Store
 }
 
 // NewHTTPServer creates a new HTTP server with security middleware
@@ -72,6 +76,7 @@ func NewHTTPServer(
 	telemetry *libOpentelemetry.Telemetry,
 	version string,
 	envName string,
+	store reportstore.Store,
 ) *HTTPServer {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -101,6 +106,7 @@ func NewHTTPServer(
 		engine:    eng,
 		logger:    logger,
 		telemetry: telemetry,
+		store:     store,
 	}
 
 	// Public health endpoints (no auth required)
@@ -132,6 +138,7 @@ func NewHTTPServer(
 	app.Get("/reconciliation/status", readLimiter, server.getStatus)
 	app.Get("/reconciliation/report", readLimiter, server.getReport)
 	app.Get("/reconciliation/report/human", readLimiter, server.getHumanReport)
+	app.Get("/reconciliation/reports", readLimiter, server.getReports)
 
 	// Rate-limited manual trigger endpoint
 	// Global limit: 1 request per minute to prevent DoS
@@ -178,7 +185,7 @@ func (s *HTTPServer) getStatus(c *fiber.Ctx) error {
 	}
 
 	statusCode := http.StatusOK
-	if report.Status == domain.StatusCritical {
+	if report.Status == domain.StatusCritical || report.Status == domain.StatusError {
 		statusCode = http.StatusServiceUnavailable
 	}
 
@@ -191,6 +198,10 @@ func (s *HTTPServer) getStatus(c *fiber.Ctx) error {
 		"orphans":      getCheckStatus(report.OrphanCheck),
 		"metadata":     getCheckStatus(report.MetadataCheck),
 		"dlq":          getCheckStatus(report.DLQCheck),
+		"outbox":       getCheckStatus(report.OutboxCheck),
+		"redis":        getCheckStatus(report.RedisCheck),
+		"cross_db":     getCheckStatus(report.CrossDBCheck),
+		"crm_alias":    getCheckStatus(report.CRMAliasCheck),
 	}
 
 	return c.Status(statusCode).JSON(fiber.Map{
@@ -217,6 +228,13 @@ func getCheckStatus(check checkStatusGetter) string {
 
 func (s *HTTPServer) getReport(c *fiber.Ctx) error {
 	report := s.engine.GetLastReport()
+	if report == nil && s.store != nil {
+		loaded, err := s.store.LoadLatest(c.Context())
+		if err == nil && loaded != nil {
+			report = loaded
+		}
+	}
+
 	if report == nil {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{
 			"error": "No reconciliation report available",
@@ -224,6 +242,40 @@ func (s *HTTPServer) getReport(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(report)
+}
+
+func (s *HTTPServer) getReports(c *fiber.Ctx) error {
+	if s.store == nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{
+			"error": "Report store not configured",
+		})
+	}
+
+	limit := 10
+	if value := c.Query("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid limit; must be a positive integer",
+			})
+		}
+		if parsed > maxReportsLimit {
+			parsed = maxReportsLimit
+		}
+		limit = parsed
+	}
+
+	reports, err := s.store.LoadRecent(c.Context(), limit)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to load reports",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"reports": reports,
+		"count":   len(reports),
+	})
 }
 
 func (s *HTTPServer) getHumanReport(c *fiber.Ctx) error {
@@ -282,6 +334,10 @@ func (s *HTTPServer) buildHumanReportHTML(report *domain.ReconciliationReport) s
 	writeOrphanCheckSection(&html, report.OrphanCheck)
 	writeMetadataSection(&html, report.MetadataCheck)
 	writeDLQSection(&html, report.DLQCheck)
+	writeOutboxSection(&html, report.OutboxCheck)
+	writeRedisSection(&html, report.RedisCheck)
+	writeCrossDBSection(&html, report.CrossDBCheck)
+	writeCRMAliasSection(&html, report.CRMAliasCheck)
 	writeEntityCountsSection(&html, report.EntityCounts)
 	html.WriteString(`</body></html>`)
 
@@ -352,6 +408,18 @@ func writeSummaryCards(html *strings.Builder, report *domain.ReconciliationRepor
 			report.DLQCheck.Total, report.DLQCheck.TransactionEntries, report.DLQCheck.OperationEntries)
 	}
 
+	if report.OutboxCheck != nil {
+		fmt.Fprintf(html, `<div class="card"><div class="card-title">Outbox Backlog</div><div class="card-value">%d</div><div class="card-sub">Pending: %d | Failed: %d</div></div>`,
+			report.OutboxCheck.Pending+report.OutboxCheck.Failed+report.OutboxCheck.Processing,
+			report.OutboxCheck.Pending, report.OutboxCheck.Failed)
+	}
+
+	if report.RedisCheck != nil {
+		redisIssues := report.RedisCheck.MissingRedis + report.RedisCheck.ValueMismatches + report.RedisCheck.VersionMismatches
+		fmt.Fprintf(html, `<div class="card"><div class="card-title">Redis Mismatches</div><div class="card-value">%d</div><div class="card-sub">Sampled: %d</div></div>`,
+			redisIssues, report.RedisCheck.SampledBalances)
+	}
+
 	html.WriteString(`</div>`)
 }
 
@@ -366,6 +434,8 @@ func writeBalanceCheckSection(html *strings.Builder, bc *domain.BalanceCheckResu
 	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Balance Check</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(bc.Status), bc.Status)
 	fmt.Fprintf(html, `<p>Checked <strong>%d</strong> balances. Found <strong>%d</strong> discrepancies (%.2f%%).</p>`,
 		bc.TotalBalances, bc.BalancesWithDiscrepancy, bc.DiscrepancyPercentage)
+	fmt.Fprintf(html, `<p>On-hold discrepancies: <strong>%d</strong> (%.2f%%). Negative balances: <strong>%d</strong> available, <strong>%d</strong> on-hold.</p>`,
+		bc.OnHoldWithDiscrepancy, bc.OnHoldDiscrepancyPct, bc.NegativeAvailable, bc.NegativeOnHold)
 
 	if len(bc.Discrepancies) > 0 {
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">Current</th><th class="num">Expected</th><th class="num">Diff</th><th class="num">Ops</th></tr></thead><tbody>`)
@@ -374,6 +444,31 @@ func writeBalanceCheckSection(html *strings.Builder, bc *domain.BalanceCheckResu
 			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%d</td></tr>",
 				truncateID(d.AccountID), d.AssetCode, formatDecimal(d.CurrentBalance), formatDecimal(d.ExpectedBalance),
 				ternary(d.Discrepancy.IsNegative(), "#ef4444", "#22c55e"), formatSignedDecimal(d.Discrepancy), d.OperationCount)
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	if len(bc.OnHoldDiscrepancies) > 0 {
+		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">On-Hold</th><th class="num">Expected</th><th class="num">Diff</th><th class="num">Ops</th></tr></thead><tbody>`)
+
+		for _, d := range bc.OnHoldDiscrepancies {
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%d</td></tr>",
+				truncateID(d.AccountID), d.AssetCode, formatDecimal(d.CurrentOnHold), formatDecimal(d.ExpectedOnHold),
+				ternary(d.Discrepancy.IsNegative(), "#ef4444", "#22c55e"), formatSignedDecimal(d.Discrepancy), d.OperationCount)
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	if len(bc.NegativeBalances) > 0 {
+		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">Available</th><th class="num">On-Hold</th></tr></thead><tbody>`)
+
+		for _, n := range bc.NegativeBalances {
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td></tr>",
+				truncateID(n.AccountID), n.AssetCode,
+				ternary(n.Available.IsNegative(), "#ef4444", "#22c55e"), formatDecimal(n.Available),
+				ternary(n.OnHold.IsNegative(), "#ef4444", "#22c55e"), formatDecimal(n.OnHold))
 		}
 
 		html.WriteString(`</tbody></table>`)
@@ -418,8 +513,8 @@ func writeReferentialSection(html *strings.Builder, rc *domain.ReferentialCheckR
 	}
 
 	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Referential Integrity</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(rc.Status), rc.Status)
-	fmt.Fprintf(html, `<p>Orphans: Ledgers=%d, Assets=%d, Accounts=%d, Operations=%d, Portfolios=%d</p>`,
-		rc.OrphanLedgers, rc.OrphanAssets, rc.OrphanAccounts, rc.OrphanOperations, rc.OrphanPortfolios)
+	fmt.Fprintf(html, `<p>Orphans: Ledgers=%d, Assets=%d, Accounts=%d, Operations=%d, Portfolios=%d, OpsWithoutBalance=%d</p>`,
+		rc.OrphanLedgers, rc.OrphanAssets, rc.OrphanAccounts, rc.OrphanOperations, rc.OrphanPortfolios, rc.OperationsWithoutBalance)
 
 	if len(rc.Orphans) > 0 {
 		html.WriteString(`<table><thead><tr><th>Entity Type</th><th>Entity ID</th><th>Missing Reference</th><th>Reference ID</th></tr></thead><tbody>`)
@@ -496,6 +591,25 @@ func writeMetadataSection(html *strings.Builder, mc *domain.MetadataCheckResult)
 	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Metadata Sync (PostgreSQL ↔ MongoDB)</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(mc.Status), mc.Status)
 	fmt.Fprintf(html, `<p>PostgreSQL: <strong>%d</strong> records, MongoDB: <strong>%d</strong> records, Missing: <strong>%d</strong></p>`,
 		mc.PostgreSQLCount, mc.MongoDBCount, mc.MissingCount)
+	fmt.Fprintf(html, `<p>Missing entity IDs: <strong>%d</strong>, Duplicates: <strong>%d</strong>, Missing required fields: <strong>%d</strong>, Empty metadata: <strong>%d</strong></p>`,
+		mc.MissingEntityIDs, mc.DuplicateEntityIDs, mc.MissingRequiredFields, mc.EmptyMetadata)
+
+	if len(mc.CollectionSummaries) > 0 {
+		html.WriteString(`<table><thead><tr><th>Collection</th><th class="num">Total</th><th class="num">Empty</th><th class="num">Missing ID</th><th class="num">Duplicates</th></tr></thead><tbody>`)
+		for _, s := range mc.CollectionSummaries {
+			fmt.Fprintf(html, `<tr><td>%s</td><td class="num">%d</td><td class="num">%d</td><td class="num">%d</td><td class="num">%d</td></tr>`,
+				s.Collection, s.TotalDocuments, s.EmptyMetadata, s.MissingEntityIDs, s.DuplicateEntityIDs)
+		}
+		html.WriteString(`</tbody></table>`)
+	}
+
+	if len(mc.MissingEntities) > 0 {
+		html.WriteString(`<table><thead><tr><th>Entity Type</th><th>Entity ID</th><th>Reason</th></tr></thead><tbody>`)
+		for _, m := range mc.MissingEntities {
+			fmt.Fprintf(html, `<tr><td>%s</td><td class="mono">%s</td><td>%s</td></tr>`, m.EntityType, truncateID(m.EntityID), m.Reason)
+		}
+		html.WriteString(`</tbody></table>`)
+	}
 	html.WriteString(`</div>`)
 }
 
@@ -525,6 +639,113 @@ func writeDLQSection(html *strings.Builder, dc *domain.DLQCheckResult) {
 	html.WriteString(`</div>`)
 }
 
+func writeOutboxSection(html *strings.Builder, oc *domain.OutboxCheckResult) {
+	html.WriteString(`<div class="section">`)
+
+	if oc == nil {
+		html.WriteString(`<p class="empty">Outbox check not available</p></div>`)
+		return
+	}
+
+	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Metadata Outbox Health</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(oc.Status), oc.Status)
+	fmt.Fprintf(html, `<p>Pending: <strong>%d</strong>, Processing: <strong>%d</strong>, Failed: <strong>%d</strong>, Stale: <strong>%d</strong></p>`,
+		oc.Pending, oc.Processing, oc.Failed, oc.StaleProcessing)
+
+	if len(oc.Entries) > 0 {
+		html.WriteString(`<table><thead><tr><th>Entry ID</th><th>Status</th><th>Entity</th><th class="num">Retries</th><th>Created</th><th>Last Error</th></tr></thead><tbody>`)
+
+		for _, e := range oc.Entries {
+			fmt.Fprintf(html, `<tr><td class="mono">%s</td><td>%s</td><td class="mono">%s</td><td class="num">%d</td><td>%s</td><td>%s</td></tr>`,
+				truncateID(e.ID), e.Status, truncateID(e.EntityID), e.RetryCount, e.CreatedAt.Format("2006-01-02 15:04"), e.LastError)
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	html.WriteString(`</div>`)
+}
+
+func writeRedisSection(html *strings.Builder, rc *domain.RedisCheckResult) {
+	html.WriteString(`<div class="section">`)
+
+	if rc == nil {
+		html.WriteString(`<p class="empty">Redis check not available</p></div>`)
+		return
+	}
+
+	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Redis ↔ PostgreSQL Balance</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(rc.Status), rc.Status)
+	fmt.Fprintf(html, `<p>Sampled: <strong>%d</strong>, Missing: <strong>%d</strong>, Value mismatches: <strong>%d</strong>, Version mismatches: <strong>%d</strong></p>`,
+		rc.SampledBalances, rc.MissingRedis, rc.ValueMismatches, rc.VersionMismatches)
+	fmt.Fprintf(html, `<p>Sync queue depth: <strong>%d</strong></p>`, rc.SyncQueueDepth)
+
+	if len(rc.Discrepancies) > 0 {
+		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">DB Avail</th><th class="num">Redis Avail</th><th class="num">DB Hold</th><th class="num">Redis Hold</th></tr></thead><tbody>`)
+
+		for _, d := range rc.Discrepancies {
+			fmt.Fprintf(html, `<tr><td class="mono">%s</td><td>%s</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td></tr>`,
+				truncateID(d.AccountID), d.AssetCode,
+				formatDecimal(d.DBAvailable), formatDecimal(d.RedisAvailable),
+				formatDecimal(d.DBOnHold), formatDecimal(d.RedisOnHold))
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	html.WriteString(`</div>`)
+}
+
+func writeCrossDBSection(html *strings.Builder, cc *domain.CrossDBCheckResult) {
+	html.WriteString(`<div class="section">`)
+
+	if cc == nil {
+		html.WriteString(`<p class="empty">Cross-DB check not available</p></div>`)
+		return
+	}
+
+	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">Cross-DB References</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(cc.Status), cc.Status)
+	fmt.Fprintf(html, `<p>Missing Accounts: <strong>%d</strong>, Ledgers: <strong>%d</strong>, Organizations: <strong>%d</strong></p>`,
+		cc.MissingAccounts, cc.MissingLedgers, cc.MissingOrganizations)
+
+	if len(cc.Samples) > 0 {
+		html.WriteString(`<table><thead><tr><th>Type</th><th>Reference ID</th><th>Source</th></tr></thead><tbody>`)
+
+		for _, s := range cc.Samples {
+			fmt.Fprintf(html, `<tr><td>%s</td><td class="mono">%s</td><td>%s</td></tr>`,
+				s.RefType, truncateID(s.RefID), s.Source)
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	html.WriteString(`</div>`)
+}
+
+func writeCRMAliasSection(html *strings.Builder, cc *domain.CRMAliasCheckResult) {
+	html.WriteString(`<div class="section">`)
+
+	if cc == nil {
+		html.WriteString(`<p class="empty">CRM alias check not available</p></div>`)
+		return
+	}
+
+	fmt.Fprintf(html, `<div class="section-header"><h3 class="section-title">CRM Alias References</h3><span class="badge" style="background: %s;">%s</span></div>`, getStatusColor(cc.Status), cc.Status)
+	fmt.Fprintf(html, `<p>Missing Ledgers: <strong>%d</strong>, Missing Accounts: <strong>%d</strong></p>`,
+		cc.MissingLedgerIDs, cc.MissingAccountIDs)
+
+	if len(cc.Samples) > 0 {
+		html.WriteString(`<table><thead><tr><th>Alias ID</th><th>Issue</th><th>Ledger ID</th><th>Account ID</th></tr></thead><tbody>`)
+
+		for _, s := range cc.Samples {
+			fmt.Fprintf(html, `<tr><td class="mono">%s</td><td>%s</td><td class="mono">%s</td><td class="mono">%s</td></tr>`,
+				truncateID(s.AliasID), s.Issue, truncateID(s.LedgerID), truncateID(s.AccountID))
+		}
+
+		html.WriteString(`</tbody></table>`)
+	}
+
+	html.WriteString(`</div>`)
+}
+
 func writeEntityCountsSection(html *strings.Builder, ec *domain.EntityCounts) {
 	if ec == nil {
 		return
@@ -538,9 +759,11 @@ func writeEntityCountsSection(html *strings.Builder, ec *domain.EntityCounts) {
 	fmt.Fprintf(html, `<tr><td>Assets</td><td class="num">%d</td></tr>`, ec.Assets)
 	fmt.Fprintf(html, `<tr><td>Accounts</td><td class="num">%d</td></tr>`, ec.Accounts)
 	fmt.Fprintf(html, `<tr><td>Portfolios</td><td class="num">%d</td></tr>`, ec.Portfolios)
+	fmt.Fprintf(html, `<tr><td>Segments</td><td class="num">%d</td></tr>`, ec.Segments)
 	fmt.Fprintf(html, `<tr><td>Transactions</td><td class="num">%d</td></tr>`, ec.Transactions)
 	fmt.Fprintf(html, `<tr><td>Operations</td><td class="num">%d</td></tr>`, ec.Operations)
 	fmt.Fprintf(html, `<tr><td>Balances</td><td class="num">%d</td></tr>`, ec.Balances)
+	fmt.Fprintf(html, `<tr><td>Asset Rates</td><td class="num">%d</td></tr>`, ec.AssetRates)
 	html.WriteString(`</tbody></table></div>`)
 }
 

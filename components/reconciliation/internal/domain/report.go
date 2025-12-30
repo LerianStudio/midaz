@@ -27,9 +27,9 @@ type ReconciliationReport struct {
 	Duration  string               `json:"duration"`
 	Status    ReconciliationStatus `json:"status"`
 	// Previous status info (if available)
-	PreviousRunID string               `json:"previous_run_id,omitempty"`
+	PreviousRunID  string               `json:"previous_run_id,omitempty"`
 	PreviousStatus ReconciliationStatus `json:"previous_status,omitempty"`
-	StatusChanged  bool                `json:"status_changed"`
+	StatusChanged  bool                 `json:"status_changed"`
 
 	// Settlement info
 	UnsettledTransactions int `json:"unsettled_transactions"`
@@ -66,14 +66,14 @@ type BalanceCheckResult struct {
 	TotalAbsoluteDiscrepancy decimal.Decimal      `json:"total_absolute_discrepancy"`
 	Discrepancies            []BalanceDiscrepancy `json:"discrepancies,omitempty"`
 	// On-hold validation
-	OnHoldWithDiscrepancy  int                   `json:"on_hold_with_discrepancy"`
-	OnHoldDiscrepancyPct   float64               `json:"on_hold_discrepancy_percentage"`
-	TotalOnHoldDiscrepancy decimal.Decimal       `json:"total_on_hold_discrepancy"`
-	OnHoldDiscrepancies    []OnHoldDiscrepancy   `json:"on_hold_discrepancies,omitempty"`
+	OnHoldWithDiscrepancy  int                 `json:"on_hold_with_discrepancy"`
+	OnHoldDiscrepancyPct   float64             `json:"on_hold_discrepancy_percentage"`
+	TotalOnHoldDiscrepancy decimal.Decimal     `json:"total_on_hold_discrepancy"`
+	OnHoldDiscrepancies    []OnHoldDiscrepancy `json:"on_hold_discrepancies,omitempty"`
 	// Negative balances
-	NegativeAvailable int               `json:"negative_available"`
-	NegativeOnHold    int               `json:"negative_on_hold"`
-	NegativeBalances  []NegativeBalance `json:"negative_balances,omitempty"`
+	NegativeAvailable int                  `json:"negative_available"`
+	NegativeOnHold    int                  `json:"negative_on_hold"`
+	NegativeBalances  []NegativeBalance    `json:"negative_balances,omitempty"`
 	Status            ReconciliationStatus `json:"status"`
 }
 
@@ -154,15 +154,15 @@ type TransactionImbalance struct {
 
 // ReferentialCheckResult holds referential integrity results
 type ReferentialCheckResult struct {
-	OrphanLedgers    int                  `json:"orphan_ledgers"`
-	OrphanAssets     int                  `json:"orphan_assets"`
-	OrphanAccounts   int                  `json:"orphan_accounts"`
-	OrphanOperations int                  `json:"orphan_operations"`
-	OrphanPortfolios int                  `json:"orphan_portfolios"`
-	OperationsWithoutBalance int          `json:"operations_without_balance"`
-	OrphanUnknown    int                  `json:"orphan_unknown"`
-	Orphans          []OrphanEntity       `json:"orphans,omitempty"`
-	Status           ReconciliationStatus `json:"status"`
+	OrphanLedgers            int                  `json:"orphan_ledgers"`
+	OrphanAssets             int                  `json:"orphan_assets"`
+	OrphanAccounts           int                  `json:"orphan_accounts"`
+	OrphanOperations         int                  `json:"orphan_operations"`
+	OrphanPortfolios         int                  `json:"orphan_portfolios"`
+	OperationsWithoutBalance int                  `json:"operations_without_balance"`
+	OrphanUnknown            int                  `json:"orphan_unknown"`
+	Orphans                  []OrphanEntity       `json:"orphans,omitempty"`
+	Status                   ReconciliationStatus `json:"status"`
 }
 
 // GetStatus returns the reconciliation status for this check result.
@@ -240,16 +240,17 @@ type OrphanTransaction struct {
 
 // MetadataCheckResult holds metadata sync results
 type MetadataCheckResult struct {
-	PostgreSQLCount int64                `json:"postgresql_count"`
-	MongoDBCount    int64                `json:"mongodb_count"`
-	MissingCount    int64                `json:"missing_count"`
-	MissingEntityIDs    int                 `json:"missing_entity_ids"`
-	DuplicateEntityIDs  int                 `json:"duplicate_entity_ids"`
-	MissingRequiredFields int               `json:"missing_required_fields"`
-	EmptyMetadata       int                 `json:"empty_metadata"`
-	CollectionSummaries []MetadataCollectionSummary `json:"collection_summaries,omitempty"`
-	MissingEntities     []MetadataMissingEntity     `json:"missing_entities,omitempty"`
-	Status          ReconciliationStatus `json:"status"`
+	PostgreSQLCount       int64                       `json:"postgresql_count"`
+	MongoDBCount          int64                       `json:"mongodb_count"`
+	MissingCount          int64                       `json:"missing_count"`
+	MissingEntityIDs      int                         `json:"missing_entity_ids"`
+	DuplicateEntityIDs    int                         `json:"duplicate_entity_ids"`
+	MissingRequiredFields int                         `json:"missing_required_fields"`
+	EmptyMetadata         int                         `json:"empty_metadata"`
+	ScanLimited           bool                        `json:"scan_limited"`
+	CollectionSummaries   []MetadataCollectionSummary `json:"collection_summaries,omitempty"`
+	MissingEntities       []MetadataMissingEntity     `json:"missing_entities,omitempty"`
+	Status                ReconciliationStatus        `json:"status"`
 }
 
 // GetStatus returns the reconciliation status for this check result.
@@ -325,15 +326,15 @@ type OutboxEntry struct {
 
 // RedisCheckResult compares Redis and PostgreSQL balance snapshots.
 type RedisCheckResult struct {
-	SampledBalances   int                      `json:"sampled_balances"`
-	MissingRedis      int                      `json:"missing_redis"`
-	ValueMismatches   int                      `json:"value_mismatches"`
-	VersionMismatches int                      `json:"version_mismatches"`
+	SampledBalances   int                       `json:"sampled_balances"`
+	MissingRedis      int                       `json:"missing_redis"`
+	ValueMismatches   int                       `json:"value_mismatches"`
+	VersionMismatches int                       `json:"version_mismatches"`
 	Discrepancies     []RedisBalanceDiscrepancy `json:"discrepancies,omitempty"`
-	SyncQueueDepth    int64                    `json:"sync_queue_depth"`
-	OldestSyncScore   int64                    `json:"oldest_sync_score"`
-	OldestSyncAt      *time.Time               `json:"oldest_sync_at,omitempty"`
-	Status            ReconciliationStatus     `json:"status"`
+	SyncQueueDepth    int64                     `json:"sync_queue_depth"`
+	OldestSyncScore   int64                     `json:"oldest_sync_score"`
+	OldestSyncAt      *time.Time                `json:"oldest_sync_at,omitempty"`
+	Status            ReconciliationStatus      `json:"status"`
 }
 
 // GetStatus returns the reconciliation status for this check result.
@@ -389,9 +390,10 @@ type CrossDBMissing struct {
 
 // CRMAliasCheckResult validates CRM alias references to ledger/account.
 type CRMAliasCheckResult struct {
-	MissingLedgerIDs  int               `json:"missing_ledger_ids"`
-	MissingAccountIDs int               `json:"missing_account_ids"`
-	Samples           []CRMAliasMissing `json:"samples,omitempty"`
+	MissingLedgerIDs  int                  `json:"missing_ledger_ids"`
+	MissingAccountIDs int                  `json:"missing_account_ids"`
+	Samples           []CRMAliasMissing    `json:"samples,omitempty"`
+	ScanLimited       bool                 `json:"scan_limited"`
 	Status            ReconciliationStatus `json:"status"`
 }
 

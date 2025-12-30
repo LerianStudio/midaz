@@ -9,9 +9,15 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/adapters/postgres"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
+	reconmetrics "github.com/LerianStudio/midaz/v3/components/reconciliation/internal/metrics"
+	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/reportstore"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/pkg/safego"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Logger interface
@@ -35,6 +41,12 @@ type checkResult struct {
 	referentialCheck *domain.ReferentialCheckResult
 	syncCheck        *domain.SyncCheckResult
 	dlqCheck         *domain.DLQCheckResult
+	outboxCheck      *domain.OutboxCheckResult
+	metadataCheck    *domain.MetadataCheckResult
+	redisCheck       *domain.RedisCheckResult
+	crossDBCheck     *domain.CrossDBCheckResult
+	crmAliasCheck    *domain.CRMAliasCheckResult
+	durationMs       int64
 }
 
 // ReconciliationEngine orchestrates all reconciliation checks
@@ -52,6 +64,8 @@ type ReconciliationEngine struct {
 	// Config
 	logger                Logger
 	settlementWaitSeconds int
+	reportStore           reportstore.Store
+	metrics               *reconmetrics.ReconciliationMetrics
 
 	// State
 	lastReport *domain.ReconciliationReport
@@ -66,6 +80,8 @@ func NewReconciliationEngine(
 	settlementWaitSeconds int,
 	checkers []postgres.ReconciliationChecker,
 	checkerConfigs CheckerConfigMap,
+	reportStore reportstore.Store,
+	metrics *reconmetrics.ReconciliationMetrics,
 ) *ReconciliationEngine {
 	if checkerConfigs == nil {
 		checkerConfigs = CheckerConfigMap{}
@@ -94,7 +110,7 @@ func NewReconciliationEngine(
 		checkerMap[name] = checker
 	}
 
-	return &ReconciliationEngine{
+	engine := &ReconciliationEngine{
 		checkers:              checkerMap,
 		checkerConfigs:        checkerConfigs,
 		settlementDetector:    postgres.NewSettlementDetector(transactionDB),
@@ -103,16 +119,41 @@ func NewReconciliationEngine(
 		transactionMongo:      transactionMongo,
 		logger:                logger,
 		settlementWaitSeconds: settlementWaitSeconds,
+		reportStore:           reportStore,
+		metrics:               metrics,
 	}
+
+	if reportStore != nil {
+		if last, err := reportStore.LoadLatest(context.Background()); err == nil && last != nil {
+			engine.lastReport = last
+		}
+	}
+
+	return engine
 }
 
 // RunReconciliation executes all reconciliation checks
 func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.ReconciliationReport, error) {
 	startTime := time.Now()
 
+	runID := uuid.NewString()
+
 	e.logger.Info("Starting reconciliation run")
 
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "reconciliation.run")
+	span.SetAttributes(attribute.String("reconciliation.run_id", runID))
+	defer span.End()
+
+	var previous *domain.ReconciliationReport
+	e.mu.RLock()
+	if e.lastReport != nil {
+		previous = e.lastReport
+	}
+	e.mu.RUnlock()
+
 	report := &domain.ReconciliationReport{
+		RunID:        runID,
 		Timestamp:    startTime,
 		EntityCounts: &domain.EntityCounts{},
 	}
@@ -131,12 +172,32 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 	report.DetermineOverallStatus()
 	report.Duration = time.Since(startTime).String()
 
+	if previous != nil {
+		report.PreviousRunID = previous.RunID
+		report.PreviousStatus = previous.Status
+		report.StatusChanged = previous.Status != report.Status
+		report.Delta = computeDelta(previous, report)
+		if report.StatusChanged && e.logger != nil {
+			e.logger.Infof("Reconciliation status changed: %s -> %s", previous.Status, report.Status)
+		}
+	}
+
 	// Store last report
 	e.mu.Lock()
 	e.lastReport = report
 	e.mu.Unlock()
 
 	e.logger.Infof("Reconciliation complete: status=%s, duration=%s", report.Status, report.Duration)
+
+	if e.metrics != nil {
+		e.metrics.RecordRun(ctx, report, time.Since(startTime).Milliseconds())
+	}
+
+	if e.reportStore != nil {
+		if err := e.reportStore.Save(ctx, report); err != nil && e.logger != nil {
+			e.logger.Errorf("Failed to persist reconciliation report: %v", err)
+		}
+	}
 
 	return report, nil
 }
@@ -163,6 +224,8 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 		return
 	}
 
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	resultCh := make(chan checkResult, checkerCount)
 
 	var wg sync.WaitGroup
@@ -175,9 +238,19 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 		safego.Go(e.logger, checkerName+"-check", func() {
 			defer wg.Done()
 
+			start := time.Now()
+			checkCtx, span := tracer.Start(ctx, "reconciliation.check",
+				trace.WithAttributes(attribute.String("reconciliation.check_name", checkerName)),
+			)
+
 			cfg := e.checkerConfigs[checkerName]
-			result, err := checkerInstance.Check(ctx, cfg)
-			resultCh <- e.buildCheckResult(checkerName, result, err)
+			result, err := checkerInstance.Check(checkCtx, cfg)
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.End()
+			durationMs := time.Since(start).Milliseconds()
+			resultCh <- e.buildCheckResult(checkerName, result, err, durationMs)
 		})
 	}
 
@@ -187,64 +260,126 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 	// Drain channel and populate report on single goroutine (no race)
 	for res := range resultCh {
 		e.applyCheckResult(report, res)
+		if res.durationMs > 0 {
+			if report.CheckDurations == nil {
+				report.CheckDurations = make(map[string]int64, checkerCount)
+			}
+			report.CheckDurations[res.name] = res.durationMs
+		}
 	}
 }
 
-func (e *ReconciliationEngine) buildCheckResult(name string, result postgres.CheckResult, err error) checkResult {
+func (e *ReconciliationEngine) buildCheckResult(name string, result postgres.CheckResult, err error, durationMs int64) checkResult {
 	if err != nil {
 		e.logCheckError(name, err)
-		return errorCheckResult(name)
+		res := errorCheckResult(name)
+		res.durationMs = durationMs
+		return res
 	}
 
 	if result == nil {
 		if e.logger != nil {
 			e.logger.Errorf("%s check returned nil result", checkerLabel(name))
 		}
-		return errorCheckResult(name)
+		res := errorCheckResult(name)
+		res.durationMs = durationMs
+		return res
 	}
 
 	switch name {
 	case postgres.CheckerNameBalance:
 		typedResult, ok := result.(*domain.BalanceCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, balanceCheck: typedResult}
+		return checkResult{name: name, balanceCheck: typedResult, durationMs: durationMs}
 	case postgres.CheckerNameDoubleEntry:
 		typedResult, ok := result.(*domain.DoubleEntryCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, doubleEntryCheck: typedResult}
+		return checkResult{name: name, doubleEntryCheck: typedResult, durationMs: durationMs}
 	case postgres.CheckerNameOrphans:
 		typedResult, ok := result.(*domain.OrphanCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, orphanCheck: typedResult}
+		return checkResult{name: name, orphanCheck: typedResult, durationMs: durationMs}
 	case postgres.CheckerNameReferential:
 		typedResult, ok := result.(*domain.ReferentialCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, referentialCheck: typedResult}
+		return checkResult{name: name, referentialCheck: typedResult, durationMs: durationMs}
 	case postgres.CheckerNameSync:
 		typedResult, ok := result.(*domain.SyncCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, syncCheck: typedResult}
+		return checkResult{name: name, syncCheck: typedResult, durationMs: durationMs}
 	case postgres.CheckerNameDLQ:
 		typedResult, ok := result.(*domain.DLQCheckResult)
 		if !ok {
-			return e.unexpectedResult(name, result)
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
 		}
-		return checkResult{name: name, dlqCheck: typedResult}
+		return checkResult{name: name, dlqCheck: typedResult, durationMs: durationMs}
+	case postgres.CheckerNameOutbox:
+		typedResult, ok := result.(*domain.OutboxCheckResult)
+		if !ok {
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
+		}
+		return checkResult{name: name, outboxCheck: typedResult, durationMs: durationMs}
+	case postgres.CheckerNameMetadata:
+		typedResult, ok := result.(*domain.MetadataCheckResult)
+		if !ok {
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
+		}
+		return checkResult{name: name, metadataCheck: typedResult, durationMs: durationMs}
+	case postgres.CheckerNameRedis:
+		typedResult, ok := result.(*domain.RedisCheckResult)
+		if !ok {
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
+		}
+		return checkResult{name: name, redisCheck: typedResult, durationMs: durationMs}
+	case postgres.CheckerNameCrossDB:
+		typedResult, ok := result.(*domain.CrossDBCheckResult)
+		if !ok {
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
+		}
+		return checkResult{name: name, crossDBCheck: typedResult, durationMs: durationMs}
+	case postgres.CheckerNameCRMAlias:
+		typedResult, ok := result.(*domain.CRMAliasCheckResult)
+		if !ok {
+			res := e.unexpectedResult(name, result)
+			res.durationMs = durationMs
+			return res
+		}
+		return checkResult{name: name, crmAliasCheck: typedResult, durationMs: durationMs}
 	default:
 		if e.logger != nil {
 			e.logger.Warnf("Unknown checker name: %s", name)
 		}
-		return checkResult{name: name}
+		return checkResult{name: name, durationMs: durationMs}
 	}
 }
 
@@ -275,17 +410,87 @@ func (e *ReconciliationEngine) applyCheckResult(report *domain.ReconciliationRep
 		report.SyncCheck = res.syncCheck
 	case postgres.CheckerNameDLQ:
 		report.DLQCheck = res.dlqCheck
+	case postgres.CheckerNameOutbox:
+		report.OutboxCheck = res.outboxCheck
+	case postgres.CheckerNameMetadata:
+		report.MetadataCheck = res.metadataCheck
+	case postgres.CheckerNameRedis:
+		report.RedisCheck = res.redisCheck
+	case postgres.CheckerNameCrossDB:
+		report.CrossDBCheck = res.crossDBCheck
+	case postgres.CheckerNameCRMAlias:
+		report.CRMAliasCheck = res.crmAliasCheck
 	}
 }
 
 func (e *ReconciliationEngine) setCheckDefaults(report *domain.ReconciliationReport) {
+	if report.BalanceCheck == nil {
+		report.BalanceCheck = &domain.BalanceCheckResult{Status: domain.StatusError}
+	}
+
+	if report.DoubleEntryCheck == nil {
+		report.DoubleEntryCheck = &domain.DoubleEntryCheckResult{Status: domain.StatusError}
+	}
+
+	if report.OrphanCheck == nil {
+		report.OrphanCheck = &domain.OrphanCheckResult{Status: domain.StatusError}
+	}
+
+	if report.ReferentialCheck == nil {
+		report.ReferentialCheck = &domain.ReferentialCheckResult{Status: domain.StatusError}
+	}
+
+	if report.SyncCheck == nil {
+		report.SyncCheck = &domain.SyncCheckResult{Status: domain.StatusError}
+	}
+
 	if report.MetadataCheck == nil {
-		report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusSkipped}
+		if _, ok := e.checkers[postgres.CheckerNameMetadata]; ok {
+			report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusError}
+		} else {
+			report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusSkipped}
+		}
 	}
 
 	// DLQCheck is usually set by the checker. This fallback is defensive (e.g. missing checker).
 	if report.DLQCheck == nil {
-		report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusSkipped}
+		if _, ok := e.checkers[postgres.CheckerNameDLQ]; ok {
+			report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusError}
+		} else {
+			report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusSkipped}
+		}
+	}
+
+	if report.OutboxCheck == nil {
+		if _, ok := e.checkers[postgres.CheckerNameOutbox]; ok {
+			report.OutboxCheck = &domain.OutboxCheckResult{Status: domain.StatusError}
+		} else {
+			report.OutboxCheck = &domain.OutboxCheckResult{Status: domain.StatusSkipped}
+		}
+	}
+
+	if report.RedisCheck == nil {
+		if _, ok := e.checkers[postgres.CheckerNameRedis]; ok {
+			report.RedisCheck = &domain.RedisCheckResult{Status: domain.StatusError}
+		} else {
+			report.RedisCheck = &domain.RedisCheckResult{Status: domain.StatusSkipped}
+		}
+	}
+
+	if report.CrossDBCheck == nil {
+		if _, ok := e.checkers[postgres.CheckerNameCrossDB]; ok {
+			report.CrossDBCheck = &domain.CrossDBCheckResult{Status: domain.StatusError}
+		} else {
+			report.CrossDBCheck = &domain.CrossDBCheckResult{Status: domain.StatusSkipped}
+		}
+	}
+
+	if report.CRMAliasCheck == nil {
+		if _, ok := e.checkers[postgres.CheckerNameCRMAlias]; ok {
+			report.CRMAliasCheck = &domain.CRMAliasCheckResult{Status: domain.StatusError}
+		} else {
+			report.CRMAliasCheck = &domain.CRMAliasCheckResult{Status: domain.StatusSkipped}
+		}
 	}
 }
 
@@ -303,6 +508,16 @@ func checkerLabel(name string) string {
 		return "Sync"
 	case postgres.CheckerNameDLQ:
 		return "DLQ"
+	case postgres.CheckerNameOutbox:
+		return "Outbox"
+	case postgres.CheckerNameMetadata:
+		return "Metadata"
+	case postgres.CheckerNameRedis:
+		return "Redis"
+	case postgres.CheckerNameCrossDB:
+		return "CrossDB"
+	case postgres.CheckerNameCRMAlias:
+		return "CRM Alias"
 	default:
 		return name
 	}
@@ -322,6 +537,16 @@ func errorCheckResult(name string) checkResult {
 		return checkResult{name: name, syncCheck: &domain.SyncCheckResult{Status: domain.StatusError}}
 	case postgres.CheckerNameDLQ:
 		return checkResult{name: name, dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameOutbox:
+		return checkResult{name: name, outboxCheck: &domain.OutboxCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameMetadata:
+		return checkResult{name: name, metadataCheck: &domain.MetadataCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameRedis:
+		return checkResult{name: name, redisCheck: &domain.RedisCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameCrossDB:
+		return checkResult{name: name, crossDBCheck: &domain.CrossDBCheckResult{Status: domain.StatusError}}
+	case postgres.CheckerNameCRMAlias:
+		return checkResult{name: name, crmAliasCheck: &domain.CRMAliasCheckResult{Status: domain.StatusError}}
 	default:
 		return checkResult{name: name}
 	}
@@ -351,6 +576,61 @@ func (e *ReconciliationEngine) collectEntityCounts(ctx context.Context, report *
 		report.EntityCounts.Balances = transaction.Balances
 		report.EntityCounts.AssetRates = transaction.AssetRates
 	}
+}
+
+func computeDelta(prev, curr *domain.ReconciliationReport) *domain.ReconciliationDelta {
+	if prev == nil || curr == nil {
+		return nil
+	}
+
+	delta := &domain.ReconciliationDelta{}
+
+	if prev.BalanceCheck != nil && curr.BalanceCheck != nil {
+		delta.BalanceDiscrepancies = curr.BalanceCheck.BalancesWithDiscrepancy - prev.BalanceCheck.BalancesWithDiscrepancy
+	}
+
+	if prev.DoubleEntryCheck != nil && curr.DoubleEntryCheck != nil {
+		delta.DoubleEntryUnbalanced = curr.DoubleEntryCheck.UnbalancedTransactions - prev.DoubleEntryCheck.UnbalancedTransactions
+	}
+
+	if prev.OrphanCheck != nil && curr.OrphanCheck != nil {
+		delta.OrphanTransactions = curr.OrphanCheck.OrphanTransactions - prev.OrphanCheck.OrphanTransactions
+	}
+
+	if prev.ReferentialCheck != nil && curr.ReferentialCheck != nil {
+		prevOrphans := prev.ReferentialCheck.OrphanLedgers +
+			prev.ReferentialCheck.OrphanAssets +
+			prev.ReferentialCheck.OrphanAccounts +
+			prev.ReferentialCheck.OrphanOperations +
+			prev.ReferentialCheck.OrphanPortfolios +
+			prev.ReferentialCheck.OrphanUnknown +
+			prev.ReferentialCheck.OperationsWithoutBalance
+		currOrphans := curr.ReferentialCheck.OrphanLedgers +
+			curr.ReferentialCheck.OrphanAssets +
+			curr.ReferentialCheck.OrphanAccounts +
+			curr.ReferentialCheck.OrphanOperations +
+			curr.ReferentialCheck.OrphanPortfolios +
+			curr.ReferentialCheck.OrphanUnknown +
+			curr.ReferentialCheck.OperationsWithoutBalance
+		delta.ReferentialOrphans = currOrphans - prevOrphans
+	}
+
+	if prev.OutboxCheck != nil && curr.OutboxCheck != nil {
+		delta.OutboxPending = int(curr.OutboxCheck.Pending - prev.OutboxCheck.Pending)
+		delta.OutboxFailed = int(curr.OutboxCheck.Failed - prev.OutboxCheck.Failed)
+	}
+
+	if prev.DLQCheck != nil && curr.DLQCheck != nil {
+		delta.DLQEntries = int(curr.DLQCheck.Total - prev.DLQCheck.Total)
+	}
+
+	if prev.RedisCheck != nil && curr.RedisCheck != nil {
+		prevMismatch := prev.RedisCheck.MissingRedis + prev.RedisCheck.ValueMismatches + prev.RedisCheck.VersionMismatches
+		currMismatch := curr.RedisCheck.MissingRedis + curr.RedisCheck.ValueMismatches + curr.RedisCheck.VersionMismatches
+		delta.RedisMismatches = currMismatch - prevMismatch
+	}
+
+	return delta
 }
 
 // GetLastReport returns the most recent reconciliation report
