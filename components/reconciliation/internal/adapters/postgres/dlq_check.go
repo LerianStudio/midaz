@@ -23,26 +23,17 @@ func NewDLQChecker(db *sql.DB) *DLQChecker {
 	return &DLQChecker{db: db}
 }
 
-// determineDLQStatus determines the reconciliation status based on DLQ entry count.
-func determineDLQStatus(total int64) domain.ReconciliationStatus {
-	switch {
-	case total == 0:
-		return domain.StatusHealthy
-	// Warning is only triggered when total is strictly below the threshold (exclusive),
-	// matching the semantics used by other reconciliation checkers.
-	case total < dlqWarningThreshold:
-		return domain.StatusWarning
-	default:
-		return domain.StatusCritical
-	}
+// Name returns the unique name of this checker.
+func (c *DLQChecker) Name() string {
+	return CheckerNameDLQ
 }
 
 // Check returns DLQ summary and a limited set of entries.
-func (c *DLQChecker) Check(ctx context.Context, limit int) (*domain.DLQCheckResult, error) {
+func (c *DLQChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
 	// Guard against negative limits. In PostgreSQL, a negative LIMIT means "no limit",
 	// which could accidentally return all DLQ rows.
-	if limit < 0 {
-		limit = 0
+	if config.MaxResults < 0 {
+		config.MaxResults = 0
 	}
 
 	result := &domain.DLQCheckResult{}
@@ -63,10 +54,13 @@ func (c *DLQChecker) Check(ctx context.Context, limit int) (*domain.DLQCheckResu
 		return nil, fmt.Errorf("%w: %w", ErrDLQSummaryQuery, err)
 	}
 
-	result.Status = determineDLQStatus(result.Total)
+	result.Status = DetermineStatus(int(result.Total), StatusThresholds{
+		WarningThreshold:          dlqWarningThreshold,
+		WarningThresholdExclusive: true,
+	})
 
-	if result.Total > 0 && limit > 0 {
-		entries, err := c.fetchDLQEntries(ctx, limit)
+	if result.Total > 0 && config.MaxResults > 0 {
+		entries, err := c.fetchDLQEntries(ctx, config.MaxResults)
 		if err != nil {
 			return nil, err
 		}

@@ -23,16 +23,9 @@ func NewSyncChecker(db *sql.DB) *SyncChecker {
 	return &SyncChecker{db: db}
 }
 
-// determineSyncStatus determines the reconciliation status based on issue count.
-func determineSyncStatus(issueCount int) domain.ReconciliationStatus {
-	switch {
-	case issueCount == 0:
-		return domain.StatusHealthy
-	case issueCount < syncWarningThreshold:
-		return domain.StatusWarning
-	default:
-		return domain.StatusCritical
-	}
+// Name returns the unique name of this checker.
+func (c *SyncChecker) Name() string {
+	return CheckerNameSync
 }
 
 // processSyncIssue updates result counters based on the sync issue type.
@@ -49,7 +42,7 @@ func processSyncIssue(result *domain.SyncCheckResult, issue domain.SyncIssue, st
 }
 
 // Check detects version mismatches and stale balances
-func (c *SyncChecker) Check(ctx context.Context, staleThresholdSeconds int, limit int) (*domain.SyncCheckResult, error) {
+func (c *SyncChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
 	result := &domain.SyncCheckResult{}
 
 	// Query includes balance_key in join to ensure correct operation matching
@@ -82,7 +75,7 @@ func (c *SyncChecker) Check(ctx context.Context, staleThresholdSeconds int, limi
 		LIMIT $2
 	`
 
-	rows, err := c.db.QueryContext(ctx, query, staleThresholdSeconds, limit)
+	rows, err := c.db.QueryContext(ctx, query, config.StaleThresholdSeconds, config.MaxResults)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSyncCheckQuery, err)
 	}
@@ -97,14 +90,17 @@ func (c *SyncChecker) Check(ctx context.Context, staleThresholdSeconds int, limi
 			return nil, fmt.Errorf("%w: %w", ErrSyncRowScan, err)
 		}
 
-		processSyncIssue(result, s, staleThresholdSeconds)
+		processSyncIssue(result, s, config.StaleThresholdSeconds)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrSyncRowIteration, err)
 	}
 
-	result.Status = determineSyncStatus(len(result.Issues))
+	result.Status = DetermineStatus(len(result.Issues), StatusThresholds{
+		WarningThreshold:          syncWarningThreshold,
+		WarningThresholdExclusive: true,
+	})
 
 	return result, nil
 }

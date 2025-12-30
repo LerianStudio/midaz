@@ -25,12 +25,13 @@ func TestDLQChecker_Check_NoEntries(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewDLQChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), result.Total)
-	assert.Equal(t, domain.StatusHealthy, result.Status)
-	assert.Empty(t, result.Entries)
+	typedResult := requireDLQResult(t, result)
+	assert.Equal(t, int64(0), typedResult.Total)
+	assert.Equal(t, domain.StatusHealthy, typedResult.Status)
+	assert.Empty(t, typedResult.Entries)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -55,15 +56,16 @@ func TestDLQChecker_Check_WithEntries(t *testing.T) {
 		WillReturnRows(detailRows)
 
 	checker := NewDLQChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), result.Total)
-	assert.Equal(t, int64(2), result.TransactionEntries)
-	assert.Equal(t, int64(1), result.OperationEntries)
-	assert.Equal(t, domain.StatusWarning, result.Status)
-	require.Len(t, result.Entries, 1)
-	assert.Equal(t, "id-1", result.Entries[0].ID)
+	typedResult := requireDLQResult(t, result)
+	assert.Equal(t, int64(3), typedResult.Total)
+	assert.Equal(t, int64(2), typedResult.TransactionEntries)
+	assert.Equal(t, int64(1), typedResult.OperationEntries)
+	assert.Equal(t, domain.StatusWarning, typedResult.Status)
+	require.Len(t, typedResult.Entries, 1)
+	assert.Equal(t, "id-1", typedResult.Entries[0].ID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -80,10 +82,11 @@ func TestDLQChecker_Check_Critical(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewDLQChecker(db)
-	result, err := checker.Check(context.Background(), 0)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 0})
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.StatusCritical, result.Status)
+	typedResult := requireDLQResult(t, result)
+	assert.Equal(t, domain.StatusCritical, typedResult.Status)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -101,11 +104,12 @@ func TestDLQChecker_Check_NegativeLimit(t *testing.T) {
 		WillReturnRows(summaryRows)
 
 	checker := NewDLQChecker(db)
-	result, err := checker.Check(context.Background(), -1)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: -1})
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), result.Total)
-	assert.Empty(t, result.Entries)
+	typedResult := requireDLQResult(t, result)
+	assert.Equal(t, int64(3), typedResult.Total)
+	assert.Empty(t, typedResult.Entries)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -120,7 +124,7 @@ func TestDLQChecker_Check_QueryError(t *testing.T) {
 		WillReturnError(assert.AnError)
 
 	checker := NewDLQChecker(db)
-	result, err := checker.Check(context.Background(), 10)
+	result, err := checker.Check(context.Background(), CheckerConfig{MaxResults: 10})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -130,8 +134,29 @@ func TestDLQChecker_Check_QueryError(t *testing.T) {
 func TestDetermineDLQStatus_ThresholdIsExclusive(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, domain.StatusHealthy, determineDLQStatus(0))
-	assert.Equal(t, domain.StatusWarning, determineDLQStatus(dlqWarningThreshold-1))
-	assert.Equal(t, domain.StatusCritical, determineDLQStatus(dlqWarningThreshold))
-	assert.Equal(t, domain.StatusCritical, determineDLQStatus(dlqWarningThreshold+1))
+	assert.Equal(t, domain.StatusHealthy, DetermineStatus(0, StatusThresholds{
+		WarningThreshold:          dlqWarningThreshold,
+		WarningThresholdExclusive: true,
+	}))
+	assert.Equal(t, domain.StatusWarning, DetermineStatus(dlqWarningThreshold-1, StatusThresholds{
+		WarningThreshold:          dlqWarningThreshold,
+		WarningThresholdExclusive: true,
+	}))
+	assert.Equal(t, domain.StatusCritical, DetermineStatus(dlqWarningThreshold, StatusThresholds{
+		WarningThreshold:          dlqWarningThreshold,
+		WarningThresholdExclusive: true,
+	}))
+	assert.Equal(t, domain.StatusCritical, DetermineStatus(dlqWarningThreshold+1, StatusThresholds{
+		WarningThreshold:          dlqWarningThreshold,
+		WarningThresholdExclusive: true,
+	}))
+}
+
+func requireDLQResult(t *testing.T, result CheckResult) *domain.DLQCheckResult {
+	t.Helper()
+
+	typedResult, ok := result.(*domain.DLQCheckResult)
+	require.True(t, ok)
+
+	return typedResult
 }
