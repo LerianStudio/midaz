@@ -170,9 +170,12 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 	query := `
 		INSERT INTO metadata_outbox (id, entity_id, entity_type, metadata, status, retry_count, max_retries, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (entity_id, entity_type)
+			WHERE status IN ('PENDING', 'PROCESSING')
+		DO NOTHING
 	`
 
-	_, err = executor.ExecContext(ctx, query,
+	result, err := executor.ExecContext(ctx, query,
 		record.ID,
 		record.EntityID,
 		record.EntityType,
@@ -188,6 +191,14 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 		logger.Errorf("Failed to insert outbox entry: %v", err)
 
 		return pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	rows, rowsErr := result.RowsAffected()
+	if rowsErr != nil {
+		logger.Warnf("Failed to read outbox insert rows affected: %v", rowsErr)
+	} else if rows == 0 {
+		logger.Infof("Outbox entry already exists for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
+		return nil
 	}
 
 	logger.Infof("Created outbox entry: entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
