@@ -245,3 +245,27 @@ func TestBalanceIsZero(t *testing.T) {
 		})
 	}
 }
+
+// TestTransactionHasOperations tests the TransactionHasOperations predicate.
+func TestTransactionHasOperations(t *testing.T) {
+	type op struct{}
+
+	tests := []struct {
+		name       string
+		operations []*op
+		expected   bool
+	}{
+		{"nil slice", nil, false},
+		{"empty slice", []*op{}, false},
+		{"single operation", []*op{{}}, true},
+		{"multiple operations", []*op{{}, {}}, true},
+		{"nil operation entry", []*op{nil}, false},
+		{"mixed nil and non-nil", []*op{nil, {}}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, TransactionHasOperations(tt.operations))
+		})
+	}
+}
