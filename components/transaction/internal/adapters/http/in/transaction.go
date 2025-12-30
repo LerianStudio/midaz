@@ -694,7 +694,7 @@ func operationsReadyForRevert(tran *mmodel.Transaction) bool {
 
 // transactionHasRequiredFields checks if a transaction has the basic fields required for revert validation.
 func transactionHasRequiredFields(tran *mmodel.Transaction) bool {
-	return tran != nil && tran.Amount != nil && len(tran.Operations) > 0
+	return tran != nil && tran.Amount != nil && assert.TransactionHasOperations(tran.Operations)
 }
 
 // computeOperationTotals computes debit and credit totals from operations.
@@ -714,6 +714,17 @@ func computeOperationTotals(operations []*mmodel.Operation) (debitTotal, creditT
 		case constant.CREDIT:
 			creditTotal = creditTotal.Add(*op.Amount.Value)
 		}
+	}
+
+	if len(operations) > 0 {
+		assert.That(assert.NonZeroTotals(debitTotal, creditTotal),
+			"double-entry violation: transaction totals must be non-zero",
+			"debitTotal", debitTotal, "creditTotal", creditTotal)
+
+		assert.That(assert.DebitsEqualCredits(debitTotal, creditTotal),
+			"double-entry violation: debits must equal credits",
+			"debitTotal", debitTotal, "creditTotal", creditTotal,
+			"difference", debitTotal.Sub(creditTotal))
 	}
 
 	return debitTotal, creditTotal, true
@@ -1356,6 +1367,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	fromTo = handler.appendAccountFields(fromTo, parserDSL, transactionStatus)
 
 	tran := handler.buildTransaction(transactionID, parentID, organizationID, ledgerID, parserDSL, transactionStatus, transactionDate)
+	assert.That(!transactionDate.After(tran.CreatedAt),
+		"transaction_date must be <= created_at",
+		"transaction_id", tran.ID,
+		"transaction_date", transactionDate,
+		"created_at", tran.CreatedAt)
 
 	operations, preBalances, err := handler.BuildOperations(ctx, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
