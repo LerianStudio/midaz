@@ -100,6 +100,22 @@ func (mr *MockRepositoryMockRecorder) FindByEntityID(ctx, entityID, entityType a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntityID", reflect.TypeOf((*MockRepository)(nil).FindByEntityID), ctx, entityID, entityType)
 }
 
+// FindMetadataByEntityIDs mocks base method.
+func (m *MockRepository) FindMetadataByEntityIDs(ctx context.Context, entityIDs []string, entityType string) (map[string]map[string]any, map[string]error, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindMetadataByEntityIDs", ctx, entityIDs, entityType)
+	ret0, _ := ret[0].(map[string]map[string]any)
+	ret1, _ := ret[1].(map[string]error)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FindMetadataByEntityIDs indicates an expected call of FindMetadataByEntityIDs.
+func (mr *MockRepositoryMockRecorder) FindMetadataByEntityIDs(ctx, entityIDs, entityType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMetadataByEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindMetadataByEntityIDs), ctx, entityIDs, entityType)
+}
+
 // MarkDLQ mocks base method.
 func (m *MockRepository) MarkDLQ(ctx context.Context, id, errMsg string) error {
 	m.ctrl.T.Helper()

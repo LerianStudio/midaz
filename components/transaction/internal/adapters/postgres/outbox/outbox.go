@@ -59,6 +59,9 @@ var (
 	ErrMetadataNil       = errors.New("metadata cannot be nil")
 	ErrEntityIDEmpty     = errors.New("entity ID cannot be empty")
 	ErrEntityIDTooLong   = errors.New("entity ID exceeds maximum length")
+	ErrMarshalMetadata   = errors.New("failed to marshal metadata")
+	ErrUnmarshalMetadata = errors.New("failed to unmarshal metadata")
+	ErrParseUUID         = errors.New("failed to parse UUID")
 )
 
 // allowedEntityTypes defines valid entity types for validation.
@@ -105,7 +108,7 @@ type MetadataOutboxPostgreSQLModel struct {
 func (m *MetadataOutboxPostgreSQLModel) FromEntity(e *MetadataOutbox) error {
 	metadataJSON, err := json.Marshal(e.Metadata)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrMarshalMetadata, err)
 	}
 
 	m.ID = e.ID.String()
@@ -141,12 +144,12 @@ func (m *MetadataOutboxPostgreSQLModel) FromEntity(e *MetadataOutbox) error {
 func (m *MetadataOutboxPostgreSQLModel) ToEntity() (*MetadataOutbox, error) {
 	id, err := uuid.Parse(m.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrParseUUID, err)
 	}
 
 	var metadata map[string]any
 	if err := json.Unmarshal(m.Metadata, &metadata); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrUnmarshalMetadata, err)
 	}
 
 	e := &MetadataOutbox{
@@ -206,7 +209,7 @@ func NewMetadataOutbox(entityID, entityType string, metadata map[string]any) (*M
 	// Validate metadata size
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMarshalMetadata, err)
 	}
 
 	if len(metadataJSON) > MaxMetadataSize {

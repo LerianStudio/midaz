@@ -5,13 +5,16 @@ import (
 	cryptoRand "crypto/rand"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
+	"fmt"
 	mathRand "math/rand"
 	"regexp"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -19,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Default constants for outbox processing
@@ -34,6 +38,8 @@ const (
 var (
 	ErrOutboxEntryNotFound = errors.New("outbox entry not found")
 	ErrOutboxUpdateFailed  = errors.New("outbox update failed: no rows affected")
+	ErrGetDBConnection     = errors.New("failed to get database connection")
+	ErrScanRow             = errors.New("failed to scan row")
 )
 
 // piiPatterns defines patterns to sanitize from error messages
@@ -64,6 +70,13 @@ type Repository interface {
 	// Returns (nil, error) on database errors.
 	// TODO(review): Add early return for empty entityID or entityType parameters.
 	FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error)
+
+	// FindMetadataByEntityIDs retrieves the latest metadata for each entity ID (if any).
+	// Returns:
+	// - metadataByID: map[entityID]metadata for IDs that have metadata
+	// - errorsByID: map[entityID]error for IDs that failed to decode metadata (allows partial success)
+	// - error: database-level error preventing the lookup entirely
+	FindMetadataByEntityIDs(ctx context.Context, entityIDs []string, entityType string) (map[string]map[string]any, map[string]error, error)
 
 	// MarkPublished marks an entry as successfully processed.
 	// TODO(review): Add status precondition check for defense-in-depth.
@@ -141,7 +154,12 @@ func (r *OutboxPostgreSQLRepository) getExecutor(ctx context.Context) (dbtx.Exec
 		return tx, nil
 	}
 
-	return r.connection.GetDB()
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrGetDBConnection, err)
+	}
+
+	return db, nil
 }
 
 // Create inserts a new outbox entry. If a transaction is in context, participates in it.
@@ -206,6 +224,48 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 	return nil
 }
 
+// Batch size limits for claim operations
+const (
+	maxBatchSize = 1000
+)
+
+// normalizeBatchSize validates and normalizes the batch size within acceptable bounds.
+func normalizeBatchSize(batchSize int) int {
+	if batchSize <= 0 {
+		return DefaultBatchSize
+	}
+
+	if batchSize > maxBatchSize {
+		return maxBatchSize
+	}
+
+	return batchSize
+}
+
+// scanOutboxRow scans a single row into a MetadataOutboxPostgreSQLModel.
+func scanOutboxRow(rows *sql.Rows) (*MetadataOutboxPostgreSQLModel, error) {
+	var model MetadataOutboxPostgreSQLModel
+	if err := rows.Scan(
+		&model.ID,
+		&model.EntityID,
+		&model.EntityType,
+		&model.Metadata,
+		&model.Status,
+		&model.RetryCount,
+		&model.MaxRetries,
+		&model.NextRetryAt,
+		&model.ProcessingStartedAt,
+		&model.LastError,
+		&model.CreatedAt,
+		&model.UpdatedAt,
+		&model.ProcessedAt,
+	); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrScanRow, err)
+	}
+
+	return &model, nil
+}
+
 // ClaimPendingBatch atomically retrieves and marks entries as PROCESSING.
 // Uses FOR UPDATE SKIP LOCKED to prevent race conditions between concurrent workers.
 // Also reclaims stale PROCESSING entries (older than StaleProcessingThreshold).
@@ -215,14 +275,7 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 	ctx, span := tracer.Start(ctx, "postgres.outbox.claim_pending_batch")
 	defer span.End()
 
-	// Validate and normalize batchSize
-	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
-	}
-
-	if batchSize > 1000 {
-		batchSize = 1000 // Cap to prevent memory issues
-	}
+	batchSize = normalizeBatchSize(batchSize)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -232,7 +285,6 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	// Start transaction for atomic select + update
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
@@ -247,13 +299,46 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		}
 	}()
 
+	entries, ids, err := r.queryAndScanPendingEntries(ctx, tx, batchSize, &span, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(entries) == 0 {
+		if err := tx.Rollback(); err != nil {
+			logger.Errorf("Failed to rollback empty transaction: %v", err)
+		}
+
+		return entries, nil
+	}
+
+	if err := r.markEntriesAsProcessing(ctx, tx, ids, &span, logger); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
+		logger.Errorf("Failed to commit transaction: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	logger.Infof("Claimed %d outbox entries for processing", len(entries))
+
+	return entries, nil
+}
+
+// queryAndScanPendingEntries queries and scans pending outbox entries.
+func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
+	ctx context.Context,
+	tx dbtx.Tx,
+	batchSize int,
+	span *trace.Span,
+	logger libLog.Logger,
+) ([]*MetadataOutbox, []string, error) {
 	now := time.Now()
 	staleThreshold := now.Add(-StaleProcessingThreshold)
 
-	// Select entries with FOR UPDATE SKIP LOCKED to atomically claim them.
-	// Includes: PENDING, retriable FAILED, and stale PROCESSING entries.
-	// IMPORTANT: De-duplicate by entity to avoid concurrent processing of multiple
-	// outbox entries for the same entity (e.g., FAILED + new PENDING).
 	query := `
 		SELECT id, entity_id, entity_type, metadata, status, retry_count, max_retries,
 		       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
@@ -281,45 +366,41 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		batchSize,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to query pending entries", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to query pending entries", err)
 		logger.Errorf("Failed to query pending entries: %v", err)
 
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+		return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 	defer rows.Close()
 
+	return r.collectEntriesFromRows(rows, batchSize, span, logger)
+}
+
+// collectEntriesFromRows iterates over rows and collects entries and IDs.
+func (r *OutboxPostgreSQLRepository) collectEntriesFromRows(
+	rows *sql.Rows,
+	batchSize int,
+	span *trace.Span,
+	logger libLog.Logger,
+) ([]*MetadataOutbox, []string, error) {
 	entries := make([]*MetadataOutbox, 0, batchSize)
 	ids := make([]string, 0, batchSize)
 
 	for rows.Next() {
-		var model MetadataOutboxPostgreSQLModel
-		if err := rows.Scan(
-			&model.ID,
-			&model.EntityID,
-			&model.EntityType,
-			&model.Metadata,
-			&model.Status,
-			&model.RetryCount,
-			&model.MaxRetries,
-			&model.NextRetryAt,
-			&model.ProcessingStartedAt,
-			&model.LastError,
-			&model.CreatedAt,
-			&model.UpdatedAt,
-			&model.ProcessedAt,
-		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		model, err := scanOutboxRow(rows)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+			return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 		}
 
 		entry, err := model.ToEntity()
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to convert model to entity", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to convert model to entity", err)
 			logger.Errorf("Failed to convert model to entity: %v", err)
 
-			return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+			return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 		}
 
 		entries = append(entries, entry)
@@ -327,24 +408,24 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+		return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	// If no entries found, commit empty transaction and return
-	if len(entries) == 0 {
-		if err := tx.Commit(); err != nil {
-			logger.Errorf("Failed to commit empty transaction: %v", err)
-		}
+	return entries, ids, nil
+}
 
-		return entries, nil
-	}
-
-	// Atomically mark all selected entries as PROCESSING within the same transaction
-	// Note: We do NOT increment retry_count here - MarkFailed handles the increment when processing fails.
-	// This avoids double-increment for stale entries that get reclaimed and then fail again.
+// markEntriesAsProcessing updates entries status to PROCESSING.
+func (r *OutboxPostgreSQLRepository) markEntriesAsProcessing(
+	ctx context.Context,
+	tx dbtx.Tx,
+	ids []string,
+	span *trace.Span,
+	logger libLog.Logger,
+) error {
+	now := time.Now()
 	updateQuery := `
 		UPDATE metadata_outbox
 		SET status = $1,
@@ -352,24 +433,15 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		    updated_at = $2
 		WHERE id = ANY($3)
 	`
+
 	if _, err := tx.ExecContext(ctx, updateQuery, string(StatusProcessing), now, pq.Array(ids)); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to mark entries as processing", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to mark entries as processing", err)
 		logger.Errorf("Failed to mark entries as processing: %v", err)
 
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+		return pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
-		logger.Errorf("Failed to commit transaction: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
-	}
-
-	logger.Infof("Claimed %d outbox entries for processing", len(entries))
-
-	return entries, nil
+	return nil
 }
 
 // FindByEntityID checks if an entry exists for the given entity (for idempotency checks).
@@ -425,6 +497,88 @@ func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityI
 	}
 
 	return model.ToEntity()
+}
+
+// FindMetadataByEntityIDs retrieves the latest metadata for each entity ID (if any) in a single query.
+func (r *OutboxPostgreSQLRepository) FindMetadataByEntityIDs(ctx context.Context, entityIDs []string, entityType string) (map[string]map[string]any, map[string]error, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.outbox.find_metadata_by_entity_ids")
+	defer span.End()
+
+	metadataByID := make(map[string]map[string]any)
+	errorsByID := make(map[string]error)
+
+	if len(entityIDs) == 0 {
+		return metadataByID, errorsByID, nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	// DISTINCT ON picks the newest row per entity_id; ORDER BY ensures newest by created_at.
+	query := `
+		SELECT DISTINCT ON (entity_id) entity_id, metadata
+		FROM metadata_outbox
+		WHERE entity_type = $1 AND entity_id = ANY($2)
+		ORDER BY entity_id, created_at DESC
+	`
+
+	rows, err := db.QueryContext(ctx, query, entityType, pq.Array(entityIDs))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to query outbox metadata by entity IDs", err)
+		logger.Errorf("Failed to query outbox metadata by entity IDs: %v", err)
+
+		return nil, nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			entityID    string
+			rawMetadata []byte
+		)
+
+		if scanErr := rows.Scan(&entityID, &rawMetadata); scanErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan outbox metadata row", scanErr)
+			logger.Errorf("Failed to scan outbox metadata row: %v", scanErr)
+
+			return nil, nil, pkg.ValidateInternalError(scanErr, "MetadataOutbox")
+		}
+
+		// Decode only the metadata blob (avoid materializing full outbox entity).
+		var metadata map[string]any
+		if unmarshalErr := json.Unmarshal(rawMetadata, &metadata); unmarshalErr != nil {
+			// Keep partial-success behavior (skip bad row) but make the issue observable for operators.
+			// Avoid logging raw metadata to reduce PII exposure; length is useful for debugging corruption/truncation.
+			logger.Warnf(
+				"Failed to unmarshal outbox metadata JSON: entity_id=%s, entity_type=%s, metadata_len=%d, err=%v",
+				entityID,
+				entityType,
+				len(rawMetadata),
+				unmarshalErr,
+			)
+			errorsByID[entityID] = fmt.Errorf("%w: %w", ErrUnmarshalMetadata, unmarshalErr)
+
+			continue
+		}
+
+		if len(metadata) != 0 {
+			metadataByID[entityID] = metadata
+		}
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed iterating outbox metadata rows", rowsErr)
+		logger.Errorf("Failed iterating outbox metadata rows: %v", rowsErr)
+
+		return nil, nil, pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
+	}
+
+	return metadataByID, errorsByID, nil
 }
 
 // MarkPublished marks an entry as successfully processed.
