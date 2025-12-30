@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -32,6 +33,13 @@ func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID 
 
 		return err
 	}
+
+	// Precondition: alias must have valid creation date
+	assert.NotNil(alias, "alias must exist after successful GetAliasByID",
+		"aliasId", aliasId.String())
+	assert.That(!alias.CreatedAt.IsZero(),
+		"alias creation date must be set",
+		"aliasId", aliasId.String())
 
 	if closingDate.Before(alias.CreatedAt) {
 		return pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreationDate, reflect.TypeOf(mmodel.Alias{}).Name())
