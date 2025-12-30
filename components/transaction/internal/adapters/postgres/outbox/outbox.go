@@ -36,6 +36,48 @@ const (
 	StatusDLQ OutboxStatus = "DLQ"
 )
 
+// ValidOutboxTransitions defines the allowed status transitions.
+// This enforces the state machine at runtime to catch bugs early.
+//
+// Valid transitions:
+//   - PENDING -> PROCESSING (worker claims entry)
+//   - PROCESSING -> PUBLISHED (success)
+//   - PROCESSING -> FAILED (error, will retry)
+//   - FAILED -> PROCESSING (retry attempt)
+//   - FAILED -> DLQ (max retries exceeded)
+//
+// Terminal states (no outgoing transitions):
+//   - PUBLISHED: Successfully processed
+//   - DLQ: Permanently failed, requires manual intervention
+var ValidOutboxTransitions = map[OutboxStatus][]OutboxStatus{
+	StatusPending:    {StatusProcessing},
+	StatusProcessing: {StatusPublished, StatusFailed},
+	StatusFailed:     {StatusProcessing, StatusDLQ},
+	StatusPublished:  {}, // Terminal state
+	StatusDLQ:        {}, // Terminal state
+}
+
+// CanTransitionTo returns true if transitioning from this status to the target is valid.
+func (s OutboxStatus) CanTransitionTo(target OutboxStatus) bool {
+	allowed, exists := ValidOutboxTransitions[s]
+	if !exists {
+		return false
+	}
+
+	for _, a := range allowed {
+		if a == target {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsTerminal returns true if this status is a terminal state (no valid outgoing transitions).
+func (s OutboxStatus) IsTerminal() bool {
+	return s == StatusPublished || s == StatusDLQ
+}
+
 // Entity type constants - use these instead of reflection for type safety.
 const (
 	EntityTypeTransaction = "Transaction"
