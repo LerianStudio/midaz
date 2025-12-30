@@ -66,5 +66,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	}
 
 	s.Logger.Info("Reconciliation service shutdown complete")
+
 	return nil
 }

@@ -41,6 +41,7 @@ func (w *ReconciliationWorker) Run(l *libCommons.Launcher) error {
 	defer stop()
 
 	interval := w.config.GetReconciliationInterval()
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -89,6 +90,7 @@ func (w *ReconciliationWorker) runReconciliation(ctx context.Context) {
 		balanceTotal = report.BalanceCheck.TotalBalances
 		balanceDisc = report.BalanceCheck.BalancesWithDiscrepancy
 	}
+
 	if report.DoubleEntryCheck != nil {
 		txnTotal = report.DoubleEntryCheck.TotalTransactions
 		txnUnbal = report.DoubleEntryCheck.UnbalancedTransactions

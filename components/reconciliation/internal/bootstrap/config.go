@@ -1,9 +1,12 @@
+// Package bootstrap provides initialization and configuration for the reconciliation service.
 package bootstrap
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"time"
 
@@ -19,7 +22,46 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/engine"
 )
 
+// ApplicationName is the identifier for the reconciliation service.
 const ApplicationName = "reconciliation"
+
+// Configuration validation constants.
+const (
+	minReconciliationIntervalSeconds = 60
+	minMaxDiscrepancies              = 1
+	maxMaxDiscrepancies              = 1000
+	minMaxOpenConnections            = 1
+	maxMaxOpenConnections            = 100
+	defaultReconciliationInterval    = 5 * time.Minute
+	defaultServerPort                = ":3005"
+	connectionPingTimeout            = 10 * time.Second
+	connectionMaxLifetime            = time.Hour
+)
+
+// Default configuration values for reconciliation worker.
+const (
+	defaultSettlementWaitSeconds    = 300 // 5 minutes
+	defaultMaxDiscrepanciesToReport = 100
+	defaultMaxOpenConnections       = 10
+	defaultMaxIdleConnections       = 5
+)
+
+// Sentinel errors for configuration validation.
+var (
+	ErrInvalidReconciliationInterval      = errors.New("RECONCILIATION_INTERVAL_SECONDS must be >= 60")
+	ErrInvalidMaxDiscrepancies            = errors.New("MAX_DISCREPANCIES_TO_REPORT must be between 1 and 1000")
+	ErrInvalidMaxOpenConnections          = errors.New("DB_MAX_OPEN_CONNS must be between 1 and 100")
+	ErrOnboardingSSLDisabledInProduction  = errors.New("ONBOARDING_DB_SSLMODE=disable is not allowed in production")
+	ErrTransactionSSLDisabledInProduction = errors.New("TRANSACTION_DB_SSLMODE=disable is not allowed in production")
+	ErrConnectionFailed                   = errors.New("connection failed")
+	ErrPingFailed                         = errors.New("ping failed")
+	ErrLoadConfig                         = errors.New("failed to load config")
+	ErrInvalidConfig                      = errors.New("invalid configuration")
+	ErrConnectOnboardingDB                = errors.New("failed to connect to onboarding DB")
+	ErrConnectTransactionDB               = errors.New("failed to connect to transaction DB")
+	ErrConnectMongoDB                     = errors.New("failed to connect to MongoDB")
+	ErrOpenDatabase                       = errors.New("failed to open database")
+)
 
 // Pre-compiled regex patterns for credential sanitization (thread-safe)
 var (
@@ -83,8 +125,9 @@ type Config struct {
 // GetReconciliationInterval returns the interval as duration
 func (c *Config) GetReconciliationInterval() time.Duration {
 	if c.ReconciliationIntervalSeconds <= 0 {
-		return 5 * time.Minute
+		return defaultReconciliationInterval
 	}
+
 	return time.Duration(c.ReconciliationIntervalSeconds) * time.Second
 }
 
@@ -93,38 +136,44 @@ func (c *Config) GetServerAddress() string {
 	if c.ServerPort != "" {
 		return ":" + c.ServerPort
 	}
-	return ":3005" // Default fallback
+
+	return defaultServerPort
 }
 
 // Validate checks configuration values for correctness
 func (c *Config) Validate() error {
-	if c.ReconciliationIntervalSeconds < 60 {
-		return fmt.Errorf("RECONCILIATION_INTERVAL_SECONDS must be >= 60 (got %d)", c.ReconciliationIntervalSeconds)
+	if c.ReconciliationIntervalSeconds < minReconciliationIntervalSeconds {
+		return fmt.Errorf("%w: got %d", ErrInvalidReconciliationInterval, c.ReconciliationIntervalSeconds)
 	}
-	if c.MaxDiscrepanciesToReport < 1 || c.MaxDiscrepanciesToReport > 1000 {
-		return fmt.Errorf("MAX_DISCREPANCIES_TO_REPORT must be between 1 and 1000 (got %d)", c.MaxDiscrepanciesToReport)
+
+	if c.MaxDiscrepanciesToReport < minMaxDiscrepancies || c.MaxDiscrepanciesToReport > maxMaxDiscrepancies {
+		return fmt.Errorf("%w: got %d", ErrInvalidMaxDiscrepancies, c.MaxDiscrepanciesToReport)
 	}
-	if c.MaxOpenConnections < 1 || c.MaxOpenConnections > 100 {
-		return fmt.Errorf("DB_MAX_OPEN_CONNS must be between 1 and 100 (got %d)", c.MaxOpenConnections)
+
+	if c.MaxOpenConnections < minMaxOpenConnections || c.MaxOpenConnections > maxMaxOpenConnections {
+		return fmt.Errorf("%w: got %d", ErrInvalidMaxOpenConnections, c.MaxOpenConnections)
 	}
+
 	if c.OnboardingDBSSLMode == "disable" && c.EnvName == "production" {
-		return fmt.Errorf("ONBOARDING_DB_SSLMODE=disable is not allowed in production")
+		return ErrOnboardingSSLDisabledInProduction
 	}
+
 	if c.TransactionDBSSLMode == "disable" && c.EnvName == "production" {
-		return fmt.Errorf("TRANSACTION_DB_SSLMODE=disable is not allowed in production")
+		return ErrTransactionSSLDisabledInProduction
 	}
+
 	return nil
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		ReconciliationIntervalSeconds: 300, // 5 minutes
-		SettlementWaitSeconds:         300, // 5 minutes
-		DiscrepancyThreshold:          0,   // Report any discrepancy
-		MaxDiscrepanciesToReport:      100,
-		MaxOpenConnections:            10,
-		MaxIdleConnections:            5,
+		ReconciliationIntervalSeconds: int(defaultReconciliationInterval.Seconds()),
+		SettlementWaitSeconds:         defaultSettlementWaitSeconds,
+		DiscrepancyThreshold:          0, // Report any discrepancy
+		MaxDiscrepanciesToReport:      defaultMaxDiscrepanciesToReport,
+		MaxOpenConnections:            defaultMaxOpenConnections,
+		MaxIdleConnections:            defaultMaxIdleConnections,
 		OnboardingDBSSLMode:           "require", // Secure default
 		TransactionDBSSLMode:          "require", // Secure default
 	}
@@ -134,17 +183,8 @@ func DefaultConfig() *Config {
 func sanitizeConnectionError(msg string) string {
 	msg = passwordRE.ReplaceAllString(msg, "password=REDACTED")
 	msg = userinfoRE.ReplaceAllString(msg, "://REDACTED@")
-	return msg
-}
 
-// InitServers initializes all components and returns the service
-func InitServers() *Service {
-	service, err := InitServersWithOptions(nil)
-	if err != nil {
-		// Sanitize error to prevent credential leakage in logs/panic output
-		panic(fmt.Sprintf("reconciliation.InitServers failed: %v", sanitizeConnectionError(err.Error())))
-	}
-	return service
+	return msg
 }
 
 // Options allows injecting dependencies
@@ -156,12 +196,12 @@ type Options struct {
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := DefaultConfig()
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrLoadConfig, err)
 	}
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 
 	// Logger
@@ -190,7 +230,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cfg.MaxOpenConnections, cfg.MaxIdleConnections,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to onboarding DB: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrConnectOnboardingDB, err)
 	}
 
 	transactionDB, err := connectPostgres(
@@ -199,13 +239,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cfg.MaxOpenConnections, cfg.MaxIdleConnections,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to transaction DB: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrConnectTransactionDB, err)
 	}
 
 	// MongoDB connections
 	mongoClient, err := connectMongo(cfg.MongoHost, cfg.MongoPort, cfg.MongoUser, cfg.MongoPassword, cfg.MongoParameters)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrConnectMongoDB, err)
 	}
 
 	onboardingMongoDB := mongoClient.Database(cfg.OnboardingMongoDBName)
@@ -249,19 +289,19 @@ func connectPostgres(host, port, user, password, dbname, sslmode string, maxOpen
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrOpenDatabase, err)
 	}
 
 	db.SetMaxOpenConns(maxOpen)
 	db.SetMaxIdleConns(maxIdle)
-	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxLifetime(connectionMaxLifetime)
 
 	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connectionPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping failed: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrPingFailed, err)
 	}
 
 	return db, nil
@@ -269,25 +309,25 @@ func connectPostgres(host, port, user, password, dbname, sslmode string, maxOpen
 
 // connectMongo creates a direct MongoDB connection
 func connectMongo(host, port, user, password, parameters string) (*mongo.Client, error) {
-	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=admin&directConnection=true",
-		user, password, host, port)
+	uri := fmt.Sprintf("mongodb://%s:%s@%s/?authSource=admin&directConnection=true",
+		user, password, net.JoinHostPort(host, port))
 	if parameters != "" {
 		uri += "&" + parameters
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connectionPingTimeout)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
 		// Sanitize error to prevent credential leakage
-		return nil, fmt.Errorf("connection failed: %s", sanitizeConnectionError(err.Error()))
+		return nil, fmt.Errorf("%w: %s", ErrConnectionFailed, sanitizeConnectionError(err.Error()))
 	}
 
 	// Test connection
 	if err := client.Ping(ctx, nil); err != nil {
 		// Sanitize error to prevent credential leakage
-		return nil, fmt.Errorf("ping failed: %s", sanitizeConnectionError(err.Error()))
+		return nil, fmt.Errorf("%w: %s", ErrPingFailed, sanitizeConnectionError(err.Error()))
 	}
 
 	return client, nil

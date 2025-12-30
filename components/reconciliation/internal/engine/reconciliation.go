@@ -1,3 +1,4 @@
+// Package engine provides the reconciliation engine that orchestrates all reconciliation checks.
 package engine
 
 import (
@@ -15,11 +16,11 @@ import (
 
 // Logger interface
 type Logger interface {
-	Info(args ...interface{})
-	Infof(format string, args ...interface{})
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
-	Warnf(format string, args ...interface{})
+	Info(args ...any)
+	Infof(format string, args ...any)
+	Error(args ...any)
+	Errorf(format string, args ...any)
+	Warnf(format string, args ...any)
 }
 
 // checkResult holds the result of a single reconciliation check for channel-based collection
@@ -90,6 +91,7 @@ func NewReconciliationEngine(
 // RunReconciliation executes all reconciliation checks
 func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.ReconciliationReport, error) {
 	startTime := time.Now()
+
 	e.logger.Info("Starting reconciliation run")
 
 	report := &domain.ReconciliationReport{
@@ -97,7 +99,31 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 		EntityCounts: &domain.EntityCounts{},
 	}
 
-	// Get settlement info
+	// Get settlement info and entity counts
+	e.collectSettlementInfo(ctx, report)
+	e.collectEntityCounts(ctx, report)
+
+	// Run all checks in parallel
+	e.runParallelChecks(ctx, report)
+
+	// Set defaults for nil checks
+	e.setCheckDefaults(report)
+
+	// Determine overall status
+	report.DetermineOverallStatus()
+	report.Duration = time.Since(startTime).String()
+
+	// Store last report
+	e.mu.Lock()
+	e.lastReport = report
+	e.mu.Unlock()
+
+	e.logger.Infof("Reconciliation complete: status=%s, duration=%s", report.Status, report.Duration)
+
+	return report, nil
+}
+
+func (e *ReconciliationEngine) collectSettlementInfo(ctx context.Context, report *domain.ReconciliationReport) {
 	unsettled, err := e.settlementDetector.GetUnsettledCount(ctx, e.settlementWaitSeconds)
 	if err != nil {
 		e.logger.Warnf("Failed to get unsettled count: %v", err)
@@ -111,125 +137,150 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 	} else {
 		report.SettledTransactions = settled
 	}
+}
 
-	// Get entity counts
-	e.collectEntityCounts(ctx, report)
-
-	// Run all checks in parallel with panic recovery
-	// Use channel-based collection to avoid data race on report fields
+func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *domain.ReconciliationReport) {
 	const numChecks = 6
+
 	resultCh := make(chan checkResult, numChecks)
 
 	var wg sync.WaitGroup
 	wg.Add(numChecks)
 
-	safego.Go(e.logger, "balance-check", func() {
-		defer wg.Done()
-		result, err := e.balanceChecker.Check(ctx, e.discrepancyThreshold, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Balance check failed: %v", err)
-			resultCh <- checkResult{name: "balance", balanceCheck: &domain.BalanceCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "balance", balanceCheck: result}
-		}
-	})
-
-	safego.Go(e.logger, "double-entry-check", func() {
-		defer wg.Done()
-		result, err := e.doubleEntryChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Double-entry check failed: %v", err)
-			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: &domain.DoubleEntryCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: result}
-		}
-	})
-
-	safego.Go(e.logger, "orphan-check", func() {
-		defer wg.Done()
-		result, err := e.orphanChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Orphan check failed: %v", err)
-			resultCh <- checkResult{name: "orphan", orphanCheck: &domain.OrphanCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "orphan", orphanCheck: result}
-		}
-	})
-
-	safego.Go(e.logger, "referential-check", func() {
-		defer wg.Done()
-		result, err := e.referentialChecker.Check(ctx)
-		if err != nil {
-			e.logger.Errorf("Referential check failed: %v", err)
-			resultCh <- checkResult{name: "referential", referentialCheck: &domain.ReferentialCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "referential", referentialCheck: result}
-		}
-	})
-
-	safego.Go(e.logger, "sync-check", func() {
-		defer wg.Done()
-		result, err := e.syncChecker.Check(ctx, e.settlementWaitSeconds, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("Sync check failed: %v", err)
-			resultCh <- checkResult{name: "sync", syncCheck: &domain.SyncCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "sync", syncCheck: result}
-		}
-	})
-
-	safego.Go(e.logger, "dlq-check", func() {
-		defer wg.Done()
-		result, err := e.dlqChecker.Check(ctx, e.maxDiscrepancies)
-		if err != nil {
-			e.logger.Errorf("DLQ check failed: %v", err)
-			resultCh <- checkResult{name: "dlq", dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
-		} else {
-			resultCh <- checkResult{name: "dlq", dlqCheck: result}
-		}
-	})
+	e.startBalanceCheck(ctx, &wg, resultCh)
+	e.startDoubleEntryCheck(ctx, &wg, resultCh)
+	e.startOrphanCheck(ctx, &wg, resultCh)
+	e.startReferentialCheck(ctx, &wg, resultCh)
+	e.startSyncCheck(ctx, &wg, resultCh)
+	e.startDLQCheck(ctx, &wg, resultCh)
 
 	wg.Wait()
 	close(resultCh)
 
 	// Drain channel and populate report on single goroutine (no race)
 	for res := range resultCh {
-		switch res.name {
-		case "balance":
-			report.BalanceCheck = res.balanceCheck
-		case "double-entry":
-			report.DoubleEntryCheck = res.doubleEntryCheck
-		case "orphan":
-			report.OrphanCheck = res.orphanCheck
-		case "referential":
-			report.ReferentialCheck = res.referentialCheck
-		case "sync":
-			report.SyncCheck = res.syncCheck
-		case "dlq":
-			report.DLQCheck = res.dlqCheck
-		}
+		e.applyCheckResult(report, res)
 	}
+}
 
-	// Set defaults for nil checks
+func (e *ReconciliationEngine) startBalanceCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "balance-check", func() {
+		defer wg.Done()
+
+		result, err := e.balanceChecker.Check(ctx, e.discrepancyThreshold, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("Balance check failed: %v", err)
+
+			resultCh <- checkResult{name: "balance", balanceCheck: &domain.BalanceCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "balance", balanceCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) startDoubleEntryCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "double-entry-check", func() {
+		defer wg.Done()
+
+		result, err := e.doubleEntryChecker.Check(ctx, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("Double-entry check failed: %v", err)
+
+			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: &domain.DoubleEntryCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "double-entry", doubleEntryCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) startOrphanCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "orphan-check", func() {
+		defer wg.Done()
+
+		result, err := e.orphanChecker.Check(ctx, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("Orphan check failed: %v", err)
+
+			resultCh <- checkResult{name: "orphan", orphanCheck: &domain.OrphanCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "orphan", orphanCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) startReferentialCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "referential-check", func() {
+		defer wg.Done()
+
+		result, err := e.referentialChecker.Check(ctx)
+		if err != nil {
+			e.logger.Errorf("Referential check failed: %v", err)
+
+			resultCh <- checkResult{name: "referential", referentialCheck: &domain.ReferentialCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "referential", referentialCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) startSyncCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "sync-check", func() {
+		defer wg.Done()
+
+		result, err := e.syncChecker.Check(ctx, e.settlementWaitSeconds, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("Sync check failed: %v", err)
+
+			resultCh <- checkResult{name: "sync", syncCheck: &domain.SyncCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "sync", syncCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) startDLQCheck(ctx context.Context, wg *sync.WaitGroup, resultCh chan<- checkResult) {
+	safego.Go(e.logger, "dlq-check", func() {
+		defer wg.Done()
+
+		result, err := e.dlqChecker.Check(ctx, e.maxDiscrepancies)
+		if err != nil {
+			e.logger.Errorf("DLQ check failed: %v", err)
+
+			resultCh <- checkResult{name: "dlq", dlqCheck: &domain.DLQCheckResult{Status: domain.StatusError}}
+		} else {
+			resultCh <- checkResult{name: "dlq", dlqCheck: result}
+		}
+	})
+}
+
+func (e *ReconciliationEngine) applyCheckResult(report *domain.ReconciliationReport, res checkResult) {
+	switch res.name {
+	case "balance":
+		report.BalanceCheck = res.balanceCheck
+	case "double-entry":
+		report.DoubleEntryCheck = res.doubleEntryCheck
+	case "orphan":
+		report.OrphanCheck = res.orphanCheck
+	case "referential":
+		report.ReferentialCheck = res.referentialCheck
+	case "sync":
+		report.SyncCheck = res.syncCheck
+	case "dlq":
+		report.DLQCheck = res.dlqCheck
+	}
+}
+
+func (e *ReconciliationEngine) setCheckDefaults(report *domain.ReconciliationReport) {
 	if report.MetadataCheck == nil {
 		report.MetadataCheck = &domain.MetadataCheckResult{Status: domain.StatusSkipped}
 	}
 
+	// DLQCheck is expected to always be set today: `runParallelChecks` always starts `startDLQCheck`,
+	// and `DLQChecker.Check` returns a non-nil result on success. This fallback is defensive (e.g.
+	// if the goroutine panics and is recovered, or if DLQ checking becomes optional in the future).
 	if report.DLQCheck == nil {
 		report.DLQCheck = &domain.DLQCheckResult{Status: domain.StatusSkipped}
 	}
-
-	// Determine overall status
-	report.DetermineOverallStatus()
-	report.Duration = time.Since(startTime).String()
-
-	// Store last report
-	e.mu.Lock()
-	e.lastReport = report
-	e.mu.Unlock()
-
-	e.logger.Infof("Reconciliation complete: status=%s, duration=%s", report.Status, report.Duration)
-	return report, nil
 }
 
 func (e *ReconciliationEngine) collectEntityCounts(ctx context.Context, report *domain.ReconciliationReport) {
@@ -260,6 +311,7 @@ func (e *ReconciliationEngine) collectEntityCounts(ctx context.Context, report *
 func (e *ReconciliationEngine) GetLastReport() *domain.ReconciliationReport {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+
 	return e.lastReport
 }
 
@@ -267,8 +319,10 @@ func (e *ReconciliationEngine) GetLastReport() *domain.ReconciliationReport {
 func (e *ReconciliationEngine) IsHealthy() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+
 	if e.lastReport == nil {
 		return false
 	}
+
 	return e.lastReport.Status != domain.StatusCritical
 }

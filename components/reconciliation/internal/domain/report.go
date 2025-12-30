@@ -1,3 +1,4 @@
+// Package domain contains the domain models and business logic for reconciliation.
 package domain
 
 import "time"
@@ -48,6 +49,15 @@ type BalanceCheckResult struct {
 	Status                   ReconciliationStatus `json:"status"`
 }
 
+// GetStatus returns the reconciliation status for this check result.
+func (r *BalanceCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
+}
+
 // BalanceDiscrepancy represents a balance that doesn't match its operations
 type BalanceDiscrepancy struct {
 	BalanceID       string    `json:"balance_id"`
@@ -69,6 +79,15 @@ type DoubleEntryCheckResult struct {
 	TransactionsNoOperations int                    `json:"transactions_without_operations"`
 	Imbalances               []TransactionImbalance `json:"imbalances,omitempty"`
 	Status                   ReconciliationStatus   `json:"status"`
+}
+
+// GetStatus returns the reconciliation status for this check result.
+func (r *DoubleEntryCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
 }
 
 // TransactionImbalance represents a transaction where credits != debits
@@ -93,6 +112,15 @@ type ReferentialCheckResult struct {
 	Status           ReconciliationStatus `json:"status"`
 }
 
+// GetStatus returns the reconciliation status for this check result.
+func (r *ReferentialCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
+}
+
 // OrphanEntity represents an entity with missing references
 type OrphanEntity struct {
 	EntityType    string `json:"entity_type"`
@@ -107,6 +135,15 @@ type SyncCheckResult struct {
 	StaleBalances     int                  `json:"stale_balances"`
 	Issues            []SyncIssue          `json:"issues,omitempty"`
 	Status            ReconciliationStatus `json:"status"`
+}
+
+// GetStatus returns the reconciliation status for this check result.
+func (r *SyncCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
 }
 
 // SyncIssue represents a Redis-PostgreSQL sync problem
@@ -125,6 +162,15 @@ type OrphanCheckResult struct {
 	PartialTransactions int                  `json:"partial_transactions"`
 	Orphans             []OrphanTransaction  `json:"orphans,omitempty"`
 	Status              ReconciliationStatus `json:"status"`
+}
+
+// GetStatus returns the reconciliation status for this check result.
+func (r *OrphanCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
 }
 
 // OrphanTransaction represents a transaction without operations
@@ -147,6 +193,15 @@ type MetadataCheckResult struct {
 	Status          ReconciliationStatus `json:"status"`
 }
 
+// GetStatus returns the reconciliation status for this check result.
+func (r *MetadataCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
+}
+
 // DLQCheckResult holds metadata outbox DLQ results
 type DLQCheckResult struct {
 	Total              int64                `json:"total"`
@@ -154,6 +209,15 @@ type DLQCheckResult struct {
 	OperationEntries   int64                `json:"operation_entries"`
 	Entries            []DLQEntry           `json:"entries,omitempty"`
 	Status             ReconciliationStatus `json:"status"`
+}
+
+// GetStatus returns the reconciliation status for this check result.
+func (r *DLQCheckResult) GetStatus() ReconciliationStatus {
+	if r == nil {
+		return StatusUnknown
+	}
+
+	return r.Status
 }
 
 // DLQEntry represents a single DLQ entry
@@ -183,52 +247,65 @@ type EntityCounts struct {
 
 // DetermineOverallStatus calculates the overall status from individual checks
 func (r *ReconciliationReport) DetermineOverallStatus() {
-	checkStatuses := []ReconciliationStatus{}
+	checkStatuses := r.collectCheckStatuses()
+	r.Status = calculateWorstStatus(checkStatuses)
+}
+
+// collectCheckStatuses gathers all non-nil check statuses into a slice.
+func (r *ReconciliationReport) collectCheckStatuses() []ReconciliationStatus {
+	var statuses []ReconciliationStatus
 
 	if r.BalanceCheck != nil {
-		checkStatuses = append(checkStatuses, r.BalanceCheck.Status)
+		statuses = append(statuses, r.BalanceCheck.GetStatus())
 	}
 
 	if r.DoubleEntryCheck != nil {
-		checkStatuses = append(checkStatuses, r.DoubleEntryCheck.Status)
+		statuses = append(statuses, r.DoubleEntryCheck.GetStatus())
 	}
 
 	if r.ReferentialCheck != nil {
-		checkStatuses = append(checkStatuses, r.ReferentialCheck.Status)
+		statuses = append(statuses, r.ReferentialCheck.GetStatus())
 	}
 
 	if r.SyncCheck != nil {
-		checkStatuses = append(checkStatuses, r.SyncCheck.Status)
+		statuses = append(statuses, r.SyncCheck.GetStatus())
 	}
 
 	if r.OrphanCheck != nil {
-		checkStatuses = append(checkStatuses, r.OrphanCheck.Status)
+		statuses = append(statuses, r.OrphanCheck.GetStatus())
 	}
 
 	if r.MetadataCheck != nil {
-		checkStatuses = append(checkStatuses, r.MetadataCheck.Status)
+		statuses = append(statuses, r.MetadataCheck.GetStatus())
 	}
 
 	if r.DLQCheck != nil {
-		checkStatuses = append(checkStatuses, r.DLQCheck.Status)
+		statuses = append(statuses, r.DLQCheck.GetStatus())
 	}
 
-	// Check for critical status first - any critical means overall critical
-	for _, status := range checkStatuses {
+	return statuses
+}
+
+// calculateWorstStatus returns the worst status from a slice of statuses.
+// Priority: Critical > Error > Warning > Healthy
+func calculateWorstStatus(statuses []ReconciliationStatus) ReconciliationStatus {
+	for _, status := range statuses {
 		if status == StatusCritical {
-			r.Status = StatusCritical
-			return
+			return StatusCritical
 		}
 	}
 
-	// Check for warning status - any warning means overall warning
-	for _, status := range checkStatuses {
+	for _, status := range statuses {
+		if status == StatusError {
+			return StatusError
+		}
+	}
+
+	for _, status := range statuses {
 		if status == StatusWarning {
-			r.Status = StatusWarning
-			return
+			return StatusWarning
 		}
 	}
 
-	// No critical or warning found - system is healthy
-	r.Status = StatusHealthy
+	return StatusHealthy
 }
