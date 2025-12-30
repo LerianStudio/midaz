@@ -30,3 +30,25 @@ func TestDebitsEqualCredits(t *testing.T) {
 		})
 	}
 }
+
+// TestNonZeroTotals tests the NonZeroTotals predicate for transaction validation.
+func TestNonZeroTotals(t *testing.T) {
+	tests := []struct {
+		name     string
+		debits   decimal.Decimal
+		credits  decimal.Decimal
+		expected bool
+	}{
+		{"both positive", decimal.NewFromInt(100), decimal.NewFromInt(100), true},
+		{"both zero", decimal.Zero, decimal.Zero, false},
+		{"debits zero", decimal.Zero, decimal.NewFromInt(100), false},
+		{"credits zero", decimal.NewFromInt(100), decimal.Zero, false},
+		{"small positive", decimal.NewFromFloat(0.01), decimal.NewFromFloat(0.01), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, NonZeroTotals(tt.debits, tt.credits))
+		})
+	}
+}
