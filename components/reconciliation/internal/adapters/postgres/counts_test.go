@@ -20,8 +20,8 @@ func TestEntityCounter_GetOnboardingCounts(t *testing.T) {
 	require.NoError(t, err)
 	defer transactionDB.Close()
 
-	rows := sqlmock.NewRows([]string{"organizations", "ledgers", "assets", "accounts", "portfolios"}).
-		AddRow(int64(10), int64(50), int64(100), int64(500), int64(25))
+	rows := sqlmock.NewRows([]string{"organizations", "ledgers", "assets", "accounts", "portfolios", "segments"}).
+		AddRow(int64(10), int64(50), int64(100), int64(500), int64(25), int64(7))
 	onboardingMock.ExpectQuery(`SELECT`).
 		WillReturnRows(rows)
 
@@ -34,6 +34,7 @@ func TestEntityCounter_GetOnboardingCounts(t *testing.T) {
 	assert.Equal(t, int64(100), counts.Assets)
 	assert.Equal(t, int64(500), counts.Accounts)
 	assert.Equal(t, int64(25), counts.Portfolios)
+	assert.Equal(t, int64(7), counts.Segments)
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 }
 
@@ -70,8 +71,8 @@ func TestEntityCounter_GetTransactionCounts(t *testing.T) {
 	require.NoError(t, err)
 	defer transactionDB.Close()
 
-	rows := sqlmock.NewRows([]string{"transactions", "operations", "balances"}).
-		AddRow(int64(1000), int64(5000), int64(2000))
+	rows := sqlmock.NewRows([]string{"transactions", "operations", "balances", "asset_rates"}).
+		AddRow(int64(1000), int64(5000), int64(2000), int64(12))
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(rows)
 
@@ -82,6 +83,7 @@ func TestEntityCounter_GetTransactionCounts(t *testing.T) {
 	assert.Equal(t, int64(1000), counts.Transactions)
 	assert.Equal(t, int64(5000), counts.Operations)
 	assert.Equal(t, int64(2000), counts.Balances)
+	assert.Equal(t, int64(12), counts.AssetRates)
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
 }
 

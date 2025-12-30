@@ -34,6 +34,8 @@ func TestReferentialChecker_Check_NoOrphans(t *testing.T) {
 	transactionRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"})
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(transactionRows)
+	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
@@ -73,6 +75,8 @@ func TestReferentialChecker_Check_WithOrphans(t *testing.T) {
 		AddRow("op-1", "operation", "transaction", "txn-deleted")
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(transactionRows)
+	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
@@ -113,6 +117,8 @@ func TestReferentialChecker_Check_CriticalOrphans(t *testing.T) {
 	}
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(transactionRows)
+	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
@@ -156,6 +162,8 @@ func TestReferentialChecker_Check_UnknownEntityType_IsCountedAndLogged(t *testin
 	transactionRows := sqlmock.NewRows([]string{"entity_id", "entity_type", "reference_type", "reference_id"})
 	transactionMock.ExpectQuery(`SELECT`).
 		WillReturnRows(transactionRows)
+	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	checker := NewReferentialChecker(onboardingDB, transactionDB)
 	result, err := checker.Check(context.Background(), CheckerConfig{})

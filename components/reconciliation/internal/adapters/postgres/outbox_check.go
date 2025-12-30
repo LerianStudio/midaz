@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
