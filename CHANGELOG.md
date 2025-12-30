@@ -309,6 +309,41 @@ Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
 - **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
 
 ## [v3.5.0-beta.29] - 2025-12-29
+## [v3.4.8] - 2025-12-30
+
+### 🐛 Bug Fixes
+- update context timeout variable in gRPC health check
+- add health check for balance gRPC service in account and asset creation
+- implement CheckHealth method in balance gRPC repository
+- add grpc connection ready check
+- add whitespace for improved readability
+- move MongoDB port and parameters extraction to utils and remove deprecated function
+- style
+- set default values for TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT in onboarding, and update PROTO_ADDRESS default in transaction configuration
+- update version numbers in console and onboarding environment files to v3.4.8
+- update Next.js version to 15.5.9
+- add panic recovery and context timeout for balance processing in BalanceSyncWorker
+- update version numbers in onboarding and transaction
+- add version balance fields to transaction operations in PostgreSQL adapter
+- remove unused operation variable and clean up transaction processing logic in PostgreSQL adapter
+- add whitespace for improved code readability in Redis consumer and environment helper
+- sanitize account aliases in transaction processing to ensure correct alias formats
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing
+- add backward compatibility for MongoDB connection parameters extraction
+- set default balance key for operations and balances in PostgreSQL and Redis consumers
+- improve error handling and logging for transaction backup cache operations
+- implement idempotency caching for transaction retrieval and mapping
+- enhance nullable pointer handling in transaction operations
+- add panic recovery and nil validation for message processing in Redis consumer
+- correct comment for lock acquisition in transaction handling
+- handle unique violation errors for duplicate inserts in PostgreSQL operations and transactions
+
+### 🔧 Maintenance
+- update lib-commons dependency to v2.5.3
+- Update CHANGELOG
+
+
+## [v3.4.7] - 2025-12-09
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
 Contributors: Clara Tersi

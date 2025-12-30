@@ -154,6 +154,19 @@ func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
 
+// ServiceUnavailableError indicates a dependent service is temporarily unavailable.
+type ServiceUnavailableError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e ServiceUnavailableError) Error() string {
+	return e.Message
+}
+
 // InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
@@ -1157,6 +1170,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidEntityName.Error(),
 			Title:      "Invalid Entity Name",
 			Message:    "The provided entity name is not valid. Accepted values are: transaction, operation, operation_route, transaction_route.",
+		},
+		constant.ErrTransactionBackupCacheFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheFailed.Error(),
+			Title:      "Transaction Backup Cache Failed",
+			Message:    "The server encountered an unexpected error while adding the transaction to the backup cache. Please try again later or contact support.",
+		},
+		constant.ErrTransactionBackupCacheMarshalFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheMarshalFailed.Error(),
+			Title:      "Transaction Backup Cache Marshal Failed",
+			Message:    "The server encountered an unexpected error while serializing the transaction for the backup cache. This uses the same backup mechanism. Please try again later or contact support.",
+		},
+		constant.ErrGRPCServiceUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrGRPCServiceUnavailable.Error(),
+			Title:      "gRPC Service Unavailable",
+			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
 	}
 
