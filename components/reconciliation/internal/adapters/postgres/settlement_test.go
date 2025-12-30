@@ -18,10 +18,11 @@ func TestSettlementDetector_GetUnsettledCount(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"count"}).AddRow(5)
 	mock.ExpectQuery(`SELECT COUNT`).
+		WithArgs(300).
 		WillReturnRows(rows)
 
 	detector := NewSettlementDetector(db)
-	count, err := detector.GetUnsettledCount(context.Background())
+	count, err := detector.GetUnsettledCount(context.Background(), 300)
 
 	require.NoError(t, err)
 	assert.Equal(t, 5, count)
@@ -37,10 +38,11 @@ func TestSettlementDetector_GetUnsettledCount_Zero(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
 	mock.ExpectQuery(`SELECT COUNT`).
+		WithArgs(300).
 		WillReturnRows(rows)
 
 	detector := NewSettlementDetector(db)
-	count, err := detector.GetUnsettledCount(context.Background())
+	count, err := detector.GetUnsettledCount(context.Background(), 300)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
@@ -55,10 +57,11 @@ func TestSettlementDetector_GetUnsettledCount_Error(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectQuery(`SELECT COUNT`).
+		WithArgs(300).
 		WillReturnError(assert.AnError)
 
 	detector := NewSettlementDetector(db)
-	count, err := detector.GetUnsettledCount(context.Background())
+	count, err := detector.GetUnsettledCount(context.Background(), 300)
 
 	require.Error(t, err)
 	assert.Equal(t, 0, count)

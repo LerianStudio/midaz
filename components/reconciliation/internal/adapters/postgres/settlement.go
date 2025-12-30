@@ -17,23 +17,34 @@ func NewSettlementDetector(db *sql.DB) *SettlementDetector {
 }
 
 // GetUnsettledCount returns the count of transactions still processing
-// NOTE: Only APPROVED and CANCELED affect balances, NOTED transactions don't need settlement
-func (s *SettlementDetector) GetUnsettledCount(ctx context.Context) (int, error) {
+// NOTE: NOTED transactions don't affect balances and are excluded from settlement counts.
+func (s *SettlementDetector) GetUnsettledCount(ctx context.Context, settlementWaitSeconds int) (int, error) {
 	query := `
-		SELECT COUNT(DISTINCT t.id)
-		FROM transaction t
-		WHERE t.deleted_at IS NULL
-		  AND t.status IN ('APPROVED', 'CANCELED')
-		  AND EXISTS (
-			  SELECT 1
-			  FROM metadata_outbox o
-			  WHERE o.entity_id = t.id::text
-				AND o.status IN ('PENDING', 'PROCESSING', 'FAILED')
-		  )
+		WITH txn_ops AS (
+			SELECT
+				t.id,
+				t.status,
+				t.created_at,
+				COUNT(o.id) as operation_count
+			FROM transaction t
+			LEFT JOIN operation o ON t.id = o.transaction_id AND o.deleted_at IS NULL
+			WHERE t.deleted_at IS NULL
+			GROUP BY t.id, t.status, t.created_at
+		)
+		SELECT COUNT(*)
+		FROM txn_ops
+	 WHERE status = 'PENDING'
+	   OR (
+		   status IN ('APPROVED', 'CANCELED')
+		   AND (
+			   created_at >= NOW() - INTERVAL '1 second' * $1
+			   OR operation_count < 2
+		   )
+	   )
 	`
 
 	var count int
-	if err := s.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
+	if err := s.db.QueryRowContext(ctx, query, settlementWaitSeconds).Scan(&count); err != nil {
 		return 0, fmt.Errorf("GetUnsettledCount failed: %w", err)
 	}
 
@@ -44,17 +55,22 @@ func (s *SettlementDetector) GetUnsettledCount(ctx context.Context) (int, error)
 // NOTE: Only APPROVED and CANCELED affect balances, NOTED transactions don't need settlement
 func (s *SettlementDetector) GetSettledCount(ctx context.Context, settlementWaitSeconds int) (int, error) {
 	query := `
+		WITH txn_ops AS (
+			SELECT
+				t.id,
+				t.status,
+				t.created_at,
+				COUNT(o.id) as operation_count
+			FROM transaction t
+			LEFT JOIN operation o ON t.id = o.transaction_id AND o.deleted_at IS NULL
+			WHERE t.deleted_at IS NULL
+			GROUP BY t.id, t.status, t.created_at
+		)
 		SELECT COUNT(*)
-		FROM transaction t
-		WHERE t.deleted_at IS NULL
-		  AND t.status IN ('APPROVED', 'CANCELED')
-		  AND t.created_at < NOW() - INTERVAL '1 second' * $1
-		  AND NOT EXISTS (
-			  SELECT 1
-			  FROM metadata_outbox o
-			  WHERE o.entity_id = t.id::text
-				AND o.status IN ('PENDING', 'PROCESSING', 'FAILED')
-		  )
+	FROM txn_ops
+	WHERE status IN ('APPROVED', 'CANCELED')
+	  AND created_at < NOW() - INTERVAL '1 second' * $1
+	  AND operation_count >= 2
 	`
 
 	var count int
