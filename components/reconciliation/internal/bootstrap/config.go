@@ -19,6 +19,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 
+	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/adapters/postgres"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/engine"
 )
 
@@ -251,16 +252,46 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	onboardingMongoDB := mongoClient.Database(cfg.OnboardingMongoDBName)
 	transactionMongoDB := mongoClient.Database(cfg.TransactionMongoDBName)
 
-	// Initialize engine with individual config values
+	checkers := []postgres.ReconciliationChecker{
+		postgres.NewBalanceChecker(transactionDB),
+		postgres.NewDoubleEntryChecker(transactionDB),
+		postgres.NewOrphanChecker(transactionDB),
+		postgres.NewReferentialChecker(onboardingDB, transactionDB),
+		postgres.NewSyncChecker(transactionDB),
+		postgres.NewDLQChecker(transactionDB),
+	}
+
+	checkerConfigs := engine.CheckerConfigMap{
+		postgres.CheckerNameBalance: {
+			DiscrepancyThreshold: cfg.DiscrepancyThreshold,
+			MaxResults:           cfg.MaxDiscrepanciesToReport,
+		},
+		postgres.CheckerNameDoubleEntry: {
+			MaxResults: cfg.MaxDiscrepanciesToReport,
+		},
+		postgres.CheckerNameOrphans: {
+			MaxResults: cfg.MaxDiscrepanciesToReport,
+		},
+		postgres.CheckerNameReferential: {},
+		postgres.CheckerNameSync: {
+			StaleThresholdSeconds: cfg.SettlementWaitSeconds,
+			MaxResults:            cfg.MaxDiscrepanciesToReport,
+		},
+		postgres.CheckerNameDLQ: {
+			MaxResults: cfg.MaxDiscrepanciesToReport,
+		},
+	}
+
+	// Initialize engine with injected checkers and configs
 	eng := engine.NewReconciliationEngine(
 		onboardingDB,
 		transactionDB,
 		onboardingMongoDB,
 		transactionMongoDB,
 		logger,
-		cfg.DiscrepancyThreshold,
-		cfg.MaxDiscrepanciesToReport,
 		cfg.SettlementWaitSeconds,
+		checkers,
+		checkerConfigs,
 	)
 
 	// Initialize worker

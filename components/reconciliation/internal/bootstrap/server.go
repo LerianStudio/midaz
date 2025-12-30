@@ -22,6 +22,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/engine"
+	"github.com/shopspring/decimal"
 )
 
 // Sentinel errors for HTTP server operations.
@@ -370,9 +371,9 @@ func writeBalanceCheckSection(html *strings.Builder, bc *domain.BalanceCheckResu
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">Current</th><th class="num">Expected</th><th class="num">Diff</th><th class="num">Ops</th></tr></thead><tbody>`)
 
 		for _, d := range bc.Discrepancies {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td><td class=\"num\">%d</td></tr>",
-				truncateID(d.AccountID), d.AssetCode, d.CurrentBalance, d.ExpectedBalance,
-				ternary(d.Discrepancy < 0, "#ef4444", "#22c55e"), d.Discrepancy, d.OperationCount)
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%d</td></tr>",
+				truncateID(d.AccountID), d.AssetCode, formatDecimal(d.CurrentBalance), formatDecimal(d.ExpectedBalance),
+				ternary(d.Discrepancy.IsNegative(), "#ef4444", "#22c55e"), formatSignedDecimal(d.Discrepancy), d.OperationCount)
 		}
 
 		html.WriteString(`</tbody></table>`)
@@ -397,7 +398,7 @@ func writeDoubleEntrySection(html *strings.Builder, de *domain.DoubleEntryCheckR
 		html.WriteString(`<table><thead><tr><th>Transaction ID</th><th>Status</th><th>Asset</th><th class="num">Credits</th><th class="num">Debits</th><th class="num">Imbalance</th></tr></thead><tbody>`)
 
 		for _, i := range de.Imbalances {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td></tr>",
 				truncateID(i.TransactionID), i.Status, i.AssetCode, i.TotalCredits, i.TotalDebits,
 				ternary(i.Imbalance != 0, "#ef4444", "#22c55e"), i.Imbalance)
 		}
@@ -449,7 +450,7 @@ func writeSyncCheckSection(html *strings.Builder, sc *domain.SyncCheckResult) {
 		html.WriteString(`<table><thead><tr><th>Balance ID</th><th>Asset</th><th class="num">DB Ver</th><th class="num">Op Ver</th><th class="num">Stale (sec)</th></tr></thead><tbody>`)
 
 		for _, i := range sc.Issues {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
 				truncateID(i.BalanceID), i.AssetCode, i.DBVersion, i.MaxOpVersion, i.StalenessSeconds)
 		}
 
@@ -557,6 +558,18 @@ func ternary(cond bool, a, b string) string {
 	}
 
 	return b
+}
+
+func formatDecimal(value decimal.Decimal) string {
+	return value.String()
+}
+
+func formatSignedDecimal(value decimal.Decimal) string {
+	if value.Sign() >= 0 {
+		return "+" + value.String()
+	}
+
+	return value.String()
 }
 
 func (s *HTTPServer) triggerRun(c *fiber.Ctx) error {
