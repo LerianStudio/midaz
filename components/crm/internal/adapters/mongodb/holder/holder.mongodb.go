@@ -70,11 +70,6 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", holder)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to JSON string", err)
-	}
-
 	db, err := hm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
@@ -210,11 +205,6 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	span.SetAttributes(attributes...)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", query)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert query to JSON string", err)
-	}
-
 	db, err := hm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
@@ -335,11 +325,6 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", holder)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to JSON string", err)
-	}
 
 	db, err := hm.connection.GetDB(ctx)
 	if err != nil {

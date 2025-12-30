@@ -20,7 +20,6 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
-
 COPY --from=builder /ledger-app/components/onboarding/migrations /components/onboarding/migrations
 COPY --from=builder /ledger-app/components/transaction/migrations /components/transaction/migrations
 
