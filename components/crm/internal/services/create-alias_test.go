@@ -3,15 +3,14 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -23,20 +22,17 @@ func TestCreateAlias(t *testing.T) {
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := alias.NewMockRepository(ctrl)
-	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	holderID := libCommons.GenerateUUIDv7()
 	id := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7().String()
 	ledgerID := libCommons.GenerateUUIDv7().String()
-	holderLinkID := libCommons.GenerateUUIDv7()
 	holderDocument := "90217469051"
-	linkTypePrimaryHolder := string(mmodel.LinkTypePrimaryHolder)
+	participantDoc := "12345678912345"
 
 	uc := &UseCase{
-		HolderRepo:     mockHolderRepo,
-		AliasRepo:      mockAliasRepo,
-		HolderLinkRepo: mockHolderLinkRepo,
+		HolderRepo: mockHolderRepo,
+		AliasRepo:  mockAliasRepo,
 	}
 
 	testCases := []struct {
@@ -48,7 +44,7 @@ func TestCreateAlias(t *testing.T) {
 		expectedResult *mmodel.Alias
 	}{
 		{
-			name:     "Success with required fields provided (no LinkType)",
+			name:     "Success with required fields provided",
 			holderID: holderID,
 			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
@@ -80,12 +76,22 @@ func TestCreateAlias(t *testing.T) {
 			},
 		},
 		{
-			name:     "Success with LinkType provided",
+			name:     "Success with RegulatoryFields and RelatedParties",
 			holderID: holderID,
 			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
-				LinkType:  &linkTypePrimaryHolder,
+				RegulatoryFields: &mmodel.RegulatoryFields{
+					ParticipantDocument: &participantDoc,
+				},
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "Maria de Jesus",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: time.Now(),
+					},
+				},
 			},
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
@@ -102,38 +108,8 @@ func TestCreateAlias(t *testing.T) {
 						Document:  &holderDocument,
 						AccountID: &accountID,
 						LedgerID:  &ledgerID,
-					}, nil)
-
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasIDAndLinkType(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(nil, nil)
-
-				mockHolderLinkRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.HolderLink{
-						ID:       &holderLinkID,
-						HolderID: &holderID,
-						AliasID:  &id,
-						LinkType: &linkTypePrimaryHolder,
-					}, nil)
-
-				mockAliasRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
-						ID:        &id,
-						Document:  &holderDocument,
-						AccountID: &accountID,
-						LedgerID:  &ledgerID,
-					}, nil)
-
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return([]*mmodel.HolderLink{
-						{
-							ID:       &holderLinkID,
-							HolderID: &holderID,
-							AliasID:  &id,
-							LinkType: &linkTypePrimaryHolder,
+						RegulatoryFields: &mmodel.RegulatoryFields{
+							ParticipantDocument: &participantDoc,
 						},
 					}, nil)
 			},
@@ -143,13 +119,8 @@ func TestCreateAlias(t *testing.T) {
 				Document:  &holderDocument,
 				AccountID: &accountID,
 				LedgerID:  &ledgerID,
-				HolderLinks: []*mmodel.HolderLink{
-					{
-						ID:       &holderLinkID,
-						HolderID: &holderID,
-						AliasID:  &id,
-						LinkType: &linkTypePrimaryHolder,
-					},
+				RegulatoryFields: &mmodel.RegulatoryFields{
+					ParticipantDocument: &participantDoc,
 				},
 			},
 		},
@@ -169,88 +140,42 @@ func TestCreateAlias(t *testing.T) {
 			expectedResult: nil,
 		},
 		{
-			name:     "Error when invalid LinkType provided",
+			name:     "Error when invalid RelatedParty role",
 			holderID: holderID,
 			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
-				LinkType:  utils.StringPtr("INVALID_TYPE"),
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "Maria de Jesus",
+						Role:      "INVALID_ROLE",
+						StartDate: time.Now(),
+					},
+				},
 			},
 			mockSetup:      func() {},
-			expectedErr:    cn.ErrInvalidLinkType,
+			expectedErr:    cn.ErrInvalidRelatedPartyRole,
 			expectedResult: nil,
 		},
 		{
-			name:     "Error when PRIMARY_HOLDER already exists",
+			name:     "Error when RelatedParty document is empty",
 			holderID: holderID,
 			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
-				LinkType:  &linkTypePrimaryHolder,
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "",
+						Name:      "Maria de Jesus",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: time.Now(),
+					},
+				},
 			},
-			mockSetup: func() {
-				mockHolderRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Holder{
-						ID:       &holderID,
-						Document: &holderDocument,
-					}, nil)
-
-				mockAliasRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
-						ID:        &id,
-						Document:  &holderDocument,
-						AccountID: &accountID,
-						LedgerID:  &ledgerID,
-					}, nil)
-
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasIDAndLinkType(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(&mmodel.HolderLink{
-						ID:       &holderLinkID,
-						LinkType: &linkTypePrimaryHolder,
-					}, nil)
-
-				mockAliasRepo.EXPECT().
-					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), true).
-					Return(nil)
-			},
-			expectedErr:    cn.ErrPrimaryHolderAlreadyExists,
+			mockSetup:      func() {},
+			expectedErr:    cn.ErrRelatedPartyDocumentRequired,
 			expectedResult: nil,
-		},
-		{
-			name:     "Success with nil LinkType (optional field)",
-			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
-				LedgerID:  ledgerID,
-				AccountID: accountID,
-				LinkType:  nil,
-			},
-			mockSetup: func() {
-				mockHolderRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Holder{
-						ID:       &holderID,
-						Document: &holderDocument,
-					}, nil)
-
-				mockAliasRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
-						ID:        &id,
-						Document:  &holderDocument,
-						AccountID: &accountID,
-						LedgerID:  &ledgerID,
-					}, nil)
-			},
-			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
-				ID:        &id,
-				Document:  &holderDocument,
-				AccountID: &accountID,
-				LedgerID:  &ledgerID,
-			},
 		},
 	}
 
@@ -282,13 +207,6 @@ func TestCreateAlias(t *testing.T) {
 					assert.Equal(t, testCase.expectedResult.ID, result.ID)
 					assert.Equal(t, testCase.expectedResult.AccountID, result.AccountID)
 					assert.Equal(t, testCase.expectedResult.LedgerID, result.LedgerID)
-					if testCase.expectedResult.HolderLinks != nil {
-						assert.Equal(t, len(testCase.expectedResult.HolderLinks), len(result.HolderLinks))
-						if len(testCase.expectedResult.HolderLinks) > 0 {
-							assert.Equal(t, testCase.expectedResult.HolderLinks[0].ID, result.HolderLinks[0].ID)
-							assert.Equal(t, testCase.expectedResult.HolderLinks[0].LinkType, result.HolderLinks[0].LinkType)
-						}
-					}
 				}
 			}
 		})
