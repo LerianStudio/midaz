@@ -317,3 +317,15 @@ func DateNotInFuture(t time.Time) bool {
 func DateAfter(date, reference time.Time) bool {
 	return date.After(reference)
 }
+
+// BalanceIsZero returns true if both available and onHold are exactly zero.
+// This is required before deleting a balance - cannot delete balance with funds.
+//
+// Example:
+//
+//	assert.That(assert.BalanceIsZero(balance.Available, balance.OnHold),
+//	    "balance must be zero before deletion",
+//	    "available", balance.Available, "onHold", balance.OnHold)
+func BalanceIsZero(available, onHold decimal.Decimal) bool {
+	return available.IsZero() && onHold.IsZero()
+}
