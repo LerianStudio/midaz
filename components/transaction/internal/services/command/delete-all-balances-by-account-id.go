@@ -10,6 +10,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -142,7 +143,10 @@ func (uc *UseCase) performBalanceDeletion(ctx context.Context, span *trace.Span,
 // extractBalanceIDs extracts balance IDs from balance list
 func (uc *UseCase) extractBalanceIDs(balances []*mmodel.Balance) []uuid.UUID {
 	balanceIDs := make([]uuid.UUID, 0, len(balances))
-	for _, balance := range balances {
+	for i, balance := range balances {
+		assert.NotNil(balance, "balance in list must not be nil",
+			"index", i,
+			"total_count", len(balances))
 		balanceIDs = append(balanceIDs, balance.IDtoUUID())
 	}
 

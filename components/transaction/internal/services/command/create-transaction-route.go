@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -46,6 +47,28 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
+	assert.That(len(operationRouteList) == len(payload.OperationRoutes), "operation routes count mismatch after lookup",
+		"expected_count", len(payload.OperationRoutes),
+		"actual_count", len(operationRouteList))
+	payloadIDs := make(map[uuid.UUID]struct{}, len(payload.OperationRoutes))
+	for _, routeID := range payload.OperationRoutes {
+		payloadIDs[routeID] = struct{}{}
+	}
+	for _, operationRoute := range operationRouteList {
+		_, ok := payloadIDs[operationRoute.ID]
+		assert.That(ok, "operation route id missing from payload after lookup",
+			"operation_route_id", operationRoute.ID)
+	}
+	operationRouteIDs := make(map[uuid.UUID]struct{}, len(operationRouteList))
+	for _, operationRoute := range operationRouteList {
+		operationRouteIDs[operationRoute.ID] = struct{}{}
+	}
+	for _, routeID := range payload.OperationRoutes {
+		_, ok := operationRouteIDs[routeID]
+		assert.That(ok, "payload operation route id missing from lookup results",
+			"operation_route_id", routeID)
+	}
+
 	// Validate operation route types
 	if err := validateOperationRouteTypes(operationRouteList); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate operation route types", err)
@@ -71,6 +94,19 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
+
+	assert.NotNil(createdTransactionRoute, "repository Create must return non-nil transaction route on success",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.That(createdTransactionRoute.OrganizationID == organizationID, "transaction route organization id mismatch after create",
+		"expected_organization_id", organizationID,
+		"actual_organization_id", createdTransactionRoute.OrganizationID)
+	assert.That(createdTransactionRoute.LedgerID == ledgerID, "transaction route ledger id mismatch after create",
+		"expected_ledger_id", ledgerID,
+		"actual_ledger_id", createdTransactionRoute.LedgerID)
+	assert.That(len(createdTransactionRoute.OperationRoutes) == len(operationRoutes), "transaction route operation routes count mismatch after create",
+		"expected_count", len(operationRoutes),
+		"actual_count", len(createdTransactionRoute.OperationRoutes))
 
 	createdTransactionRoute.OperationRoutes = operationRoutes
 

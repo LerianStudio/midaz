@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
+	midazconstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -25,6 +26,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
 )
 
@@ -173,6 +175,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
 			Metadata:       map[string]interface{}{},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -336,6 +341,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
 			Metadata:       map[string]interface{}{},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -462,6 +470,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
 			Metadata:       map[string]interface{}{},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -674,6 +685,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -882,6 +896,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -1063,6 +1080,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -1240,6 +1260,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1},
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -1413,6 +1436,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1},
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Status: transaction.Status{
+				Code: midazconstant.CREATED,
+			},
 		}
 
 		parseDSL := &pkgTransaction.Transaction{}
@@ -1488,6 +1514,38 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// When outbox persistence fails, the transaction should be rolled back and an error returned
 		assert.Error(t, callErr, "operation should fail when outbox persistence fails")
 	})
+}
+
+func TestCreateOrUpdateTransaction_UnknownStatusCode_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+	}
+
+	ctx := context.Background()
+	logger := &MockLogger{}
+	tracer := noop.NewTracerProvider().Tracer("test")
+
+	unknownTran := &transaction.Transaction{
+		ID: uuid.New().String(),
+		Status: transaction.Status{
+			Code: "UNKNOWN_STATUS",
+		},
+	}
+
+	tq := transaction.TransactionQueue{
+		Transaction: unknownTran,
+		Validate:    &pkgTransaction.Responses{},
+		ParseDSL:    &pkgTransaction.Transaction{},
+	}
+
+	assert.Panics(t, func() {
+		_, _ = uc.CreateOrUpdateTransaction(ctx, logger, tracer, tq)
+	}, "expected panic for unknown status code")
 }
 
 func TestCreateMetadataAsync(t *testing.T) {
@@ -1615,6 +1673,9 @@ func TestCreateBTOAsync(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 		Operations:     []*operation.Operation{},
 		Metadata:       map[string]interface{}{},
+		Status: transaction.Status{
+			Code: midazconstant.CREATED,
+		},
 	}
 
 	parseDSL := &pkgTransaction.Transaction{}

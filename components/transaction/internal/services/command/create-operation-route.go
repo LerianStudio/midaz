@@ -9,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -43,6 +44,25 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
+
+	assert.NotNil(createdOperationRoute, "repository Create must return non-nil operation route on success",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID,
+		"code", operationRoute.Code)
+	assert.That(createdOperationRoute.OrganizationID == organizationID, "operation route organization id mismatch after create",
+		"expected_organization_id", organizationID,
+		"actual_organization_id", createdOperationRoute.OrganizationID)
+	assert.That(createdOperationRoute.LedgerID == ledgerID, "operation route ledger id mismatch after create",
+		"expected_ledger_id", ledgerID,
+		"actual_ledger_id", createdOperationRoute.LedgerID)
+	assert.That(createdOperationRoute.ID != uuid.Nil, "operation route id must be generated",
+		"operation_route_id", createdOperationRoute.ID)
+	assert.That(createdOperationRoute.OperationType == payload.OperationType, "operation route type mismatch after create",
+		"expected_operation_type", payload.OperationType,
+		"actual_operation_type", createdOperationRoute.OperationType)
+	assert.That(createdOperationRoute.Code == payload.Code, "operation route code mismatch after create",
+		"expected_code", payload.Code,
+		"actual_code", createdOperationRoute.Code)
 
 	if payload.Metadata != nil {
 		meta := mongodb.Metadata{

@@ -120,6 +120,22 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AssetRate{}).Name())
 	}
 
+	assert.NotNil(updated, "repository Update must return non-nil asset rate on success",
+		"asset_rate_id", arFound.ID,
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.That(updated.OrganizationID == organizationID.String(), "asset rate organization id mismatch after update",
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", updated.OrganizationID)
+	assert.That(updated.LedgerID == ledgerID.String(), "asset rate ledger id mismatch after update",
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", updated.LedgerID)
+	if !libCommons.IsNilOrEmpty(cari.ExternalID) {
+		assert.That(updated.ExternalID == *cari.ExternalID, "asset rate external id mismatch after update",
+			"expected_external_id", *cari.ExternalID,
+			"actual_external_id", updated.ExternalID)
+	}
+
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.AssetRate{}).Name(), updated.ID, cari.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
@@ -188,6 +204,21 @@ func (uc *UseCase) createNewAssetRate(ctx context.Context, span *trace.Span, log
 
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.AssetRate{}).Name())
 	}
+
+	assert.NotNil(assetRate, "repository Create must return non-nil asset rate on success",
+		"from", cari.From,
+		"to", cari.To,
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.That(assetRate.ExternalID == *externalID, "asset rate external id mismatch after create",
+		"expected_external_id", *externalID,
+		"actual_external_id", assetRate.ExternalID)
+	assert.That(assetRate.OrganizationID == organizationID.String(), "asset rate organization id mismatch after create",
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", assetRate.OrganizationID)
+	assert.That(assetRate.LedgerID == ledgerID.String(), "asset rate ledger id mismatch after create",
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", assetRate.LedgerID)
 
 	if err := uc.createAssetRateMetadata(ctx, span, logger, assetRate.ID, cari.Metadata); err != nil {
 		return nil, err

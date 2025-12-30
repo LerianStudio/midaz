@@ -126,9 +126,15 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	expectedTransactionRoute := &mmodel.TransactionRoute{
-		ID:          uuid.New(),
-		Title:       payload.Title,
-		Description: payload.Description,
+		ID:             uuid.New(),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Title:          payload.Title,
+		Description:    payload.Description,
+		OperationRoutes: []mmodel.OperationRoute{
+			*expectedOperationRoutes[0],
+			*expectedOperationRoutes[1],
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -349,9 +355,15 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	}
 
 	expectedTransactionRoute := &mmodel.TransactionRoute{
-		ID:          uuid.New(),
-		Title:       payload.Title,
-		Description: payload.Description,
+		ID:             uuid.New(),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Title:          payload.Title,
+		Description:    payload.Description,
+		OperationRoutes: []mmodel.OperationRoute{
+			*expectedOperationRoutes[0],
+			*expectedOperationRoutes[1],
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -385,6 +397,45 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, expectedError)
+}
+
+func TestCreateTransactionRoute_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRouteRepo: mockTransactionRouteRepo,
+		OperationRouteRepo:   mockOperationRouteRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	opRouteID := uuid.New()
+	opRouteID2 := uuid.New()
+
+	payload := &mmodel.CreateTransactionRouteInput{
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{opRouteID, opRouteID2},
+	}
+
+	mockOperationRouteRepo.EXPECT().
+		FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]*mmodel.OperationRoute{
+			{ID: opRouteID, OperationType: "source"},
+			{ID: opRouteID2, OperationType: "destination"},
+		}, nil)
+
+	mockTransactionRouteRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.CreateTransactionRoute(ctx, orgID, ledgerID, payload)
+	}, "expected panic when repository returns nil transaction route without error")
 }
 
 // TestValidateOperationRouteTypesSuccess tests successful validation

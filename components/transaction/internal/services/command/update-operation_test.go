@@ -8,6 +8,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -71,4 +73,33 @@ func TestUpdateOperationError(t *testing.T) {
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, res)
+}
+
+func TestUpdateOperation_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OperationRepo: mockOperationRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationID := uuid.New()
+
+	input := &mmodel.UpdateOperationInput{
+		Description: "Updated description",
+	}
+
+	mockOperationRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)
+	}, "expected panic when repository returns nil operation without error")
 }

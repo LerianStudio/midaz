@@ -12,6 +12,7 @@ import (
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
@@ -110,4 +111,49 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
+}
+
+func TestTransactionExecute_NilParseDSL_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := &UseCase{}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assert.Panics(t, func() {
+		_ = uc.TransactionExecute(ctx, orgID, ledgerID, nil, &pkgTransaction.Responses{}, []*mmodel.Balance{}, &transaction.Transaction{})
+	}, "expected panic when parseDSL is nil")
+}
+
+func TestTransactionExecute_NilValidate_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := &UseCase{}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assert.Panics(t, func() {
+		_ = uc.TransactionExecute(ctx, orgID, ledgerID, &pkgTransaction.Transaction{}, nil, []*mmodel.Balance{}, &transaction.Transaction{})
+	}, "expected panic when validate is nil")
+}
+
+func TestTransactionExecute_NilTransaction_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := &UseCase{}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	assert.Panics(t, func() {
+		_ = uc.TransactionExecute(ctx, orgID, ledgerID, &pkgTransaction.Transaction{}, &pkgTransaction.Responses{}, []*mmodel.Balance{}, nil)
+	}, "expected panic when transaction is nil")
 }

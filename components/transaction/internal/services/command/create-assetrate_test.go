@@ -11,9 +11,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
 )
 
@@ -577,6 +579,82 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 		var internalErr pkg.InternalServerError
 		assert.True(t, errors.As(err, &internalErr))
 	})
+}
+
+func TestUpdateExistingAssetRate_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRateRepo: mockAssetRateRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	existingRate := &mmodel.AssetRate{
+		ID:             uuid.New().String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		From:           "USD",
+		To:             "EUR",
+	}
+
+	input := &mmodel.CreateAssetRateInput{
+		From: "USD",
+		To:   "EUR",
+		Rate: decimal.NewFromFloat(1.2),
+	}
+
+	tracer := noop.NewTracerProvider().Tracer("test")
+	_, span := tracer.Start(ctx, "test")
+
+	logger := &MockLogger{}
+
+	mockAssetRateRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.updateExistingAssetRate(ctx, &span, logger, orgID, ledgerID, input, existingRate)
+	}, "expected panic when repository returns nil asset rate without error")
+}
+
+func TestCreateNewAssetRate_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRateRepo: mockAssetRateRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	input := &mmodel.CreateAssetRateInput{
+		From: "USD",
+		To:   "EUR",
+		Rate: decimal.NewFromFloat(1.2),
+	}
+
+	tracer := noop.NewTracerProvider().Tracer("test")
+	_, span := tracer.Start(ctx, "test")
+
+	logger := &MockLogger{}
+
+	mockAssetRateRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.createNewAssetRate(ctx, &span, logger, orgID, ledgerID, input)
+	}, "expected panic when repository returns nil asset rate without error")
 }
 
 // TestUpdateAssetRateSuccess is responsible to test TestUpdateAssetRateSuccess with success

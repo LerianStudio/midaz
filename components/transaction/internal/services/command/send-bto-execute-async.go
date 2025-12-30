@@ -10,6 +10,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -18,6 +19,16 @@ import (
 
 // TransactionExecute func that send balances, transaction and operations to execute sync/async.
 func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+	assert.NotNil(parseDSL, "parseDSL must not be nil",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.NotNil(validate, "validate must not be nil",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.NotNil(tran, "transaction must not be nil",
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		return uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
 	}

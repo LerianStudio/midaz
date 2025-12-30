@@ -170,3 +170,36 @@ func TestCreateOperationRouteError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
 }
+
+func TestCreateOperationRoute_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	payload := &mmodel.CreateOperationRouteInput{
+		Title:         "Test Route",
+		Code:          "TEST",
+		OperationType: "source",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAlias,
+			ValidIf:  "@test-account",
+		},
+	}
+
+	mockOperationRouteRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.CreateOperationRoute(ctx, orgID, ledgerID, payload)
+	}, "expected panic when repository returns nil operation route without error")
+}

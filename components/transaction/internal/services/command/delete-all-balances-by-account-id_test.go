@@ -203,6 +203,20 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	})
 }
 
+func TestExtractBalanceIDs_NilElementInSlice_Panics(t *testing.T) {
+	uc := &UseCase{}
+
+	balances := []*mmodel.Balance{
+		{ID: uuid.New().String()},
+		nil,
+		{ID: uuid.New().String()},
+	}
+
+	assert.Panics(t, func() {
+		_ = uc.extractBalanceIDs(balances)
+	}, "expected panic when balance slice contains nil element")
+}
+
 func setupDeleteAllBalancesUseCase(t *testing.T) (*UseCase, *balance.MockRepository, *redis.MockRedisRepository) {
 	t.Helper()
 

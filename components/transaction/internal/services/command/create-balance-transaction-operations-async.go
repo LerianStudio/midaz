@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -217,6 +218,10 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		tran.Status = status
 	case constant.PENDING:
 		// Body already populated from ParseDSL when present.
+	default:
+		assert.Never("unhandled transaction status code in CreateOrUpdateTransaction",
+			"status_code", tran.Status.Code,
+			"transaction_id", tran.ID)
 	}
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)
