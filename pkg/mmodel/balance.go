@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/shopspring/decimal"
-
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/shopspring/decimal"
 	"github.com/google/uuid"
 )
 
@@ -361,7 +361,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 
 	// Set default value for Key if not provided (backwards compatibility)
 	if b.Key == "" {
-		b.Key = "default"
+		b.Key = constant.DefaultBalanceKey
 	}
 
 	return nil
