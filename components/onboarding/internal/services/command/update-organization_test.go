@@ -31,7 +31,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 		name      string
 		orgID     uuid.UUID
 		input     *mmodel.UpdateOrganizationInput
-		mockSetup func()
+		mockSetup func(orgID uuid.UUID)
 		expectErr bool
 	}{
 		{
@@ -45,11 +45,11 @@ func TestUpdateOrganizationByID(t *testing.T) {
 				Status:               mmodel.Status{Code: "active"},
 				Metadata:             map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(orgID uuid.UUID) {
 				mockOrganizationRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Organization{
-						ID:                   "123",
+						ID:                   orgID.String(),
 						LegalName:            "Updated Organization",
 						DoingBusinessAs:      utils.StringPtr("Updated DBA"),
 						Address:              mmodel.Address{Country: "US"},
@@ -71,7 +71,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 			input: &mmodel.UpdateOrganizationInput{
 				Address: mmodel.Address{Country: "INVALID"},
 			},
-			mockSetup: func() {},
+			mockSetup: func(_ uuid.UUID) {},
 			expectErr: true,
 		},
 		{
@@ -81,7 +81,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 				LegalName: "Nonexistent Organization",
 				Address:   mmodel.Address{Country: "US"},
 			},
-			mockSetup: func() {
+			mockSetup: func(_ uuid.UUID) {
 				mockOrganizationRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
@@ -96,10 +96,10 @@ func TestUpdateOrganizationByID(t *testing.T) {
 				Address:   mmodel.Address{Country: "US"},
 				Metadata:  map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(orgID uuid.UUID) {
 				mockOrganizationRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Organization{ID: "123"}, nil)
+					Return(&mmodel.Organization{ID: orgID.String()}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -113,7 +113,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.mockSetup(tt.orgID)
 
 			ctx := context.Background()
 			result, err := uc.UpdateOrganizationByID(ctx, tt.orgID, tt.input)
@@ -130,4 +130,30 @@ func TestUpdateOrganizationByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateOrganizationByID_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OrganizationRepo: mockOrganizationRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+
+	input := &mmodel.UpdateOrganizationInput{
+		LegalName: "Updated Org",
+	}
+
+	mockOrganizationRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.UpdateOrganizationByID(ctx, orgID, input)
+	}, "expected panic when repository returns nil organization without error")
 }

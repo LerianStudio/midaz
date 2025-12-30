@@ -221,3 +221,33 @@ func TestCreateAsset(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAssetCode_UppercaseRequirement(t *testing.T) {
+	uc := &UseCase{}
+
+	ctx := context.Background()
+
+	err := uc.validateAssetCode(ctx, "USD")
+	assert.NoError(t, err)
+
+	err = uc.validateAssetCode(ctx, "usd")
+	assert.Error(t, err)
+}
+
+func TestValidateAssetCode_DefaultCase_ReturnsInternalServerError(t *testing.T) {
+	uc := &UseCase{}
+	ctx := context.Background()
+
+	sentinel := errors.New("unexpected validate code error")
+
+	prev := validateCodeFn
+	validateCodeFn = func(_ string) error { return sentinel }
+	t.Cleanup(func() { validateCodeFn = prev })
+
+	err := uc.validateAssetCode(ctx, "USD")
+	require.Error(t, err)
+
+	var internalErr pkg.InternalServerError
+	require.True(t, errors.As(err, &internalErr), "expected InternalServerError, got %T", err)
+	require.ErrorIs(t, internalErr.Err, sentinel)
+}

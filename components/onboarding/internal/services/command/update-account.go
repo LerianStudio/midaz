@@ -78,6 +78,27 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
+	assert.NotNil(accountUpdated, "repository Update must return non-nil account on success",
+		"account_id", id,
+		"organization_id", organizationID,
+		"ledger_id", ledgerID)
+	assert.That(accountUpdated.ID == id.String(), "account id mismatch after update",
+		"expected_id", id.String(),
+		"actual_id", accountUpdated.ID)
+	assert.That(accountUpdated.OrganizationID == organizationID.String(), "account organization id mismatch after update",
+		"expected_organization_id", organizationID.String(),
+		"actual_organization_id", accountUpdated.OrganizationID)
+	assert.That(accountUpdated.LedgerID == ledgerID.String(), "account ledger id mismatch after update",
+		"expected_ledger_id", ledgerID.String(),
+		"actual_ledger_id", accountUpdated.LedgerID)
+	if uai.Metadata == nil {
+		assert.That(reflect.DeepEqual(accountUpdated.Metadata, accFound.Metadata),
+			"account metadata should remain unchanged when update metadata is nil",
+			"account_id", id,
+			"organization_id", organizationID,
+			"ledger_id", ledgerID)
+	}
+
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
 		logger.Errorf("Error updating metadata: %v", err)

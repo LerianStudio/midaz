@@ -17,6 +17,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// validateCodeFn is a seam for unit tests to simulate unexpected validation errors.
+// In production it always points to utils.ValidateCode.
+var validateCodeFn = utils.ValidateCode
+
 // validateAssetInput validates the asset type and code
 func (uc *UseCase) validateAssetInput(ctx context.Context, cii *mmodel.CreateAssetInput, span *trace.Span) error {
 	if err := utils.ValidateType(cii.Type); err != nil {
@@ -225,7 +229,7 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 
 	logger.Infof("Validating asset code: %s", code)
 
-	if err := utils.ValidateCode(code); err != nil {
+	if err := validateCodeFn(code); err != nil {
 		switch err.Error() {
 		case constant.ErrInvalidCodeFormat.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
@@ -245,6 +249,10 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
 			return mapped
+		default:
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code with unknown error", err)
+
+			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 

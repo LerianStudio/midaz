@@ -33,7 +33,7 @@ func TestUpdateAccount(t *testing.T) {
 		portfolioID    *uuid.UUID
 		accountID      uuid.UUID
 		input          *mmodel.UpdateAccountInput
-		mockSetup      func()
+		mockSetup      func(organizationID, ledgerID, accountID uuid.UUID)
 		expectErr      bool
 	}{
 		{
@@ -50,13 +50,25 @@ func TestUpdateAccount(t *testing.T) {
 				SegmentID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(organizationID, ledgerID, accountID uuid.UUID) {
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: "123", Type: "internal"}, nil)
+					Return(&mmodel.Account{
+						ID:             accountID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           "internal",
+					}, nil)
 				mockAccountRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: "123", Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Account{
+						ID:             accountID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Name:           "Updated Account",
+						Status:         mmodel.Status{Code: "active"},
+						Metadata:       nil,
+					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -80,7 +92,7 @@ func TestUpdateAccount(t *testing.T) {
 				SegmentID: nil,
 				Metadata:  nil,
 			},
-			mockSetup: func() {
+			mockSetup: func(organizationID, ledgerID, accountID uuid.UUID) {
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
@@ -101,13 +113,25 @@ func TestUpdateAccount(t *testing.T) {
 				SegmentID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(organizationID, ledgerID, accountID uuid.UUID) {
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: "123", Type: "internal"}, nil)
+					Return(&mmodel.Account{
+						ID:             accountID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           "internal",
+					}, nil)
 				mockAccountRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{ID: "123", Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Account{
+						ID:             accountID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Name:           "Updated Account",
+						Status:         mmodel.Status{Code: "active"},
+						Metadata:       nil,
+					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, nil)
@@ -121,7 +145,7 @@ func TestUpdateAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.mockSetup(tt.organizationID, tt.ledgerID, tt.accountID)
 
 			ctx := context.Background()
 			result, err := uc.UpdateAccount(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID, tt.input)
@@ -169,7 +193,14 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 				t.Fatalf("expected acc.Blocked to be true and non-nil")
 			}
 			// Echo back
-			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Blocked: acc.Blocked}, nil
+			return &mmodel.Account{
+				ID:             accountID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Name:           "Updated Account",
+				Status:         mmodel.Status{Code: "active"},
+				Blocked:        acc.Blocked,
+			}, nil
 		})
 
 	mockMetadataRepo.EXPECT().
@@ -223,7 +254,12 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 			if acc.Blocked != nil {
 				t.Fatalf("expected acc.Blocked to be nil when omitted")
 			}
-			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account"}, nil
+			return &mmodel.Account{
+				ID:             accountID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Name:           "Updated Account",
+			}, nil
 		})
 
 	mockMetadataRepo.EXPECT().
@@ -273,4 +309,36 @@ func TestUpdateAccount_ExternalForbidden(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
+}
+
+func TestUpdateAccount_RepoReturnsNilWithoutError_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo: mockAccountRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	input := &mmodel.UpdateAccountInput{
+		Name: "Updated Account",
+	}
+
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
+
+	mockAccountRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input)
+	}, "expected panic when repository returns nil account without error")
 }

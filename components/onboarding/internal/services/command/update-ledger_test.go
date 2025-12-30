@@ -31,7 +31,7 @@ func TestUpdateLedgerByID(t *testing.T) {
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
 		input          *mmodel.UpdateLedgerInput
-		mockSetup      func()
+		mockSetup      func(organizationID, ledgerID uuid.UUID)
 		expectErr      bool
 	}{
 		{
@@ -43,10 +43,16 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(organizationID, ledgerID uuid.UUID) {
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Ledger{ID: "123", Name: "Updated Ledger", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Ledger{
+						ID:             ledgerID.String(),
+						OrganizationID: organizationID.String(),
+						Name:           "Updated Ledger",
+						Status:         mmodel.Status{Code: "active"},
+						Metadata:       nil,
+					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -65,7 +71,7 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Status:   mmodel.Status{Code: "inactive"},
 				Metadata: nil,
 			},
-			mockSetup: func() {
+			mockSetup: func(_ uuid.UUID, _ uuid.UUID) {
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
@@ -81,10 +87,16 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
+			mockSetup: func(organizationID, ledgerID uuid.UUID) {
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Ledger{ID: "123", Name: "Ledger with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Ledger{
+						ID:             ledgerID.String(),
+						OrganizationID: organizationID.String(),
+						Name:           "Ledger with Metadata Error",
+						Status:         mmodel.Status{Code: "active"},
+						Metadata:       nil,
+					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -103,7 +115,7 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Status:   mmodel.Status{Code: "inactive"},
 				Metadata: nil,
 			},
-			mockSetup: func() {
+			mockSetup: func(_ uuid.UUID, _ uuid.UUID) {
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("update error"))
@@ -114,7 +126,7 @@ func TestUpdateLedgerByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			tt.mockSetup(tt.organizationID, tt.ledgerID)
 
 			ctx := context.Background()
 			result, err := uc.UpdateLedgerByID(ctx, tt.organizationID, tt.ledgerID, tt.input)
@@ -130,4 +142,31 @@ func TestUpdateLedgerByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateLedgerByID_RepoReturnsNil_Panics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		LedgerRepo: mockLedgerRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	input := &mmodel.UpdateLedgerInput{
+		Name: "Updated Ledger",
+	}
+
+	mockLedgerRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	assert.Panics(t, func() {
+		_, _ = uc.UpdateLedgerByID(ctx, orgID, ledgerID, input)
+	}, "expected panic when repository returns nil ledger without error")
 }
