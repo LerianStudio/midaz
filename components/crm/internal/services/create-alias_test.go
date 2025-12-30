@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"testing"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
@@ -76,21 +75,13 @@ func TestCreateAlias(t *testing.T) {
 			},
 		},
 		{
-			name:     "Success with RegulatoryFields and RelatedParties",
+			name:     "Success with RegulatoryFields",
 			holderID: holderID,
 			input: &mmodel.CreateAliasInput{
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 				RegulatoryFields: &mmodel.RegulatoryFields{
 					ParticipantDocument: &participantDoc,
-				},
-				RelatedParties: []*mmodel.RelatedParty{
-					{
-						Document:  "12345678900",
-						Name:      "Maria de Jesus",
-						Role:      "PRIMARY_HOLDER",
-						StartDate: time.Now(),
-					},
 				},
 			},
 			mockSetup: func() {
@@ -138,76 +129,6 @@ func TestCreateAlias(t *testing.T) {
 			},
 			expectedErr:    cn.ErrHolderNotFound,
 			expectedResult: nil,
-		},
-		{
-			name:     "Error when invalid RelatedParty role",
-			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
-				LedgerID:  ledgerID,
-				AccountID: accountID,
-				RelatedParties: []*mmodel.RelatedParty{
-					{
-						Document:  "12345678900",
-						Name:      "Maria de Jesus",
-						Role:      "INVALID_ROLE",
-						StartDate: time.Now(),
-					},
-				},
-			},
-			mockSetup:      func() {},
-			expectedErr:    cn.ErrInvalidRelatedPartyRole,
-			expectedResult: nil,
-		},
-		{
-			name:     "Error when RelatedParty document is empty",
-			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
-				LedgerID:  ledgerID,
-				AccountID: accountID,
-				RelatedParties: []*mmodel.RelatedParty{
-					{
-						Document:  "",
-						Name:      "Maria de Jesus",
-						Role:      "PRIMARY_HOLDER",
-						StartDate: time.Now(),
-					},
-				},
-			},
-			mockSetup:      func() {},
-			expectedErr:    cn.ErrRelatedPartyDocumentRequired,
-			expectedResult: nil,
-		},
-		{
-			name:     "Success with nil LinkType (optional field)",
-			holderID: holderID,
-			input: &mmodel.CreateAliasInput{
-				LedgerID:  ledgerID,
-				AccountID: accountID,
-			},
-			mockSetup: func() {
-				mockHolderRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Holder{
-						ID:       &holderID,
-						Document: &holderDocument,
-					}, nil)
-
-				mockAliasRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Alias{
-						ID:        &id,
-						Document:  &holderDocument,
-						AccountID: &accountID,
-						LedgerID:  &ledgerID,
-					}, nil)
-			},
-			expectedErr: nil,
-			expectedResult: &mmodel.Alias{
-				ID:        &id,
-				Document:  &holderDocument,
-				AccountID: &accountID,
-				LedgerID:  &ledgerID,
-			},
 		},
 	}
 

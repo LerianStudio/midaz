@@ -188,11 +188,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/RegulatoryFields'
         description: Object with regulatory fields.
-      relatedParties:
-        description: List of related parties.
-        items:
-          $ref: '#/definitions/RelatedParty'
-        type: array
     required:
     - accountId
     - ledgerId

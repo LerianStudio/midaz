@@ -1146,13 +1146,6 @@ const docTemplatecrm = `{
                             "$ref": "#/definitions/RegulatoryFields"
                         }
                     ]
-                },
-                "relatedParties": {
-                    "description": "List of related parties.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/RelatedParty"
-                    }
                 }
             }
         },

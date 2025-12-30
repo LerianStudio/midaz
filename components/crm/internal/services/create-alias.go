@@ -23,16 +23,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	if len(cai.RelatedParties) > 0 {
-		err := uc.ValidateRelatedParties(ctx, cai.RelatedParties)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to validate related parties", err)
-			logger.Errorf("Failed to validate related parties: %v", err)
-
-			return nil, err
-		}
-	}
-
 	aliasID := libCommons.GenerateUUIDv7()
 
 	alias := &mmodel.Alias{
@@ -60,21 +50,6 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 	if cai.RegulatoryFields != nil {
 		alias.RegulatoryFields = &mmodel.RegulatoryFields{
 			ParticipantDocument: cai.RegulatoryFields.ParticipantDocument,
-		}
-	}
-
-	if len(cai.RelatedParties) > 0 {
-		alias.RelatedParties = make([]*mmodel.RelatedParty, len(cai.RelatedParties))
-		for i, rp := range cai.RelatedParties {
-			rpID := libCommons.GenerateUUIDv7()
-			alias.RelatedParties[i] = &mmodel.RelatedParty{
-				ID:        &rpID,
-				Document:  rp.Document,
-				Name:      rp.Name,
-				Role:      rp.Role,
-				StartDate: rp.StartDate,
-				EndDate:   rp.EndDate,
-			}
 		}
 	}
 

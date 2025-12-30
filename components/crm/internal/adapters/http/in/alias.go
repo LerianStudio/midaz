@@ -379,9 +379,21 @@ func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_related_party")
 	defer span.End()
 
-	holderID := c.Locals("holder_id").(uuid.UUID)
-	aliasID := c.Locals("alias_id").(uuid.UUID)
-	relatedPartyID := c.Locals("related_party_id").(uuid.UUID)
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	aliasID, err := http.GetUUIDFromLocals(c, "alias_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	relatedPartyID, err := http.GetUUIDFromLocals(c, "related_party_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -394,7 +406,7 @@ func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String())
 
-	err := handler.Service.DeleteRelatedPartyByID(ctx, organizationID, holderID, aliasID, relatedPartyID)
+	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
 

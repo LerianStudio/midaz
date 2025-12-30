@@ -49,8 +49,6 @@ type CreateAliasInput struct {
 	BankingDetails *BankingDetails `json:"bankingDetails"`
 	// Object with regulatory fields.
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
-	// List of related parties.
-	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
 } // @name CreateAliasRequest
 
 // UpdateAliasInput is a struct designed to encapsulate request update payload data.
