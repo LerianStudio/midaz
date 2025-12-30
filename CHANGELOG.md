@@ -1,3 +1,19 @@
+## [v3.5.0-beta.30] - 2025-12-30
+
+### ✨ Features
+- add HTTP recovery middleware with customizable logging
+
+### 🔄 Changes
+- remove redundant span attribute setting for payload
+- replace direct UUID extraction from context with a safe utility function across multiple handlers
+
+### 🧪 Testing
+- add unit tests for GetUUIDFromLocals function and SafeTimePtr utility
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.29] - 2025-12-30
 
 ### ✨ Features
@@ -388,7 +404,7 @@ Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
 - Update CHANGELOG
 
 
-## [v3.4.7] - 2025-12-09
+## [v3.5.0-beta.31] - 2025-12-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
 Contributors: Clara Tersi
