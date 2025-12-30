@@ -99,6 +99,16 @@ func TestUpdateAliasByID(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						LedgerID:  &ledgerID,
+						HolderID:  &holderID,
+						AccountID: &accountID,
+					}, nil)
+
+				mockAliasRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Alias{
 						ID:        &id,

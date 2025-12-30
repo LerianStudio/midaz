@@ -49,17 +49,31 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	}
 
 	if len(uai.RelatedParties) > 0 {
-		alias.RelatedParties = make([]*mmodel.RelatedParty, len(uai.RelatedParties))
-		for i, rp := range uai.RelatedParties {
+		existingAlias, err := uc.AliasRepo.Find(ctx, organizationID, holderID, id, false)
+		if err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to fetch existing alias for related parties append", err)
+			logger.Errorf("Failed to fetch existing alias: %v", err)
+
+			return nil, err
+		}
+
+		if existingAlias.RelatedParties == nil {
+			alias.RelatedParties = make([]*mmodel.RelatedParty, 0, len(uai.RelatedParties))
+		} else {
+			alias.RelatedParties = make([]*mmodel.RelatedParty, len(existingAlias.RelatedParties), len(existingAlias.RelatedParties)+len(uai.RelatedParties))
+			copy(alias.RelatedParties, existingAlias.RelatedParties)
+		}
+
+		for _, rp := range uai.RelatedParties {
 			rpID := libCommons.GenerateUUIDv7()
-			alias.RelatedParties[i] = &mmodel.RelatedParty{
+			alias.RelatedParties = append(alias.RelatedParties, &mmodel.RelatedParty{
 				ID:        &rpID,
 				Document:  rp.Document,
 				Name:      rp.Name,
 				Role:      rp.Role,
 				StartDate: rp.StartDate,
 				EndDate:   rp.EndDate,
-			}
+			})
 		}
 	}
 

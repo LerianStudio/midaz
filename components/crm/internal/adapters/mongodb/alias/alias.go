@@ -28,10 +28,11 @@ type MongoDBModel struct {
 }
 
 type SearchMongoDB struct {
-	Document              *string  `bson:"document,omitempty"`
-	BankingDetailsAccount *string  `bson:"banking_details_account,omitempty"`
-	BankingDetailsIBAN    *string  `bson:"banking_details_iban,omitempty"`
-	RelatedPartyDocuments []string `bson:"related_party_documents,omitempty"`
+	Document                             *string  `bson:"document,omitempty"`
+	BankingDetailsAccount                *string  `bson:"banking_details_account,omitempty"`
+	BankingDetailsIBAN                   *string  `bson:"banking_details_iban,omitempty"`
+	RegulatoryFieldsParticipantDocument  *string  `bson:"regulatory_fields_participant_document,omitempty"`
+	RelatedPartyDocuments                []string `bson:"related_party_documents,omitempty"`
 }
 
 type BankingMongoDBModel struct {
@@ -124,6 +125,11 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 
 		amm.RegulatoryFields = &RegulatoryFieldsMongoDBModel{
 			ParticipantDocument: participantDocument,
+		}
+
+		if a.RegulatoryFields.ParticipantDocument != nil && *a.RegulatoryFields.ParticipantDocument != "" {
+			hash := ds.GenerateHash(a.RegulatoryFields.ParticipantDocument)
+			amm.Search.RegulatoryFieldsParticipantDocument = &hash
 		}
 	}
 

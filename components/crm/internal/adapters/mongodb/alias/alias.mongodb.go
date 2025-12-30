@@ -699,7 +699,7 @@ func createIndexes(collection *mongo.Collection) error {
 				}),
 		},
 		{
-			Keys: bson.D{{Key: "regulatory_fields.participant_document", Value: 1}},
+			Keys: bson.D{{Key: "search.regulatory_fields_participant_document", Value: 1}},
 			Options: options.Index().
 				SetPartialFilterExpression(bson.D{
 					{Key: "deleted_at", Value: nil},
