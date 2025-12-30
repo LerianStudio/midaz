@@ -222,3 +222,26 @@ func TestDateAfter(t *testing.T) {
 		})
 	}
 }
+
+// TestBalanceIsZero tests the BalanceIsZero predicate.
+func TestBalanceIsZero(t *testing.T) {
+	tests := []struct {
+		name      string
+		available decimal.Decimal
+		onHold    decimal.Decimal
+		expected  bool
+	}{
+		{"both zero", decimal.Zero, decimal.Zero, true},
+		{"available non-zero", decimal.NewFromInt(1), decimal.Zero, false},
+		{"onHold non-zero", decimal.Zero, decimal.NewFromInt(1), false},
+		{"both non-zero", decimal.NewFromInt(1), decimal.NewFromInt(1), false},
+		{"tiny available", decimal.NewFromFloat(0.001), decimal.Zero, false},
+		{"negative available still not zero", decimal.NewFromInt(-1), decimal.Zero, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, BalanceIsZero(tt.available, tt.onHold))
+		})
+	}
+}
