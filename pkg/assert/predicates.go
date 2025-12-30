@@ -258,3 +258,18 @@ func TransactionCanTransitionTo(current, target string) bool {
 	}
 	return allowed[target]
 }
+
+// TransactionCanBeReverted returns true if transaction is eligible for revert.
+// A transaction can be reverted only if:
+// 1. Status is APPROVED (other statuses cannot be reversed)
+// 2. Has no parent transaction (already a revert - no double-revert)
+//
+// Example:
+//
+//	hasParent := tran.ParentTransactionID != nil
+//	assert.That(assert.TransactionCanBeReverted(tran.Status.Code, hasParent),
+//	    "transaction cannot be reverted",
+//	    "status", tran.Status.Code, "hasParent", hasParent)
+func TransactionCanBeReverted(status string, hasParent bool) bool {
+	return status == "APPROVED" && !hasParent
+}
