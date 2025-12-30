@@ -127,7 +127,10 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		return nil, pkg.ValidateInternalError(err, "TransactionRoute")
 	}
 
-	return record.ToEntity(), nil
+	created := record.ToEntity()
+	created.OperationRoutes = transactionRoute.OperationRoutes
+
+	return created, nil
 }
 
 // FindByID retrieves a transaction route by its ID including its operation routes.
