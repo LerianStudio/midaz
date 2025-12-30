@@ -7,6 +7,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -36,6 +37,15 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		logger.Warnf("Error deleting balance: %v", err)
 
 		return err
+	}
+
+	// Postcondition after validation: balance must be zero before deletion
+	if balance != nil {
+		assert.That(assert.BalanceIsZero(balance.Available, balance.OnHold),
+			"balance must be zero before deletion - validation passed but invariant violated",
+			"balanceID", balanceID,
+			"available", balance.Available,
+			"onHold", balance.OnHold)
 	}
 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
