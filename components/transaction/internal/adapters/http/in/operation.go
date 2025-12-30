@@ -260,7 +260,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	logger.Infof("Request to update an Operation with details: %#v", payload)
 
-	_, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	updatedOp, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation on command", err)
 
@@ -273,22 +273,9 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 		return nil
 	}
 
-	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation on query", err)
-
-		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
-	}
-
 	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
 
-	if err := http.OK(c, op); err != nil {
+	if err := http.OK(c, updatedOp); err != nil {
 		return err
 	}
 

@@ -206,13 +206,9 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	if err := handler.performOperationRouteUpdate(ctx, c, &span, organizationID, ledgerID, id, payload); err != nil {
-		return err
-	}
-
-	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	updatedRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation Route on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation Route on command", err)
 
 		if httpErr := http.WithError(c, err); httpErr != nil {
 			return httpErr
@@ -231,7 +227,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		}
 	}
 
-	if err := http.OK(c, operationRoute); err != nil {
+	if err := http.OK(c, updatedRoute); err != nil {
 		return err
 	}
 
@@ -239,21 +235,6 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 }
 
 // performOperationRouteUpdate executes the update command for an operation route.
-func (handler *OperationRouteHandler) performOperationRouteUpdate(ctx context.Context, c *fiber.Ctx, span *trace.Span, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput) error {
-	_, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
-
-		if httpErr := http.WithError(c, err); httpErr != nil {
-			return httpErr
-		}
-
-		return nil
-	}
-
-	return nil
-}
-
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
 //
 //	@Summary		Delete an operation route
