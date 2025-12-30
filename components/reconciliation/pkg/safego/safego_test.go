@@ -85,7 +85,7 @@ func TestGoWithCallback_CallsOnPanic(t *testing.T) {
 	logger := &mockLogger{
 		onLog: func() { close(logDone) },
 	}
-	var panicValue interface{}
+	panicValueCh := make(chan interface{}, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -93,7 +93,7 @@ func TestGoWithCallback_CallsOnPanic(t *testing.T) {
 		defer wg.Done()
 		panic("callback panic")
 	}, func(r interface{}) {
-		panicValue = r
+		panicValueCh <- r
 	})
 
 	wg.Wait()
@@ -106,8 +106,13 @@ func TestGoWithCallback_CallsOnPanic(t *testing.T) {
 		t.Fatal("timeout waiting for panic recovery logging")
 	}
 
-	if panicValue != "callback panic" {
-		t.Errorf("expected panic value 'callback panic', got %v", panicValue)
+	select {
+	case panicValue := <-panicValueCh:
+		if panicValue != "callback panic" {
+			t.Errorf("expected panic value 'callback panic', got %v", panicValue)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for panic callback")
 	}
 }
 
