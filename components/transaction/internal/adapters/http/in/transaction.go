@@ -722,6 +722,23 @@ func validateDoubleEntry(operations []*mmodel.Operation) {
 		"difference", debitTotal.Sub(creditTotal))
 }
 
+// validateTransactionStateTransition enforces the transaction state machine.
+// Panics if the transition from current to target is not allowed.
+// Valid transitions: PENDING -> APPROVED, PENDING -> CANCELED
+func validateTransactionStateTransition(current, target string) {
+	assert.That(assert.ValidTransactionStatus(current),
+		"current transaction status must be valid",
+		"current", current)
+
+	assert.That(assert.ValidTransactionStatus(target),
+		"target transaction status must be valid",
+		"target", target)
+
+	assert.That(assert.TransactionCanTransitionTo(current, target),
+		"invalid transaction state transition",
+		"current", current, "target", target)
+}
+
 func (handler *TransactionHandler) buildRevertTransaction(logger libLog.Logger, tran *mmodel.Transaction) pkgTransaction.Transaction {
 	if operationsReadyForRevert(tran) {
 		return tran.TransactionRevert()
