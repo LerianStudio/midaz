@@ -181,7 +181,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
-	assetCode := c.Params("asset_code")
+	assetCode := http.LocalString(c, "asset_code")
 
 	mlog.EnrichOperationRoute(c, organizationID, ledgerID, uuid.Nil)
 	mlog.EnrichAssetRate(c, assetCode)
