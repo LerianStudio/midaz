@@ -1,4 +1,78 @@
-## [v3.4.8] - 2025-12-30
+## [v3.4.0-rc.3] - 2025-12-30
+
+### 🐛 Bug Fixes
+- update context timeout variable in gRPC health check
+- add health check for balance gRPC service in account and asset creation
+- implement CheckHealth method in balance gRPC repository
+- add grpc connection ready check
+- add whitespace for improved readability
+- move MongoDB port and parameters extraction to utils and remove deprecated function
+- style
+- set default values for TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT in onboarding, and update PROTO_ADDRESS default in transaction configuration
+- update version numbers in console and onboarding environment files to v3.4.8
+- update Next.js version to 15.5.9
+- add panic recovery and context timeout for balance processing in BalanceSyncWorker
+- update version numbers in onboarding and transaction
+- add version balance fields to transaction operations in PostgreSQL adapter
+- remove unused operation variable and clean up transaction processing logic in PostgreSQL adapter
+- add whitespace for improved code readability in Redis consumer and environment helper
+- sanitize account aliases in transaction processing to ensure correct alias formats
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing
+- add backward compatibility for MongoDB connection parameters extraction
+- set default balance key for operations and balances in PostgreSQL and Redis consumers
+- improve error handling and logging for transaction backup cache operations
+- implement idempotency caching for transaction retrieval and mapping
+- enhance nullable pointer handling in transaction operations
+- add panic recovery and nil validation for message processing in Redis consumer
+- correct comment for lock acquisition in transaction handling
+- handle unique violation errors for duplicate inserts in PostgreSQL operations and transactions
+- update console dependencies
+- removes unlocking for errors after balance is updated
+- update version
+- remove pending transaction lock after errors only
+- update next version to 15.5.7 and react to 19.1.2
+- update next version to 15.5.7 and react to 19.1.2
+- bump version to v3.4.5
+- add index on operation table for account_id that covers id sorting
+- update indirect dependencies to address vulnerabilities
+- increase timeout
+- update lib-commons dependency version to v2.5.2
+- bump version to v3.4.4 in onboarding and transaction components
+- ensure mongodb indexes on startup
+- streamline request creation by merging headers and options
+- update transaction version
+- update transaction key generation to use utils for consistent key formatting
+- remove error return from transaction status update
+- add hotfix branch to release workflow triggers
+- implement Redis lock for pending transactions
+- simplify release workflow and consolidate configuration
+- update js-yaml to version 4.1.1
+- update application version to v3.4.1 in components
+- reorder fields in BalanceRequest
+- enhance logging in CreateBalance method to include key for better traceability
+- include request ID in CreateAsset method for improved tracking
+- include request ID in CreateAccount method for enhanced tracking
+- enhance logging in CreateBalance method to include account id and alias
+- remove request-id metadata injection
+- add request_id field for tracking
+- add request_id to balance
+- update lib-commons to v2.5.1
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update lib-commons dependency to v2.5.3
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+
+
+## [v3.4.9-rc.1] - 2025-12-30
 
 ### 🐛 Bug Fixes
 - update context timeout variable in gRPC health check
