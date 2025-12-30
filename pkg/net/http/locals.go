@@ -132,3 +132,21 @@ func truncateValue(v string) string {
 
 	return v[:maxValueLength] + "..."
 }
+
+// LocalString extracts a string path parameter and asserts it's not empty.
+// Use this for required string path parameters like alias, code, etc.
+// Panics with rich context if the parameter is empty, making middleware
+// wiring bugs immediately visible.
+//
+// Example:
+//
+//	alias := http.LocalString(c, "alias")
+func LocalString(c *fiber.Ctx, paramName string) string {
+	val := c.Params(paramName)
+	assert.NotEmpty(val, "path parameter must not be empty",
+		"param", paramName,
+		"path", c.Path(),
+		"method", c.Method())
+
+	return val
+}

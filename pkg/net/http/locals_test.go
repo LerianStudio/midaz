@@ -605,3 +605,46 @@ func TestLocalStringSlice_WrongType_Panics(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalString_ValidParam(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test/:alias", func(c *fiber.Ctx) error {
+		result := LocalString(c, "alias")
+		assert.Equal(t, "@person1", result)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test/@person1", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestLocalString_EmptyParam_Panics(t *testing.T) {
+	app := fiber.New()
+
+	// Route with optional param that won't be set
+	app.Get("/test", func(c *fiber.Ctx) error {
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "expected panic but none occurred")
+
+			panicMsg, ok := r.(string)
+			require.True(t, ok, "panic value should be string")
+
+			assert.Contains(t, panicMsg, "assertion failed: path parameter must not be empty")
+			assert.Contains(t, panicMsg, "param=missing_param")
+			assert.Contains(t, panicMsg, "path=/test")
+			assert.Contains(t, panicMsg, "method=GET")
+		}()
+
+		LocalString(c, "missing_param")
+		t.Error("expected panic but function returned normally")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	_, err := app.Test(req, -1)
+	require.NoError(t, err)
+}
