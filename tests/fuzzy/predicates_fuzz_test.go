@@ -43,3 +43,39 @@ func FuzzValidUUID(f *testing.F) {
 		}
 	})
 }
+
+// FuzzInRange tests the InRange predicate with diverse int64 values.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzInRange -run=^$ -fuzztime=30s
+func FuzzInRange(f *testing.F) {
+	// Normal cases
+	f.Add(int64(5), int64(0), int64(10))  // In range
+	f.Add(int64(0), int64(0), int64(10))  // At min boundary
+	f.Add(int64(10), int64(0), int64(10)) // At max boundary
+	f.Add(int64(-1), int64(0), int64(10)) // Below min
+	f.Add(int64(11), int64(0), int64(10)) // Above max
+
+	// Edge cases
+	f.Add(int64(5), int64(10), int64(0))          // Inverted range
+	f.Add(int64(0), int64(0), int64(0))           // Single value range
+	f.Add(int64(1), int64(0), int64(0))           // Single value range, out of range
+	f.Add(int64(1<<62), int64(0), int64(1<<63-1)) // Large positive values
+	f.Add(int64(-1<<62), int64(-1<<63), int64(0)) // Large negative values
+	f.Add(int64(0), int64(-1<<63), int64(1<<63-1)) // Full int64 range
+
+	f.Fuzz(func(t *testing.T, n, minVal, maxVal int64) {
+		result := assert.InRange(n, minVal, maxVal)
+
+		// Manual verification
+		var expected bool
+		if minVal <= maxVal {
+			expected = n >= minVal && n <= maxVal
+		} else {
+			// Inverted range should return false per predicate documentation
+			expected = false
+		}
+
+		if result != expected {
+			t.Errorf("InRange(%d, %d, %d) = %v, want %v", n, minVal, maxVal, result, expected)
+		}
+	})
+}
