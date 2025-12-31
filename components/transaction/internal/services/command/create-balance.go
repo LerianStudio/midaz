@@ -39,6 +39,26 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
+		assert.That(account.ID == item.ID.String(),
+			"account ID must match queue data item ID",
+			"account_id", account.ID,
+			"queue_item_id", item.ID)
+		assert.That(account.ID == data.AccountID.String(),
+			"account ID must match queue account ID",
+			"account_id", account.ID,
+			"queue_account_id", data.AccountID)
+		assert.That(account.OrganizationID == data.OrganizationID.String(),
+			"account organization ID must match queue organization ID",
+			"account_organization_id", account.OrganizationID,
+			"queue_organization_id", data.OrganizationID)
+		assert.That(account.LedgerID == data.LedgerID.String(),
+			"account ledger ID must match queue ledger ID",
+			"account_ledger_id", account.LedgerID,
+			"queue_ledger_id", data.LedgerID)
+		assert.NotEmpty(account.AssetCode,
+			"account asset code must not be empty",
+			"account_id", account.ID)
+
 		// Invariant: account must have an alias for balance creation
 		assert.NotNil(account.Alias, "account.Alias must not be nil for balance creation",
 			"accountID", account.ID,

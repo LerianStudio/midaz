@@ -105,6 +105,35 @@ func (uc *UseCase) unmarshalQueueData(logger libLog.Logger, data mmodel.Queue) (
 		}
 	}
 
+	assert.That(len(data.QueueData) > 0,
+		"transaction queue_data must not be empty",
+		"organization_id", data.OrganizationID,
+		"ledger_id", data.LedgerID)
+	assert.NotNil(t.Transaction,
+		"transaction payload must not be nil",
+		"organization_id", data.OrganizationID,
+		"ledger_id", data.LedgerID)
+	assert.NotNil(t.Validate,
+		"transaction validate must not be nil",
+		"organization_id", data.OrganizationID,
+		"ledger_id", data.LedgerID)
+	assert.That(t.Transaction.IDtoUUID() == data.QueueData[0].ID,
+		"transaction ID must match queue data ID",
+		"transaction_id", t.Transaction.ID,
+		"queue_data_id", data.QueueData[0].ID)
+	assert.That(t.Transaction.OrganizationID == data.OrganizationID.String(),
+		"transaction organization ID must match queue organization ID",
+		"transaction_organization_id", t.Transaction.OrganizationID,
+		"queue_organization_id", data.OrganizationID)
+	assert.That(t.Transaction.LedgerID == data.LedgerID.String(),
+		"transaction ledger ID must match queue ledger ID",
+		"transaction_ledger_id", t.Transaction.LedgerID,
+		"queue_ledger_id", data.LedgerID)
+	assert.That(assert.ValidTransactionStatus(t.Transaction.Status.Code),
+		"invalid transaction status in queue payload",
+		"status", t.Transaction.Status.Code,
+		"transaction_id", t.Transaction.ID)
+
 	return t, nil
 }
 

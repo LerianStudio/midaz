@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 
@@ -20,6 +21,15 @@ import (
 // CreateOrCheckIdempotencyKey attempts to create an idempotency key in Redis using SetNX.
 // If the key already exists, it returns the stored value. Returns nil if the key was created.
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
+	assert.That(organizationID != uuid.Nil,
+		"organization_id must not be nil UUID for idempotency key",
+		"key", key,
+		"hash_prefix", hash[:min(len(hash), 8)])
+	assert.That(ledgerID != uuid.Nil,
+		"ledger_id must not be nil UUID for idempotency key",
+		"organization_id", organizationID,
+		"key", key)
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")

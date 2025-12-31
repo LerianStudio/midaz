@@ -193,7 +193,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -358,7 +358,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -487,7 +487,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -703,7 +703,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -914,7 +914,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -1098,7 +1098,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -1278,7 +1278,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -1454,7 +1454,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
-				ID:    uuid.New(),
+				ID:    uuid.MustParse(tran.ID),
 				Value: transactionBytes,
 			},
 		}
@@ -1690,7 +1690,7 @@ func TestCreateBTOAsync(t *testing.T) {
 	transactionBytes, _ := msgpack.Marshal(transactionQueue)
 	queueData := []mmodel.QueueData{
 		{
-			ID:    uuid.New(),
+			ID:    uuid.MustParse(tran.ID),
 			Value: transactionBytes,
 		},
 	}
