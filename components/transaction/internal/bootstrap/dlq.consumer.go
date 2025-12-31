@@ -18,6 +18,7 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -123,6 +124,11 @@ func NewDLQConsumer(
 	redisConn *libRedis.RedisConnection,
 	queueNames []string,
 ) *DLQConsumer {
+	assert.NotNil(logger, "Logger required for DLQConsumer")
+	assert.NotNil(rabbitMQConn, "RabbitMQConnection required for DLQConsumer")
+	assert.That(postgresConn != nil || redisConn != nil,
+		"DLQConsumer requires at least one infrastructure connection (Postgres or Redis)")
+
 	// M6: Validate empty QueueNames array
 	if len(queueNames) == 0 {
 		logger.Warn("DLQ_CONSUMER_INIT: No queue names provided, DLQ consumer will not process any queues")

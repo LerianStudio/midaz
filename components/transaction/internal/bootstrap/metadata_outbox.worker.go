@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -83,6 +84,11 @@ func NewMetadataOutboxWorker(
 	maxWorkers int,
 	retentionDays int,
 ) *MetadataOutboxWorker {
+	assert.NotNil(logger, "Logger required for MetadataOutboxWorker")
+	assert.NotNil(outboxRepo, "OutboxRepository required for MetadataOutboxWorker")
+	assert.NotNil(metadataRepo, "MetadataRepository required for MetadataOutboxWorker")
+	assert.NotNil(postgresConn, "PostgresConnection required for MetadataOutboxWorker")
+
 	if maxWorkers <= 0 {
 		maxWorkers = 5
 	}
@@ -90,6 +96,9 @@ func NewMetadataOutboxWorker(
 	if retentionDays <= 0 {
 		retentionDays = 7
 	}
+
+	assert.That(maxWorkers > 0, "maxWorkers must be greater than zero", "maxWorkers", maxWorkers)
+	assert.That(retentionDays > 0, "retentionDays must be greater than zero", "retentionDays", retentionDays)
 
 	return &MetadataOutboxWorker{
 		logger:        logger,

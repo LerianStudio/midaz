@@ -18,6 +18,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -52,9 +53,15 @@ type BalanceSyncWorker struct {
 // NewBalanceSyncWorker creates a new BalanceSyncWorker with the specified Redis connection and configuration.
 // The maxWorkers parameter controls the concurrency of balance sync operations.
 func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+	assert.NotNil(conn, "Redis connection required for BalanceSyncWorker")
+	assert.NotNil(logger, "Logger required for BalanceSyncWorker")
+	assert.NotNil(useCase, "UseCase required for BalanceSyncWorker")
+
 	if maxWorkers <= 0 {
 		maxWorkers = 5
 	}
+
+	assert.That(maxWorkers > 0, "maxWorkers must be greater than zero", "maxWorkers", maxWorkers)
 
 	return &BalanceSyncWorker{
 		redisConn:  conn,
