@@ -130,3 +130,55 @@ func FuzzNewBalance(f *testing.F) {
 		}
 	})
 }
+
+// FuzzNewAccount tests the NewAccount constructor with diverse inputs.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzNewAccount -run=^$ -fuzztime=30s
+func FuzzNewAccount(f *testing.F) {
+	validUUID := "00000000-0000-0000-0000-000000000001"
+
+	// Valid seeds
+	f.Add(validUUID, validUUID, validUUID, "USD", "checking")
+	f.Add(validUUID, validUUID, validUUID, "BRL", "savings")
+	f.Add(validUUID, validUUID, validUUID, "EUR", "deposit")
+
+	// Edge case seeds - invalid UUIDs
+	f.Add("", validUUID, validUUID, "USD", "checking")
+	f.Add(validUUID, "", validUUID, "USD", "checking")
+	f.Add(validUUID, validUUID, "", "USD", "checking")
+	f.Add("invalid-uuid", validUUID, validUUID, "USD", "checking")
+
+	// Edge case seeds - empty required fields
+	f.Add(validUUID, validUUID, validUUID, "", "checking") // Empty assetCode
+	f.Add(validUUID, validUUID, validUUID, "USD", "")      // Empty accountType
+
+	// Edge case seeds - boundary values
+	f.Add(validUUID, validUUID, validUUID, strings.Repeat("A", 100), "checking")
+	f.Add(validUUID, validUUID, validUUID, "USD", strings.Repeat("x", 256))
+
+	f.Fuzz(func(t *testing.T, id, orgID, ledgerID, assetCode, accountType string) {
+		defer func() {
+			assertionPanicRecovery(t, recover(), fmt.Sprintf(
+				"FuzzNewAccount(id=%q, orgID=%q, ledgerID=%q, asset=%q, type=%q)",
+				id, orgID, ledgerID, assetCode, accountType))
+		}()
+
+		account := mmodel.NewAccount(id, orgID, ledgerID, assetCode, accountType)
+
+		// If we reach here without panic, validate the result
+		if account == nil {
+			t.Error("NewAccount returned nil without panicking")
+			return
+		}
+
+		// Verify critical fields
+		if account.ID != id {
+			t.Errorf("ID mismatch: got %q, want %q", account.ID, id)
+		}
+		if account.AssetCode != assetCode {
+			t.Errorf("AssetCode mismatch: got %q, want %q", account.AssetCode, assetCode)
+		}
+		if account.Status.Code != mmodel.AccountStatusActive {
+			t.Errorf("Status should be ACTIVE for new account, got %q", account.Status.Code)
+		}
+	})
+}
