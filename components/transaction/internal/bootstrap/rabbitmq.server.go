@@ -11,7 +11,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -33,6 +35,90 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
 
 	return consumer
+}
+
+// validateBalanceCreateMessage unmarshals and validates a balance create queue message.
+// Returns the validated message or an error. Panics if critical fields are invalid.
+func (mq *MultiQueueConsumer) validateBalanceCreateMessage(body []byte) (*mmodel.Queue, error) {
+	var message mmodel.Queue
+
+	if err := json.Unmarshal(body, &message); err != nil {
+		return nil, pkg.ValidateInternalError(err, "Queue")
+	}
+
+	// Post-deserialization validation: catch corrupted messages early
+	assert.That(message.OrganizationID != uuid.Nil,
+		"message organization_id must not be nil UUID",
+		"queue", "balance_create",
+		"raw_length", len(body))
+	assert.That(message.LedgerID != uuid.Nil,
+		"message ledger_id must not be nil UUID",
+		"queue", "balance_create",
+		"organization_id", message.OrganizationID)
+	assert.That(message.AccountID != uuid.Nil,
+		"message account_id must not be nil UUID",
+		"queue", "balance_create",
+		"organization_id", message.OrganizationID,
+		"ledger_id", message.LedgerID)
+	assert.That(len(message.QueueData) > 0,
+		"message queue_data must not be empty",
+		"queue", "balance_create",
+		"organization_id", message.OrganizationID,
+		"ledger_id", message.LedgerID)
+
+	for _, item := range message.QueueData {
+		assert.That(item.ID == message.AccountID,
+			"queue_data item ID must match account_id",
+			"queue", "balance_create",
+			"account_id", message.AccountID,
+			"item_id", item.ID)
+		assert.That(len(item.Value) > 0,
+			"queue_data item value must not be empty",
+			"queue", "balance_create",
+			"account_id", message.AccountID,
+			"item_id", item.ID)
+	}
+
+	return &message, nil
+}
+
+// validateBTOMessage unmarshals and validates a BTO (Balance Transaction Operation) queue message.
+// Returns the validated message or an error. Panics if critical fields are invalid.
+func (mq *MultiQueueConsumer) validateBTOMessage(body []byte) (*mmodel.Queue, error) {
+	var message mmodel.Queue
+
+	if err := msgpack.Unmarshal(body, &message); err != nil {
+		return nil, pkg.ValidateInternalError(err, "Queue")
+	}
+
+	// Post-deserialization validation: catch corrupted messages early
+	assert.That(message.OrganizationID != uuid.Nil,
+		"message organization_id must not be nil UUID",
+		"queue", "bto",
+		"raw_length", len(body))
+	assert.That(message.LedgerID != uuid.Nil,
+		"message ledger_id must not be nil UUID",
+		"queue", "bto",
+		"organization_id", message.OrganizationID)
+	assert.That(len(message.QueueData) > 0,
+		"message queue_data must not be empty",
+		"queue", "bto",
+		"organization_id", message.OrganizationID,
+		"ledger_id", message.LedgerID)
+	assert.That(len(message.QueueData) == 1,
+		"message queue_data must contain exactly one item",
+		"queue", "bto",
+		"organization_id", message.OrganizationID,
+		"ledger_id", message.LedgerID)
+
+	// Validate first queue data item (used for account ID in logging)
+	assert.That(message.QueueData[0].ID != uuid.Nil,
+		"first queue_data item must have valid ID",
+		"queue", "bto",
+		"organization_id", message.OrganizationID,
+		"ledger_id", message.LedgerID)
+
+	return &message, nil
 }
 
 // Run starts consumers for all registered queues.
@@ -113,20 +199,18 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 	logger.Info("Processing message from transaction_balance_queue")
 
-	var message mmodel.Queue
-
-	err := json.Unmarshal(body, &message)
+	message, err := mq.validateBalanceCreateMessage(body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
 		logger.Errorf("Error unmarshalling accounts message JSON: %v", err)
 
-		return pkg.ValidateInternalError(err, "Queue")
+		return err
 	}
 
 	logger.Infof("Account message consumed: %s", message.AccountID)
 
-	err = mq.UseCase.CreateBalance(ctx, message)
+	err = mq.UseCase.CreateBalance(ctx, *message)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating balance", err)
 
@@ -153,20 +237,18 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	logger.Info("Processing message from balance_retry_queue_fifo")
 
-	var message mmodel.Queue
-
-	err := msgpack.Unmarshal(body, &message)
+	message, err := mq.validateBTOMessage(body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
-		return pkg.ValidateInternalError(err, "Queue")
+		return err
 	}
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
 
-	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
+	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, *message)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
 

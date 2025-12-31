@@ -1,10 +1,14 @@
 package bootstrap
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestIsInfrastructureError(t *testing.T) {
@@ -145,4 +149,198 @@ func TestIsInfrastructureError(t *testing.T) {
 				"isInfrastructureError(%v) = %v, want %v", tt.err, result, tt.expected)
 		})
 	}
+}
+
+func TestHandlerBalanceCreateQueue_ValidationPanicsOnNilOrganizationID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.Nil,
+		LedgerID:       uuid.New(),
+		AccountID:      uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: json.RawMessage(`{"id":"test"}`)}},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBalanceCreateMessage(body)
+	}, "Expected panic on nil OrganizationID")
+}
+
+func TestHandlerBalanceCreateQueue_ValidationPanicsOnNilLedgerID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.Nil,
+		AccountID:      uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: json.RawMessage(`{"id":"test"}`)}},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBalanceCreateMessage(body)
+	}, "Expected panic on nil LedgerID")
+}
+
+func TestHandlerBalanceCreateQueue_ValidationPanicsOnNilAccountID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		AccountID:      uuid.Nil,
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: json.RawMessage(`{"id":"test"}`)}},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBalanceCreateMessage(body)
+	}, "Expected panic on nil AccountID")
+}
+
+func TestHandlerBalanceCreateQueue_ValidationPanicsOnEmptyQueueData(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		AccountID:      uuid.New(),
+		QueueData:      []mmodel.QueueData{},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBalanceCreateMessage(body)
+	}, "Expected panic on empty QueueData")
+}
+
+func TestHandlerBalanceCreateQueue_ValidationPanicsOnMismatchedQueueDataID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		AccountID:      uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: json.RawMessage(`{"id":"test"}`)}},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBalanceCreateMessage(body)
+	}, "Expected panic on mismatched QueueData ID")
+}
+
+func TestHandlerBalanceCreateQueue_ValidationSucceedsWithValidMessage(t *testing.T) {
+	accountID := uuid.New()
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		AccountID:      accountID,
+		QueueData:      []mmodel.QueueData{{ID: accountID, Value: json.RawMessage(`{"id":"test"}`)}},
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.NotPanics(t, func() {
+		msg, err := consumer.validateBalanceCreateMessage(body)
+		assert.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
+}
+
+func TestHandlerBTOQueue_ValidationPanicsOnNilOrganizationID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.Nil,
+		LedgerID:       uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.New()}},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBTOMessage(body)
+	}, "Expected panic on nil OrganizationID")
+}
+
+func TestHandlerBTOQueue_ValidationPanicsOnNilLedgerID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.Nil,
+		QueueData:      []mmodel.QueueData{{ID: uuid.New()}},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBTOMessage(body)
+	}, "Expected panic on nil LedgerID")
+}
+
+func TestHandlerBTOQueue_ValidationPanicsOnEmptyQueueData(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData:      []mmodel.QueueData{},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBTOMessage(body)
+	}, "Expected panic on empty QueueData")
+}
+
+func TestHandlerBTOQueue_ValidationPanicsOnMultipleQueueDataItems(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New()},
+			{ID: uuid.New()},
+		},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBTOMessage(body)
+	}, "Expected panic on multiple QueueData items")
+}
+
+func TestHandlerBTOQueue_ValidationPanicsOnNilFirstQueueDataID(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.Nil}},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _ = consumer.validateBTOMessage(body)
+	}, "Expected panic on nil first QueueData ID")
+}
+
+func TestHandlerBTOQueue_ValidationSucceedsWithValidMessage(t *testing.T) {
+	message := mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData:      []mmodel.QueueData{{ID: uuid.New()}},
+	}
+	body, _ := msgpack.Marshal(message)
+
+	consumer := &MultiQueueConsumer{}
+
+	assert.NotPanics(t, func() {
+		msg, err := consumer.validateBTOMessage(body)
+		assert.NoError(t, err)
+		assert.NotNil(t, msg)
+	})
 }
