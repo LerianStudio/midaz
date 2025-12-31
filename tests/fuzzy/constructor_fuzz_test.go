@@ -78,3 +78,55 @@ func FuzzNewHolder(f *testing.F) {
 		}
 	})
 }
+
+// FuzzNewBalance tests the NewBalance constructor with diverse inputs.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzNewBalance -run=^$ -fuzztime=30s
+func FuzzNewBalance(f *testing.F) {
+	validUUID := "00000000-0000-0000-0000-000000000001"
+
+	// Valid seeds
+	f.Add(validUUID, validUUID, validUUID, validUUID, "@alias", "USD", "checking")
+	f.Add(validUUID, validUUID, validUUID, validUUID, "@person1", "BRL", "savings")
+
+	// Edge case seeds - invalid UUIDs
+	f.Add("", validUUID, validUUID, validUUID, "@alias", "USD", "checking")
+	f.Add(validUUID, "", validUUID, validUUID, "@alias", "USD", "checking")
+	f.Add(validUUID, validUUID, "", validUUID, "@alias", "USD", "checking")
+	f.Add(validUUID, validUUID, validUUID, "", "@alias", "USD", "checking")
+	f.Add("invalid", "invalid", "invalid", "invalid", "@a", "B", "c")
+
+	// Edge case seeds - empty required fields
+	f.Add(validUUID, validUUID, validUUID, validUUID, "", "USD", "checking")    // Empty alias
+	f.Add(validUUID, validUUID, validUUID, validUUID, "@alias", "", "checking") // Empty assetCode
+
+	// Edge case seeds - unusual but potentially valid
+	f.Add(validUUID, validUUID, validUUID, validUUID, "@alias", "usd", "checking") // Lowercase asset
+	f.Add(validUUID, validUUID, validUUID, validUUID, "no-at-prefix", "USD", "")   // No @ prefix, empty type
+
+	f.Fuzz(func(t *testing.T, id, orgID, ledgerID, accountID, alias, assetCode, accountType string) {
+		defer func() {
+			assertionPanicRecovery(t, recover(), fmt.Sprintf(
+				"FuzzNewBalance(id=%q, orgID=%q, ledgerID=%q, accountID=%q, alias=%q, asset=%q, type=%q)",
+				id, orgID, ledgerID, accountID, alias, assetCode, accountType))
+		}()
+
+		balance := mmodel.NewBalance(id, orgID, ledgerID, accountID, alias, assetCode, accountType)
+
+		// If we reach here without panic, validate the result
+		if balance == nil {
+			t.Error("NewBalance returned nil without panicking")
+			return
+		}
+
+		// Verify critical fields
+		if balance.ID != id {
+			t.Errorf("ID mismatch: got %q, want %q", balance.ID, id)
+		}
+		if balance.Alias != alias {
+			t.Errorf("Alias mismatch: got %q, want %q", balance.Alias, alias)
+		}
+		if balance.Version != 1 {
+			t.Errorf("Version should be 1 for new balance, got %d", balance.Version)
+		}
+	})
+}
