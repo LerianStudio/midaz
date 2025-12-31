@@ -79,3 +79,31 @@ func FuzzInRange(f *testing.F) {
 		}
 	})
 }
+
+// FuzzValidScale tests the ValidScale predicate with diverse scale values.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzValidScale -run=^$ -fuzztime=30s
+func FuzzValidScale(f *testing.F) {
+	// Boundary values
+	f.Add(0)  // Min valid
+	f.Add(18) // Max valid
+	f.Add(-1) // Just below min
+	f.Add(19) // Just above max
+
+	// Edge cases
+	f.Add(1)
+	f.Add(9)
+	f.Add(17)
+	f.Add(100)
+	f.Add(-100)
+	f.Add(1 << 30)  // Large positive
+	f.Add(-1 << 30) // Large negative
+
+	f.Fuzz(func(t *testing.T, scale int) {
+		result := assert.ValidScale(scale)
+		expected := scale >= 0 && scale <= 18
+
+		if result != expected {
+			t.Errorf("ValidScale(%d) = %v, want %v", scale, result, expected)
+		}
+	})
+}
