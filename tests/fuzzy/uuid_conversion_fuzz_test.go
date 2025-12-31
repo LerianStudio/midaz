@@ -47,3 +47,71 @@ func FuzzTransactionIDtoUUID(f *testing.F) {
 		}
 	})
 }
+
+// FuzzBalanceIDtoUUID tests the Balance.IDtoUUID method with diverse inputs.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzBalanceIDtoUUID -run=^$ -fuzztime=30s
+func FuzzBalanceIDtoUUID(f *testing.F) {
+	// Valid UUIDs
+	f.Add("00000000-0000-0000-0000-000000000001")
+	f.Add("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+	// Invalid UUIDs
+	f.Add("invalid")
+	f.Add("")
+	f.Add("00000000-0000-0000-0000-00000000000") // Too short
+
+	f.Fuzz(func(t *testing.T, id string) {
+		defer func() {
+			assertionPanicRecovery(t, recover(), fmt.Sprintf(
+				"FuzzBalanceIDtoUUID(id=%q)", id))
+		}()
+
+		b := &mmodel.Balance{ID: id}
+		result := b.IDtoUUID()
+
+		// If we reach here, the conversion succeeded
+		expected, err := uuid.Parse(id)
+		if err != nil {
+			t.Errorf("IDtoUUID succeeded but uuid.Parse failed for %q", id)
+			return
+		}
+
+		if result != expected {
+			t.Errorf("Balance.IDtoUUID(%q) = %v, want %v", id, result, expected)
+		}
+	})
+}
+
+// FuzzAccountIDtoUUID tests the Account.IDtoUUID method with diverse inputs.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzAccountIDtoUUID -run=^$ -fuzztime=30s
+func FuzzAccountIDtoUUID(f *testing.F) {
+	// Valid UUIDs
+	f.Add("00000000-0000-0000-0000-000000000001")
+	f.Add("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+	// Invalid UUIDs
+	f.Add("invalid")
+	f.Add("")
+	f.Add("00000000-0000-0000-0000-00000000000") // Too short
+
+	f.Fuzz(func(t *testing.T, id string) {
+		defer func() {
+			assertionPanicRecovery(t, recover(), fmt.Sprintf(
+				"FuzzAccountIDtoUUID(id=%q)", id))
+		}()
+
+		a := &mmodel.Account{ID: id}
+		result := a.IDtoUUID()
+
+		// If we reach here, the conversion succeeded
+		expected, err := uuid.Parse(id)
+		if err != nil {
+			t.Errorf("IDtoUUID succeeded but uuid.Parse failed for %q", id)
+			return
+		}
+
+		if result != expected {
+			t.Errorf("Account.IDtoUUID(%q) = %v, want %v", id, result, expected)
+		}
+	})
+}
