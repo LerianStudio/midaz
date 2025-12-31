@@ -26,6 +26,14 @@ func assertionPanicRecovery(t *testing.T, panicValue any, context string) bool {
 	return false
 }
 
+func isValidUUIDString(s string) bool {
+	if s == "" {
+		return false
+	}
+	_, err := uuid.Parse(s)
+	return err == nil
+}
+
 // FuzzNewHolder tests the NewHolder constructor with diverse inputs.
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzNewHolder -run=^$ -fuzztime=30s
 func FuzzNewHolder(f *testing.F) {
@@ -50,18 +58,35 @@ func FuzzNewHolder(f *testing.F) {
 	f.Add(validUUID, "Name", strings.Repeat("9", 100), "LEGAL_PERSON")   // Long document
 
 	f.Fuzz(func(t *testing.T, idStr, name, document, holderType string) {
-		defer func() {
-			assertionPanicRecovery(t, recover(), fmt.Sprintf(
-				"FuzzNewHolder(id=%q, name=%q, doc=%q, type=%q)",
-				idStr, name, document, holderType))
-		}()
-
 		id, err := uuid.Parse(idStr)
 		if err != nil {
 			return // Invalid UUID string - skip (pre-condition not met)
 		}
 
+		shouldPanic := id == uuid.Nil ||
+			name == "" ||
+			document == "" ||
+			holderType == "" ||
+			(holderType != mmodel.HolderTypeNaturalPerson && holderType != mmodel.HolderTypeLegalPerson)
+
+		defer func() {
+			if r := recover(); r != nil {
+				assertionPanicRecovery(t, r, fmt.Sprintf(
+					"FuzzNewHolder(id=%q, name=%q, doc=%q, type=%q)",
+					idStr, name, document, holderType))
+				return
+			}
+			if shouldPanic {
+				t.Errorf("Expected assertion panic for invalid input: id=%q name=%q doc=%q type=%q",
+					idStr, name, document, holderType)
+			}
+		}()
+
 		holder := mmodel.NewHolder(id, name, document, holderType)
+
+		if shouldPanic {
+			return
+		}
 
 		// If we reach here without panic, validate the result
 		if holder == nil {
@@ -104,13 +129,31 @@ func FuzzNewBalance(f *testing.F) {
 	f.Add(validUUID, validUUID, validUUID, validUUID, "no-at-prefix", "USD", "")   // No @ prefix, empty type
 
 	f.Fuzz(func(t *testing.T, id, orgID, ledgerID, accountID, alias, assetCode, accountType string) {
+		shouldPanic := !isValidUUIDString(id) ||
+			!isValidUUIDString(orgID) ||
+			!isValidUUIDString(ledgerID) ||
+			!isValidUUIDString(accountID) ||
+			alias == "" ||
+			assetCode == ""
+
 		defer func() {
-			assertionPanicRecovery(t, recover(), fmt.Sprintf(
-				"FuzzNewBalance(id=%q, orgID=%q, ledgerID=%q, accountID=%q, alias=%q, asset=%q, type=%q)",
-				id, orgID, ledgerID, accountID, alias, assetCode, accountType))
+			if r := recover(); r != nil {
+				assertionPanicRecovery(t, r, fmt.Sprintf(
+					"FuzzNewBalance(id=%q, orgID=%q, ledgerID=%q, accountID=%q, alias=%q, asset=%q, type=%q)",
+					id, orgID, ledgerID, accountID, alias, assetCode, accountType))
+				return
+			}
+			if shouldPanic {
+				t.Errorf("Expected assertion panic for invalid input: id=%q orgID=%q ledgerID=%q accountID=%q alias=%q asset=%q type=%q",
+					id, orgID, ledgerID, accountID, alias, assetCode, accountType)
+			}
 		}()
 
 		balance := mmodel.NewBalance(id, orgID, ledgerID, accountID, alias, assetCode, accountType)
+
+		if shouldPanic {
+			return
+		}
 
 		// If we reach here without panic, validate the result
 		if balance == nil {
@@ -156,13 +199,30 @@ func FuzzNewAccount(f *testing.F) {
 	f.Add(validUUID, validUUID, validUUID, "USD", strings.Repeat("x", 256))
 
 	f.Fuzz(func(t *testing.T, id, orgID, ledgerID, assetCode, accountType string) {
+		shouldPanic := !isValidUUIDString(id) ||
+			!isValidUUIDString(orgID) ||
+			!isValidUUIDString(ledgerID) ||
+			assetCode == "" ||
+			accountType == ""
+
 		defer func() {
-			assertionPanicRecovery(t, recover(), fmt.Sprintf(
-				"FuzzNewAccount(id=%q, orgID=%q, ledgerID=%q, asset=%q, type=%q)",
-				id, orgID, ledgerID, assetCode, accountType))
+			if r := recover(); r != nil {
+				assertionPanicRecovery(t, r, fmt.Sprintf(
+					"FuzzNewAccount(id=%q, orgID=%q, ledgerID=%q, asset=%q, type=%q)",
+					id, orgID, ledgerID, assetCode, accountType))
+				return
+			}
+			if shouldPanic {
+				t.Errorf("Expected assertion panic for invalid input: id=%q orgID=%q ledgerID=%q asset=%q type=%q",
+					id, orgID, ledgerID, assetCode, accountType)
+			}
 		}()
 
 		account := mmodel.NewAccount(id, orgID, ledgerID, assetCode, accountType)
+
+		if shouldPanic {
+			return
+		}
 
 		// If we reach here without panic, validate the result
 		if account == nil {
