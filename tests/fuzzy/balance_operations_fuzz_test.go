@@ -1,6 +1,7 @@
 package fuzzy
 
 import (
+	"fmt"
 	"testing"
 
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -189,12 +190,10 @@ func FuzzCalculateTotal(f *testing.F) {
 	f.Add(int64(-1000), int64(50), int64(100), false)
 
 	f.Fuzz(func(t *testing.T, sendValue, percentage, percentageOf int64, isFrom bool) {
-		// Recover from panics
 		defer func() {
-			if r := recover(); r != nil {
-				t.Errorf("CalculateTotal panicked: sendValue=%d, pct=%d, pctOf=%d, isFrom=%v, panic=%v",
-					sendValue, percentage, percentageOf, isFrom, r)
-			}
+			assertionPanicRecovery(t, recover(), fmt.Sprintf(
+				"FuzzCalculateTotal(sendValue=%d, pct=%d, pctOf=%d, isFrom=%v)",
+				sendValue, percentage, percentageOf, isFrom))
 		}()
 
 		// Skip invalid percentages to focus on valid inputs
