@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,9 +23,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -51,6 +54,8 @@ type RedisQueueConsumer struct {
 
 // NewRedisQueueConsumer creates a new RedisQueueConsumer with the provided logger and handler.
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
+	assert.NotNil(logger, "Logger required for RedisQueueConsumer")
+
 	return &RedisQueueConsumer{
 		Logger:             logger,
 		TransactionHandler: handler,
@@ -128,6 +133,8 @@ Outer:
 			continue
 		}
 
+		r.validateTransactionKey(key, transaction)
+
 		if skip {
 			totalMessagesLessThanOneHour++
 			continue
@@ -154,9 +161,97 @@ func (r *RedisQueueConsumer) unmarshalAndValidateMessage(message string) (mmodel
 		return mmodel.TransactionRedisQueue{}, false, pkg.ValidateInternalError(err, "TransactionRedisQueue")
 	}
 
+	// Post-deserialization validation: catch corrupted messages early
+	assert.NotEmpty(transaction.HeaderID,
+		"header_id must not be empty in redis queue message",
+		"transaction_id", transaction.TransactionID)
+	assert.That(transaction.TransactionID != uuid.Nil,
+		"transaction_id must not be nil UUID in redis queue message",
+		"header_id", transaction.HeaderID)
+	assert.That(transaction.OrganizationID != uuid.Nil,
+		"organization_id must not be nil UUID",
+		"transaction_id", transaction.TransactionID,
+		"header_id", transaction.HeaderID)
+	assert.That(transaction.LedgerID != uuid.Nil,
+		"ledger_id must not be nil UUID",
+		"transaction_id", transaction.TransactionID,
+		"header_id", transaction.HeaderID)
+	assert.NotNil(transaction.Validate,
+		"validate responses must not be nil",
+		"transaction_id", transaction.TransactionID,
+		"header_id", transaction.HeaderID)
+	assert.That(assert.ValidTransactionStatus(transaction.TransactionStatus),
+		"invalid transaction status in redis queue message",
+		"status", transaction.TransactionStatus,
+		"transaction_id", transaction.TransactionID)
+	assert.That(assert.DateNotInFuture(transaction.TransactionDate),
+		"transaction_date cannot be in the future",
+		"transaction_id", transaction.TransactionID,
+		"transaction_date", transaction.TransactionDate)
+	assert.That(assert.DateNotInFuture(transaction.TTL),
+		"ttl cannot be in the future",
+		"transaction_id", transaction.TransactionID,
+		"ttl", transaction.TTL)
+	assert.NotEmpty(transaction.ParserDSL.Send.Asset,
+		"parser_dsl.send.asset must not be empty",
+		"transaction_id", transaction.TransactionID)
+	assert.That(transaction.ParserDSL.Send.Value.IsPositive(),
+		"parser_dsl.send.value must be positive",
+		"transaction_id", transaction.TransactionID,
+		"value", transaction.ParserDSL.Send.Value)
+
+	if transaction.TransactionStatus != constant.NOTED {
+		assert.That(len(transaction.Balances) > 0,
+			"balances must not be empty for non-NOTED transactions",
+			"transaction_id", transaction.TransactionID,
+			"status", transaction.TransactionStatus)
+	}
+
 	skip := transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix()
 
 	return transaction, skip, nil
+}
+
+// validateTransactionKey ensures the redis key matches the transaction identifiers.
+func (r *RedisQueueConsumer) validateTransactionKey(key string, transaction mmodel.TransactionRedisQueue) {
+	parts := strings.Split(key, ":")
+	assert.That(len(parts) == 5,
+		"transaction redis key has invalid format",
+		"key", key,
+		"parts", len(parts))
+	assert.That(parts[0] == "transaction",
+		"transaction redis key must start with 'transaction'",
+		"key", key)
+	assert.That(parts[1] == "{transactions}",
+		"transaction redis key must include '{transactions}' context",
+		"key", key)
+
+	organizationID := parts[2]
+	ledgerID := parts[3]
+	transactionID := parts[4]
+
+	assert.That(assert.ValidUUID(organizationID),
+		"transaction redis key organization_id must be valid UUID",
+		"key", key)
+	assert.That(assert.ValidUUID(ledgerID),
+		"transaction redis key ledger_id must be valid UUID",
+		"key", key)
+	assert.That(assert.ValidUUID(transactionID),
+		"transaction redis key transaction_id must be valid UUID",
+		"key", key)
+
+	assert.That(organizationID == transaction.OrganizationID.String(),
+		"transaction redis key organization_id mismatch",
+		"key", key,
+		"organization_id", transaction.OrganizationID)
+	assert.That(ledgerID == transaction.LedgerID.String(),
+		"transaction redis key ledger_id mismatch",
+		"key", key,
+		"ledger_id", transaction.LedgerID)
+	assert.That(transactionID == transaction.TransactionID.String(),
+		"transaction redis key transaction_id mismatch",
+		"key", key,
+		"transaction_id", transaction.TransactionID)
 }
 
 // processMessage processes a single message in a goroutine
