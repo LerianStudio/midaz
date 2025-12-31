@@ -9,8 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var _ = decimal.Zero
-
 // FuzzValidUUID tests the ValidUUID predicate against uuid.Parse for consistency.
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzValidUUID -run=^$ -fuzztime=30s
 func FuzzValidUUID(f *testing.F) {
@@ -104,6 +102,50 @@ func FuzzValidScale(f *testing.F) {
 
 		if result != expected {
 			t.Errorf("ValidScale(%d) = %v, want %v", scale, result, expected)
+		}
+	})
+}
+
+// FuzzValidAmount tests the ValidAmount predicate with diverse decimal values.
+// Run with: go test -v ./tests/fuzzy -fuzz=FuzzValidAmount -run=^$ -fuzztime=30s
+func FuzzValidAmount(f *testing.F) {
+	// Normal values
+	f.Add("100", int32(0)) // 100, exp=0
+	f.Add("1", int32(2))   // 100 (shifted), exp=2
+	f.Add("1", int32(-2))  // 0.01, exp=-2
+
+	// Boundary exponents
+	f.Add("1", int32(-18)) // Min valid exponent
+	f.Add("1", int32(18))  // Max valid exponent
+	f.Add("1", int32(-19)) // Below min exponent (invalid)
+	f.Add("1", int32(19))  // Above max exponent (invalid)
+
+	// Edge cases
+	f.Add("0", int32(0))                  // Zero
+	f.Add("-100", int32(0))               // Negative
+	f.Add("999999999999999999", int32(0)) // Large coefficient
+	f.Add("1", int32(-30))                // Very small (invalid exp)
+	f.Add("1", int32(30))                 // Very large (invalid exp)
+
+	f.Fuzz(func(t *testing.T, valueStr string, shift int32) {
+		d, err := decimal.NewFromString(valueStr)
+		if err != nil {
+			return // Invalid decimal string - skip
+		}
+
+		// Apply shift to test different exponents
+		// Shift changes the exponent: positive shift multiplies by 10^shift
+		d = d.Shift(shift)
+
+		result := assert.ValidAmount(d)
+
+		// Verify: exponent outside [-18, 18] should return false
+		exp := d.Exponent()
+		expectedValid := exp >= -18 && exp <= 18
+
+		if result != expectedValid {
+			t.Errorf("ValidAmount(%s) with exp=%d: got %v, want %v",
+				d.String(), exp, result, expectedValid)
 		}
 	})
 }
