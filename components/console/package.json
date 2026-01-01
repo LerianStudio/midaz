@@ -150,7 +150,7 @@
     "semantic-release": "^25.0.2",
     "shx": "^0.4.0",
     "start-server-and-test": "^2.0.12",
-    "storybook": "^9.1.0-alpha.1",
+    "storybook": "^9.1.17",
     "tailwindcss": "4.1.16",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.4",
