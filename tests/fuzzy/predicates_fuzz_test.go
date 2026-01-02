@@ -23,13 +23,13 @@ func FuzzValidUUID(f *testing.F) {
 	// Invalid UUIDs
 	f.Add("not-a-uuid")
 	f.Add("")
-	f.Add(strings.Repeat("0", 36))                 // No hyphens
-	f.Add("00000000-0000-0000-0000-00000000000")   // Too short (35 chars)
-	f.Add("00000000-0000-0000-0000-0000000000001") // Too long (37 chars)
-	f.Add("00000000_0000_0000_0000_000000000001")  // Wrong separator
-	f.Add("g0000000-0000-0000-0000-000000000001")  // Invalid hex char
+	f.Add(strings.Repeat("0", 36))                  // No hyphens
+	f.Add("00000000-0000-0000-0000-00000000000")    // Too short (35 chars)
+	f.Add("00000000-0000-0000-0000-0000000000001")  // Too long (37 chars)
+	f.Add("00000000_0000_0000_0000_000000000001")   // Wrong separator
+	f.Add("g0000000-0000-0000-0000-000000000001")   // Invalid hex char
 	f.Add("00000000-0000-0000-0000-000000000001\n") // Trailing newline
-	f.Add(" 00000000-0000-0000-0000-000000000001") // Leading space
+	f.Add(" 00000000-0000-0000-0000-000000000001")  // Leading space
 
 	f.Fuzz(func(t *testing.T, s string) {
 		result := assert.ValidUUID(s)
@@ -55,11 +55,11 @@ func FuzzInRange(f *testing.F) {
 	f.Add(int64(11), int64(0), int64(10)) // Above max
 
 	// Edge cases
-	f.Add(int64(5), int64(10), int64(0))          // Inverted range
-	f.Add(int64(0), int64(0), int64(0))           // Single value range
-	f.Add(int64(1), int64(0), int64(0))           // Single value range, out of range
-	f.Add(int64(1<<62), int64(0), int64(1<<63-1)) // Large positive values
-	f.Add(int64(-1<<62), int64(-1<<63), int64(0)) // Large negative values
+	f.Add(int64(5), int64(10), int64(0))           // Inverted range
+	f.Add(int64(0), int64(0), int64(0))            // Single value range
+	f.Add(int64(1), int64(0), int64(0))            // Single value range, out of range
+	f.Add(int64(1<<62), int64(0), int64(1<<63-1))  // Large positive values
+	f.Add(int64(-1<<62), int64(-1<<63), int64(0))  // Large negative values
 	f.Add(int64(0), int64(-1<<63), int64(1<<63-1)) // Full int64 range
 
 	f.Fuzz(func(t *testing.T, n, minVal, maxVal int64) {
@@ -117,17 +117,17 @@ func FuzzValidAmount(f *testing.F) {
 	f.Add("1", int32(-2))  // 0.01, exp=-2
 
 	// Boundary exponents
-	f.Add("1", int32(-18)) // Min valid exponent
-	f.Add("1", int32(18))  // Max valid exponent
-	f.Add("1", int32(-19)) // Below min exponent (invalid)
-	f.Add("1", int32(19))  // Above max exponent (invalid)
+	f.Add("1", int32(-30)) // Min valid exponent
+	f.Add("1", int32(30))  // Max valid exponent
+	f.Add("1", int32(-31)) // Below min exponent (invalid)
+	f.Add("1", int32(31))  // Above max exponent (invalid)
 
 	// Edge cases
 	f.Add("0", int32(0))                  // Zero
 	f.Add("-100", int32(0))               // Negative
 	f.Add("999999999999999999", int32(0)) // Large coefficient
-	f.Add("1", int32(-30))                // Very small (invalid exp)
-	f.Add("1", int32(30))                 // Very large (invalid exp)
+	f.Add("1", int32(-40))                // Very small (invalid exp)
+	f.Add("1", int32(40))                 // Very large (invalid exp)
 
 	f.Fuzz(func(t *testing.T, valueStr string, shift int32) {
 		d, err := decimal.NewFromString(valueStr)
@@ -141,9 +141,9 @@ func FuzzValidAmount(f *testing.F) {
 
 		result := assert.ValidAmount(d)
 
-		// Verify: exponent outside [-18, 18] should return false
+		// Verify: exponent outside [-30, 30] should return false
 		exp := d.Exponent()
-		expectedValid := exp >= -18 && exp <= 18
+		expectedValid := exp >= -30 && exp <= 30
 
 		if result != expectedValid {
 			t.Errorf("ValidAmount(%s) with exp=%d: got %v, want %v",
@@ -275,8 +275,8 @@ func FuzzBalanceIsZero(f *testing.F) {
 // Run with: go test -v ./tests/fuzzy -fuzz=FuzzDebitsEqualCredits -run=^$ -fuzztime=30s
 func FuzzDebitsEqualCredits(f *testing.F) {
 	f.Add("100", int32(0), "100", int32(0))
-	f.Add("1", int32(2), "100", int32(0))  // equal values
-	f.Add("1", int32(2), "101", int32(0))  // not equal
+	f.Add("1", int32(2), "100", int32(0))   // equal values
+	f.Add("1", int32(2), "101", int32(0))   // not equal
 	f.Add("1", int32(-2), "0.01", int32(0)) // equal values
 
 	f.Fuzz(func(t *testing.T, debitsStr string, debitsShift int32, creditsStr string, creditsShift int32) {

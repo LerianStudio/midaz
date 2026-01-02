@@ -67,8 +67,8 @@ func ValidUUID(s string) bool {
 }
 
 // ValidAmount returns true if the decimal's exponent is within reasonable bounds.
-// The exponent must be in the range [-18, 18] to prevent overflow and maintain
-// precision for financial calculations.
+// The exponent must be in the range [-18, 18] to align with supported precision
+// for financial calculations (scale up to 18 decimal places).
 //
 // Note: This validates exponent bounds only, not coefficient size. For user-facing
 // validation, consider additional bounds checks on the coefficient.

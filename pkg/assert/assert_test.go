@@ -337,10 +337,10 @@ func TestValidAmount(t *testing.T) {
 		{"positive integer", decimal.NewFromInt(100), true},
 		{"negative integer", decimal.NewFromInt(-100), true},
 		{"two decimal places", decimal.NewFromFloat(123.45), true},
-		{"max valid exponent", decimal.New(1, 18), true},
-		{"min valid exponent", decimal.New(1, -18), true},
-		{"exponent too large", decimal.New(1, 19), false},
-		{"exponent too small", decimal.New(1, -19), false},
+		{"max valid exponent", decimal.New(1, 30), true},
+		{"min valid exponent", decimal.New(1, -30), true},
+		{"exponent too large", decimal.New(1, 31), false},
+		{"exponent too small", decimal.New(1, -31), false},
 	}
 
 	for _, tt := range tests {
