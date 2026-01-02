@@ -40,12 +40,20 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 		WITH balance_calc AS (
 			SELECT
 				b.id,
+				b.account_type,
 				b.available::DECIMAL as current_balance,
 				b.on_hold::DECIMAL as current_on_hold,
 				COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_credits,
 				COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_debits,
-				COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_on_hold,
-				COALESCE(SUM(CASE WHEN o.type = 'RELEASE' AND o.balance_affected AND t.status = 'CANCELED' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_release,
+				COALESCE(SUM(CASE
+					WHEN o.type = 'ON_HOLD' AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN o.amount
+					WHEN o.type IN ('RELEASE', 'DEBIT') AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN -o.amount
+					ELSE 0
+				END), 0)::DECIMAL as expected_on_hold,
 				COUNT(o.id) as operation_count
 			FROM balance b
 			LEFT JOIN operation o ON b.account_id = o.account_id
@@ -54,18 +62,18 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 				AND o.deleted_at IS NULL
 			LEFT JOIN transaction t ON o.transaction_id = t.id
 			WHERE b.deleted_at IS NULL
-			GROUP BY b.id, b.available, b.on_hold
+			GROUP BY b.id, b.account_type, b.available, b.on_hold
 		)
 		SELECT
 			COUNT(*) as total_balances,
-			COUNT(*) FILTER (WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold + total_release)) > $1) as discrepancies,
-			COALESCE(SUM(ABS(current_balance - (total_credits - total_debits - total_on_hold + total_release)))
-				FILTER (WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold + total_release)) > $1), 0)::DECIMAL as total_discrepancy,
-			COUNT(*) FILTER (WHERE ABS(current_on_hold - (total_on_hold - total_release)) > $1) as on_hold_discrepancies,
-			COALESCE(SUM(ABS(current_on_hold - (total_on_hold - total_release)))
-				FILTER (WHERE ABS(current_on_hold - (total_on_hold - total_release)) > $1), 0)::DECIMAL as total_on_hold_discrepancy,
-			COUNT(*) FILTER (WHERE current_balance < 0) as negative_available,
-			COUNT(*) FILTER (WHERE current_on_hold < 0) as negative_on_hold
+			COUNT(*) FILTER (WHERE ABS(current_balance - (total_credits - total_debits - expected_on_hold)) > $1) as discrepancies,
+			COALESCE(SUM(ABS(current_balance - (total_credits - total_debits - expected_on_hold)))
+				FILTER (WHERE ABS(current_balance - (total_credits - total_debits - expected_on_hold)) > $1), 0)::DECIMAL as total_discrepancy,
+			COUNT(*) FILTER (WHERE ABS(current_on_hold - expected_on_hold) > $1) as on_hold_discrepancies,
+			COALESCE(SUM(ABS(current_on_hold - expected_on_hold))
+				FILTER (WHERE ABS(current_on_hold - expected_on_hold) > $1), 0)::DECIMAL as total_on_hold_discrepancy,
+			COUNT(*) FILTER (WHERE current_balance < 0 AND account_type <> 'external') as negative_available,
+			COUNT(*) FILTER (WHERE current_on_hold < 0 AND account_type <> 'external') as negative_on_hold
 		FROM balance_calc
 	`
 
@@ -144,8 +152,15 @@ func (c *BalanceChecker) fetchBalanceDiscrepancies(ctx context.Context, threshol
 				b.on_hold::DECIMAL as current_on_hold,
 				COALESCE(SUM(CASE WHEN o.type = 'CREDIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_credits,
 				COALESCE(SUM(CASE WHEN o.type = 'DEBIT' AND o.balance_affected THEN o.amount ELSE 0 END), 0)::DECIMAL as total_debits,
-				COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_on_hold,
-				COALESCE(SUM(CASE WHEN o.type = 'RELEASE' AND o.balance_affected AND t.status = 'CANCELED' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_release,
+				COALESCE(SUM(CASE
+					WHEN o.type = 'ON_HOLD' AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN o.amount
+					WHEN o.type IN ('RELEASE', 'DEBIT') AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN -o.amount
+					ELSE 0
+				END), 0)::DECIMAL as expected_on_hold,
 				COUNT(o.id) as operation_count,
 				b.updated_at
 			FROM balance b
@@ -159,12 +174,12 @@ func (c *BalanceChecker) fetchBalanceDiscrepancies(ctx context.Context, threshol
 		)
 		SELECT
 			balance_id, account_id, alias, asset_code,
-			current_balance, (total_credits - total_debits - total_on_hold + total_release) as expected_balance,
-			(current_balance - (total_credits - total_debits - total_on_hold + total_release)) as discrepancy,
+			current_balance, (total_credits - total_debits - expected_on_hold) as expected_balance,
+			(current_balance - (total_credits - total_debits - expected_on_hold)) as discrepancy,
 			operation_count, updated_at
 		FROM balance_calc
-		WHERE ABS(current_balance - (total_credits - total_debits - total_on_hold + total_release)) > $1
-		ORDER BY ABS(current_balance - (total_credits - total_debits - total_on_hold + total_release)) DESC
+		WHERE ABS(current_balance - (total_credits - total_debits - expected_on_hold)) > $1
+		ORDER BY ABS(current_balance - (total_credits - total_debits - expected_on_hold)) DESC
 		LIMIT $2
 	`
 
@@ -208,8 +223,15 @@ func (c *BalanceChecker) fetchOnHoldDiscrepancies(ctx context.Context, threshold
 				b.alias,
 				b.asset_code,
 				b.on_hold::DECIMAL as current_on_hold,
-				COALESCE(SUM(CASE WHEN o.type = 'ON_HOLD' AND o.balance_affected AND t.status = 'PENDING' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_on_hold,
-				COALESCE(SUM(CASE WHEN o.type = 'RELEASE' AND o.balance_affected AND t.status = 'CANCELED' THEN o.amount ELSE 0 END), 0)::DECIMAL as total_release,
+				COALESCE(SUM(CASE
+					WHEN o.type = 'ON_HOLD' AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN o.amount
+					WHEN o.type IN ('RELEASE', 'DEBIT') AND o.balance_affected
+						AND COALESCE((t.body->>'pending')::boolean, false)
+						THEN -o.amount
+					ELSE 0
+				END), 0)::DECIMAL as expected_on_hold,
 				COUNT(o.id) as operation_count,
 				b.updated_at
 			FROM balance b
@@ -223,12 +245,12 @@ func (c *BalanceChecker) fetchOnHoldDiscrepancies(ctx context.Context, threshold
 		)
 		SELECT
 			balance_id, account_id, alias, asset_code,
-			current_on_hold, (total_on_hold - total_release) as expected_on_hold,
-			(current_on_hold - (total_on_hold - total_release)) as discrepancy,
+			current_on_hold, expected_on_hold,
+			(current_on_hold - expected_on_hold) as discrepancy,
 			operation_count, updated_at
 		FROM balance_calc
-		WHERE ABS(current_on_hold - (total_on_hold - total_release)) > $1
-		ORDER BY ABS(current_on_hold - (total_on_hold - total_release)) DESC
+		WHERE ABS(current_on_hold - expected_on_hold) > $1
+		ORDER BY ABS(current_on_hold - expected_on_hold) DESC
 		LIMIT $2
 	`
 
@@ -275,6 +297,7 @@ func (c *BalanceChecker) fetchNegativeBalances(ctx context.Context, limit int) (
 		FROM balance
 		WHERE deleted_at IS NULL
 		  AND (available < 0 OR on_hold < 0)
+		  AND account_type <> 'external'
 		ORDER BY updated_at DESC
 		LIMIT $1
 	`

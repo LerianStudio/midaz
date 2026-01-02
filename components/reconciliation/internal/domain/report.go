@@ -228,14 +228,14 @@ func (r *OrphanCheckResult) GetStatus() ReconciliationStatus {
 
 // OrphanTransaction represents a transaction without operations
 type OrphanTransaction struct {
-	TransactionID  string    `json:"transaction_id"`
-	OrganizationID string    `json:"organization_id"`
-	LedgerID       string    `json:"ledger_id"`
-	Status         string    `json:"status"`
-	Amount         int64     `json:"amount"`
-	AssetCode      string    `json:"asset_code"`
-	CreatedAt      time.Time `json:"created_at"`
-	OperationCount int32     `json:"operation_count"`
+	TransactionID  string          `json:"transaction_id"`
+	OrganizationID string          `json:"organization_id"`
+	LedgerID       string          `json:"ledger_id"`
+	Status         string          `json:"status"`
+	Amount         decimal.Decimal `json:"amount"`
+	AssetCode      string          `json:"asset_code"`
+	CreatedAt      time.Time       `json:"created_at"`
+	OperationCount int32           `json:"operation_count"`
 }
 
 // MetadataCheckResult holds metadata sync results

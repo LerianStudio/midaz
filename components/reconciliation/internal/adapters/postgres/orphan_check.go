@@ -38,6 +38,7 @@ func (c *OrphanChecker) Check(ctx context.Context, config CheckerConfig) (CheckR
 			LEFT JOIN operation o ON t.id = o.transaction_id AND o.deleted_at IS NULL
 			WHERE t.deleted_at IS NULL
 			  AND t.status NOT IN ('NOTED', 'PENDING')
+			  AND COALESCE((t.body->>'pending')::boolean, false) = false
 			GROUP BY t.id
 		) sub
 	`
@@ -81,6 +82,7 @@ func (c *OrphanChecker) fetchOrphanTransactions(ctx context.Context, limit int) 
 		LEFT JOIN operation o ON t.id = o.transaction_id AND o.deleted_at IS NULL
 		WHERE t.deleted_at IS NULL
 		  AND t.status NOT IN ('NOTED', 'PENDING')
+		  AND COALESCE((t.body->>'pending')::boolean, false) = false
 		GROUP BY t.id, t.organization_id, t.ledger_id, t.status, t.amount, t.asset_code, t.created_at
 		HAVING COUNT(o.id) < 2
 		ORDER BY t.created_at DESC

@@ -458,6 +458,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			Protocol:        cfg.RedisProtocol,
 			UseTLS:          cfg.RedisTLS,
 			CACert:          cfg.RedisCACert,
+			Logger:          logger,
 			PoolSize:        cfg.RedisPoolSize,
 			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
 			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,

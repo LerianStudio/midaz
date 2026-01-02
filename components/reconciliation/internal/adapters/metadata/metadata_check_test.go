@@ -184,5 +184,3 @@ func TestMetadataChecker_checkOutboxPublished_ChecksRouteCollectionAliases(t *te
 	assert.Equal(t, 1, collections["transaction_route"])
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
-
-

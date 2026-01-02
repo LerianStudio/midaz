@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,9 +55,9 @@ func TestOrphanChecker_Check_WithOrphans(t *testing.T) {
 		"transaction_id", "organization_id", "ledger_id",
 		"status", "amount", "asset_code", "created_at", "operation_count",
 	}).
-		AddRow("txn-1", "org-1", "ldg-1", "APPROVED", int64(1000), "USD", createdAt, int32(0)).
-		AddRow("txn-2", "org-1", "ldg-1", "APPROVED", int64(500), "USD", createdAt, int32(0)).
-		AddRow("txn-3", "org-1", "ldg-1", "APPROVED", int64(200), "USD", createdAt, int32(1))
+		AddRow("txn-1", "org-1", "ldg-1", "APPROVED", decimal.NewFromInt(1000), "USD", createdAt, int32(0)).
+		AddRow("txn-2", "org-1", "ldg-1", "APPROVED", decimal.NewFromInt(500), "USD", createdAt, int32(0)).
+		AddRow("txn-3", "org-1", "ldg-1", "APPROVED", decimal.NewFromInt(200), "USD", createdAt, int32(1))
 
 	mock.ExpectQuery(`SELECT`).
 		WithArgs(10).
@@ -92,7 +93,7 @@ func TestOrphanChecker_Check_OnlyPartial(t *testing.T) {
 		"transaction_id", "organization_id", "ledger_id",
 		"status", "amount", "asset_code", "created_at", "operation_count",
 	}).
-		AddRow("txn-1", "org-1", "ldg-1", "APPROVED", int64(1000), "USD", createdAt, int32(1))
+		AddRow("txn-1", "org-1", "ldg-1", "APPROVED", decimal.NewFromInt(1000), "USD", createdAt, int32(1))
 
 	mock.ExpectQuery(`SELECT`).
 		WithArgs(10).
