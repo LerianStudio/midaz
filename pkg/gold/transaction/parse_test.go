@@ -91,10 +91,20 @@ func TestParse_SharePercentageOver100_Panics(t *testing.T) {
 	Parse(dsl)
 }
 
-func TestParse_SharePercentageNegative_Panics(t *testing.T) {
-	// Note: The lexer likely won't allow negative numbers, but we test the assertion anyway
-	// This test documents the expected behavior
-	t.Skip("Negative percentages are rejected by the lexer before reaching the assertion")
+func TestParse_SharePercentageNegative_ReturnsNil(t *testing.T) {
+	// Note: The lexer rejects negative numbers, so Parse should return nil without panicking.
+	dsl := `(transaction V1 (chart-of-accounts-group-name FUNDING) (send USD 1000|2 (source (from @A :share -5)) (distribute (to @B :remaining))))`
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Unexpected panic for negative share percentage: %v", r)
+		}
+	}()
+
+	result := Parse(dsl)
+	if result != nil {
+		t.Errorf("Expected nil transaction for negative share percentage, got %v", result)
+	}
 }
 
 func TestParse_ValidDSL_ReturnsTransaction(t *testing.T) {
