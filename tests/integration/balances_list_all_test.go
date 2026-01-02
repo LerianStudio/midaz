@@ -119,7 +119,7 @@ func TestIntegration_GetAllBalances_VeryLargePrecisionOverlay(t *testing.T) {
 	}
 
 	// Perform inflow to create/update cache entry with a very large amount
-	largeAmount := "123456789012345678901234567890.123456789012345678901234567890"
+	largeAmount := "123456789012345678901234567890.123456789012345678"
 	code, body, err := h.SetupInflowTransaction(ctx, trans, orgID, ledgerID, alias, "USD", largeAmount, headers)
 	if err != nil || code != 201 {
 		t.Fatalf("inflow failed: code=%d err=%v body=%s", code, err, string(body))

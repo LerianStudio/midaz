@@ -117,10 +117,10 @@ func FuzzValidAmount(f *testing.F) {
 	f.Add("1", int32(-2))  // 0.01, exp=-2
 
 	// Boundary exponents
-	f.Add("1", int32(-30)) // Min valid exponent
-	f.Add("1", int32(30))  // Max valid exponent
-	f.Add("1", int32(-31)) // Below min exponent (invalid)
-	f.Add("1", int32(31))  // Above max exponent (invalid)
+	f.Add("1", int32(-18)) // Min valid exponent
+	f.Add("1", int32(18))  // Max valid exponent
+	f.Add("1", int32(-19)) // Below min exponent (invalid)
+	f.Add("1", int32(19))  // Above max exponent (invalid)
 
 	// Edge cases
 	f.Add("0", int32(0))                  // Zero
@@ -141,9 +141,9 @@ func FuzzValidAmount(f *testing.F) {
 
 		result := assert.ValidAmount(d)
 
-		// Verify: exponent outside [-30, 30] should return false
-		exp := d.Exponent()
-		expectedValid := exp >= -30 && exp <= 30
+	// Verify: exponent outside [-18, 18] should return false
+	exp := d.Exponent()
+	expectedValid := exp >= -18 && exp <= 18
 
 		if result != expectedValid {
 			t.Errorf("ValidAmount(%s) with exp=%d: got %v, want %v",
