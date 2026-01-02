@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -928,6 +929,67 @@ func TestHandler_CountOrganizations(t *testing.T) {
 
 				contentLength := resp.Header.Get(cn.ContentLength)
 				assert.Equal(t, "0", contentLength, "Content-Length should be 0")
+			}
+		})
+	}
+}
+
+func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
+	tests := []struct {
+		name           string
+		pathID         string
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name:           "invalid UUID path parameter returns 400",
+			pathID:         "not-a-uuid",
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrInvalidPathParameter.Error(), errResp["code"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			mockOrgRepo := organization.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			// No repo calls expected - validation fails before reaching handler
+
+			queryUC := &query.UseCase{
+				OrganizationRepo: mockOrgRepo,
+				MetadataRepo:     mockMetadataRepo,
+			}
+			handler := &OrganizationHandler{Query: queryUC}
+
+			app := fiber.New()
+			app.Get("/v1/organizations/:id",
+				http.ParseUUIDPathParameters("organization"),
+				handler.GetOrganizationByID,
+			)
+
+			// Act
+			req := httptest.NewRequest("GET", "/v1/organizations/"+tt.pathID, nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
 			}
 		})
 	}

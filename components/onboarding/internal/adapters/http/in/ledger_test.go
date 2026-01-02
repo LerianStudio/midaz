@@ -1,6 +1,7 @@
 package in
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -961,6 +963,80 @@ func TestHandler_CountLedgers(t *testing.T) {
 
 				contentLength := resp.Header.Get(cn.ContentLength)
 				assert.Equal(t, "0", contentLength, "Content-Length should be 0")
+			}
+		})
+	}
+}
+
+func TestHandler_CreateLedger_Validation(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    map[string]any
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name:           "missing required name field returns 400",
+			requestBody:    map[string]any{},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+
+				// Validation error should mention required fields
+				if fields, ok := errResp["fields"].(map[string]any); ok {
+					assert.Contains(t, fields, "name", "should indicate name field is required")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			// No repo calls expected - validation fails before reaching handler
+
+			cmdUC := &command.UseCase{
+				LedgerRepo:   mockLedgerRepo,
+				MetadataRepo: mockMetadataRepo,
+			}
+			handler := &LedgerHandler{Command: cmdUC}
+
+			app := fiber.New()
+			app.Post("/v1/organizations/:organization_id/ledgers",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					return c.Next()
+				},
+				http.WithBody(new(mmodel.CreateLedgerInput), handler.CreateLedger),
+			)
+
+			// Act
+			bodyBytes, err := json.Marshal(tt.requestBody)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers", bytes.NewReader(bodyBytes))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
 			}
 		})
 	}

@@ -1,0 +1,509 @@
+//go:build integration
+
+package in
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http/httptest"
+	"testing"
+
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	mongotestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/mongodb"
+	postgrestestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/postgres"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// mockBalancePort is a simple mock for the BalancePort interface for integration tests.
+type mockBalancePort struct{}
+
+func (m *mockBalancePort) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+	// Return a minimal valid balance for integration tests
+	return &mmodel.Balance{
+		ID:             uuid.New().String(),
+		OrganizationID: input.OrganizationID.String(),
+		LedgerID:       input.LedgerID.String(),
+		AccountID:      input.AccountID.String(),
+		AssetCode:      input.AssetCode,
+	}, nil
+}
+
+func (m *mockBalancePort) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+	return nil
+}
+
+// assetTestInfra holds all test infrastructure components for asset integration tests.
+type assetTestInfra struct {
+	pgContainer    *postgrestestutil.ContainerResult
+	mongoContainer *mongotestutil.ContainerResult
+	pgConn         *libPostgres.PostgresConnection
+	app            *fiber.App
+	orgHandler     *OrganizationHandler
+	ledgerHandler  *LedgerHandler
+	assetHandler   *AssetHandler
+	accountHandler *AccountHandler
+}
+
+// setupAssetTestInfra initializes all containers and creates the handlers for asset tests.
+func setupAssetTestInfra(t *testing.T) *assetTestInfra {
+	t.Helper()
+
+	infra := &assetTestInfra{}
+
+	// Start containers
+	infra.pgContainer = postgrestestutil.SetupContainer(t)
+	infra.mongoContainer = mongotestutil.SetupContainer(t)
+
+	// Register cleanup (reverse order of creation)
+	t.Cleanup(func() {
+		infra.mongoContainer.Cleanup()
+		infra.pgContainer.Cleanup()
+	})
+
+	// Create PostgreSQL connection following lib-commons pattern
+	logger := libZap.InitializeLogger()
+	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
+	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
+
+	infra.pgConn = &libPostgres.PostgresConnection{
+		ConnectionStringPrimary: connStr,
+		ConnectionStringReplica: connStr,
+		PrimaryDBName:           infra.pgContainer.Config.DBName,
+		ReplicaDBName:           infra.pgContainer.Config.DBName,
+		MigrationsPath:          migrationsPath,
+		Logger:                  logger,
+	}
+
+	// Create MongoDB connection
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+
+	// Create repositories
+	orgRepo := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
+	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
+	assetRepo := asset.NewAssetPostgreSQLRepository(infra.pgConn)
+	accountRepo := account.NewAccountPostgreSQLRepository(infra.pgConn)
+	portfolioRepo := portfolio.NewPortfolioPostgreSQLRepository(infra.pgConn)
+	segmentRepo := segment.NewSegmentPostgreSQLRepository(infra.pgConn)
+	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
+
+	// Create use cases
+	commandUC := &command.UseCase{
+		OrganizationRepo: orgRepo,
+		LedgerRepo:       ledgerRepo,
+		AssetRepo:        assetRepo,
+		AccountRepo:      accountRepo,
+		PortfolioRepo:    portfolioRepo,
+		SegmentRepo:      segmentRepo,
+		MetadataRepo:     metadataRepo,
+		BalancePort:      &mockBalancePort{},
+	}
+	queryUC := &query.UseCase{
+		OrganizationRepo: orgRepo,
+		LedgerRepo:       ledgerRepo,
+		AssetRepo:        assetRepo,
+		AccountRepo:      accountRepo,
+		PortfolioRepo:    portfolioRepo,
+		SegmentRepo:      segmentRepo,
+		MetadataRepo:     metadataRepo,
+	}
+
+	// Create handlers
+	infra.orgHandler = &OrganizationHandler{
+		Command: commandUC,
+		Query:   queryUC,
+	}
+	infra.ledgerHandler = &LedgerHandler{
+		Command: commandUC,
+		Query:   queryUC,
+	}
+	infra.assetHandler = &AssetHandler{
+		Command: commandUC,
+		Query:   queryUC,
+	}
+	infra.accountHandler = &AccountHandler{
+		Command: commandUC,
+		Query:   queryUC,
+	}
+
+	// Setup Fiber app with routes
+	infra.app = fiber.New()
+	infra.setupRoutes()
+
+	return infra
+}
+
+// setupRoutes registers handler routes on the Fiber app.
+func (infra *assetTestInfra) setupRoutes() {
+	// Middleware to inject path params as locals
+	paramMiddleware := func(c *fiber.Ctx) error {
+		orgIDStr := c.Params("organization_id")
+		ledgerIDStr := c.Params("ledger_id")
+		assetIDStr := c.Params("id")
+
+		if orgIDStr != "" {
+			if orgID, err := uuid.Parse(orgIDStr); err == nil {
+				c.Locals("organization_id", orgID)
+			}
+		}
+
+		if ledgerIDStr != "" {
+			if ledgerID, err := uuid.Parse(ledgerIDStr); err == nil {
+				c.Locals("ledger_id", ledgerID)
+			}
+		}
+
+		if assetIDStr != "" {
+			if assetID, err := uuid.Parse(assetIDStr); err == nil {
+				c.Locals("id", assetID)
+			}
+		}
+
+		return c.Next()
+	}
+
+	// Middleware to inject organization ID for organization routes
+	orgParamMiddleware := func(c *fiber.Ctx) error {
+		idStr := c.Params("id")
+		if idStr != "" {
+			if id, err := uuid.Parse(idStr); err == nil {
+				c.Locals("id", id)
+			}
+		}
+		return c.Next()
+	}
+
+	// Organization routes
+	infra.app.Post("/v1/organizations",
+		http.WithBody(new(mmodel.CreateOrganizationInput), infra.orgHandler.CreateOrganization))
+
+	// Ledger routes
+	infra.app.Post("/v1/organizations/:organization_id/ledgers",
+		paramMiddleware, http.WithBody(new(mmodel.CreateLedgerInput), infra.ledgerHandler.CreateLedger))
+
+	// Asset routes
+	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
+		paramMiddleware, http.WithBody(new(mmodel.CreateAssetInput), infra.assetHandler.CreateAsset))
+	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
+		paramMiddleware, infra.assetHandler.GetAllAssets)
+	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
+		paramMiddleware, infra.assetHandler.GetAssetByID)
+	infra.app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
+		paramMiddleware, infra.assetHandler.DeleteAssetByID)
+
+	// Account routes
+	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
+		paramMiddleware, http.WithBody(new(mmodel.CreateAccountInput), infra.accountHandler.CreateAccount))
+
+	// Organization GET (for ID-based lookup)
+	infra.app.Get("/v1/organizations/:id",
+		orgParamMiddleware, infra.orgHandler.GetOrganizationByID)
+}
+
+// createOrganization creates an organization via HTTP and returns its ID.
+func (infra *assetTestInfra) createOrganization(t *testing.T, name string) uuid.UUID {
+	t.Helper()
+
+	requestBody := map[string]any{
+		"legalName":     name,
+		"legalDocument": "12345678901234",
+		"address": map[string]any{
+			"line1":   "123 Test Street",
+			"zipCode": "10001",
+			"city":    "New York",
+			"state":   "NY",
+			"country": "US",
+		},
+	}
+	body, _ := json.Marshal(requestBody)
+
+	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "failed to create organization")
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
+
+	orgID, err := uuid.Parse(result["id"].(string))
+	require.NoError(t, err, "failed to parse organization ID")
+
+	return orgID
+}
+
+// createLedger creates a ledger via HTTP and returns its ID.
+func (infra *assetTestInfra) createLedger(t *testing.T, orgID uuid.UUID, name string) uuid.UUID {
+	t.Helper()
+
+	requestBody := map[string]any{
+		"name": name,
+	}
+	body, _ := json.Marshal(requestBody)
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers",
+		bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "failed to create ledger")
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
+
+	ledgerID, err := uuid.Parse(result["id"].(string))
+	require.NoError(t, err, "failed to parse ledger ID")
+
+	return ledgerID
+}
+
+// createAsset creates an asset via HTTP and returns its ID.
+func (infra *assetTestInfra) createAsset(t *testing.T, orgID, ledgerID uuid.UUID, name, code, assetType string) uuid.UUID {
+	t.Helper()
+
+	requestBody := map[string]any{
+		"name": name,
+		"code": code,
+		"type": assetType,
+	}
+	body, _ := json.Marshal(requestBody)
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets",
+		bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "failed to create asset")
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
+
+	assetID, err := uuid.Parse(result["id"].(string))
+	require.NoError(t, err, "failed to parse asset ID")
+
+	return assetID
+}
+
+// deleteAsset deletes an asset via HTTP.
+func (infra *assetTestInfra) deleteAsset(t *testing.T, orgID, ledgerID, assetID uuid.UUID) {
+	t.Helper()
+
+	req := httptest.NewRequest("DELETE",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
+		nil)
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "failed to delete asset")
+
+	require.Equal(t, 204, resp.StatusCode, "expected 204, got %d", resp.StatusCode)
+}
+
+// TestIntegration_AssetHandler_CreateAssetThenAccount validates the complete flow:
+// 1. Create Organization -> 201
+// 2. Create Ledger -> 201
+// 3. Create USD Asset -> 201
+// 4. GET Assets -> 200, verify asset exists
+// 5. Create Account with assetCode: "USD" -> 201 (NOT 404)
+func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Step 1: Create Organization
+	orgID := infra.createOrganization(t, "Test Organization for Asset")
+	t.Logf("Created organization: %s", orgID)
+
+	// Step 2: Create Ledger
+	ledgerID := infra.createLedger(t, orgID, "Test Ledger for Asset")
+	t.Logf("Created ledger: %s", ledgerID)
+
+	// Step 3: Create USD Asset
+	assetID := infra.createAsset(t, orgID, ledgerID, "US Dollar", "USD", "currency")
+	t.Logf("Created asset: %s", assetID)
+
+	// Step 4: GET Assets and verify USD exists
+	req := httptest.NewRequest("GET",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets",
+		nil)
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "GET assets request should not fail")
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, 200, resp.StatusCode, "expected 200, got %d: %s", resp.StatusCode, string(respBody))
+
+	var assetsResult map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &assetsResult), "response should be valid JSON")
+
+	items, ok := assetsResult["items"].([]any)
+	require.True(t, ok, "response should contain items array")
+	require.GreaterOrEqual(t, len(items), 1, "should have at least 1 asset")
+
+	// Verify USD asset exists in the list
+	foundUSD := false
+	for _, item := range items {
+		assetItem := item.(map[string]any)
+		if assetItem["code"] == "USD" {
+			foundUSD = true
+			assert.Equal(t, "US Dollar", assetItem["name"], "asset name should match")
+			assert.Equal(t, "currency", assetItem["type"], "asset type should match")
+			break
+		}
+	}
+	require.True(t, foundUSD, "USD asset should exist in the list")
+
+	// Step 5: Create Account with assetCode: "USD"
+	accountRequestBody := map[string]any{
+		"name":      "Test Account",
+		"assetCode": "USD",
+		"type":      "deposit",
+		"alias":     "@test-account",
+	}
+	accountBody, _ := json.Marshal(accountRequestBody)
+
+	accountReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+		bytes.NewBuffer(accountBody))
+	accountReq.Header.Set("Content-Type", "application/json")
+
+	accountResp, err := infra.app.Test(accountReq, -1)
+	require.NoError(t, err, "create account request should not fail")
+
+	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	t.Logf("Account response: %s", string(accountRespBody))
+
+	// The key assertion: Account creation should succeed (201) because the asset exists
+	assert.Equal(t, 201, accountResp.StatusCode,
+		"account creation should succeed with existing asset, got %d: %s", accountResp.StatusCode, string(accountRespBody))
+
+	// Parse and verify account response
+	var accountResult map[string]any
+	require.NoError(t, json.Unmarshal(accountRespBody, &accountResult), "response should be valid JSON")
+
+	assert.Equal(t, "USD", accountResult["assetCode"], "account should have correct assetCode")
+	assert.Equal(t, "Test Account", accountResult["name"], "account should have correct name")
+	assert.Equal(t, "@test-account", accountResult["alias"], "account should have correct alias")
+}
+
+// TestIntegration_AssetHandler_AccountWithNonExistentAsset validates that:
+// Creating an account with a non-existent asset code should fail with an appropriate error.
+func TestIntegration_AssetHandler_AccountWithNonExistentAsset(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Create Organization and Ledger (but NO asset)
+	orgID := infra.createOrganization(t, "Test Organization No Asset")
+	ledgerID := infra.createLedger(t, orgID, "Test Ledger No Asset")
+
+	// Act: Try to create Account with assetCode: "FAKE" (no asset created)
+	accountRequestBody := map[string]any{
+		"name":      "Test Account Fake Asset",
+		"assetCode": "FAKE",
+		"type":      "deposit",
+		"alias":     "@fake-asset-account",
+	}
+	accountBody, _ := json.Marshal(accountRequestBody)
+
+	accountReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+		bytes.NewBuffer(accountBody))
+	accountReq.Header.Set("Content-Type", "application/json")
+
+	accountResp, err := infra.app.Test(accountReq, -1)
+	require.NoError(t, err, "create account request should not fail")
+
+	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	t.Logf("Account with non-existent asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
+
+	// Assert: Should return 4xx error (404 or 400)
+	// The exact status code depends on how the backend validates assets
+	assert.True(t, accountResp.StatusCode >= 400 && accountResp.StatusCode < 500,
+		"account creation with non-existent asset should fail with 4xx, got %d: %s",
+		accountResp.StatusCode, string(accountRespBody))
+}
+
+// TestIntegration_AssetHandler_AccountWithDeletedAsset validates that:
+// Creating an account with a deleted asset code should fail with an appropriate error.
+func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Create Organization, Ledger, and Asset
+	orgID := infra.createOrganization(t, "Test Organization Deleted Asset")
+	ledgerID := infra.createLedger(t, orgID, "Test Ledger Deleted Asset")
+	assetID := infra.createAsset(t, orgID, ledgerID, "Euro", "EUR", "currency")
+
+	t.Logf("Created asset EUR with ID: %s", assetID)
+
+	// Verify asset exists before deletion
+	getReq := httptest.NewRequest("GET",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
+		nil)
+	getResp, err := infra.app.Test(getReq, -1)
+	require.NoError(t, err, "GET asset request should not fail")
+	require.Equal(t, 200, getResp.StatusCode, "asset should exist before deletion")
+
+	// Delete the Asset
+	infra.deleteAsset(t, orgID, ledgerID, assetID)
+	t.Logf("Deleted asset EUR")
+
+	// Verify asset is deleted (should return 404)
+	getReqAfterDelete := httptest.NewRequest("GET",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
+		nil)
+	getRespAfterDelete, err := infra.app.Test(getReqAfterDelete, -1)
+	require.NoError(t, err, "GET asset after delete request should not fail")
+	assert.Equal(t, 404, getRespAfterDelete.StatusCode, "deleted asset should return 404")
+
+	// Act: Try to create Account with assetCode: "EUR" (deleted asset)
+	accountRequestBody := map[string]any{
+		"name":      "Test Account Deleted Asset",
+		"assetCode": "EUR",
+		"type":      "deposit",
+		"alias":     "@deleted-asset-account",
+	}
+	accountBody, _ := json.Marshal(accountRequestBody)
+
+	accountReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+		bytes.NewBuffer(accountBody))
+	accountReq.Header.Set("Content-Type", "application/json")
+
+	accountResp, err := infra.app.Test(accountReq, -1)
+	require.NoError(t, err, "create account request should not fail")
+
+	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	t.Logf("Account with deleted asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
+
+	// Assert: Should return 4xx error (404 or 400)
+	// The exact status code depends on how the backend validates assets
+	assert.True(t, accountResp.StatusCode >= 400 && accountResp.StatusCode < 500,
+		"account creation with deleted asset should fail with 4xx, got %d: %s",
+		accountResp.StatusCode, string(accountRespBody))
+}
