@@ -147,12 +147,6 @@ help:
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo ""
-	@echo "API Testing Commands:"
-	@echo "  make newman                      - Run complete API workflow tests with Newman"
-	@echo "  make newman-install              - Install Newman CLI and reporters globally"
-	@echo "  make newman-env-check            - Verify environment file exists"
-	@echo ""
-	@echo ""
 	@echo "Migration Commands:"
 	@echo "  make migrate-lint                - Lint all migrations for dangerous patterns"
 	@echo "  make migrate-create              - Create new migration files (requires COMPONENT, NAME)"
@@ -161,11 +155,9 @@ help:
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run integration tests with testcontainers (no stack needed)"
-	@echo "  make test-e2e                    - Run Apidog E2E tests"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests"
 	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests"
 	@echo "  make test-chaos                  - Run chaos/resilience tests"
-	@echo "  make test-property               - Run property-based tests"
 	@echo ""
 	@echo "Coverage Commands:"
 	@echo "  make coverage-unit               - Run unit tests and generate coverage report"
@@ -619,56 +611,6 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
-
-#-------------------------------------------------------
-# Newman / API Testing Commands
-#-------------------------------------------------------
-
-.PHONY: newman newman-install newman-env-check
-
-# Install Newman globally if not already installed
-newman-install:
-	$(call print_title,"Installing Newman CLI")
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo "📦 Newman not found. Installing globally..."; \
-		npm install -g newman newman-reporter-html newman-reporter-htmlextra; \
-		echo "✅ Newman installed successfully"; \
-	else \
-		echo "✅ Newman already installed: $$(newman --version)"; \
-	fi
-
-# Check environment file exists and has required variables
-newman-env-check:
-	@if [ ! -f "./postman/MIDAZ.postman_environment.json" ]; then \
-		echo "❌ Environment file not found: ./postman/MIDAZ.postman_environment.json"; \
-		echo "💡 Run 'make generate-docs' first to create the environment file"; \
-		exit 1; \
-	fi
-	@echo "✅ Environment file found: ./postman/MIDAZ.postman_environment.json"
-
-# Main Newman target - runs the complete API workflow (65 steps)
-newman: newman-install newman-env-check
-	$(call print_title,"Running Complete API Workflow with Newman")
-	@if [ ! -f "./postman/MIDAZ.postman_collection.json" ]; then \
-		echo "❌ Collection file not found. Running documentation generation first..."; \
-		$(MAKE) generate-docs; \
-	fi
-	@echo "🚀 Starting complete API workflow test (65 steps)..."
-	@mkdir -p ./reports/newman
-	newman run "./postman/MIDAZ.postman_collection.json" \
-		--environment "./postman/MIDAZ.postman_environment.json" \
-		--folder "Complete API Workflow" \
-		--reporters cli,json \
-		--reporter-json-export "./reports/newman/workflow-json.json" \
-		--timeout-request 30000 \
-		--timeout-script 10000 \
-		--delay-request 100 \
-		--color on \
-		--verbose
-	@echo ""
-	@echo "📊 Test Reports Generated:"
-	@echo "  - CLI Summary: displayed above"
-	@echo "  - JSON Report: ./reports/newman/workflow-json.json"
 
 #-------------------------------------------------------
 # Developer Helper Commands

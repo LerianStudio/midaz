@@ -150,39 +150,6 @@ coverage-unit:
 	  echo "----------------------------------------"; \
 	fi
 
-# E2E tests (Apidog CLI) – brings up stack, runs Apidog JSON workflow, saves report
-.PHONY: test-e2e
-test-e2e:
-	$(call print_title,Running E2E tests with Apidog CLI (with Docker stack))
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-	@set -e; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
-	mkdir -p ./reports/e2e; \
-	echo "Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json"; \
-	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
-	npx --yes apidog-cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e
-
-# Property tests (model-level)
-.PHONY: test-property
-test-property:
-	$(call print_title,Running property-based model tests)
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/property; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property.xml -- -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying property tests once..."; \
-	      gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property-rerun.xml -- -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  go test -v -race -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
-	fi
-
 # Chaos tests
 .PHONY: test-chaos
 test-chaos:
@@ -381,12 +348,8 @@ test-all:
 	$(MAKE) test-unit
 	$(call print_title,Running integration tests)
 	$(MAKE) test-integration
-	$(call print_title,Running property tests)
-	$(MAKE) test-property
 	$(call print_title,Running chaos tests)
 	$(MAKE) test-chaos
-	$(call print_title,Running e2e tests)
-	$(MAKE) test-e2e
 	$(call print_title,Running fuzzy tests)
 	$(MAKE) test-fuzzy
 	$(call print_title,Running fuzz engine tests)

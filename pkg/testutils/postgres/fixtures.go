@@ -414,3 +414,17 @@ func GetTransactionByParentID(t *testing.T, db *sql.DB, parentID uuid.UUID) *uui
 
 	return &txID
 }
+
+// GetBalanceByAlias retrieves the available balance amount for a given alias within an organization and ledger.
+func GetBalanceByAlias(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, alias string) decimal.Decimal {
+	t.Helper()
+
+	var available decimal.Decimal
+	err := db.QueryRow(`
+		SELECT available FROM balance
+		WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL
+	`, orgID, ledgerID, alias).Scan(&available)
+	require.NoError(t, err, "failed to get balance by alias %s", alias)
+
+	return available
+}

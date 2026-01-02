@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -2008,24 +2009,29 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 
 	t.Parallel()
 
-	infra := baseSetup(t)
+	infra := setupTestInfra(t)
 
 	// Create accounts for this test
 	sourceAlias := "@source-idempotency"
 	destAlias := "@dest-idempotency"
 
-	sourceAccountID := uuid.New()
-	destAccountID := uuid.New()
-	sourcePortfolioID := uuid.New()
-	destPortfolioID := uuid.New()
+	sourcePortfolioID := postgrestestutil.CreateTestPortfolio(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+	destPortfolioID := postgrestestutil.CreateTestPortfolio(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
 
 	// Insert accounts
-	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, sourceAccountID, infra.orgID, infra.ledgerID, sourcePortfolioID, "Source Idempotency", sourceAlias, "USD")
-	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, destAccountID, infra.orgID, infra.ledgerID, destPortfolioID, "Dest Idempotency", destAlias, "USD")
+	sourceAccountID := postgrestestutil.CreateTestAccount(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, &sourcePortfolioID, "Source Idempotency", sourceAlias, "USD", nil)
+	_ = postgrestestutil.CreateTestAccount(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, &destPortfolioID, "Dest Idempotency", destAlias, "USD", nil)
 
 	// Initialize source balance
 	initialBalance := decimal.NewFromInt(1000)
-	postgrestestutil.InsertBalance(t, infra.pgContainer.DB, uuid.New(), infra.orgID, infra.ledgerID, sourceAccountID, sourceAlias, "USD", initialBalance, decimal.Zero, decimal.Zero)
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAccountID, postgrestestutil.BalanceParams{
+		Alias:          sourceAlias,
+		AssetCode:      "USD",
+		Available:      initialBalance,
+		OnHold:         decimal.Zero,
+		AllowSending:   true,
+		AllowReceiving: true,
+	})
 
 	// Prepare transaction request
 	requestBody := fmt.Sprintf(`{
@@ -2108,7 +2114,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	assert.NotEmpty(t, dbStatus, "transaction should exist in database")
 
 	// Verify balance was only affected once
-	sourceBalance := postgrestestutil.GetAccountBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
+	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(50))
 	assert.True(t, sourceBalance.Equal(expectedBalance),
 		"source balance should be %s (deducted once), got %s", expectedBalance.String(), sourceBalance.String())
@@ -2129,26 +2135,29 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 
 	t.Parallel()
 
-	infra := baseSetup(t)
-	ctx := context.Background()
-	_ = ctx // silence unused warning
+	infra := setupTestInfra(t)
 
 	// Create accounts for this test
 	sourceAlias := "@source-idem-conflict"
 	destAlias := "@dest-idem-conflict"
 
-	sourceAccountID := uuid.New()
-	destAccountID := uuid.New()
-	sourcePortfolioID := uuid.New()
-	destPortfolioID := uuid.New()
+	sourcePortfolioID := postgrestestutil.CreateTestPortfolio(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+	destPortfolioID := postgrestestutil.CreateTestPortfolio(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
 
 	// Insert accounts
-	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, sourceAccountID, infra.orgID, infra.ledgerID, sourcePortfolioID, "Source Conflict", sourceAlias, "USD")
-	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, destAccountID, infra.orgID, infra.ledgerID, destPortfolioID, "Dest Conflict", destAlias, "USD")
+	sourceAccountID := postgrestestutil.CreateTestAccount(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, &sourcePortfolioID, "Source Conflict", sourceAlias, "USD", nil)
+	_ = postgrestestutil.CreateTestAccount(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, &destPortfolioID, "Dest Conflict", destAlias, "USD", nil)
 
 	// Initialize source balance
 	initialBalance := decimal.NewFromInt(1000)
-	postgrestestutil.InsertBalance(t, infra.pgContainer.DB, uuid.New(), infra.orgID, infra.ledgerID, sourceAccountID, sourceAlias, "USD", initialBalance, decimal.Zero, decimal.Zero)
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAccountID, postgrestestutil.BalanceParams{
+		Alias:          sourceAlias,
+		AssetCode:      "USD",
+		Available:      initialBalance,
+		OnHold:         decimal.Zero,
+		AllowSending:   true,
+		AllowReceiving: true,
+	})
 
 	// First request payload
 	requestBody1 := fmt.Sprintf(`{
