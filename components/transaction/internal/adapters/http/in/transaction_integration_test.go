@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,6 +173,8 @@ func (infra *testInfra) setupRoutes() {
 		paramMiddleware, http.WithBody(new(transaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit",
 		paramMiddleware, infra.handler.CommitTransaction)
+	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel",
+		paramMiddleware, infra.handler.CancelTransaction)
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert",
 		paramMiddleware, infra.handler.RevertTransaction)
 	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
@@ -1541,4 +1544,696 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	require.NotNil(t, destRedis, "dest balance should exist in Redis after revert")
 	assert.True(t, destRedis.Available.Equal(decimal.Zero),
 		"Redis dest available should be 0 after revert, got %s", destRedis.Available.String())
+}
+
+// TestIntegration_TransactionHandler_CancelPendingTransaction validates that
+// canceling a PENDING transaction correctly releases held funds.
+//
+// Cancel transaction flow:
+// 1. Create PENDING transaction (source: available→onHold, funds reserved)
+// 2. Cancel (source: onHold→available, funds released)
+// 3. Final state: balances return to original values (no net effect)
+//
+// Key differences from Commit and Revert:
+// - Cancel: Only valid for PENDING transactions, releases funds back to source
+// - Commit: Only valid for PENDING, finalizes the transaction (applies credit to dest)
+// - Revert: Only valid for APPROVED, creates reversal transaction
+func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
+	// Arrange
+	infra := setupTestInfra(t)
+
+	// Ensure sync mode is enabled
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	sourceAccountID := libCommons.GenerateUUIDv7()
+	destAccountID := libCommons.GenerateUUIDv7()
+
+	// Initial balances: source=1000 USD, dest=0 USD
+	initialSourceAvailable := decimal.NewFromInt(1000)
+
+	// Create source balance (@source-cancel) with 1000 USD available
+	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
+	sourceBalanceParams.Alias = "@source-cancel"
+	sourceBalanceParams.AssetCode = "USD"
+	sourceBalanceParams.Available = initialSourceAvailable
+	sourceBalanceParams.OnHold = decimal.Zero
+	sourceBalanceID := postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
+
+	// Create destination balance (@dest-cancel) with 0 USD available
+	destBalanceParams := postgrestestutil.DefaultBalanceParams()
+	destBalanceParams.Alias = "@dest-cancel"
+	destBalanceParams.AssetCode = "USD"
+	destBalanceParams.Available = decimal.Zero
+	destBalanceParams.OnHold = decimal.Zero
+	destBalanceID := postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
+
+	// =========================================
+	// PHASE 1: Create PENDING transaction
+	// =========================================
+
+	requestBody := `{
+		"description": "Cancel test - 200 USD pending transfer",
+		"pending": true,
+		"send": {
+			"asset": "USD",
+			"value": "200",
+			"source": {
+				"from": [{"accountAlias": "@source-cancel", "amount": {"asset": "USD", "value": "200"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "@dest-cancel", "amount": {"asset": "USD", "value": "200"}}]
+			}
+		}
+	}`
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "HTTP request should not fail")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "should read response body")
+	require.Equal(t, 201, resp.StatusCode, "expected HTTP 201 Created: %s", string(body))
+
+	var result map[string]any
+	err = json.Unmarshal(body, &result)
+	require.NoError(t, err, "response should be valid JSON")
+
+	txIDStr := result["id"].(string)
+	txID, _ := uuid.Parse(txIDStr)
+
+	// =========================================
+	// Assert: State after PENDING creation
+	// =========================================
+
+	ctx := context.Background()
+
+	// Transaction should be PENDING
+	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, cn.PENDING, dbStatus, "transaction should be PENDING after creation")
+
+	// Source balance: available=800, onHold=200 (funds reserved)
+	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
+	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
+	assert.True(t, sourceAvailableAfterCreate.Equal(decimal.NewFromInt(800)),
+		"source available should be 800 after pending creation, got %s", sourceAvailableAfterCreate.String())
+	assert.True(t, sourceOnHoldAfterCreate.Equal(decimal.NewFromInt(200)),
+		"source onHold should be 200 after pending creation, got %s", sourceOnHoldAfterCreate.String())
+
+	// Destination balance: unchanged (no credit yet)
+	destAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
+	assert.True(t, destAvailableAfterCreate.Equal(decimal.Zero),
+		"dest available should be 0 after pending creation (no credit yet), got %s", destAvailableAfterCreate.String())
+
+	// Redis: verify source balance shows reserved funds
+	sourceRedisAfterCreate := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@source-cancel", "default")
+	require.NotNil(t, sourceRedisAfterCreate, "source balance should exist in Redis")
+	assert.True(t, sourceRedisAfterCreate.Available.Equal(decimal.NewFromInt(800)),
+		"Redis source available should be 800, got %s", sourceRedisAfterCreate.Available.String())
+	assert.True(t, sourceRedisAfterCreate.OnHold.Equal(decimal.NewFromInt(200)),
+		"Redis source onHold should be 200, got %s", sourceRedisAfterCreate.OnHold.String())
+
+	// =========================================
+	// PHASE 2: Cancel the pending transaction
+	// =========================================
+
+	cancelReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/"+txID.String()+"/cancel",
+		nil)
+	cancelReq.Header.Set("Content-Type", "application/json")
+
+	cancelResp, err := infra.app.Test(cancelReq, -1)
+	require.NoError(t, err, "cancel HTTP request should not fail")
+
+	cancelBody, err := io.ReadAll(cancelResp.Body)
+	require.NoError(t, err, "should read cancel response body")
+
+	if cancelResp.StatusCode != 201 && cancelResp.StatusCode != 200 {
+		t.Logf("Cancel response status: %d, body: %s", cancelResp.StatusCode, string(cancelBody))
+	}
+	assert.True(t, cancelResp.StatusCode == 200 || cancelResp.StatusCode == 201,
+		"expected HTTP 200 or 201 for cancel, got %d: %s", cancelResp.StatusCode, string(cancelBody))
+
+	// =========================================
+	// Assert: State after CANCEL
+	// =========================================
+
+	// Transaction status should be CANCELED
+	dbStatusAfterCancel := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, cn.CANCELED, dbStatusAfterCancel,
+		"transaction status should be CANCELED after cancel")
+
+	// Source balance: available=1000 (restored), onHold=0 (released)
+	sourceAvailableAfterCancel := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
+	sourceOnHoldAfterCancel := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
+	assert.True(t, sourceAvailableAfterCancel.Equal(initialSourceAvailable),
+		"source available should return to %s after cancel, got %s", initialSourceAvailable.String(), sourceAvailableAfterCancel.String())
+	assert.True(t, sourceOnHoldAfterCancel.Equal(decimal.Zero),
+		"source onHold should be 0 after cancel (funds released), got %s", sourceOnHoldAfterCancel.String())
+
+	// Destination balance: still unchanged (cancel does not affect destination)
+	destAvailableAfterCancel := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
+	destOnHoldAfterCancel := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, destBalanceID)
+	assert.True(t, destAvailableAfterCancel.Equal(decimal.Zero),
+		"dest available should remain 0 after cancel, got %s", destAvailableAfterCancel.String())
+	assert.True(t, destOnHoldAfterCancel.Equal(decimal.Zero),
+		"dest onHold should remain 0 after cancel, got %s", destOnHoldAfterCancel.String())
+
+	// Redis: verify source balance is restored
+	sourceRedisAfterCancel := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@source-cancel", "default")
+	require.NotNil(t, sourceRedisAfterCancel, "source balance should exist in Redis after cancel")
+	assert.True(t, sourceRedisAfterCancel.Available.Equal(initialSourceAvailable),
+		"Redis source available should be %s after cancel, got %s", initialSourceAvailable.String(), sourceRedisAfterCancel.Available.String())
+	assert.True(t, sourceRedisAfterCancel.OnHold.Equal(decimal.Zero),
+		"Redis source onHold should be 0 after cancel, got %s", sourceRedisAfterCancel.OnHold.String())
+
+	// Verify: net effect is zero (original balance restored)
+	totalSourceAfterCancel := sourceAvailableAfterCancel.Add(sourceOnHoldAfterCancel)
+	assert.True(t, totalSourceAfterCancel.Equal(initialSourceAvailable),
+		"total source balance (available + onHold) should equal initial %s, got %s",
+		initialSourceAvailable.String(), totalSourceAfterCancel.String())
+}
+
+// TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx validates that
+// attempting to cancel a non-pending transaction (e.g., already APPROVED) returns 4xx error.
+// Business rule: Only transactions in PENDING status can be canceled.
+func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing.T) {
+	// Arrange
+	infra := setupTestInfra(t)
+
+	// Ensure sync mode is enabled
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	sourceAccountID := libCommons.GenerateUUIDv7()
+	destAccountID := libCommons.GenerateUUIDv7()
+
+	// Create source balance with 1000 USD
+	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
+	sourceBalanceParams.Alias = "@source-cancel-approved"
+	sourceBalanceParams.AssetCode = "USD"
+	sourceBalanceParams.Available = decimal.NewFromInt(1000)
+	sourceBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
+
+	// Create destination balance with 0 USD
+	destBalanceParams := postgrestestutil.DefaultBalanceParams()
+	destBalanceParams.Alias = "@dest-cancel-approved"
+	destBalanceParams.AssetCode = "USD"
+	destBalanceParams.Available = decimal.Zero
+	destBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
+
+	// Create a NON-PENDING transaction (pending: false -> auto-approved)
+	requestBody := `{
+		"description": "Non-pending transaction for cancel test",
+		"pending": false,
+		"send": {
+			"asset": "USD",
+			"value": "100",
+			"source": {
+				"from": [{"accountAlias": "@source-cancel-approved", "amount": {"asset": "USD", "value": "100"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "@dest-cancel-approved", "amount": {"asset": "USD", "value": "100"}}]
+			}
+		}
+	}`
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err, "HTTP request should not fail")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "should read response body")
+	require.Equal(t, 201, resp.StatusCode, "transaction creation should succeed")
+
+	var result map[string]any
+	err = json.Unmarshal(body, &result)
+	require.NoError(t, err, "response should be valid JSON")
+
+	txIDStr := result["id"].(string)
+	txID, _ := uuid.Parse(txIDStr)
+
+	// Verify transaction is APPROVED (not PENDING)
+	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.Equal(t, cn.APPROVED, dbStatus, "transaction should be APPROVED after sync creation")
+
+	// Act: Try to cancel an already-approved transaction
+	cancelReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/"+txID.String()+"/cancel",
+		nil)
+	cancelReq.Header.Set("Content-Type", "application/json")
+
+	cancelResp, err := infra.app.Test(cancelReq, -1)
+	require.NoError(t, err, "cancel HTTP request should not fail")
+
+	cancelBody, err := io.ReadAll(cancelResp.Body)
+	require.NoError(t, err, "should read cancel response body")
+
+	// Assert: Should return 4xx (400 or 422)
+	assert.True(t, cancelResp.StatusCode == 400 || cancelResp.StatusCode == 422,
+		"expected HTTP 400 or 422 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
+}
+
+// TestIntegration_TransactionHandler_ConcurrentMixedTransactions validates that
+// concurrent mixed transactions (inflows + outflows) on a single account
+// converge to a deterministic final balance.
+//
+// This is a LONG-RUNNING test that verifies:
+// - No race conditions in balance calculations
+// - Lock contention is handled correctly
+// - Final balance is deterministic based on successful operations
+//
+// The test simulates a burst of 30 concurrent transactions:
+// - 10 outflows of 5 USD each (potential: -50 USD)
+// - 20 inflows of 2 USD each (potential: +40 USD)
+//
+// Expected final balance = 100 - (successfulOutflows × 5) + (successfulInflows × 2)
+func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running concurrency test in short mode")
+	}
+
+	// Arrange
+	infra := setupTestInfra(t)
+
+	// Ensure sync mode is enabled
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Use fake account ID (account table is in onboarding component)
+	accountID := libCommons.GenerateUUIDv7()
+
+	// Initial balance: 100 USD
+	initialBalance := decimal.NewFromInt(100)
+
+	// Create account balance with 100 USD available
+	balanceParams := postgrestestutil.DefaultBalanceParams()
+	balanceParams.Alias = "@concurrent-account"
+	balanceParams.AssetCode = "USD"
+	balanceParams.Available = initialBalance
+	balanceParams.OnHold = decimal.Zero
+	balanceID := postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB,
+		infra.orgID, infra.ledgerID, accountID, balanceParams)
+
+	// Track successful operations
+	var (
+		mu       sync.Mutex
+		outSucc  int
+		inSucc   int
+		outFails int
+		inFails  int
+	)
+
+	// Helper: create outflow transaction (debit from account)
+	createOutflow := func(value string) (int, error) {
+		requestBody := `{
+			"description": "Concurrent outflow test",
+			"pending": false,
+			"send": {
+				"asset": "USD",
+				"value": "` + value + `",
+				"source": {
+					"from": [{"accountAlias": "@concurrent-account", "amount": {"asset": "USD", "value": "` + value + `"}}]
+				},
+				"distribute": {
+					"to": [{"accountAlias": "@external", "amount": {"asset": "USD", "value": "` + value + `"}}]
+				}
+			}
+		}`
+
+		req := httptest.NewRequest("POST",
+			"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+			bytes.NewBufferString(requestBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := infra.app.Test(req, -1)
+		if err != nil {
+			return 0, err
+		}
+		defer resp.Body.Close()
+
+		return resp.StatusCode, nil
+	}
+
+	// Helper: create inflow transaction (credit to account)
+	createInflow := func(value string) (int, error) {
+		requestBody := `{
+			"description": "Concurrent inflow test",
+			"pending": false,
+			"send": {
+				"asset": "USD",
+				"value": "` + value + `",
+				"source": {
+					"from": [{"accountAlias": "@external", "amount": {"asset": "USD", "value": "` + value + `"}}]
+				},
+				"distribute": {
+					"to": [{"accountAlias": "@concurrent-account", "amount": {"asset": "USD", "value": "` + value + `"}}]
+				}
+			}
+		}`
+
+		req := httptest.NewRequest("POST",
+			"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+			bytes.NewBufferString(requestBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := infra.app.Test(req, -1)
+		if err != nil {
+			return 0, err
+		}
+		defer resp.Body.Close()
+
+		return resp.StatusCode, nil
+	}
+
+	// =========================================
+	// BURST PHASE: 30 concurrent transactions
+	// =========================================
+
+	var wg sync.WaitGroup
+
+	// Launch 10 outflow goroutines (5 USD each)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			code, err := createOutflow("5")
+			mu.Lock()
+			if err == nil && code == 201 {
+				outSucc++
+			} else {
+				outFails++
+			}
+			mu.Unlock()
+		}()
+	}
+
+	// Launch 20 inflow goroutines (2 USD each)
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			code, err := createInflow("2")
+			mu.Lock()
+			if err == nil && code == 201 {
+				inSucc++
+			} else {
+				inFails++
+			}
+			mu.Unlock()
+		}()
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// =========================================
+	// Assert: Final balance consistency
+	// =========================================
+
+	// Calculate expected balance based on successful operations
+	// Expected = 100 - (outSucc × 5) + (inSucc × 2)
+	expectedBalance := initialBalance.
+		Sub(decimal.NewFromInt(int64(outSucc * 5))).
+		Add(decimal.NewFromInt(int64(inSucc * 2)))
+
+	t.Logf("Concurrent test results: outSucc=%d outFails=%d inSucc=%d inFails=%d expected=%s",
+		outSucc, outFails, inSucc, inFails, expectedBalance.String())
+
+	// Verify PostgreSQL balance
+	pgBalance := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balanceID)
+	assert.True(t, pgBalance.Equal(expectedBalance),
+		"PostgreSQL balance should be %s, got %s", expectedBalance.String(), pgBalance.String())
+
+	// Verify Redis balance is synchronized
+	ctx := context.Background()
+	redisBalance := getBalanceFromRedis(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, "@concurrent-account", "default")
+	require.NotNil(t, redisBalance, "Redis balance should exist after concurrent transactions")
+	assert.True(t, redisBalance.Available.Equal(expectedBalance),
+		"Redis balance should be %s, got %s", expectedBalance.String(), redisBalance.Available.String())
+
+	// Verify PostgreSQL and Redis are in sync
+	assert.True(t, pgBalance.Equal(redisBalance.Available),
+		"PostgreSQL (%s) and Redis (%s) balances should be synchronized",
+		pgBalance.String(), redisBalance.Available.String())
+
+	// Log final state for debugging
+	t.Logf("Final balance verified: PostgreSQL=%s Redis=%s (expected=%s)",
+		pgBalance.String(), redisBalance.Available.String(), expectedBalance.String())
+}
+
+// TestIntegration_TransactionHandler_IdempotencyReplay tests that a second request
+// with the same idempotency key and payload returns the cached response with
+// X-Idempotency-Replayed header set to true.
+//
+// Flow:
+// 1. First request with X-Idempotency header creates transaction
+// 2. Wait for async goroutine to save result to Redis
+// 3. Second identical request returns cached response with replay header
+func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	t.Parallel()
+
+	infra := baseSetup(t)
+
+	// Create accounts for this test
+	sourceAlias := "@source-idempotency"
+	destAlias := "@dest-idempotency"
+
+	sourceAccountID := uuid.New()
+	destAccountID := uuid.New()
+	sourcePortfolioID := uuid.New()
+	destPortfolioID := uuid.New()
+
+	// Insert accounts
+	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, sourceAccountID, infra.orgID, infra.ledgerID, sourcePortfolioID, "Source Idempotency", sourceAlias, "USD")
+	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, destAccountID, infra.orgID, infra.ledgerID, destPortfolioID, "Dest Idempotency", destAlias, "USD")
+
+	// Initialize source balance
+	initialBalance := decimal.NewFromInt(1000)
+	postgrestestutil.InsertBalance(t, infra.pgContainer.DB, uuid.New(), infra.orgID, infra.ledgerID, sourceAccountID, sourceAlias, "USD", initialBalance, decimal.Zero, decimal.Zero)
+
+	// Prepare transaction request
+	requestBody := fmt.Sprintf(`{
+		"send": {
+			"asset": "USD",
+			"value": "50",
+			"scale": 2,
+			"source": {
+				"from": [{"account": "%s", "amount": {"asset": "USD", "value": "50", "scale": 2}}]
+			},
+			"distribute": {
+				"to": [{"account": "%s", "amount": {"asset": "USD", "value": "50", "scale": 2}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	idempotencyKey := "test-idempotency-" + uuid.New().String()
+
+	// First request with idempotency key
+	req1 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Idempotency", idempotencyKey)
+	req1.Header.Set("X-TTL", "60")
+
+	resp1, err := infra.app.Test(req1, -1)
+	require.NoError(t, err, "first request should not fail")
+
+	body1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err, "should read first response body")
+
+	require.Equal(t, 201, resp1.StatusCode,
+		"first request should return 201, got %d: %s", resp1.StatusCode, string(body1))
+
+	// First request should NOT have replayed header (or it should be false)
+	replayed1 := resp1.Header.Get("X-Idempotency-Replayed")
+	assert.Equal(t, "false", replayed1,
+		"first request should have X-Idempotency-Replayed=false, got %q", replayed1)
+
+	// Wait for async goroutine to save the result to Redis
+	// The SetValueOnExistingIdempotencyKey is called in a goroutine after success
+	time.Sleep(200 * time.Millisecond)
+
+	// Second request with same idempotency key and payload
+	req2 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Idempotency", idempotencyKey)
+	req2.Header.Set("X-TTL", "60")
+
+	resp2, err := infra.app.Test(req2, -1)
+	require.NoError(t, err, "second request should not fail")
+
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err, "should read second response body")
+
+	// Second request should return 201 with replay header
+	require.Equal(t, 201, resp2.StatusCode,
+		"second request should return 201 (replay), got %d: %s", resp2.StatusCode, string(body2))
+
+	replayed2 := resp2.Header.Get("X-Idempotency-Replayed")
+	assert.Equal(t, "true", replayed2,
+		"second request should have X-Idempotency-Replayed=true, got %q", replayed2)
+
+	// Verify both responses return the same transaction
+	var result1, result2 map[string]any
+	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+	require.NoError(t, json.Unmarshal(body2, &result2), "second response should be valid JSON")
+
+	assert.Equal(t, result1["id"], result2["id"],
+		"replayed response should return same transaction ID")
+
+	// Verify only ONE transaction was created in the database
+	txID, err := uuid.Parse(result1["id"].(string))
+	require.NoError(t, err, "transaction ID should be valid UUID")
+
+	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.NotEmpty(t, dbStatus, "transaction should exist in database")
+
+	// Verify balance was only affected once
+	sourceBalance := postgrestestutil.GetAccountBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
+	expectedBalance := initialBalance.Sub(decimal.NewFromInt(50))
+	assert.True(t, sourceBalance.Equal(expectedBalance),
+		"source balance should be %s (deducted once), got %s", expectedBalance.String(), sourceBalance.String())
+
+	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
+}
+
+// TestIntegration_TransactionHandler_IdempotencyConflict tests that using the same
+// idempotency key with a different payload returns HTTP 409 Conflict.
+//
+// Flow:
+// 1. First request with X-Idempotency header creates transaction
+// 2. Second request with same key but different payload returns 409
+func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	t.Parallel()
+
+	infra := baseSetup(t)
+	ctx := context.Background()
+	_ = ctx // silence unused warning
+
+	// Create accounts for this test
+	sourceAlias := "@source-idem-conflict"
+	destAlias := "@dest-idem-conflict"
+
+	sourceAccountID := uuid.New()
+	destAccountID := uuid.New()
+	sourcePortfolioID := uuid.New()
+	destPortfolioID := uuid.New()
+
+	// Insert accounts
+	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, sourceAccountID, infra.orgID, infra.ledgerID, sourcePortfolioID, "Source Conflict", sourceAlias, "USD")
+	postgrestestutil.InsertAccount(t, infra.pgContainer.DB, destAccountID, infra.orgID, infra.ledgerID, destPortfolioID, "Dest Conflict", destAlias, "USD")
+
+	// Initialize source balance
+	initialBalance := decimal.NewFromInt(1000)
+	postgrestestutil.InsertBalance(t, infra.pgContainer.DB, uuid.New(), infra.orgID, infra.ledgerID, sourceAccountID, sourceAlias, "USD", initialBalance, decimal.Zero, decimal.Zero)
+
+	// First request payload
+	requestBody1 := fmt.Sprintf(`{
+		"send": {
+			"asset": "USD",
+			"value": "100",
+			"scale": 2,
+			"source": {
+				"from": [{"account": "%s", "amount": {"asset": "USD", "value": "100", "scale": 2}}]
+			},
+			"distribute": {
+				"to": [{"account": "%s", "amount": {"asset": "USD", "value": "100", "scale": 2}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	// Second request payload (different value)
+	requestBody2 := fmt.Sprintf(`{
+		"send": {
+			"asset": "USD",
+			"value": "200",
+			"scale": 2,
+			"source": {
+				"from": [{"account": "%s", "amount": {"asset": "USD", "value": "200", "scale": 2}}]
+			},
+			"distribute": {
+				"to": [{"account": "%s", "amount": {"asset": "USD", "value": "200", "scale": 2}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	idempotencyKey := "conflict-test-" + uuid.New().String()
+
+	// First request
+	req1 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody1))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Idempotency", idempotencyKey)
+	req1.Header.Set("X-TTL", "60")
+
+	resp1, err := infra.app.Test(req1, -1)
+	require.NoError(t, err, "first request should not fail")
+
+	body1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err, "should read first response body")
+
+	require.Equal(t, 201, resp1.StatusCode,
+		"first request should return 201, got %d: %s", resp1.StatusCode, string(body1))
+
+	// Second request with same key but different payload
+	req2 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(requestBody2))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Idempotency", idempotencyKey)
+	req2.Header.Set("X-TTL", "60")
+
+	resp2, err := infra.app.Test(req2, -1)
+	require.NoError(t, err, "second request should not fail")
+
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err, "should read second response body")
+
+	// Second request with different payload should return 409 Conflict
+	// Note: The implementation may return 409 immediately (key exists without value during processing)
+	// or may return 409 after detecting hash mismatch
+	assert.Equal(t, 409, resp2.StatusCode,
+		"second request with different payload should return 409, got %d: %s", resp2.StatusCode, string(body2))
+
+	// Verify only the first transaction exists
+	var result1 map[string]any
+	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+
+	txID, err := uuid.Parse(result1["id"].(string))
+	require.NoError(t, err, "transaction ID should be valid UUID")
+
+	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
+	assert.NotEmpty(t, dbStatus, "first transaction should exist in database")
+
+	// Verify balance was only affected by the first transaction (100, not 200)
+	sourceBalance := postgrestestutil.GetAccountBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
+	expectedBalance := initialBalance.Sub(decimal.NewFromInt(100))
+	assert.True(t, sourceBalance.Equal(expectedBalance),
+		"source balance should be %s (only first transaction), got %s", expectedBalance.String(), sourceBalance.String())
+
+	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
 }

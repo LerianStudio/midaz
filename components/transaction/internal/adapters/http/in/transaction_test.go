@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -645,6 +647,85 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 
 	assert.Equal(t, cn.ErrTransactionIDIsAlreadyARevert.Error(), errResp["code"],
 		"expected error code 0088 (ErrTransactionIDIsAlreadyARevert)")
+}
+
+// TestCreateTransactionJSON_NonPositiveValue_Returns422 validates that creating a transaction
+// with send.value <= 0 returns HTTP 422 with error code 0125.
+// Business rule: Transaction values must be greater than zero.
+func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		sendValue string
+	}{
+		{name: "zero value is rejected", sendValue: "0"},
+		{name: "negative value is rejected", sendValue: "-1"},
+		{name: "negative decimal is rejected", sendValue: "-0.01"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			// No mocks needed - validation short-circuits before any repository call
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/json",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionJSON),
+			)
+
+			// Build request body with non-positive value
+			requestBody := `{
+				"send": {
+					"asset": "USD",
+					"value": "` + tt.sendValue + `",
+					"source": {
+						"from": [{"accountAlias": "@source", "amount": {"asset": "USD", "value": "100"}}]
+					},
+					"distribute": {
+						"to": [{"accountAlias": "@dest", "amount": {"asset": "USD", "value": "100"}}]
+					}
+				}
+			}`
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/json",
+				strings.NewReader(requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrInvalidTransactionNonPositiveValue.Error(), errResp["code"],
+				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
+
+			// Verify error message is present and descriptive
+			msg, ok := errResp["message"].(string)
+			assert.True(t, ok, "error response should contain message field")
+			assert.Contains(t, msg, "zero", "error message should mention zero values")
+		})
+	}
 }
 
 // ptr is a helper function to create a pointer to a string.

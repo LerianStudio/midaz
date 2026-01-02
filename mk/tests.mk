@@ -16,6 +16,22 @@ TEST_AUTH_PASSWORD ?=
 TEST_PARALLEL ?=
 TEST_GOMAXPROCS ?=
 
+# Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race)
+# Usage: make test-integration LOW_RESOURCE=1
+#        make coverage-integration LOW_RESOURCE=1
+LOW_RESOURCE ?= 0
+
+# Computed flags for low-resource mode
+ifeq ($(LOW_RESOURCE),1)
+  LOW_RES_P_FLAG := -p 1
+  LOW_RES_PARALLEL_FLAG := -parallel 1
+  LOW_RES_RACE_FLAG :=
+else
+  LOW_RES_P_FLAG :=
+  LOW_RES_PARALLEL_FLAG :=
+  LOW_RES_RACE_FLAG := -race
+endif
+
 # macOS ld64 workaround: newer ld emits noisy LC_DYSYMTAB warnings when linking test binaries with -race.
 # If available, prefer Apple's classic linker to silence them.
 UNAME_S := $(shell uname -s)
@@ -133,37 +149,6 @@ coverage-unit:
 	  go tool cover -func=$(TEST_REPORTS_DIR)/unit_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
 	  echo "----------------------------------------"; \
 	fi
-
-# Integration tests (Go) – spins up stack, runs tests/integration
-.PHONY: test-integration
-test-integration:
-	$(call print_title,Running Go integration tests)
-
-ifeq ($(START_LOCAL_DOCKER),1)
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-endif
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/integration; \
-	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
-	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	  $(MAKE) up-backend; \
-	  $(MAKE) -s wait-for-services; \
-	else \
-	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
-	fi; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying integration tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	fi
-
 
 # E2E tests (Apidog CLI) – brings up stack, runs Apidog JSON workflow, saves report
 .PHONY: test-e2e
@@ -288,21 +273,14 @@ endif
 	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	fi
 
-# Security tests (run only when auth plugin enabled)
-.PHONY: test-security
-test-security:
-	$(call print_title,Running security tests (requires PLUGIN_AUTH_ENABLED=true))
-	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration -run Security
-
 # Integration tests with testcontainers (no coverage)
 # These tests use the `integration` build tag and testcontainers-go to spin up
 # ephemeral containers. No external Docker stack is required.
 # Requirements:
 #   - Test files must follow the naming convention: *_integration_test.go
 #   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
-.PHONY: test-integ
-test-integ:
+.PHONY: test-integration
+test-integration:
 	$(call print_title,Running integration tests with testcontainers)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
@@ -314,22 +292,28 @@ test-integ:
 	  echo "No integration test packages found (files matching *_integration_test.go)"; \
 	else \
 	  echo "Found packages: $$pkgs"; \
+	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
+	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
 	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
-	      -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	      -run '^TestIntegration' $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
-	          -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	          -run '^TestIntegration' $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    go test -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	      -run '^TestIntegration' $$pkgs; \
 	  fi; \
 	fi
@@ -348,16 +332,21 @@ coverage-integration:
 	  echo "No integration test packages found (files matching *_integration_test.go)"; \
 	else \
 	  echo "Found packages: $$pkgs"; \
+	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
+	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
 	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
-	      -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
-	          -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	          -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
@@ -365,7 +354,8 @@ coverage-integration:
 	      fi; \
 	    }; \
 	  else \
-	    go test -tags=integration -v -race -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
 	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
@@ -389,8 +379,6 @@ test-all:
 	$(call print_title,Running all tests)
 	$(call print_title,Running unit tests)
 	$(MAKE) test-unit
-	$(call print_title,Running security tests)
-	$(MAKE) test-security
 	$(call print_title,Running integration tests)
 	$(MAKE) test-integration
 	$(call print_title,Running property tests)
@@ -399,8 +387,6 @@ test-all:
 	$(MAKE) test-chaos
 	$(call print_title,Running e2e tests)
 	$(MAKE) test-e2e
-	$(call print_title,Running integration e2e tests)
-	$(MAKE) test-integration-e2e
 	$(call print_title,Running fuzzy tests)
 	$(MAKE) test-fuzzy
 	$(call print_title,Running fuzz engine tests)
