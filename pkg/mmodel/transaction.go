@@ -252,6 +252,9 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 			}
 
 			tos = append(tos, to)
+		case libConstant.ONHOLD, libConstant.RELEASE:
+			// Pending lifecycle operations do not participate in revert flow.
+			continue
 		default:
 			// Unknown operation types indicate a programming error
 			assert.Never("unhandled operation type in TransactionRevert",
