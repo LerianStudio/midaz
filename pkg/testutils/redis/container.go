@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+
+	"github.com/docker/docker/api/types/container"
+
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/redis/go-redis/v9"
@@ -17,13 +21,17 @@ import (
 
 // ContainerConfig holds configuration for Redis test container.
 type ContainerConfig struct {
-	Image string
+	Image    string
+	MemoryMB int64   // Memory limit in MB (0 = no limit)
+	CPULimit float64 // CPU limit in cores (0 = no limit)
 }
 
 // DefaultContainerConfig returns the default container configuration.
 func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
-		Image: "valkey/valkey:8",
+		Image:    "valkey/valkey:8",
+		MemoryMB: 128, // 128MB - lightweight in-memory store
+		CPULimit: 0.5, // 0.5 CPU core
 	}
 }
 
@@ -50,6 +58,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Image:        cfg.Image,
 		ExposedPorts: []string{"6379/tcp"},
 		WaitingFor:   wait.ForLog("Ready to accept connections").WithStartupTimeout(60 * time.Second),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+		},
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -100,3 +111,4 @@ func CreateConnection(t *testing.T, addr string) *libRedis.RedisConnection {
 		Logger:  logger,
 	}
 }
+

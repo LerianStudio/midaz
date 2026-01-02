@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -29,6 +32,8 @@ type ContainerConfig struct {
 	DBUser     string
 	DBPassword string
 	Image      string
+	MemoryMB   int64   // Memory limit in MB (0 = no limit)
+	CPULimit   float64 // CPU limit in cores (0 = no limit)
 }
 
 // DefaultContainerConfig returns the default container configuration.
@@ -38,6 +43,8 @@ func DefaultContainerConfig() ContainerConfig {
 		DBUser:     DefaultDBUser,
 		DBPassword: DefaultDBPassword,
 		Image:      "postgres:17-alpine",
+		MemoryMB:   512, // 512MB - moderate for limited hardware
+		CPULimit:   1.0, // 1 CPU core
 	}
 }
 
@@ -73,6 +80,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForLog("database system is ready to accept connections").
 			WithOccurrence(2).
 			WithStartupTimeout(120 * time.Second),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+		},
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -119,3 +129,4 @@ func BuildConnectionString(host, port string, cfg ContainerConfig) string {
 		host, port, cfg.DBUser, cfg.DBPassword, cfg.DBName,
 	)
 }
+

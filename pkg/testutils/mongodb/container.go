@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+
+	"github.com/docker/docker/api/types/container"
+
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/stretchr/testify/require"
@@ -24,15 +28,19 @@ const (
 
 // ContainerConfig holds configuration for MongoDB test container.
 type ContainerConfig struct {
-	DBName string
-	Image  string
+	DBName   string
+	Image    string
+	MemoryMB int64   // Memory limit in MB (0 = no limit)
+	CPULimit float64 // CPU limit in cores (0 = no limit)
 }
 
 // DefaultContainerConfig returns the default container configuration.
 func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
-		DBName: DefaultDBName,
-		Image:  "mongo:8",
+		DBName:   DefaultDBName,
+		Image:    "mongo:8",
+		MemoryMB: 512, // 512MB - moderate for limited hardware
+		CPULimit: 1.0, // 1 CPU core
 	}
 }
 
@@ -61,6 +69,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Image:        cfg.Image,
 		ExposedPorts: []string{"27017/tcp"},
 		WaitingFor:   wait.ForLog("Waiting for connections").WithStartupTimeout(60 * time.Second),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+		},
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -115,3 +126,4 @@ func CreateConnection(t *testing.T, uri, dbName string) *libMongo.MongoConnectio
 		Logger:                 logger,
 	}
 }
+

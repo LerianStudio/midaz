@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+
+	"github.com/docker/docker/api/types/container"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -26,6 +30,8 @@ type ContainerConfig struct {
 	User     string
 	Password string
 	Image    string
+	MemoryMB int64   // Memory limit in MB (0 = no limit)
+	CPULimit float64 // CPU limit in cores (0 = no limit)
 }
 
 // DefaultContainerConfig returns the default container configuration.
@@ -34,6 +40,8 @@ func DefaultContainerConfig() ContainerConfig {
 		User:     DefaultUser,
 		Password: DefaultPassword,
 		Image:    "rabbitmq:4.1-management-alpine",
+		MemoryMB: 256, // 256MB - moderate for messaging
+		CPULimit: 0.5, // 0.5 CPU core
 	}
 }
 
@@ -74,6 +82,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 				WithBasicAuth(cfg.User, cfg.Password).
 				WithStartupTimeout(60*time.Second),
 		),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+		},
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -192,3 +203,4 @@ func WaitForQueueEmpty(t *testing.T, ch *amqp.Channel, queueName string, timeout
 func BuildURI(host, port string, cfg ContainerConfig) string {
 	return fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, port)
 }
+
