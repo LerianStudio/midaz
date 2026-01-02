@@ -10,6 +10,7 @@ import (
 	"fmt"
 	mathRand "math/rand"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -398,20 +399,22 @@ func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
 	query := `
 		SELECT id, entity_id, entity_type, metadata, status, retry_count, max_retries,
 		       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
-		FROM (
-			SELECT DISTINCT ON (entity_id, entity_type)
-			       id, entity_id, entity_type, metadata, status, retry_count, max_retries,
-			       next_retry_at, processing_started_at, last_error, created_at, updated_at, processed_at
-			FROM metadata_outbox
-			WHERE (status = $1)
-			   OR (status = $2 AND next_retry_at <= $3 AND retry_count < max_retries)
-			   OR (status = $4 AND processing_started_at < $5)
-			ORDER BY entity_id, entity_type, created_at DESC
-		) AS dedup
-		ORDER BY created_at ASC
+		FROM metadata_outbox
+		WHERE (status = $1)
+		   OR (status = $2 AND next_retry_at <= $3 AND retry_count < max_retries)
+		   OR (status = $4 AND processing_started_at < $5)
+		ORDER BY created_at DESC
 		LIMIT $6
 		FOR UPDATE SKIP LOCKED
 	`
+
+	fetchSize := batchSize * 3
+	if fetchSize < batchSize {
+		fetchSize = batchSize
+	}
+	if fetchSize > maxBatchSize {
+		fetchSize = maxBatchSize
+	}
 
 	rows, err := tx.QueryContext(ctx, query,
 		string(StatusPending),
@@ -419,7 +422,7 @@ func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
 		now,
 		string(StatusProcessing),
 		staleThreshold,
-		batchSize,
+		fetchSize,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to query pending entries", err)
@@ -429,7 +432,14 @@ func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
 	}
 	defer rows.Close()
 
-	return r.collectEntriesFromRows(rows, batchSize, span, logger)
+	entries, _, err := r.collectEntriesFromRows(rows, fetchSize, span, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dedupedEntries, dedupedIDs := dedupePendingEntries(entries, batchSize)
+
+	return dedupedEntries, dedupedIDs, nil
 }
 
 // collectEntriesFromRows iterates over rows and collects entries and IDs.
@@ -471,6 +481,38 @@ func (r *OutboxPostgreSQLRepository) collectEntriesFromRows(
 	}
 
 	return entries, ids, nil
+}
+
+func dedupePendingEntries(entries []*MetadataOutbox, batchSize int) ([]*MetadataOutbox, []string) {
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	selected := make([]*MetadataOutbox, 0, batchSize)
+	seen := make(map[string]struct{}, len(entries))
+
+	for _, entry := range entries {
+		key := entry.EntityID + ":" + entry.EntityType
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		selected = append(selected, entry)
+		if len(selected) >= batchSize {
+			break
+		}
+	}
+
+	sort.Slice(selected, func(i, j int) bool {
+		return selected[i].CreatedAt.Before(selected[j].CreatedAt)
+	})
+
+	ids := make([]string, 0, len(selected))
+	for _, entry := range selected {
+		ids = append(ids, entry.ID.String())
+	}
+
+	return selected, ids
 }
 
 // markEntriesAsProcessing updates entries status to PROCESSING.
