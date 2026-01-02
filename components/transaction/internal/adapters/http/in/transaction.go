@@ -750,14 +750,13 @@ func computeOperationTotals(operations []*mmodel.Operation) (debitTotal, creditT
 	}
 
 	if len(operations) > 0 {
-		assert.That(assert.NonZeroTotals(debitTotal, creditTotal),
-			"double-entry violation: transaction totals must be non-zero",
-			"debitTotal", debitTotal, "creditTotal", creditTotal)
+		if !assert.NonZeroTotals(debitTotal, creditTotal) {
+			return decimal.Zero, decimal.Zero, false
+		}
 
-		assert.That(assert.DebitsEqualCredits(debitTotal, creditTotal),
-			"double-entry violation: debits must equal credits",
-			"debitTotal", debitTotal, "creditTotal", creditTotal,
-			"difference", debitTotal.Sub(creditTotal))
+		if !assert.DebitsEqualCredits(debitTotal, creditTotal) {
+			return decimal.Zero, decimal.Zero, false
+		}
 	}
 
 	return debitTotal, creditTotal, true
