@@ -247,6 +247,8 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		tran.Status = status
 	case constant.PENDING:
 		// Body already populated from ParseDSL when present.
+	case constant.APPROVED, constant.CANCELED, constant.NOTED:
+		// Status already set upstream (commit/cancel/annotation flows).
 	default:
 		assert.Never("unhandled transaction status code in CreateOrUpdateTransaction",
 			"status_code", tran.Status.Code,
