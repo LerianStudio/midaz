@@ -96,9 +96,7 @@ func NewMetadataOutboxWorker(
 	if retentionDays <= 0 {
 		retentionDays = 7
 	}
-
-	assert.That(maxWorkers > 0, "maxWorkers must be greater than zero", "maxWorkers", maxWorkers)
-	assert.That(retentionDays > 0, "retentionDays must be greater than zero", "retentionDays", retentionDays)
+	// maxWorkers and retentionDays are defaulted above to positive values when unset/invalid.
 
 	return &MetadataOutboxWorker{
 		logger:        logger,

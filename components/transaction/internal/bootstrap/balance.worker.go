@@ -61,8 +61,6 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 		maxWorkers = 5
 	}
 
-	assert.That(maxWorkers > 0, "maxWorkers must be greater than zero", "maxWorkers", maxWorkers)
-
 	return &BalanceSyncWorker{
 		redisConn:  conn,
 		logger:     logger,
