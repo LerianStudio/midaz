@@ -37,6 +37,28 @@ func TestUnmarshalAndValidateMessage_PanicsOnNilTransactionID(t *testing.T) {
 	}, "Expected panic on nil TransactionID")
 }
 
+func TestUnmarshalAndValidateMessage_PanicsOnEmptyHeaderID(t *testing.T) {
+	message := mmodel.TransactionRedisQueue{
+		HeaderID:          "",
+		TransactionID:     uuid.New(),
+		OrganizationID:    uuid.New(),
+		LedgerID:          uuid.New(),
+		Balances:          []mmodel.BalanceRedis{{ID: "balance-1"}},
+		Validate:          &pkgTransaction.Responses{},
+		ParserDSL:         pkgTransaction.Transaction{Send: pkgTransaction.Send{Asset: "USD", Value: decimal.NewFromInt(1)}},
+		TTL:               time.Now().Add(-time.Hour),
+		TransactionStatus: constant.CREATED,
+		TransactionDate:   time.Now().Add(-time.Hour),
+	}
+	body, _ := json.Marshal(message)
+
+	consumer := &RedisQueueConsumer{}
+
+	assert.Panics(t, func() {
+		_, _, _ = consumer.unmarshalAndValidateMessage(string(body))
+	}, "Expected panic on empty HeaderID")
+}
+
 func TestUnmarshalAndValidateMessage_PanicsOnNilOrganizationID(t *testing.T) {
 	message := mmodel.TransactionRedisQueue{
 		HeaderID:          "test-header",
