@@ -5,7 +5,7 @@ TEST_ONBOARDING_URL ?= http://localhost:3000
 TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_CRM_URL ?= http://localhost:4003
 TEST_HEALTH_WAIT ?= 60
-TEST_FUZZTIME ?= 30s
+TEST_FUZZTIME ?= 60s
 START_LOCAL_DOCKER ?= 0
 
 # Optional auth configuration (passed through to tests)
@@ -450,4 +450,3 @@ test-all:
 	$(MAKE) test-fuzzy
 	$(call print_title,Running fuzz engine tests)
 	$(MAKE) test-fuzz-engine
-
