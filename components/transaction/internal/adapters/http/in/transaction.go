@@ -1758,9 +1758,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	assert.That(assert.ValidUUID(tran.LedgerID),
 		"transaction ledger ID must be valid UUID",
 		"ledgerID", tran.LedgerID)
-	// Validate state machine: only PENDING transactions can be committed/canceled
-	validateTransactionStateTransition(tran.Status.Code, transactionStatus)
-
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 	txnID := uuid.MustParse(tran.ID)
@@ -1785,6 +1782,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		return nil
 	}
+
+	// Validate state machine: only PENDING transactions can be committed/canceled.
+	// This must run after validatePendingTransaction to avoid panics on user input.
+	validateTransactionStateTransition(tran.Status.Code, transactionStatus)
 
 	parserDSL := tran.Body
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
