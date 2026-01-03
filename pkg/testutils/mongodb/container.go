@@ -68,7 +68,10 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
 		ExposedPorts: []string{"27017/tcp"},
-		WaitingFor:   wait.ForLog("Waiting for connections").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("Waiting for connections"),
+			wait.ForListeningPort("27017/tcp"),
+		).WithStartupTimeout(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},

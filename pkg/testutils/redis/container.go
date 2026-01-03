@@ -57,7 +57,10 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
 		ExposedPorts: []string{"6379/tcp"},
-		WaitingFor:   wait.ForLog("Ready to accept connections").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("Ready to accept connections"),
+			wait.ForListeningPort("6379/tcp"),
+		).WithStartupTimeout(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -117,7 +120,10 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		ExposedPorts:   []string{"6379/tcp"},
 		Networks:       []string{networkName},
 		NetworkAliases: map[string][]string{networkName: {networkAlias}},
-		WaitingFor:     wait.ForLog("Ready to accept connections").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("Ready to accept connections"),
+			wait.ForListeningPort("6379/tcp"),
+		).WithStartupTimeout(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},

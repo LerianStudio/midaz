@@ -78,9 +78,10 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"POSTGRES_USER":     cfg.DBUser,
 			"POSTGRES_PASSWORD": cfg.DBPassword,
 		},
-		WaitingFor: wait.ForLog("database system is ready to accept connections").
-			WithOccurrence(2).
-			WithStartupTimeout(120 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeout(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
