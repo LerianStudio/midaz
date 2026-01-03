@@ -4,11 +4,15 @@ package mongodb
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/testutils/chaos"
 	mongotestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/mongodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +70,7 @@ func TestIntegration_MetadataRepository_Create_InsertsMetadata(t *testing.T) {
 // FindList Tests
 // ============================================================================
 
-func TestIntegration_MetadataRepository_FindList_FiltersbyMetadata(t *testing.T) {
+func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
 	defer container.Cleanup()
@@ -462,4 +466,458 @@ func TestIntegration_MetadataRepository_CollectionIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fromLedger)
 	assert.Equal(t, "ledger", fromLedger.Data["type"])
+}
+
+// ============================================================================
+// CHAOS TEST HELPERS
+// ============================================================================
+
+// skipIfNotChaos skips the test if CHAOS=1 environment variable is not set.
+// Use this for tests that inject failures (network chaos, container restarts, etc.)
+func skipIfNotChaos(t *testing.T) {
+	t.Helper()
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("skipping chaos test (set CHAOS=1 to run)")
+	}
+}
+
+// ============================================================================
+// CHAOS TEST INFRASTRUCTURE
+// ============================================================================
+
+// chaosTestInfra holds the infrastructure for chaos tests (container restart, etc.).
+type chaosTestInfra struct {
+	container  *mongotestutil.ContainerResult
+	repo       *MetadataMongoDBRepository
+	chaosOrch  *chaos.Orchestrator
+	collection string
+}
+
+// networkChaosTestInfra holds infrastructure for network chaos tests with Toxiproxy.
+type networkChaosTestInfra struct {
+	chaosInfra  *chaos.Infrastructure
+	mongoResult *mongotestutil.ContainerResult
+	conn        *libMongo.MongoConnection
+	repo        *MetadataMongoDBRepository
+	proxy       *chaos.Proxy
+	collection  string
+}
+
+// setupChaosInfra sets up the test infrastructure for chaos testing (container restart).
+func setupChaosInfra(t *testing.T) *chaosTestInfra {
+	t.Helper()
+
+	// Setup MongoDB container
+	container := mongotestutil.SetupContainer(t)
+
+	// Create repository using the connection wrapper
+	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
+	repo := &MetadataMongoDBRepository{
+		connection: conn,
+		Database:   container.DBName,
+	}
+
+	// Create chaos orchestrator
+	chaosOrch := chaos.NewOrchestrator(t)
+
+	return &chaosTestInfra{
+		container:  container,
+		repo:       repo,
+		chaosOrch:  chaosOrch,
+		collection: "chaos_test",
+	}
+}
+
+// setupNetworkChaosInfra sets up the infrastructure with Toxiproxy for network chaos testing.
+func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
+	t.Helper()
+
+	// Create chaos infrastructure with Toxiproxy
+	chaosInfra := chaos.NewInfrastructure(t)
+
+	// Setup MongoDB container
+	mongoResult := mongotestutil.SetupContainer(t)
+
+	// Register the container with chaos infrastructure
+	_, err := chaosInfra.RegisterContainerWithPort("mongodb", mongoResult.Container, "27017/tcp")
+	require.NoError(t, err, "failed to register MongoDB container")
+
+	// Create proxy for MongoDB using an exposed Toxiproxy port (8666)
+	proxy, err := chaosInfra.CreateProxyFor("mongodb", "8666/tcp")
+	require.NoError(t, err, "failed to create Toxiproxy proxy for MongoDB")
+
+	// Get proxy address for client connections
+	containerInfo, ok := chaosInfra.GetContainer("mongodb")
+	require.True(t, ok, "MongoDB container should be registered")
+	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
+
+	// Create lib-commons MongoDB connection through proxy
+	logger := libZap.InitializeLogger()
+	proxyURI := "mongodb://" + containerInfo.ProxyListen
+
+	conn := &libMongo.MongoConnection{
+		ConnectionStringSource: proxyURI,
+		Database:               mongoResult.DBName,
+		Logger:                 logger,
+	}
+
+	// Create repository
+	repo := &MetadataMongoDBRepository{
+		connection: conn,
+		Database:   mongoResult.DBName,
+	}
+
+	return &networkChaosTestInfra{
+		chaosInfra:  chaosInfra,
+		mongoResult: mongoResult,
+		conn:        conn,
+		repo:        repo,
+		proxy:       proxy,
+		collection:  "network_chaos_test",
+	}
+}
+
+// cleanup releases all resources for chaos tests.
+func (infra *chaosTestInfra) cleanup() {
+	if infra.chaosOrch != nil {
+		infra.chaosOrch.Close()
+	}
+	if infra.container != nil {
+		infra.container.Cleanup()
+	}
+}
+
+// cleanup releases all resources for network chaos infrastructure.
+func (infra *networkChaosTestInfra) cleanup() {
+	// Cleanup MongoDB container first
+	if infra.mongoResult != nil {
+		infra.mongoResult.Cleanup()
+	}
+	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
+	if infra.chaosInfra != nil {
+		infra.chaosInfra.Cleanup()
+	}
+}
+
+// createTestMetadata creates a metadata document for chaos testing.
+func (infra *chaosTestInfra) createTestMetadata(t *testing.T, entityID, description string) *Metadata {
+	t.Helper()
+
+	metadata := &Metadata{
+		EntityID:   entityID,
+		EntityName: "ChaosTest",
+		Data:       map[string]any{"description": description, "timestamp": time.Now().Unix()},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	err := infra.repo.Create(context.Background(), infra.collection, metadata)
+	require.NoError(t, err)
+	return metadata
+}
+
+// createTestMetadata creates a metadata document for network chaos testing.
+func (infra *networkChaosTestInfra) createTestMetadata(t *testing.T, entityID, description string) *Metadata {
+	t.Helper()
+
+	metadata := &Metadata{
+		EntityID:   entityID,
+		EntityName: "NetworkChaosTest",
+		Data:       map[string]any{"description": description, "timestamp": time.Now().Unix()},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	err := infra.repo.Create(context.Background(), infra.collection, metadata)
+	require.NoError(t, err)
+	return metadata
+}
+
+// ============================================================================
+// CHAOS TESTS - CONTAINER LIFECYCLE
+// ============================================================================
+
+// TestChaos_Metadata_MongoDBRestart tests that the repository recovers
+// after a MongoDB container restart.
+// SKIPPED: lib-commons MongoDB connection pool does not recover after restart.
+func TestChaos_Metadata_MongoDBRestart(t *testing.T) {
+	t.Skip("skipping: lib-commons connection pool does not recover after MongoDB restart")
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Create initial metadata
+	metadata := infra.createTestMetadata(t, "restart-test-1", "Pre-restart metadata")
+	t.Logf("Created metadata %s before restart", metadata.EntityID)
+
+	// Inject chaos: restart MongoDB
+	containerID := infra.container.Container.GetContainerID()
+	t.Logf("Chaos: Restarting MongoDB container %s", containerID)
+
+	err := infra.chaosOrch.RestartContainer(ctx, containerID, 10*time.Second)
+	require.NoError(t, err, "container restart should succeed")
+
+	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
+	require.NoError(t, err, "container should be running after restart")
+
+	// Wait for database to be ready again
+	chaos.AssertRecoveryWithin(t, func() error {
+		_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+		return err
+	}, 30*time.Second, "repository should recover after MongoDB restart")
+
+	// Verify data integrity
+	recovered, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+	require.NoError(t, err)
+	require.NotNil(t, recovered, "metadata should exist after restart")
+	assert.Equal(t, metadata.EntityID, recovered.EntityID, "entity ID should be unchanged")
+	assert.Equal(t, metadata.Data["description"], recovered.Data["description"], "description should be unchanged")
+
+	t.Log("Chaos test passed: MongoDB restart recovery verified")
+}
+
+// TestChaos_Metadata_DataIntegrity tests that data remains consistent
+// after chaos events (no data loss, no corruption).
+func TestChaos_Metadata_DataIntegrity(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Create multiple metadata documents before chaos
+	var createdMetadata []*Metadata
+	for i := 0; i < 5; i++ {
+		metadata := infra.createTestMetadata(t, "integrity-test-"+string(rune('a'+i)), "Integrity test metadata")
+		createdMetadata = append(createdMetadata, metadata)
+	}
+
+	t.Logf("Created %d metadata documents before chaos", len(createdMetadata))
+
+	// Verify all data is intact
+	chaos.AssertDataIntegrity(t, func() error {
+		for _, m := range createdMetadata {
+			_, err := infra.repo.FindByEntity(ctx, infra.collection, m.EntityID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}, "all metadata should be retrievable")
+
+	// Verify each metadata document's data
+	for _, expected := range createdMetadata {
+		actual, err := infra.repo.FindByEntity(ctx, infra.collection, expected.EntityID)
+		require.NoError(t, err)
+		require.NotNil(t, actual)
+		chaos.AssertNoDataLoss(t, expected.EntityID, actual.EntityID, "entity ID mismatch")
+		chaos.AssertNoDataLoss(t, expected.Data["description"], actual.Data["description"], "description mismatch")
+	}
+
+	t.Log("Chaos test passed: data integrity verified")
+}
+
+// ============================================================================
+// CHAOS TESTS - NETWORK CHAOS
+// ============================================================================
+
+// TestChaos_Metadata_NetworkLatency tests that the repository handles
+// network latency gracefully without timing out inappropriately.
+func TestChaos_Metadata_NetworkLatency(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	t.Logf("Using Toxiproxy proxy: %s -> %s", infra.proxy.Listen(), infra.proxy.Upstream())
+
+	// Create metadata before adding latency
+	metadata := infra.createTestMetadata(t, "latency-test-1", "Pre-latency metadata")
+	t.Logf("Created metadata %s before adding latency", metadata.EntityID)
+
+	// Add 200ms latency to the connection
+	t.Log("Chaos: Adding 200ms network latency")
+	err := infra.proxy.AddLatency(200*time.Millisecond, 50*time.Millisecond)
+	require.NoError(t, err, "failed to add latency")
+	defer infra.proxy.RemoveAllToxics()
+
+	// Operations should still succeed (with higher latency)
+	start := time.Now()
+	found, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+	elapsed := time.Since(start)
+
+	require.NoError(t, err, "operation should succeed despite latency")
+	require.NotNil(t, found)
+	assert.Equal(t, metadata.EntityID, found.EntityID)
+	t.Logf("Query completed in %v (with 200ms injected latency)", elapsed)
+
+	// Latency should be noticeable
+	assert.Greater(t, elapsed, 150*time.Millisecond, "query should take longer due to injected latency")
+
+	// Create new metadata under latency
+	start = time.Now()
+	newMetadata := infra.createTestMetadata(t, "latency-test-2", "Under-latency metadata")
+	elapsed = time.Since(start)
+
+	require.NotNil(t, newMetadata, "should be able to create metadata under latency")
+	t.Logf("Create completed in %v (with 200ms injected latency)", elapsed)
+
+	t.Log("Chaos test passed: network latency handled gracefully")
+}
+
+// TestChaos_Metadata_NetworkPartition tests that the repository handles
+// network partitions (disconnections) gracefully.
+func TestChaos_Metadata_NetworkPartition(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Create metadata before partition
+	metadata := infra.createTestMetadata(t, "partition-test-1", "Pre-partition metadata")
+	t.Logf("Created metadata %s before partition", metadata.EntityID)
+
+	// Disconnect the proxy (simulate network partition)
+	t.Log("Chaos: Disconnecting network (simulating partition)")
+	err := infra.proxy.Disconnect()
+	require.NoError(t, err, "failed to disconnect proxy")
+
+	// Operations should fail gracefully during partition
+	partitionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, partitionErr := infra.repo.FindByEntity(partitionCtx, infra.collection, metadata.EntityID)
+	if partitionErr != nil {
+		t.Logf("Operation during partition failed as expected: %v", partitionErr)
+	} else {
+		t.Log("Operation during partition succeeded (connection pool still had active connections)")
+	}
+
+	// Reconnect the proxy
+	t.Log("Chaos: Reconnecting network")
+	err = infra.proxy.Reconnect()
+	require.NoError(t, err, "failed to reconnect proxy")
+
+	// Wait for recovery
+	chaos.AssertRecoveryWithin(t, func() error {
+		_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+		return err
+	}, 30*time.Second, "repository should recover after network partition")
+
+	// Verify data integrity after partition
+	found, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+	require.NoError(t, err, "should find metadata after recovery")
+	require.NotNil(t, found)
+	assert.Equal(t, metadata.EntityID, found.EntityID)
+	assert.Equal(t, metadata.Data["description"], found.Data["description"])
+
+	t.Log("Chaos test passed: network partition handled gracefully")
+}
+
+// TestChaos_Metadata_PacketLoss tests that the repository handles
+// packet loss gracefully with retries.
+func TestChaos_Metadata_PacketLoss(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Create metadata before adding packet loss
+	metadata := infra.createTestMetadata(t, "packetloss-test-1", "Pre-packet-loss metadata")
+	t.Logf("Created metadata %s before packet loss", metadata.EntityID)
+
+	// Add 10% packet loss
+	t.Log("Chaos: Adding 10% packet loss")
+	err := infra.proxy.AddPacketLoss(10)
+	require.NoError(t, err, "failed to add packet loss")
+	defer infra.proxy.RemoveAllToxics()
+
+	// Execute multiple operations - some may fail, but overall should be resilient
+	successCount := 0
+	errorCount := 0
+	totalAttempts := 20
+
+	for i := 0; i < totalAttempts; i++ {
+		_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+		if err != nil {
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+
+	t.Logf("Packet loss test: %d/%d operations succeeded", successCount, totalAttempts)
+
+	// Most operations should succeed despite packet loss
+	assert.Greater(t, successCount, totalAttempts/2, "majority of operations should succeed despite packet loss")
+
+	t.Log("Chaos test passed: packet loss handled with acceptable success rate")
+}
+
+// TestChaos_Metadata_IntermittentFailure tests that the repository handles
+// intermittent network failures (flapping connection).
+func TestChaos_Metadata_IntermittentFailure(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Create metadata
+	metadata := infra.createTestMetadata(t, "intermittent-test-1", "Intermittent test metadata")
+
+	// Simulate intermittent failures with multiple disconnect/reconnect cycles
+	cycles := 3
+	for i := 0; i < cycles; i++ {
+		// Disconnect
+		t.Logf("Chaos: Cycle %d - disconnecting", i+1)
+		infra.proxy.Disconnect()
+		time.Sleep(500 * time.Millisecond)
+
+		// Reconnect
+		t.Logf("Chaos: Cycle %d - reconnecting", i+1)
+		infra.proxy.Reconnect()
+
+		// Wait for recovery and verify
+		chaos.AssertRecoveryWithin(t, func() error {
+			_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+			return err
+		}, 10*time.Second, "should recover after cycle %d", i+1)
+	}
+
+	// Final verification
+	found, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, metadata.EntityID, found.EntityID)
+
+	t.Log("Chaos test passed: intermittent failures handled correctly")
 }

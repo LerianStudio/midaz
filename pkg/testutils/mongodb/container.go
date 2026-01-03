@@ -46,11 +46,12 @@ func DefaultContainerConfig() ContainerConfig {
 
 // ContainerResult holds the result of starting a MongoDB container.
 type ContainerResult struct {
-	Client   *mongo.Client
-	Database *mongo.Database
-	URI      string
-	DBName   string
-	Cleanup  func()
+	Container testcontainers.Container // Underlying container for chaos testing
+	Client    *mongo.Client
+	Database  *mongo.Database
+	URI       string
+	DBName    string
+	Cleanup   func()
 }
 
 // SetupContainer starts a MongoDB container for integration testing.
@@ -106,11 +107,12 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 
 	return &ContainerResult{
-		Client:   client,
-		Database: client.Database(cfg.DBName),
-		URI:      uri,
-		DBName:   cfg.DBName,
-		Cleanup:  cleanup,
+		Container: container,
+		Client:    client,
+		Database:  client.Database(cfg.DBName),
+		URI:       uri,
+		DBName:    cfg.DBName,
+		Cleanup:   cleanup,
 	}
 }
 

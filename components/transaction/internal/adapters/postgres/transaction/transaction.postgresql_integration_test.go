@@ -615,9 +615,8 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 // TestChaos_Transaction_PostgresRestart tests that the repository recovers
 // after a PostgreSQL container restart.
 // SKIPPED: lib-commons PostgreSQL connection pool does not recover after restart.
-// See: ../notes/pending-tasks/2026-01-03-lib-commons-postgres-restart-recovery.md
 func TestChaos_Transaction_PostgresRestart(t *testing.T) {
-	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart (see pending-tasks)")
+	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")

@@ -675,9 +675,8 @@ func TestUseCase_CreateMetadata(t *testing.T) {
 
 // TestUseCase_CreateOperation_ValidationError tests that validation errors stop operation creation.
 // BUG: Currently the code continues execution after validation error, creating invalid operations.
-// See: ../notes/pending-tasks/2025-12-28-create-operation-missing-continue-on-validation-error.md
 func TestUseCase_CreateOperation_ValidationError(t *testing.T) {
-	t.Skip("BUG: CreateOperation missing 'continue' after validation error")
+	t.Skip("FIX: CreateOperation missing 'continue' after validation error")
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
