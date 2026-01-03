@@ -210,6 +210,23 @@ test-fuzz:
 	  echo "Fuzz testing complete. Check testdata/fuzz/ for corpus."; \
 	fi
 
+# Benchmark tests
+# Run performance benchmarks for critical code paths.
+# Usage:
+#   make test-bench                          # Run all benchmarks
+#   make test-bench BENCH=OperateBalances    # Run specific benchmark pattern
+#   make test-bench BENCH_PKG=./pkg/transaction/...  # Run benchmarks in specific package
+BENCH ?= .
+BENCH_PKG ?= ./...
+
+.PHONY: test-bench
+test-bench:
+	$(call print_title,Running Go benchmark tests)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@echo "Benchmark pattern: $(BENCH)"
+	@echo "Package: $(BENCH_PKG)"
+	@go test -bench=$(BENCH) -benchmem -run=^$$ $(BENCH_PKG)
+
 # Integration tests with testcontainers (no coverage)
 # These tests use the `integration` build tag and testcontainers-go to spin up
 # ephemeral containers. No external Docker stack is required.
