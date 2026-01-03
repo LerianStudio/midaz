@@ -1031,3 +1031,153 @@ func TestChaos_RabbitMQ_DataIntegrityAfterRestart(t *testing.T) {
 
 	t.Log("Chaos test passed: data integrity after restart verified")
 }
+
+// =============================================================================
+// CHAOS TESTS - CONTAINER PAUSE/UNPAUSE
+// =============================================================================
+
+// TestChaos_RabbitMQ_PauseUnpauseDuringPublish tests that the producer handles
+// container pause/unpause gracefully during active publishing.
+// This simulates scenarios like:
+// - Container being paused during maintenance
+// - Resource contention causing process freeze
+// - Docker checkpoint/restore operations
+//
+// The producer should:
+// - Buffer or retry messages during pause
+// - Resume normal operation after unpause
+// - Not lose any messages that were accepted before pause
+func TestChaos_RabbitMQ_PauseUnpauseDuringPublish(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRabbitMQChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// 1. Publish baseline messages to verify setup
+	t.Log("Step 1: Publishing baseline messages to verify setup")
+	baselineCount := 3
+	for i := 0; i < baselineCount; i++ {
+		msg := chaosTestMessage{
+			ID:        uuid.New().String(),
+			Timestamp: time.Now(),
+			Data:      fmt.Sprintf("Baseline message %d", i+1),
+		}
+		msgBytes, _ := json.Marshal(msg)
+
+		_, err := infra.producer.ProducerDefault(ctx, infra.exchange, infra.routingKey, msgBytes)
+		require.NoError(t, err, "baseline publish %d should succeed", i+1)
+	}
+
+	// Wait for baseline messages to arrive in queue
+	rmqtestutil.WaitForQueueCount(t, infra.rmqContainer.Channel, infra.queue, baselineCount, 5*time.Second)
+	t.Logf("Baseline: %d messages in queue", baselineCount)
+
+	// 2. Start concurrent publishers
+	t.Log("Step 2: Starting concurrent publishers")
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	successCount := 0
+	errorCount := 0
+	stop := make(chan struct{})
+
+	// Publisher goroutine
+	publisher := func(id int) {
+		defer wg.Done()
+		localSuccess := 0
+		localError := 0
+
+		for {
+			select {
+			case <-stop:
+				mu.Lock()
+				successCount += localSuccess
+				errorCount += localError
+				mu.Unlock()
+				return
+			default:
+			}
+
+			msg := chaosTestMessage{
+				ID:        uuid.New().String(),
+				Timestamp: time.Now(),
+				Data:      fmt.Sprintf("Publisher %d message", id),
+			}
+			msgBytes, _ := json.Marshal(msg)
+
+			// Use timeout context to avoid blocking forever during pause
+			pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			_, err := infra.producer.ProducerDefault(pubCtx, infra.exchange, infra.routingKey, msgBytes)
+			cancel()
+
+			if err != nil {
+				localError++
+			} else {
+				localSuccess++
+			}
+
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	// Start 2 publishers
+	numPublishers := 2
+	for i := 0; i < numPublishers; i++ {
+		wg.Add(1)
+		go publisher(i + 1)
+	}
+
+	// Let publishers run for a bit before chaos
+	time.Sleep(500 * time.Millisecond)
+
+	// 3. INJECT CHAOS: Pause container
+	containerID := infra.rmqContainer.Container.GetContainerID()
+	t.Logf("Step 3: INJECT CHAOS - Pausing RabbitMQ container %s", containerID)
+
+	err := infra.chaosOrch.PauseContainer(ctx, containerID)
+	require.NoError(t, err, "container pause should succeed")
+	t.Log("Chaos: RabbitMQ container paused - publishers may experience timeouts")
+
+	// Keep paused for 2 seconds
+	time.Sleep(2 * time.Second)
+
+	// 4. REMOVE CHAOS: Unpause container
+	t.Log("Step 4: REMOVE CHAOS - Unpausing RabbitMQ container")
+	err = infra.chaosOrch.UnpauseContainer(ctx, containerID)
+	require.NoError(t, err, "container unpause should succeed")
+	t.Log("Chaos: RabbitMQ container unpaused - publishers should resume")
+
+	// Let publishers continue after unpause
+	time.Sleep(2 * time.Second)
+
+	// Stop publishers
+	close(stop)
+	wg.Wait()
+
+	t.Logf("Publishing results: %d successful, %d errors", successCount, errorCount)
+
+	// 5. Verify messages in queue
+	t.Log("Step 5: Verifying message delivery")
+
+	// Wait a bit for any in-flight messages to be delivered
+	time.Sleep(1 * time.Second)
+
+	finalCount := rmqtestutil.GetQueueMessageCount(t, infra.rmqContainer.Channel, infra.queue)
+	expectedMinimum := baselineCount + successCount
+
+	t.Logf("Final queue count: %d (expected at least: %d)", finalCount, expectedMinimum)
+
+	// All successful publishes should result in messages in the queue
+	assert.GreaterOrEqual(t, finalCount, expectedMinimum,
+		"queue should contain at least baseline + successful publishes")
+
+	// Some publishes may have succeeded during pause (buffered) or failed
+	// The key invariant is: no data loss for acknowledged publishes
+	assert.Greater(t, successCount, 0, "some publishes should succeed despite pause")
+
+	t.Log("Chaos test passed: RabbitMQ pause/unpause during publish handled correctly")
+}

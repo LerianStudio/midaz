@@ -728,7 +728,1024 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 	}
 }
 
+// TestCreateTransactionInflow_NonPositiveValue_Returns422 validates that creating an inflow transaction
+// with send.value <= 0 returns HTTP 422 with error code 0125.
+// Business rule: Transaction values must be greater than zero.
+func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		sendValue string
+	}{
+		{name: "zero value is rejected", sendValue: "0"},
+		{name: "negative value is rejected", sendValue: "-1"},
+		{name: "negative decimal is rejected", sendValue: "-0.01"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			// No mocks needed - validation short-circuits before any repository call
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/inflow",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				http.WithBody(new(transaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
+			)
+
+			// Build request body with non-positive value (inflow has no source, only distribute.to)
+			requestBody := `{
+				"send": {
+					"asset": "USD",
+					"value": "` + tt.sendValue + `",
+					"distribute": {
+						"to": [{"accountAlias": "@dest", "amount": {"asset": "USD", "value": "100"}}]
+					}
+				}
+			}`
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/inflow",
+				strings.NewReader(requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrInvalidTransactionNonPositiveValue.Error(), errResp["code"],
+				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
+
+			// Verify error message is present and descriptive
+			msg, ok := errResp["message"].(string)
+			assert.True(t, ok, "error response should contain message field")
+			assert.Contains(t, msg, "zero", "error message should mention zero values")
+		})
+	}
+}
+
+// TestCreateTransactionOutflow_NonPositiveValue_Returns422 validates that creating an outflow transaction
+// with send.value <= 0 returns HTTP 422 with error code 0125.
+// Business rule: Transaction values must be greater than zero.
+func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		sendValue string
+	}{
+		{name: "zero value is rejected", sendValue: "0"},
+		{name: "negative value is rejected", sendValue: "-1"},
+		{name: "negative decimal is rejected", sendValue: "-0.01"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			// No mocks needed - validation short-circuits before any repository call
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/outflow",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				http.WithBody(new(transaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
+			)
+
+			// Build request body with non-positive value (outflow has no distribute.to, only source.from)
+			requestBody := `{
+				"send": {
+					"asset": "USD",
+					"value": "` + tt.sendValue + `",
+					"source": {
+						"from": [{"accountAlias": "@source", "amount": {"asset": "USD", "value": "100"}}]
+					}
+				}
+			}`
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/outflow",
+				strings.NewReader(requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrInvalidTransactionNonPositiveValue.Error(), errResp["code"],
+				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
+
+			// Verify error message is present and descriptive
+			msg, ok := errResp["message"].(string)
+			assert.True(t, ok, "error response should contain message field")
+			assert.Contains(t, msg, "zero", "error message should mention zero values")
+		})
+	}
+}
+
 // ptr is a helper function to create a pointer to a string.
 func ptr(s string) *string {
 	return &s
+}
+
+// TestTransactionHandler_GetAllTransactions tests the GetAllTransactions handler
+func TestTransactionHandler_GetAllTransactions(t *testing.T) {
+	tests := []struct {
+		name           string
+		queryParams    string
+		setupMocks     func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name:        "success returns 200 with pagination (cursor-based)",
+			queryParams: "?limit=10&sort_order=desc",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionID := uuid.New()
+				amount := decimal.NewFromInt(1000)
+				transactionRepo.EXPECT().
+					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{}, gomock.Any()).
+					Return([]*transaction.Transaction{
+						{
+							ID:             transactionID.String(),
+							OrganizationID: orgID.String(),
+							LedgerID:       ledgerID.String(),
+							Description:    "Test transaction",
+							AssetCode:      "USD",
+							Amount:         &amount,
+							Status: transaction.Status{
+								Code: cn.APPROVED,
+							},
+							Operations: []*operation.Operation{},
+						},
+					}, libHTTP.CursorPagination{
+						Next: "next-cursor-token",
+						Prev: "prev-cursor-token",
+					}, nil).
+					Times(1)
+				metadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
+					Return([]*mongodb.Metadata{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "items", "response should have items field")
+				assert.Contains(t, result, "next_cursor", "response should have next_cursor for pagination")
+				assert.Contains(t, result, "prev_cursor", "response should have prev_cursor for pagination")
+
+				items, ok := result["items"].([]any)
+				require.True(t, ok, "items should be an array")
+				assert.Len(t, items, 1, "should have one transaction")
+			},
+		},
+		{
+			name:        "success returns 200 with metadata filter (dual code path)",
+			queryParams: "?metadata.category=payment",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionID := uuid.New()
+				amount := decimal.NewFromInt(500)
+
+				// First: FindList is called for metadata filtering
+				metadataRepo.EXPECT().
+					FindList(gomock.Any(), "Transaction", gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{
+							EntityID: transactionID.String(),
+							Data:     map[string]any{"category": "payment"},
+						},
+					}, nil).
+					Times(1)
+
+				// Then: FindOrListAllWithOperations is called with the filtered IDs
+				transactionRepo.EXPECT().
+					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{transactionID}, gomock.Any()).
+					Return([]*transaction.Transaction{
+						{
+							ID:             transactionID.String(),
+							OrganizationID: orgID.String(),
+							LedgerID:       ledgerID.String(),
+							Description:    "Payment transaction",
+							AssetCode:      "USD",
+							Amount:         &amount,
+							Status: transaction.Status{
+								Code: cn.APPROVED,
+							},
+							Operations: []*operation.Operation{},
+						},
+					}, libHTTP.CursorPagination{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "items", "response should have items field")
+
+				items, ok := result["items"].([]any)
+				require.True(t, ok, "items should be an array")
+				assert.Len(t, items, 1, "should have one transaction matching metadata filter")
+			},
+		},
+		{
+			name:        "success returns 200 without metadata filter",
+			queryParams: "",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionID := uuid.New()
+				amount := decimal.NewFromInt(2000)
+
+				transactionRepo.EXPECT().
+					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{}, gomock.Any()).
+					Return([]*transaction.Transaction{
+						{
+							ID:             transactionID.String(),
+							OrganizationID: orgID.String(),
+							LedgerID:       ledgerID.String(),
+							Description:    "Regular transaction",
+							AssetCode:      "EUR",
+							Amount:         &amount,
+							Status: transaction.Status{
+								Code: cn.APPROVED,
+							},
+							Operations: []*operation.Operation{},
+						},
+					}, libHTTP.CursorPagination{}, nil).
+					Times(1)
+				metadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
+					Return([]*mongodb.Metadata{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "items", "response should have items field")
+			},
+		},
+		{
+			name:        "invalid query parameters returns 400",
+			queryParams: "?start_date=invalid-date-format",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				// No mocks needed - validation fails before repository calls
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+		{
+			name:        "repository error returns 500",
+			queryParams: "",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionRepo.EXPECT().
+					FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{}, gomock.Any()).
+					Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Contains(t, errResp, "message", "error response should contain message field")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			tt.setupMocks(mockTransactionRepo, mockOperationRepo, mockMetadataRepo, orgID, ledgerID)
+
+			uc := &query.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				OperationRepo:   mockOperationRepo,
+				MetadataRepo:    mockMetadataRepo,
+			}
+			handler := &TransactionHandler{Query: uc}
+
+			app := fiber.New()
+			app.Get("/test/:organization_id/:ledger_id/transactions",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				handler.GetAllTransactions,
+			)
+
+			// Act
+			req := httptest.NewRequest("GET",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams,
+				nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}
+
+// TestTransactionHandler_UpdateTransaction tests the UpdateTransaction handler
+func TestTransactionHandler_UpdateTransaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    string
+		setupMocks     func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name:        "success returns 200 with updated transaction",
+			requestBody: `{"description": "Updated description", "metadata": {"key": "value"}}`,
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+
+				// Command.UpdateTransaction calls TransactionRepo.Update
+				transactionRepo.EXPECT().
+					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					Return(&transaction.Transaction{
+						ID:             transactionID.String(),
+						OrganizationID: orgID.String(),
+						LedgerID:       ledgerID.String(),
+						Description:    "Updated description",
+						AssetCode:      "USD",
+						Amount:         &amount,
+						Status: transaction.Status{
+							Code: cn.APPROVED,
+						},
+					}, nil).
+					Times(1)
+
+				// Command.UpdateMetadata first calls FindByEntity to get existing metadata
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, nil).
+					Times(1)
+
+				// Command.UpdateMetadata then calls MetadataRepo.Update
+				metadataRepo.EXPECT().
+					Update(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
+					Return(nil).
+					Times(1)
+
+				// Query.GetTransactionByID (read-after-write pattern) calls TransactionRepo.Find
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(&transaction.Transaction{
+						ID:             transactionID.String(),
+						OrganizationID: orgID.String(),
+						LedgerID:       ledgerID.String(),
+						Description:    "Updated description",
+						AssetCode:      "USD",
+						Amount:         &amount,
+						Status: transaction.Status{
+							Code: cn.APPROVED,
+						},
+					}, nil).
+					Times(1)
+
+				// Query.GetTransactionByID calls FindByEntity for transaction metadata
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(&mongodb.Metadata{
+						EntityID: transactionID.String(),
+						Data:     map[string]any{"key": "value"},
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Equal(t, "Updated description", result["description"])
+				assert.Contains(t, result, "metadata", "response should have metadata field")
+			},
+		},
+		{
+			name:        "not found returns 404",
+			requestBody: `{"description": "Updated description"}`,
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				transactionRepo.EXPECT().
+					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					Return(nil, pkg.EntityNotFoundError{
+						EntityType: "Transaction",
+						Code:       cn.ErrTransactionIDNotFound.Error(),
+						Title:      "Entity Not Found",
+						Message:    "Transaction not found",
+					}).
+					Times(1)
+			},
+			expectedStatus: 404,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, cn.ErrTransactionIDNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name:        "repository update error returns 500",
+			requestBody: `{"description": "Updated description"}`,
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				transactionRepo.EXPECT().
+					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					Return(nil, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database update failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+		{
+			name:        "repository get error after update returns 500",
+			requestBody: `{"description": "Updated description", "metadata": {"key": "value"}}`,
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+
+				// Update succeeds
+				transactionRepo.EXPECT().
+					Update(gomock.Any(), orgID, ledgerID, transactionID, gomock.Any()).
+					Return(&transaction.Transaction{
+						ID:             transactionID.String(),
+						OrganizationID: orgID.String(),
+						LedgerID:       ledgerID.String(),
+						Description:    "Updated description",
+						AssetCode:      "USD",
+						Amount:         &amount,
+						Status: transaction.Status{
+							Code: cn.APPROVED,
+						},
+					}, nil).
+					Times(1)
+
+				// UpdateMetadata first calls FindByEntity to check existing metadata
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, nil).
+					Times(1)
+
+				// UpdateMetadata then calls Update
+				metadataRepo.EXPECT().
+					Update(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
+					Return(nil).
+					Times(1)
+
+				// Get after update fails
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(nil, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database read failed after update",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+
+			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			tt.setupMocks(mockTransactionRepo, mockMetadataRepo, mockOperationRepo, orgID, ledgerID, transactionID)
+
+			queryUC := &query.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				MetadataRepo:    mockMetadataRepo,
+				OperationRepo:   mockOperationRepo,
+			}
+			commandUC := &command.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				MetadataRepo:    mockMetadataRepo,
+			}
+			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+			app := fiber.New()
+			app.Patch("/test/:organization_id/:ledger_id/transactions/:transaction_id",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					c.Locals("transaction_id", transactionID)
+					return c.Next()
+				},
+				http.WithBody(new(transaction.UpdateTransactionInput), handler.UpdateTransaction),
+			)
+
+			// Act
+			req := httptest.NewRequest("PATCH",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String(),
+				strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}
+
+// TestCreateTransactionAnnotation_NonPositiveValue_Returns422 validates that creating an annotation
+// with send.value <= 0 returns HTTP 422 with error code 0125.
+// Business rule: Transaction values must be greater than zero, even for annotations.
+func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		sendValue string
+	}{
+		{name: "zero value is rejected", sendValue: "0"},
+		{name: "negative value is rejected", sendValue: "-1"},
+		{name: "negative decimal is rejected", sendValue: "-0.01"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			// No mocks needed - validation short-circuits before any repository call
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/annotation",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
+			)
+
+			// Build request body with non-positive value
+			requestBody := `{
+				"send": {
+					"asset": "USD",
+					"value": "` + tt.sendValue + `",
+					"source": {
+						"from": [{"accountAlias": "@source", "amount": {"asset": "USD", "value": "100"}}]
+					},
+					"distribute": {
+						"to": [{"accountAlias": "@dest", "amount": {"asset": "USD", "value": "100"}}]
+					}
+				}
+			}`
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/annotation",
+				strings.NewReader(requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			err = json.Unmarshal(body, &errResp)
+			require.NoError(t, err, "error response should be valid JSON")
+
+			assert.Equal(t, cn.ErrInvalidTransactionNonPositiveValue.Error(), errResp["code"],
+				"expected error code 0125 (ErrInvalidTransactionNonPositiveValue)")
+
+			// Verify error message is present and descriptive
+			msg, ok := errResp["message"].(string)
+			assert.True(t, ok, "error response should contain message field")
+			assert.Contains(t, msg, "zero", "error message should mention zero values")
+		})
+	}
+}
+
+// TestCancelTransaction tests the CancelTransaction handler
+func TestCancelTransaction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		setupMocks     func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name: "transaction not found returns 404",
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(nil, pkg.EntityNotFoundError{
+						EntityType: "Transaction",
+						Code:       cn.ErrEntityNotFound.Error(),
+						Title:      "Entity Not Found",
+						Message:    "Transaction not found",
+					}).
+					Times(1)
+			},
+			expectedStatus: 404,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, cn.ErrEntityNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "transaction not PENDING returns 422",
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+				txBody := pkgTransaction.Transaction{
+					Send: pkgTransaction.Send{
+						Source: pkgTransaction.Source{
+							From: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc1"},
+							},
+						},
+						Distribute: pkgTransaction.Distribute{
+							To: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc2"},
+							},
+						},
+					},
+				}
+				tran := &transaction.Transaction{
+					ID:             transactionID.String(),
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+					Description:    "Test transaction",
+					AssetCode:      "USD",
+					Amount:         &amount,
+					Status: transaction.Status{
+						Code: cn.APPROVED, // Not PENDING
+					},
+					Body: txBody,
+				}
+
+				// Query.GetTransactionByID
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(tran, nil).
+					Times(1)
+
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, nil).
+					Times(1)
+
+				// Redis lock acquired successfully
+				redisRepo.EXPECT().
+					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
+					Times(1)
+
+				// Redis lock cleanup after error
+				redisRepo.EXPECT().
+					Del(gomock.Any(), gomock.Any()).
+					Return(nil).
+					Times(1)
+			},
+			expectedStatus: 422,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+					"expected error code 0099 (ErrCommitTransactionNotPending)")
+			},
+		},
+		{
+			name: "Redis lock failure returns 500",
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+				txBody := pkgTransaction.Transaction{
+					Send: pkgTransaction.Send{
+						Source: pkgTransaction.Source{
+							From: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc1"},
+							},
+						},
+						Distribute: pkgTransaction.Distribute{
+							To: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc2"},
+							},
+						},
+					},
+				}
+				tran := &transaction.Transaction{
+					ID:             transactionID.String(),
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+					Description:    "Test transaction",
+					AssetCode:      "USD",
+					Amount:         &amount,
+					Status: transaction.Status{
+						Code: cn.PENDING,
+					},
+					Body: txBody,
+				}
+
+				// Query.GetTransactionByID
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(tran, nil).
+					Times(1)
+
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, nil).
+					Times(1)
+
+				// Redis SetNX returns error
+				redisRepo.EXPECT().
+					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Redis connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+		{
+			name: "lock already acquired by another process returns 422",
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+				txBody := pkgTransaction.Transaction{
+					Send: pkgTransaction.Send{
+						Source: pkgTransaction.Source{
+							From: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc1"},
+							},
+						},
+						Distribute: pkgTransaction.Distribute{
+							To: []pkgTransaction.FromTo{
+								{AccountAlias: "@acc2"},
+							},
+						},
+					},
+				}
+				tran := &transaction.Transaction{
+					ID:             transactionID.String(),
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+					Description:    "Test transaction",
+					AssetCode:      "USD",
+					Amount:         &amount,
+					Status: transaction.Status{
+						Code: cn.PENDING,
+					},
+					Body: txBody,
+				}
+
+				// Query.GetTransactionByID
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(tran, nil).
+					Times(1)
+
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, nil).
+					Times(1)
+
+				// Redis SetNX returns false (lock already held by another process)
+				redisRepo.EXPECT().
+					SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).
+					Times(1)
+			},
+			expectedStatus: 422,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+					"expected error code 0099 when transaction is locked")
+			},
+		},
+		{
+			name: "metadata retrieval error returns 500",
+			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				amount := decimal.NewFromInt(1000)
+				tran := &transaction.Transaction{
+					ID:             transactionID.String(),
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+					Description:    "Test transaction",
+					AssetCode:      "USD",
+					Amount:         &amount,
+					Status: transaction.Status{
+						Code: cn.PENDING,
+					},
+				}
+
+				// Query.GetTransactionByID - Find succeeds
+				transactionRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					Return(tran, nil).
+					Times(1)
+
+				// Metadata retrieval fails
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(nil, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "MongoDB connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			transactionID := uuid.New()
+
+			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			tt.setupMocks(mockTransactionRepo, mockMetadataRepo, mockOperationRepo, mockRedisRepo, orgID, ledgerID, transactionID)
+
+			queryUC := &query.UseCase{
+				TransactionRepo: mockTransactionRepo,
+				MetadataRepo:    mockMetadataRepo,
+				OperationRepo:   mockOperationRepo,
+			}
+			commandUC := &command.UseCase{
+				RedisRepo: mockRedisRepo,
+			}
+			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					c.Locals("transaction_id", transactionID)
+					return c.Next()
+				},
+				handler.CancelTransaction,
+			)
+
+			// Act
+			req := httptest.NewRequest("POST",
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
+				nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
 }
