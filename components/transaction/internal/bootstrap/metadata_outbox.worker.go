@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/mretry"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -42,12 +43,15 @@ const (
 	metadataOutboxProcessingTimeout = 30 * time.Second
 
 	// metadataOutboxInitialBackoff is the initial delay for retry backoff (1 second).
+	// Deprecated: Use mretry.Config.InitialBackoff via NewMetadataOutboxWorker config parameter instead.
 	metadataOutboxInitialBackoff = 1 * time.Second
 
 	// metadataOutboxMaxBackoff is the maximum delay for retry backoff (30 minutes).
+	// Deprecated: Use mretry.Config.MaxBackoff via NewMetadataOutboxWorker config parameter instead.
 	metadataOutboxMaxBackoff = 30 * time.Minute
 
 	// metadataOutboxJitterFactor is the percentage of jitter to add (25%).
+	// Deprecated: Use mretry.Config.JitterFactor via NewMetadataOutboxWorker config parameter instead.
 	metadataOutboxJitterFactor = 0.25
 )
 
@@ -72,9 +76,11 @@ type MetadataOutboxWorker struct {
 	mongoConn     *libMongo.MongoConnection
 	maxWorkers    int
 	retentionDays int
+	retryConfig   mretry.Config // Shared retry configuration
 }
 
 // NewMetadataOutboxWorker creates a new MetadataOutboxWorker instance.
+// If no retry config is provided, defaults to mretry.DefaultMetadataOutboxConfig().
 func NewMetadataOutboxWorker(
 	logger libLog.Logger,
 	outboxRepo outbox.Repository,
@@ -83,6 +89,7 @@ func NewMetadataOutboxWorker(
 	mongoConn *libMongo.MongoConnection,
 	maxWorkers int,
 	retentionDays int,
+	config ...mretry.Config,
 ) *MetadataOutboxWorker {
 	assert.NotNil(logger, "Logger required for MetadataOutboxWorker")
 	assert.NotNil(outboxRepo, "OutboxRepository required for MetadataOutboxWorker")
@@ -98,6 +105,12 @@ func NewMetadataOutboxWorker(
 	}
 	// maxWorkers and retentionDays are defaulted above to positive values when unset/invalid.
 
+	// Use provided config or default
+	retryConfig := mretry.DefaultMetadataOutboxConfig()
+	if len(config) > 0 {
+		retryConfig = config[0]
+	}
+
 	return &MetadataOutboxWorker{
 		logger:        logger,
 		outboxRepo:    outboxRepo,
@@ -106,6 +119,7 @@ func NewMetadataOutboxWorker(
 		mongoConn:     mongoConn,
 		maxWorkers:    maxWorkers,
 		retentionDays: retentionDays,
+		retryConfig:   retryConfig,
 	}
 }
 
@@ -326,9 +340,14 @@ func (w *MetadataOutboxWorker) handleProcessingError(
 ) {
 	libOpentelemetry.HandleSpanError(span, "Failed to process metadata outbox entry", err)
 
-	// Check if we've exceeded max retries
-	if entry.RetryCount >= entry.MaxRetries-1 {
-		logger.Errorf("MetadataOutboxWorker: Max retries exceeded for entry %s, moving to DLQ", entry.ID.String())
+	// Calculate what the new retry count would be after this failure
+	newRetryCount := entry.RetryCount + 1
+
+	// Check if this failure would exceed max retries
+	// If newRetryCount >= MaxRetries, we've exhausted all retries and must move to DLQ
+	if newRetryCount >= entry.MaxRetries {
+		logger.Errorf("MetadataOutboxWorker: Max retries exceeded for entry %s (retry %d/%d), moving to DLQ",
+			entry.ID.String(), newRetryCount, entry.MaxRetries)
 
 		if dlqErr := w.outboxRepo.MarkDLQ(ctx, entry.ID.String(), err.Error()); dlqErr != nil {
 			logger.Errorf("MetadataOutboxWorker: Failed to mark entry as DLQ: %v", dlqErr)
@@ -340,41 +359,42 @@ func (w *MetadataOutboxWorker) handleProcessingError(
 	}
 
 	// Calculate backoff and schedule retry
-	backoff := calculateMetadataOutboxBackoff(entry.RetryCount + 1)
+	backoff := w.calculateBackoff(newRetryCount)
 	nextRetryAt := time.Now().Add(backoff)
 
 	logger.Warnf("MetadataOutboxWorker: Entry %s failed, scheduling retry at %v (attempt %d/%d)",
-		entry.ID.String(), nextRetryAt, entry.RetryCount+1, entry.MaxRetries)
+		entry.ID.String(), nextRetryAt, newRetryCount, entry.MaxRetries)
 
 	if failErr := w.outboxRepo.MarkFailed(ctx, entry.ID.String(), err.Error(), nextRetryAt); failErr != nil {
 		logger.Errorf("MetadataOutboxWorker: Failed to mark entry as failed: %v", failErr)
 	}
 }
 
-// calculateMetadataOutboxBackoff calculates exponential backoff with jitter.
-// Initial delay: 1s, Max delay: 30m, Jitter: 25%
-func calculateMetadataOutboxBackoff(attempt int) time.Duration {
+// calculateBackoff calculates exponential backoff with jitter using the worker's retry config.
+// TODO(review): Consider using bit shifting (1 << attempt) for efficiency instead of loop.
+func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
+	cfg := w.retryConfig
 	if attempt <= 0 {
-		return metadataOutboxInitialBackoff
+		return cfg.InitialBackoff
 	}
 
 	// Exponential backoff: initial * 2^(attempt-1)
-	backoff := metadataOutboxInitialBackoff
+	backoff := cfg.InitialBackoff
 	for i := 1; i < attempt; i++ {
 		backoff *= 2
-		if backoff > metadataOutboxMaxBackoff {
-			backoff = metadataOutboxMaxBackoff
+		if backoff > cfg.MaxBackoff {
+			backoff = cfg.MaxBackoff
 			break
 		}
 	}
 
-	// Add jitter (25% of the backoff)
-	jitter := time.Duration(float64(backoff) * metadataOutboxJitterFactor * outbox.SecureRandomFloat64())
+	// Add jitter using config's jitter factor
+	jitter := time.Duration(float64(backoff) * cfg.JitterFactor * outbox.SecureRandomFloat64())
 	backoff += jitter
 
 	// Cap at max backoff
-	if backoff > metadataOutboxMaxBackoff {
-		backoff = metadataOutboxMaxBackoff
+	if backoff > cfg.MaxBackoff {
+		backoff = cfg.MaxBackoff
 	}
 
 	return backoff
