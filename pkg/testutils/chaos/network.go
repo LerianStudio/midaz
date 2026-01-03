@@ -9,6 +9,7 @@ import (
 	"time"
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tctoxiproxy "github.com/testcontainers/testcontainers-go/modules/toxiproxy"
@@ -55,28 +56,34 @@ func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyRe
 
 	// Expose a range of ports for dynamic proxy creation
 	// Ports 8666-8676 are commonly used for Toxiproxy proxies
-	container, err := tctoxiproxy.Run(ctx, cfg.Image,
+	toxiContainer, err := tctoxiproxy.Run(ctx, cfg.Image,
 		testcontainers.WithExposedPorts("8666/tcp", "8667/tcp", "8668/tcp", "8669/tcp", "8670/tcp"),
+		// Add host.docker.internal mapping for Linux compatibility.
+		// On macOS/Windows, Docker Desktop provides this automatically.
+		// On Linux, we need to explicitly map it to the host gateway.
+		testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) {
+			hc.ExtraHosts = append(hc.ExtraHosts, "host.docker.internal:host-gateway")
+		}),
 	)
 	require.NoError(t, err, "failed to start Toxiproxy container")
 
-	host, err := container.Host(ctx)
+	host, err := toxiContainer.Host(ctx)
 	require.NoError(t, err, "failed to get Toxiproxy host")
 
-	apiPort, err := container.MappedPort(ctx, "8474")
+	apiPort, err := toxiContainer.MappedPort(ctx, "8474")
 	require.NoError(t, err, "failed to get Toxiproxy API port")
 
 	apiURL := fmt.Sprintf("http://%s:%s", host, apiPort.Port())
 	client := toxiproxyclient.NewClient(apiURL)
 
 	cleanup := func() {
-		if err := container.Terminate(ctx); err != nil {
+		if err := toxiContainer.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate Toxiproxy container: %v", err)
 		}
 	}
 
 	return &ToxiproxyResult{
-		Container: container,
+		Container: toxiContainer,
 		Client:    client,
 		Host:      host,
 		APIPort:   apiPort.Port(),
