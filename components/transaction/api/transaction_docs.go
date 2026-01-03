@@ -67,6 +67,13 @@ const docTemplatetransaction = `{
                         "name": "alias",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -98,6 +105,12 @@ const docTemplatetransaction = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
@@ -171,6 +184,13 @@ const docTemplatetransaction = `{
                         "name": "code",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -202,6 +222,12 @@ const docTemplatetransaction = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
@@ -3568,13 +3594,13 @@ const docTemplatetransaction = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "rate": {
-                    "description": "Conversion rate value\nexample: 100",
-                    "type": "number",
-                    "example": 100
+                    "description": "Conversion rate value (serialized as string for precision)\nexample: 5.50",
+                    "type": "string",
+                    "example": "5.50"
                 },
                 "scale": {
                     "description": "Decimal places for the rate\nexample: 2\nminimum: 0",
-                    "type": "number",
+                    "type": "integer",
                     "minimum": 0,
                     "example": 2
                 },
@@ -3658,9 +3684,9 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "rate": {
-                    "description": "Conversion rate value (required)\nexample: 100\nrequired: true",
-                    "type": "integer",
-                    "example": 100
+                    "description": "Conversion rate value (required, serialized as string for precision)\nexample: 5.50\nrequired: true",
+                    "type": "string",
+                    "example": "5.50"
                 },
                 "scale": {
                     "description": "Decimal places for the rate (optional)\nexample: 2\nminimum: 0",
@@ -4575,9 +4601,8 @@ const docTemplatetransaction = `{
                 },
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "type": "string",
+                    "example": "1500"
                 },
                 "createdAt": {
                     "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -4616,9 +4641,8 @@ const docTemplatetransaction = `{
                 },
                 "onHold": {
                     "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
+                    "type": "string",
+                    "example": "500"
                 },
                 "organizationId": {
                     "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",

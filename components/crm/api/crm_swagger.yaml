@@ -462,7 +462,7 @@ definitions:
         example: john.doe@example.com
         type: string
       name:
-        description: The legal representative’s name.
+        description: The legal representative's name.
         example: John Doe
         type: string
       role:

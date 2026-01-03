@@ -458,32 +458,35 @@ func FuzzTransactionParsing(f *testing.F) {
 
 **Location**: `tests/property/`
 
+Property-based tests verify invariants that must hold for all inputs:
+- `tests/property/conservation_test.go` - Balance conservation invariants
+- `tests/property/nonnegative_test.go` - Non-negative balance constraints
+- `tests/property/dsl_parsing_test.go` - Transaction DSL parsing properties
+
 ```go
-import "github.com/leanovate/gopter"
+// Property-based testing uses Go's standard library
+import "testing/quick"
 
-func TestBalanceInvariant(t *testing.T) {
-    properties := gopter.NewProperties(nil)
+func TestBalanceConservation(t *testing.T) {
+    f := func(amount int64) bool {
+        // Property: total balance is conserved across transactions
+        return checkConservation(amount)
+    }
+    if err := quick.Check(f, nil); err != nil {
+        t.Error(err)
+    }
+}
 
-    properties.Property("sum of account balances equals ledger balance", prop.ForAll(
-        func(transactions []Transaction) bool {
-            // Setup ledger with accounts
-            ledger := setupTestLedger()
-
-            // Apply all transactions
-            for _, tx := range transactions {
-                applyTransaction(ledger, tx)
-            }
-
-            // Verify invariant: sum of all account balances equals total
-            accountSum := sumAccountBalances(ledger)
-            ledgerTotal := ledger.TotalBalance()
-
-            return accountSum == ledgerTotal
-        },
-        generateTransactions(),
-    ))
-
-    properties.TestingRun(t)
+func TestNonNegativeBalances(t *testing.T) {
+    f := func(initial, transfer uint64) bool {
+        // Property: balances never go negative
+        ledger := setupTestLedger(initial)
+        applyTransfer(ledger, transfer)
+        return allBalancesNonNegative(ledger)
+    }
+    if err := quick.Check(f, nil); err != nil {
+        t.Error(err)
+    }
 }
 ```
 

@@ -37,6 +37,27 @@ Midaz implements **Hexagonal Architecture (Ports & Adapters)** with **CQRS patte
 - **crm** (`components/crm/`): Customer relationship management
 - **console** (`components/console/`): Frontend UI (Next.js)
 
+### Additional Components
+
+#### Ledger Component (`components/ledger/`)
+Minimal HTTP-only ledger view service with simplified structure:
+- `internal/adapters/http/in/` - HTTP handlers only
+- `internal/bootstrap/` - Service initialization
+- No full hexagonal pattern (read-only service)
+
+#### Reconciliation Component (`components/reconciliation/`)
+Financial reconciliation service with specialized architecture:
+- `internal/domain/` - Reconciliation domain logic
+- `internal/engine/` - Computation engine
+- `internal/metrics/` - Reconciliation metrics
+- `internal/reportstore/` - Report storage
+
+#### Infrastructure (`components/infra/`)
+Non-service infrastructure configuration:
+- Docker compose files
+- Grafana dashboards
+- Database migration schemas
+
 ### Shared Packages
 
 - **pkg/assert** (`pkg/assert/`): Domain invariant assertions - CRITICAL for validation
@@ -44,7 +65,7 @@ Midaz implements **Hexagonal Architecture (Ports & Adapters)** with **CQRS patte
 - **pkg/gold** (`pkg/gold/`): Transaction DSL parser (ANTLR-based Gold language)
 - **pkg/mgrpc** (`pkg/mgrpc/`): gRPC protobuf definitions for inter-service communication
 - **pkg/mruntime** (`pkg/mruntime/`): Safe goroutine handling with panic recovery
-- **pkg/mmodel** (`pkg/mmodel/`): Domain models
+- **pkg/mmodel** (`pkg/mmodel/`): Domain models (centralized for sharing across components)
 
 ## Hexagonal Architecture Pattern
 
@@ -59,14 +80,14 @@ components/onboarding/
 │   │   ├── grpc/out/          # Secondary adapters (outbound gRPC clients)
 │   │   ├── postgres/          # Secondary adapters (PostgreSQL repositories)
 │   │   ├── mongodb/           # Secondary adapters (MongoDB repositories)
-│   │   ├── rabbitmq/          # Secondary adapters (message queue)
 │   │   └── redis/             # Secondary adapters (cache)
 │   ├── bootstrap/             # Dependency injection & server setup
 │   └── services/              # Application layer (business logic)
 │       ├── command/           # Write operations (CQRS commands)
 │       └── query/             # Read operations (CQRS queries)
 └── cmd/
-    └── main.go                # Application entry point
+    └── app/
+        └── main.go            # Application entry point
 ```
 
 ### Primary Adapters (Inbound)
@@ -173,6 +194,11 @@ func (uc *UseCase) GetAllAccounts(ctx context.Context, organizationID, ledgerID 
     return accounts, nil
 }
 ```
+
+### Outbound HTTP Adapters
+Location: `internal/adapters/http/out/`
+
+Used for calling external HTTP services from within the application.
 
 ### Secondary Adapters (Outbound)
 

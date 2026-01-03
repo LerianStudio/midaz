@@ -23,6 +23,7 @@ type Account struct {
     Type             string
     Status           Status
     Alias            *string
+    Blocked          *bool
     CreatedAt        time.Time
     UpdatedAt        time.Time
     DeletedAt        *time.Time
@@ -88,6 +89,7 @@ type Segment struct {
     CreatedAt      time.Time
     UpdatedAt      time.Time
     DeletedAt      *time.Time
+    Metadata       map[string]any
 }
 ```
 
@@ -135,22 +137,24 @@ type Status struct {
     Code        string
     Description *string
 }
-
-// Status codes
-const (
-    ACTIVE   = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    DELETED  = "DELETED"
-    PENDING  = "PENDING"
-)
 ```
+
+### Status Values
+
+Status is a struct type with a `Code` field. Common status values (not constants):
+- `"ACTIVE"` - Entity is active
+- `"INACTIVE"` - Entity is inactive
+- `"DELETED"` - Entity is soft-deleted
+- `"PENDING"` - Entity is pending
+- `"SUSPENDED"` - Entity is suspended
+
+Note: `AccountStatusActive = "ACTIVE"` is the only defined constant (in account.go).
 
 ### Address
 ```go
 type Address struct {
     Line1      string
     Line2      *string
-    Neighborhood *string
     ZipCode    string
     City       string
     State      string

@@ -31,7 +31,9 @@ go func() {
 // ✅ SAFE - Using mruntime
 mruntime.SafeGoWithContextAndComponent(
     ctx,
-    "account-service",
+    logger,                              // Logger for panic logging
+    "account-service",                   // component name
+    "process_risky_operation",           // goroutine name
     mruntime.KeepRunning,
     func(ctx context.Context) {
         // If this panics, it's recovered and logged
@@ -54,15 +56,69 @@ mruntime.SafeGoWithContextAndComponent(
 
 ### Location: `pkg/mruntime/goroutine.go`
 
-### Function Signature
+### Logger Interface
+
+```go
+// Logger defines the minimal logging interface required by mruntime.
+// This interface is satisfied by github.com/LerianStudio/lib-commons/v2/commons/log.Logger.
+type Logger interface {
+    Errorf(format string, args ...any)
+}
+```
+
+### Function Signatures
+
+#### SafeGoWithContextAndComponent (Primary Function)
 
 ```go
 func SafeGoWithContextAndComponent(
     ctx context.Context,
+    logger Logger,
     component string,
-    policy PanicRecoveryPolicy,
+    name string,
+    policy PanicPolicy,
     fn func(context.Context),
 )
+```
+
+#### SafeGoWithContext (Convenience Function)
+
+```go
+func SafeGoWithContext(
+    ctx context.Context,
+    logger Logger,
+    name string,
+    policy PanicPolicy,
+    fn func(context.Context),
+)
+```
+
+#### SafeGo (No Context)
+
+```go
+func SafeGo(logger Logger, name string, policy PanicPolicy, fn func())
+```
+
+### Recovery Functions
+
+```go
+// Basic recover without context
+func RecoverAndLog(logger Logger, name string)
+
+// Context-aware recovery (logs and continues)
+func RecoverAndLogWithContext(ctx context.Context, logger Logger, component, name string)
+
+// Crash after logging (no context)
+func RecoverAndCrash(logger Logger, name string)
+
+// Context-aware crash recovery (logs observability then re-panics)
+func RecoverAndCrashWithContext(ctx context.Context, logger Logger, component, name string)
+
+// Policy-based recovery without context
+func RecoverWithPolicy(logger Logger, name string, policy PanicPolicy)
+
+// Policy-based recovery with full observability
+func RecoverWithPolicyAndContext(ctx context.Context, logger Logger, component, name string, policy PanicPolicy)
 ```
 
 ### Parameters
@@ -71,16 +127,24 @@ func SafeGoWithContextAndComponent(
 - Pass the request context or background context
 - Context will be propagated to the goroutine function
 
-**component** (`string`): Identifier for which component is running this goroutine
+**logger** (`Logger`): Logger for recording panic information
+- Must implement the `Errorf(format string, args ...any)` method
+- Use your service's logger instance
+
+**component** (`string`): The service component (e.g., "transaction", "onboarding")
 - Examples: `"account-service"`, `"transaction-processor"`, `"balance-calculator"`
 - Used in logging and metrics to identify source of errors
 
-**policy** (`PanicRecoveryPolicy`): What to do when panic occurs
+**name** (`string`): Descriptive name for the goroutine
+- Examples: `"process_message"`, `"refresh_cache"`, `"balance_worker"`
+- Used in logs and metrics for identification
+
+**policy** (`PanicPolicy`): What to do when panic occurs
 - `mruntime.KeepRunning`: Log panic and continue (non-critical goroutine)
 - `mruntime.CrashProcess`: Log panic and exit application (critical goroutine)
 
-**fn** (`func(context.Context)`): The function to run in goroutine
-- Receives propagated context
+**fn** (`func(context.Context)` or `func()`): The function to run in goroutine
+- Receives propagated context (for context-aware variants)
 - Should respect context cancellation
 
 ### Panic Recovery Policies
@@ -90,7 +154,9 @@ func SafeGoWithContextAndComponent(
 // Example: Background cache refresh
 mruntime.SafeGoWithContextAndComponent(
     ctx,
-    "cache-refresher",
+    logger,
+    "cache",
+    "refresh_cache",
     mruntime.KeepRunning,  // Don't crash if this fails
     func(ctx context.Context) {
         refreshCache(ctx)
@@ -103,7 +169,9 @@ mruntime.SafeGoWithContextAndComponent(
 // Example: Critical event processor
 mruntime.SafeGoWithContextAndComponent(
     ctx,
-    "transaction-processor",
+    logger,
+    "transaction",
+    "process_transaction",
     mruntime.CrashProcess,  // Crash if this fails - data integrity at risk
     func(ctx context.Context) {
         processTransaction(ctx, tx)
@@ -120,19 +188,21 @@ func (s *Service) Start(ctx context.Context) {
     // Start background worker that processes messages
     mruntime.SafeGoWithContextAndComponent(
         ctx,
-        "rabbitmq-consumer",
+        s.logger,
+        "rabbitmq",
+        "consumer_worker",
         mruntime.KeepRunning,
         func(ctx context.Context) {
             for {
                 select {
                 case <-ctx.Done():
                     // Context cancelled - graceful shutdown
-                    logger.Info("Shutting down consumer")
+                    s.logger.Info("Shutting down consumer")
                     return
                 case msg := <-s.messageQueue:
                     // Process message
                     if err := s.processMessage(ctx, msg); err != nil {
-                        logger.Errorf("Failed to process message: %v", err)
+                        s.logger.Errorf("Failed to process message: %v", err)
                     }
                 }
             }
@@ -156,11 +226,13 @@ func (h *Handler) CreateAccount(c *fiber.Ctx) error {
     // Send notification asynchronously (fire and forget)
     mruntime.SafeGoWithContextAndComponent(
         context.Background(),  // New context - don't want HTTP timeout to cancel this
-        "notification-sender",
+        h.logger,
+        "notification",
+        "send_account_notification",
         mruntime.KeepRunning,  // Non-critical - don't crash if notification fails
         func(ctx context.Context) {
             if err := h.notificationService.Send(ctx, account); err != nil {
-                logger.Errorf("Failed to send notification: %v", err)
+                h.logger.Errorf("Failed to send notification: %v", err)
             }
         },
     )
@@ -182,7 +254,9 @@ func (uc *UseCase) CalculateAccountBalances(ctx context.Context, accounts []*Acc
         // Launch parallel balance calculation
         mruntime.SafeGoWithContextAndComponent(
             ctx,
-            "balance-calculator",
+            uc.logger,
+            "balance",
+            "calculate_balance",
             mruntime.KeepRunning,
             func(ctx context.Context) {
                 defer wg.Done()
@@ -231,7 +305,9 @@ func (uc *UseCase) ProcessWithTimeout(ctx context.Context, data Data) error {
     // Launch processing with timeout context
     mruntime.SafeGoWithContextAndComponent(
         ctx,
-        "data-processor",
+        uc.logger,
+        "data",
+        "process_with_timeout",
         mruntime.KeepRunning,
         func(ctx context.Context) {
             // Long-running operation
@@ -282,7 +358,7 @@ The custom `panicguard` linter enforces safe goroutine usage:
 3. **Enforces mruntime usage**
    ```go
    // ✅ Approved by linter
-   mruntime.SafeGoWithContextAndComponent(ctx, "worker", policy, fn)
+   mruntime.SafeGoWithContextAndComponent(ctx, logger, "component", "worker", policy, fn)
    ```
 
 ### Running the Linter
@@ -330,6 +406,8 @@ func (s *Server) Start(ctx context.Context) error {
     for _, worker := range s.workers {
         mruntime.SafeGoWithContextAndComponent(
             ctx,
+            s.logger,
+            "server",
             worker.Name(),
             mruntime.KeepRunning,
             worker.Run,
@@ -368,7 +446,9 @@ func (uc *UseCase) AsyncOperation(ctx context.Context, data Data) error {
     // Propagate traced context to goroutine
     mruntime.SafeGoWithContextAndComponent(
         ctx,  // Traced context propagated
-        "async-worker",
+        uc.logger,
+        "async",
+        "process_data",
         mruntime.KeepRunning,
         func(ctx context.Context) {
             // Create child span in goroutine
@@ -377,7 +457,7 @@ func (uc *UseCase) AsyncOperation(ctx context.Context, data Data) error {
 
             if err := process(ctx, data); err != nil {
                 childSpan.RecordError(err)
-                logger.Errorf("Async processing failed: %v", err)
+                uc.logger.Errorf("Async processing failed: %v", err)
             }
         },
     )
@@ -417,7 +497,9 @@ var (
 ```go
 mruntime.SafeGoWithContextAndComponent(
     ctx,
+    logger,
     "worker",
+    "ticker_worker",
     mruntime.KeepRunning,
     func(ctx context.Context) {
         ticker := time.NewTicker(1 * time.Second)
@@ -444,7 +526,9 @@ for i := 0; i < 10; i++ {
     wg.Add(1)
     mruntime.SafeGoWithContextAndComponent(
         ctx,
+        logger,
         "worker",
+        "parallel_worker",
         mruntime.KeepRunning,
         func(ctx context.Context) {
             defer wg.Done()
@@ -463,7 +547,9 @@ results := make(chan Result, 10)
 
 mruntime.SafeGoWithContextAndComponent(
     ctx,
+    logger,
     "producer",
+    "produce_results",
     mruntime.KeepRunning,
     func(ctx context.Context) {
         for _, item := range items {
@@ -495,7 +581,9 @@ go func() {
 // ❌ BAD - Ignores context cancellation
 mruntime.SafeGoWithContextAndComponent(
     ctx,
+    logger,
     "worker",
+    "infinite_loop",
     mruntime.KeepRunning,
     func(ctx context.Context) {
         for {
@@ -511,7 +599,9 @@ mruntime.SafeGoWithContextAndComponent(
 // ❌ BAD - Using panic for business logic
 mruntime.SafeGoWithContextAndComponent(
     ctx,
+    logger,
     "worker",
+    "validate_data",
     mruntime.KeepRunning,
     func(ctx context.Context) {
         if !valid {
@@ -549,7 +639,9 @@ counter := &SafeCounter{}
 for i := 0; i < 10; i++ {
     mruntime.SafeGoWithContextAndComponent(
         ctx,
+        logger,
         "counter",
+        "increment_counter",
         mruntime.KeepRunning,
         func(ctx context.Context) {
             counter.Increment()  // Thread-safe
@@ -616,6 +708,7 @@ func TestConcurrentProcessing(t *testing.T) {
     t.Parallel()
 
     ctx := context.Background()
+    logger := log.NewTestLogger(t)  // Use test logger
     var wg sync.WaitGroup
     results := make(chan int, 100)
 
@@ -625,7 +718,9 @@ func TestConcurrentProcessing(t *testing.T) {
         i := i  // Capture loop variable
         mruntime.SafeGoWithContextAndComponent(
             ctx,
-            "test-worker",
+            logger,
+            "test",
+            "test_worker",
             mruntime.KeepRunning,
             func(ctx context.Context) {
                 defer wg.Done()
@@ -649,23 +744,23 @@ func TestConcurrentProcessing(t *testing.T) {
 }
 ```
 
-## Deprecated Patterns
+## Function Variants
 
-### ❌ Old mruntime.SafeGoWithContext (Deprecated)
-
-```go
-// ❌ DEPRECATED - Missing component parameter
-mruntime.SafeGoWithContext(ctx, policy, fn)
-```
-
-### ✅ Use SafeGoWithContextAndComponent Instead
+### SafeGoWithContext (Convenience Function)
 
 ```go
-// ✅ CURRENT - Includes component identification
-mruntime.SafeGoWithContextAndComponent(ctx, "component-name", policy, fn)
+// Convenience function - calls SafeGoWithContextAndComponent with empty component
+mruntime.SafeGoWithContext(ctx, logger, "worker_name", mruntime.KeepRunning, fn)
 ```
 
-The linter will flag usage of the deprecated function.
+### SafeGoWithContextAndComponent (Full Function)
+
+```go
+// Full function with component identification for better observability
+mruntime.SafeGoWithContextAndComponent(ctx, logger, "transaction", "process_message", mruntime.KeepRunning, fn)
+```
+
+**Recommendation**: Prefer `SafeGoWithContextAndComponent` for better observability labeling.
 
 ## Concurrency Checklist
 

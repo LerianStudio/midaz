@@ -1404,7 +1404,7 @@ const docTemplatecrm = `{
                     "example": "john.doe@example.com"
                 },
                 "name": {
-                    "description": "The legal representative’s name.",
+                    "description": "The legal representative's name.",
                     "type": "string",
                     "example": "John Doe"
                 },

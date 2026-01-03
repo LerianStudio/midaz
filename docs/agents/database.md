@@ -6,7 +6,7 @@ Midaz uses a **polyglot persistence** approach with multiple databases optimized
 
 - **PostgreSQL 17** (with replica): Primary transactional data, relational integrity
 - **MongoDB 8** (replica set): Metadata, flexible schemas, document storage
-- **Valkey 8**: Caching layer (Redis-compatible fork)
+- **Redis** (using `github.com/redis/go-redis/v9`): Caching layer (Valkey-compatible)
 
 ## PostgreSQL Patterns
 
@@ -291,7 +291,87 @@ func (r *MongoRepository) Find(ctx context.Context, id string) (*Metadata, error
 }
 ```
 
-## Valkey (Redis) Caching
+## Metadata Outbox Pattern
+
+The `metadata_outbox` table (migration 000019) implements the transactional outbox pattern for reliable metadata synchronization between PostgreSQL and MongoDB:
+
+```sql
+-- Outbox entries are created within the same transaction as metadata changes
+-- A worker process polls and processes outbox entries asynchronously
+
+CREATE TABLE IF NOT EXISTS metadata_outbox (
+    id                    UUID PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+    entity_id             VARCHAR(255) NOT NULL,
+    entity_type           TEXT NOT NULL CHECK (entity_type IN ('Transaction', 'Operation')),
+    metadata              JSONB NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'PROCESSING', 'PUBLISHED', 'FAILED', 'DLQ')),
+    retry_count           INTEGER NOT NULL DEFAULT 0,
+    max_retries           INTEGER NOT NULL DEFAULT 10,
+    next_retry_at         TIMESTAMP WITH TIME ZONE,
+    processing_started_at TIMESTAMP WITH TIME ZONE,
+    last_error            VARCHAR(512),
+    created_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    processed_at          TIMESTAMP WITH TIME ZONE
+);
+```
+
+**Status Transitions**:
+- `PENDING` -> `PROCESSING` (worker claims entry)
+- `PROCESSING` -> `PUBLISHED` (success)
+- `PROCESSING` -> `FAILED` (error, will retry if retry_count < max_retries)
+- `FAILED` -> `PROCESSING` (retry attempt)
+- `FAILED` -> `DLQ` (max retries exceeded, requires manual intervention)
+
+**Worker Configuration** (environment variables):
+- `METADATA_OUTBOX_WORKER_ENABLED`: Enable/disable the worker (default: false)
+- `METADATA_OUTBOX_MAX_WORKERS`: Concurrent worker count (default: 5)
+- `METADATA_OUTBOX_RETENTION_DAYS`: Days to keep processed entries (default: 7)
+
+## Database Transaction Patterns
+
+### Atomic Balance Operations
+
+Balance updates, transaction creation, and operation creation are wrapped in a single database transaction to ensure atomicity:
+
+```go
+// CreateBalanceTransactionOperationsAsync creates all transactions atomically
+func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
+    // Wrap balance update, transaction creation, and operations in a single database transaction.
+    // This prevents orphan transactions (transactions without operations) that occur when
+    // transaction creation succeeds but operation creation fails.
+    err = dbtx.RunInTransaction(ctx, uc.DBProvider, func(txCtx context.Context) error {
+        // Step 1: Update balances (if not NOTED status)
+        if err := uc.updateBalancesStep(txCtx, tracer, logger, data, t); err != nil {
+            return err
+        }
+
+        // Step 2: Create or update transaction
+        tran, txErr = uc.createTransactionStep(txCtx, tracer, logger, t)
+        if txErr != nil {
+            return txErr
+        }
+
+        // Step 3: Create operations (PostgreSQL only)
+        if err := uc.createOperationsWithoutMetadata(txCtx, logger, tracer, tran.Operations); err != nil {
+            return err
+        }
+
+        // Step 4: Queue metadata to outbox (INSIDE transaction for atomicity)
+        return uc.queueMetadataToOutbox(txCtx, tran)
+    })
+    // ...
+}
+```
+
+**Key Benefits**:
+- Balance updates and transaction creation succeed or fail together
+- No orphan transactions (transactions without operations)
+- Metadata sync is guaranteed via outbox pattern
+- Worker processes metadata asynchronously after commit
+
+## Redis Caching
 
 ### Cache Patterns
 
@@ -360,6 +440,13 @@ func (s *Service) ProcessWithLock(ctx context.Context, resourceID string) error 
 
 ### PostgreSQL Connection Pool
 
+Connection pool settings are configurable via environment variables:
+
+| Variable | Description | Range |
+|----------|-------------|-------|
+| `DB_MAX_OPEN_CONNS` | Maximum open connections | 1-10000 |
+| `DB_MAX_IDLE_CONNS` | Maximum idle connections | 1-5000 |
+
 ```go
 func NewPostgresConnection(config Config) (*sqlx.DB, error) {
     dsn := fmt.Sprintf(
@@ -373,11 +460,9 @@ func NewPostgresConnection(config Config) (*sqlx.DB, error) {
         return nil, fmt.Errorf("connecting to PostgreSQL: %w", err)
     }
 
-    // Connection pool settings
-    db.SetMaxOpenConns(25)
-    db.SetMaxIdleConns(5)
-    db.SetConnMaxLifetime(5 * time.Minute)
-    db.SetConnMaxIdleTime(1 * time.Minute)
+    // Connection pool settings (configured via environment)
+    db.SetMaxOpenConns(config.MaxOpenConnections)  // DB_MAX_OPEN_CONNS
+    db.SetMaxIdleConns(config.MaxIdleConnections)  // DB_MAX_IDLE_CONNS
 
     // Verify connection
     if err := db.Ping(); err != nil {
@@ -389,6 +474,12 @@ func NewPostgresConnection(config Config) (*sqlx.DB, error) {
 ```
 
 ### MongoDB Connection
+
+MongoDB pool size is configurable via environment variable:
+
+| Variable | Description | Range |
+|----------|-------------|-------|
+| `MONGO_MAX_POOL_SIZE` | Maximum connection pool size | 1-1000 |
 
 ```go
 func NewMongoConnection(config Config) (*mongo.Client, error) {
@@ -402,8 +493,7 @@ func NewMongoConnection(config Config) (*mongo.Client, error) {
 
     clientOptions := options.Client().
         ApplyURI(uri).
-        SetMaxPoolSize(100).
-        SetMinPoolSize(10)
+        SetMaxPoolSize(config.MaxPoolSize)  // MONGO_MAX_POOL_SIZE
 
     client, err := mongo.Connect(ctx, clientOptions)
     if err != nil {
@@ -418,6 +508,20 @@ func NewMongoConnection(config Config) (*mongo.Client, error) {
     return client, nil
 }
 ```
+
+### Redis Connection Pool
+
+Redis connection settings are configurable via environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REDIS_POOL_SIZE` | Connection pool size | 10 |
+| `REDIS_MIN_IDLE_CONNS` | Minimum idle connections | 0 |
+| `REDIS_READ_TIMEOUT` | Read timeout (seconds) | 3 |
+| `REDIS_WRITE_TIMEOUT` | Write timeout (seconds) | 3 |
+| `REDIS_DIAL_TIMEOUT` | Connection timeout (seconds) | 5 |
+| `REDIS_POOL_TIMEOUT` | Pool wait timeout (seconds) | 2 |
+| `REDIS_MAX_RETRIES` | Maximum retry attempts | 3 |
 
 ## Database Testing
 

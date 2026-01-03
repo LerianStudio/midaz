@@ -15,89 +15,109 @@ All business errors are typed and defined in the shared errors package.
 ```go
 // Entity not found (404)
 type EntityNotFoundError struct {
-    EntityType string
-    ID         interface{}
-    Err        error
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
 }
 
 // Validation failure (400)
 type ValidationError struct {
-    Code    string
-    Message string
-    Field   string
-    Err     error
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
 }
 
 // Entity already exists (409)
 type EntityConflictError struct {
-    EntityType string
-    Field      string
-    Value      interface{}
-    Err        error
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
 }
 
 // Unauthorized access (401)
 type UnauthorizedError struct {
-    Message string
-    Err     error
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
 }
 
 // Forbidden access (403)
 type ForbiddenError struct {
-    Message string
-    Err     error
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
+}
+
+// Service unavailable (503)
+type ServiceUnavailableError struct {
+    EntityType string `json:"entityType,omitempty"`
+    Title      string `json:"title,omitempty"`
+    Message    string `json:"message,omitempty"`
+    Code       string `json:"code,omitempty"`
+    Err        error  `json:"err,omitempty"`
 }
 ```
 
 ### Creating Business Errors
 
 ```go
-// Entity not found
-return pkg.EntityNotFoundError{
-    EntityType: "Account",
-    ID:         accountID,
-    Err:        errors.New("account does not exist"),
-}
+// Entity not found - use ValidateBusinessError for consistent error creation
+return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, "Account")
 
 // Validation error
 return pkg.ValidationError{
-    Code:    constant.ErrInvalidAccountType,
-    Message: "account type must be DEPOSIT, SAVINGS, or INVESTMENT",
-    Field:   "type",
+    EntityType: "Account",
+    Code:       constant.ErrInvalidAccountType.Error(),
+    Title:      "Invalid Account Type",
+    Message:    "The provided 'type' is not valid.",
 }
 
-// Conflict error
-return pkg.EntityConflictError{
-    EntityType: "Account",
-    Field:      "name",
-    Value:      input.Name,
-    Err:        errors.New("account with this name already exists"),
-}
+// Conflict error - use ValidateBusinessError with args for dynamic messages
+return pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account", aliasValue)
 ```
 
 ### Error Constants
 
 **Location**: `pkg/constant/errors.go`
 
-All error codes are centralized as constants:
+All error codes are centralized as error variables (not string constants):
 
 ```go
-const (
+var (
     // Validation errors
-    ErrInvalidAccountType      = "INVALID_ACCOUNT_TYPE"
-    ErrInvalidAmount          = "INVALID_AMOUNT"
-    ErrInsufficientBalance    = "INSUFFICIENT_BALANCE"
+    ErrInvalidAccountType      = errors.New("0066")
+    ErrInvalidType             = errors.New("0040")
+    ErrInsufficientAccountBalance = errors.New("0025")
 
-    // Business logic errors
-    ErrAccountNotFound        = "ACCOUNT_NOT_FOUND"
-    ErrDuplicateAccount       = "DUPLICATE_ACCOUNT"
-    ErrParentAccountNotFound  = "PARENT_ACCOUNT_NOT_FOUND"
+    // Entity not found errors
+    ErrAccountIDNotFound       = errors.New("0052")
+    ErrLedgerIDNotFound        = errors.New("0037")
+    ErrOrganizationIDNotFound  = errors.New("0038")
+    ErrAssetCodeNotFound       = errors.New("0034")
+
+    // Conflict errors
+    ErrAliasUnavailability     = errors.New("0020")
+    ErrDuplicateLedger         = errors.New("0001")
+    ErrAssetNameOrCodeDuplicate = errors.New("0003")
 
     // System errors
-    ErrDatabaseConnection     = "DATABASE_CONNECTION_ERROR"
-    ErrServiceUnavailable     = "SERVICE_UNAVAILABLE"
+    ErrInternalServer          = errors.New("0046")
+    ErrGRPCServiceUnavailable  = errors.New("0130")
+    ErrMessageBrokerUnavailable = errors.New("0095")
 )
 ```
+
+**Note**: Error codes are numeric strings that map to specific error messages via `ValidateBusinessError()`.
 
 ## Error Wrapping Pattern
 
@@ -152,10 +172,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, orgID, ledgerID uuid.UUID,
             return nil, fmt.Errorf("validating parent account %s: %w", *input.ParentAccountID, err)
         }
         if parent == nil {
-            return pkg.EntityNotFoundError{
-                EntityType: "ParentAccount",
-                ID:         *input.ParentAccountID,
-            }
+            // Use ValidateBusinessError for consistent error creation
+            return nil, pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, "Account")
         }
     }
 
@@ -182,8 +200,9 @@ func (r *Repository) Create(ctx context.Context, account *mmodel.Account) error 
             if pqErr.Code == "23505" { // Unique violation
                 return pkg.EntityConflictError{
                     EntityType: "Account",
-                    Field:      "name",
-                    Value:      account.Name,
+                    Code:       constant.ErrAliasUnavailability.Error(),
+                    Title:      "Alias Unavailability Error",
+                    Message:    fmt.Sprintf("The alias %s is already in use.", account.Name),
                     Err:        err,
                 }
             }
@@ -214,26 +233,31 @@ HTTP Response: 409 Conflict - Account with name "Checking Account" already exist
 
 ### Use `pkg.ValidateBusinessError()`
 
-This function maps error codes to error types and ensures consistency:
+This function maps error constants to typed errors and ensures consistency:
 
 ```go
-// In use case
-if existingAccount != nil {
-    err := pkg.ValidateBusinessError(constant.ErrDuplicateAccount, "Account")
-    return nil, err
+// In use case - first param is error constant, not string
+if existingAlias != nil {
+    return nil, pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account", aliasValue)
+}
+
+// Without dynamic args
+if ledger == nil {
+    return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, "Account")
 }
 ```
 
 ### Function signature:
 
 ```go
-func ValidateBusinessError(code string, entityType string) error
+func ValidateBusinessError(err error, entityType string, args ...any) error
 ```
 
-Maps error codes to appropriate error types:
-- `*_NOT_FOUND` → `EntityNotFoundError`
-- `DUPLICATE_*` → `EntityConflictError`
-- `INVALID_*` → `ValidationError`
+Maps error constants to appropriate error types with formatted messages:
+- `ErrAccountIDNotFound`, `ErrLedgerIDNotFound`, etc. -> `EntityNotFoundError`
+- `ErrAliasUnavailability`, `ErrDuplicateLedger`, etc. -> `EntityConflictError`
+- `ErrInvalidAccountType`, `ErrInvalidType`, etc. -> `ValidationError`
+- `ErrGRPCServiceUnavailable` -> `ServiceUnavailableError`
 
 ## Error Logging Pattern
 
@@ -342,12 +366,14 @@ func (h *Handler) CreateAccount(c *fiber.Ctx) error {
 ### Error to HTTP Status Mapping
 
 ```go
-EntityNotFoundError    → 404 Not Found
-ValidationError        → 400 Bad Request
-EntityConflictError    → 409 Conflict
-UnauthorizedError      → 401 Unauthorized
-ForbiddenError         → 403 Forbidden
-Default (other errors) → 500 Internal Server Error
+EntityNotFoundError       → 404 Not Found
+ValidationError           → 400 Bad Request
+EntityConflictError       → 409 Conflict
+UnauthorizedError         → 401 Unauthorized
+ForbiddenError            → 403 Forbidden
+ServiceUnavailableError   → 503 Service Unavailable
+InternalServerError       → 500 Internal Server Error
+Default (other errors)    → 500 Internal Server Error
 ```
 
 ### Error Response Format
@@ -418,9 +444,9 @@ assert.ValidUUID(id, "ID")
 
 **Use Error Returns for**: Business validation, expected failures
 ```go
-// These are valid business scenarios
+// These are valid business scenarios - use ValidateBusinessError for consistency
 if input.Balance < 0 {
-    return pkg.ValidationError{Code: constant.ErrInvalidAmount, Message: "balance cannot be negative"}
+    return pkg.ValidateBusinessError(constant.ErrInsufficientAccountBalance, "Account", input.AccountID)
 }
 ```
 
@@ -449,8 +475,8 @@ if err != nil {
     return nil, fmt.Errorf("finding account: %w", err)
 }
 if account == nil {
-    // Not found - return business error
-    return nil, pkg.EntityNotFoundError{EntityType: "Account", ID: id}
+    // Not found - use ValidateBusinessError for consistent error creation
+    return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, "Account")
 }
 ```
 
@@ -466,11 +492,11 @@ func (r *Repository) Create(ctx context.Context, account *Account) error {
         if pqErr, ok := err.(*pq.Error); ok {
             switch pqErr.Code {
             case "23505": // unique_violation
-                return pkg.EntityConflictError{EntityType: "Account", Field: extractField(pqErr)}
+                return pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account", account.Alias)
             case "23503": // foreign_key_violation
-                return pkg.ValidationError{Code: constant.ErrInvalidForeignKey}
+                return pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, "Account")
             case "23514": // check_violation
-                return pkg.ValidationError{Code: constant.ErrConstraintViolation}
+                return pkg.ValidateBusinessError(constant.ErrInvalidAccountType, "Account")
             }
         }
         return fmt.Errorf("executing query: %w", err)
@@ -492,17 +518,17 @@ func TestCreateAccount_Errors(t *testing.T) {
         expectedError error
     }{
         {
-            name: "validation error - empty name",
-            input: Input{Name: "", Type: "DEPOSIT"},
+            name: "validation error - invalid type",
+            input: Input{Name: "Test", Type: "INVALID"},
             setupMock: func(m *mock.MockRepository) {},
-            expectedError: pkg.ValidationError{Code: constant.ErrInvalidAccountName},
+            expectedError: pkg.ValidationError{},
         },
         {
-            name: "conflict error - duplicate name",
+            name: "conflict error - duplicate alias",
             input: Input{Name: "Checking", Type: "DEPOSIT"},
             setupMock: func(m *mock.MockRepository) {
                 m.EXPECT().Create(gomock.Any(), gomock.Any()).Return(
-                    pkg.EntityConflictError{EntityType: "Account", Field: "name"},
+                    pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account", "Checking"),
                 )
             },
             expectedError: pkg.EntityConflictError{},
@@ -513,7 +539,7 @@ func TestCreateAccount_Errors(t *testing.T) {
             setupMock: func(m *mock.MockRepository) {
                 m.EXPECT().Find(gomock.Any(), someID).Return(nil, nil)
             },
-            expectedError: pkg.EntityNotFoundError{EntityType: "ParentAccount"},
+            expectedError: pkg.EntityNotFoundError{},
         },
     }
 

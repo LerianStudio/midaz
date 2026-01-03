@@ -178,6 +178,26 @@ func CommitBalanceUpdate(balance *Balance) {
 }
 ```
 
+### Additional Recovery Functions
+
+#### RecoverAndLog
+Basic recovery without context:
+```go
+func RecoverAndLog(logger Logger, name string)
+```
+
+#### RecoverAndCrashWithContext
+Context-aware crash recovery:
+```go
+func RecoverAndCrashWithContext(ctx context.Context, logger Logger, component, name string)
+```
+
+#### RecoverWithPolicy
+Policy-based recovery without context:
+```go
+func RecoverWithPolicy(logger Logger, name string, policy PanicPolicy)
+```
+
 ## Usage Patterns
 
 ### HTTP Handler Pattern

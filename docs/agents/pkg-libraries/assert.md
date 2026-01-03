@@ -445,6 +445,47 @@ func Transfer(from, to *Account, amount decimal.Decimal) error {
 - **Value truncation** - Prevents log bloat from large values
 - **Stack trace capture** - Minimal overhead, only on panic
 
+### Additional Predicates
+
+#### Network & Configuration
+```go
+func ValidPort(port string) bool      // Validates network port (1-65535)
+func ValidSSLMode(mode string) bool   // Validates PostgreSQL SSL modes
+```
+
+#### Integer Variants
+```go
+func PositiveInt(n int) bool                      // int variant of Positive
+func InRangeInt(n, minVal, maxVal int) bool       // int variant of InRange
+```
+
+#### Financial Transaction Predicates
+```go
+func DebitsEqualCredits(debits, credits decimal.Decimal) bool  // Double-entry validation
+func NonZeroTotals(debits, credits decimal.Decimal) bool       // Transaction totals non-zero
+func BalanceSufficientForRelease(onHold, releaseAmount decimal.Decimal) bool
+func BalanceIsZero(available, onHold decimal.Decimal) bool
+```
+
+#### Transaction State Predicates
+```go
+func ValidTransactionStatus(status string) bool
+func TransactionCanTransitionTo(current, target string) bool
+func TransactionCanBeReverted(status string, hasParent bool) bool
+func TransactionHasOperations[T any](operations []*T) bool  // Generic
+```
+
+#### Date/Time Predicates
+```go
+func DateNotInFuture(t time.Time) bool
+func DateAfter(date, reference time.Time) bool
+```
+
+#### String Predicates
+```go
+func NotEmptyString(s string) bool  // Non-whitespace validation
+```
+
 ## Testing with Assertions
 
 In tests, assertion panics can be caught and verified:

@@ -65,10 +65,10 @@ definitions:
         type: string
       rate:
         description: |-
-          Conversion rate value
-          example: 100
-        example: 100
-        type: number
+          Conversion rate value (serialized as string for precision)
+          example: 5.50
+        example: "5.50"
+        type: string
       scale:
         description: |-
           Decimal places for the rate
@@ -76,7 +76,7 @@ definitions:
           minimum: 0
         example: 2
         minimum: 0
-        type: number
+        type: integer
       source:
         description: |-
           Source of rate information
@@ -174,11 +174,11 @@ definitions:
         type: object
       rate:
         description: |-
-          Conversion rate value (required)
-          example: 100
+          Conversion rate value (required, serialized as string for precision)
+          example: 5.50
           required: true
-        example: 100
-        type: integer
+        example: "5.50"
+        type: string
       scale:
         description: |-
           Decimal places for the rate (optional)
@@ -1176,9 +1176,8 @@ definitions:
           Amount available for transactions (in the smallest unit of the asset, e.g. cents)
           example: 1500
           minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
+        example: "1500"
+        type: string
       createdAt:
         description: |-
           Timestamp when the balance was created (RFC3339 format)
@@ -1230,9 +1229,8 @@ definitions:
           Amount currently on hold and unavailable for transactions
           example: 500
           minimum: 0
-        example: 500
-        minimum: 0
-        type: number
+        example: "500"
+        type: string
       organizationId:
         description: |-
           Organization that owns this balance
@@ -1781,6 +1779,11 @@ paths:
         name: alias
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -1801,6 +1804,10 @@ paths:
                 prev_cursor:
                   type: string
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
         "401":
           description: Unauthorized access
           schema:
@@ -1848,6 +1855,11 @@ paths:
         name: code
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -1868,6 +1880,10 @@ paths:
                 prev_cursor:
                   type: string
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
         "401":
           description: Unauthorized access
           schema:

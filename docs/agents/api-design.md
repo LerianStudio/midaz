@@ -11,18 +11,17 @@ Midaz provides both **REST** and **gRPC** APIs:
 ### URL Structure
 
 ```
-/api/v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts
-│   │  │                    │                    │              │
-│   │  │                    │                    │              └─ Resource
-│   │  │                    │                    └────────────────── Parent Resource
-│   │  │                    └─────────────────────────────────────── Parent Resource
-│   │  └──────────────────────────────────────────────────────────── Version
-│   └─────────────────────────────────────────────────────────────── API Prefix
-└─────────────────────────────────────────────────────────────────── Root
+/v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts
+│  │                    │                    │              │
+│  │                    │                    │              └─ Resource
+│  │                    │                    └────────────────── Parent Resource
+│  │                    └─────────────────────────────────────── Parent Resource
+│  └──────────────────────────────────────────────────────────── Version
+└─────────────────────────────────────────────────────────────── Root
 ```
 
 **Pattern Rules**:
-- Always include version (`/api/v1/`)
+- Always include version (`/v1/`)
 - Use kebab-case for multi-word resources (`/account-balances`)
 - Nest resources hierarchically (`/orgs/{id}/ledgers/{id}/accounts`)
 - Use plural nouns for collections (`/accounts`, not `/account`)
@@ -70,8 +69,8 @@ type AccountHandler struct {
 // @Failure 400 {object} http.ErrorResponse
 // @Failure 409 {object} http.ErrorResponse
 // @Failure 500 {object} http.ErrorResponse
-// @Router /api/v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts [post]
-func (h *AccountHandler) CreateAccount(c *fiber.Ctx) error {
+// @Router /v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts [post]
+func (h *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
     ctx := c.Context()
 
     // Extract tracking context (logging, tracing, metrics)
@@ -81,37 +80,15 @@ func (h *AccountHandler) CreateAccount(c *fiber.Ctx) error {
     ctx, span := tracer.Start(ctx, "handler.create_account")
     defer span.End()
 
-    // Extract path parameters
-    organizationID, err := uuid.Parse(c.Params("organizationID"))
-    if err != nil {
-        return http.WithError(c, pkg.ValidationError{
-            Code:    constant.ErrInvalidUUID,
-            Message: "Invalid organization ID",
-            Field:   "organizationID",
-        })
-    }
+    // Extract path parameters (parsed by ParseUUIDPathParameters middleware)
+    organizationID := http.LocalUUID(c, "organization_id")
+    ledgerID := http.LocalUUID(c, "ledger_id")
 
-    ledgerID, err := uuid.Parse(c.Params("ledgerID"))
-    if err != nil {
-        return http.WithError(c, pkg.ValidationError{
-            Code:    constant.ErrInvalidUUID,
-            Message: "Invalid ledger ID",
-            Field:   "ledgerID",
-        })
-    }
-
-    // Parse request body
-    var input mmodel.CreateAccountInput
-    if err := c.BodyParser(&input); err != nil {
-        tracking.Logger.Errorf("Failed to parse request body: %v", err)
-        return http.WithError(c, pkg.ValidationError{
-            Code:    constant.ErrInvalidRequestBody,
-            Message: "Invalid request body",
-        })
-    }
+    // Extract typed payload (parsed and validated by WithBody middleware)
+    payload := http.Payload[*mmodel.CreateAccountInput](c, i)
 
     // Delegate to command service
-    account, err := h.Command.CreateAccount(ctx, organizationID, ledgerID, input)
+    account, err := h.Command.CreateAccount(ctx, organizationID, ledgerID, *payload)
     if err != nil {
         tracking.Logger.Errorf("Failed to create account: %v", err)
         return http.WithError(c, err)
@@ -132,7 +109,7 @@ func (h *AccountHandler) CreateAccount(c *fiber.Ctx) error {
 // @Success 200 {object} mmodel.Account
 // @Failure 404 {object} http.ErrorResponse
 // @Failure 500 {object} http.ErrorResponse
-// @Router /api/v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID} [get]
+// @Router /v1/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID} [get]
 func (h *AccountHandler) GetAccount(c *fiber.Ctx) error {
     ctx := c.Context()
     tracking := libCommons.NewTrackingFromContext(ctx)
@@ -140,9 +117,10 @@ func (h *AccountHandler) GetAccount(c *fiber.Ctx) error {
     ctx, span := tracer.Start(ctx, "handler.get_account")
     defer span.End()
 
-    organizationID, _ := uuid.Parse(c.Params("organizationID"))
-    ledgerID, _ := uuid.Parse(c.Params("ledgerID"))
-    accountID, _ := uuid.Parse(c.Params("accountID"))
+    // Extract path parameters (parsed by ParseUUIDPathParameters middleware)
+    organizationID := http.LocalUUID(c, "organization_id")
+    ledgerID := http.LocalUUID(c, "ledger_id")
+    accountID := http.LocalUUID(c, "account_id")
 
     account, err := h.Query.GetAccountByID(ctx, organizationID, ledgerID, accountID)
     if err != nil {
@@ -161,11 +139,34 @@ func (h *AccountHandler) GetAccount(c *fiber.Ctx) error {
 }
 ```
 
+### Path Parameter Parsing Middleware
+
+`http.ParseUUIDPathParameters()` middleware validates and extracts UUID path parameters:
+
+```go
+// Route registration
+app.Use("/organizations/:organization_id", http.ParseUUIDPathParameters("organization_id"))
+
+// In handler - values available via LocalUUID
+organizationID := http.LocalUUID(c, "organization_id")
+```
+
+### Type-Safe Payload Extraction
+
+`http.Payload[T]()` extracts and asserts payload type after WithBody validation:
+
+```go
+func (h *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
+    payload := http.Payload[*mmodel.CreateAccountInput](c, i)
+    // payload is now typed as *mmodel.CreateAccountInput
+}
+```
+
 ### Request/Response Patterns
 
 **Create Request**:
 ```json
-POST /api/v1/organizations/{orgID}/ledgers/{ledgerID}/accounts
+POST /v1/organizations/{orgID}/ledgers/{ledgerID}/accounts
 Content-Type: application/json
 
 {
@@ -216,9 +217,11 @@ Content-Type: application/json
 
 ### Pagination Pattern
 
+Midaz uses **offset-based pagination** with `page` and `limit` parameters.
+
 **Request**:
 ```
-GET /api/v1/organizations/{orgID}/ledgers/{ledgerID}/accounts?page=2&limit=20&sort=name&order=asc
+GET /v1/organizations/{orgID}/ledgers/{ledgerID}/accounts?page=2&limit=20&sort=name&order=asc
 ```
 
 **Response**:
@@ -394,7 +397,7 @@ http://localhost:3000/swagger/index.html
 // @Param name location type required "description" format(type)
 // @Success 200 {object} Model  // Success response
 // @Failure 400 {object} http.ErrorResponse
-// @Router /api/v1/path [method]
+// @Router /v1/path [method]
 ```
 
 ## API Versioning
@@ -402,8 +405,8 @@ http://localhost:3000/swagger/index.html
 ### URL-Based Versioning (Current)
 
 ```
-/api/v1/accounts  - Version 1
-/api/v2/accounts  - Version 2 (when breaking changes needed)
+/v1/accounts  - Version 1
+/v2/accounts  - Version 2 (when breaking changes needed)
 ```
 
 ### Backwards Compatibility
@@ -420,7 +423,7 @@ type UpdateAccountInput struct {
 
 When changing existing behavior - create new version:
 ```
-/api/v2/accounts  // New version with breaking changes
+/v2/accounts  // New version with breaking changes
 ```
 
 ## Authentication & Authorization
@@ -433,15 +436,16 @@ PLUGIN_AUTH_ENABLED=true
 
 // Auth middleware applied to routes
 func (h *Handler) RegisterRoutes(app *fiber.App) {
-    api := app.Group("/api/v1")
+    api := app.Group("/v1")
 
     if config.AuthEnabled {
         api.Use(authMiddleware)
     }
 
-    accounts := api.Group("/organizations/:orgID/ledgers/:ledgerID/accounts")
-    accounts.Post("/", h.CreateAccount)
-    accounts.Get("/:accountID", h.GetAccount)
+    accounts := api.Group("/organizations/:organization_id/ledgers/:ledger_id/accounts")
+    accounts.Use(http.ParseUUIDPathParameters("organization_id", "ledger_id"))
+    accounts.Post("/", http.WithBody(new(mmodel.CreateAccountInput), h.CreateAccount))
+    accounts.Get("/:account_id", http.ParseUUIDPathParameters("account_id"), h.GetAccount)
 }
 ```
 
@@ -484,7 +488,7 @@ make test-e2e
 
 ## API Design Checklist
 
-✅ **Use consistent URL structure** - `/api/v1/resources`
+✅ **Use consistent URL structure** - `/v1/resources`
 
 ✅ **Apply proper HTTP methods** - POST (create), GET (read), PUT/PATCH (update), DELETE (remove)
 

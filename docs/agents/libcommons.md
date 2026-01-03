@@ -1,7 +1,7 @@
 # lib-commons - External Observability Library
 
 **Package**: `github.com/LerianStudio/lib-commons/v2`
-**Version**: `v2.6.0-beta.4` (see `go.mod`)
+**Version**: `v2.6.1` (see `go.mod`)
 
 `lib-commons` is an external library providing observability, database utilities, and common patterns for Midaz services. It's the foundation for logging, tracing, metrics, and database operations.
 
