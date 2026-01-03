@@ -238,10 +238,11 @@ test-bench:
 # Requirements:
 #   - Test files must follow the naming convention: *_integration_test.go
 #   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
+#   - Chaos tests use TestIntegration_Chaos_ prefix (e.g., TestIntegration_Chaos_Redis_NetworkPartition)
 #
 # Chaos tests (CHAOS=1):
-#   Chaos tests (TestChaos_*) are also included in integration test files but are
-#   skipped by default. To run chaos tests alongside integration tests, set CHAOS=1:
+#   Chaos tests are included in integration test files but skip themselves by default.
+#   To run chaos tests alongside integration tests, set CHAOS=1:
 #     make test-integration CHAOS=1
 #   This enables network chaos injection, container restarts, and other failure scenarios.
 .PHONY: test-integration
@@ -262,24 +263,22 @@ test-integration:
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
 	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Running both TestIntegration_ and TestChaos_ tests"; \
-	    run_pattern='^(TestIntegration|TestChaos)'; \
+	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
 	  else \
-	    echo "Running TestIntegration_ tests only (set CHAOS=1 to include chaos tests)"; \
-	    run_pattern='^TestIntegration'; \
+	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
 	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run "$$run_pattern" $$pkgs || { \
+	      -run '^TestIntegration' $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run "$$run_pattern" $$pkgs; \
+	          -run '^TestIntegration' $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
@@ -287,7 +286,7 @@ test-integration:
 	  else \
 	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run "$$run_pattern" $$pkgs; \
+	      -run '^TestIntegration' $$pkgs; \
 	  fi; \
 	fi
 
@@ -298,6 +297,7 @@ test-integration:
 # This prevents transient failures like "port not found" or container timeouts.
 #
 # Chaos tests (CHAOS=1):
+#   Chaos tests (TestIntegration_Chaos_*) skip themselves by default.
 #   To include chaos tests in coverage, set CHAOS=1:
 #     make coverage-integration CHAOS=1
 .PHONY: coverage-integration
@@ -318,25 +318,23 @@ coverage-integration:
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
 	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Running both TestIntegration_ and TestChaos_ tests"; \
-	    run_pattern='^(TestIntegration|TestChaos)'; \
+	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
 	  else \
-	    echo "Running TestIntegration_ tests only (set CHAOS=1 to include chaos tests)"; \
-	    run_pattern='^TestIntegration'; \
+	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
 	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	          -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
 	        exit 1; \
@@ -345,7 +343,7 @@ coverage-integration:
 	  else \
 	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
 	  go tool cover -html=$(TEST_REPORTS_DIR)/integration_coverage.out -o $(TEST_REPORTS_DIR)/integration_coverage.html; \

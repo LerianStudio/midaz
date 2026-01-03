@@ -639,7 +639,7 @@ func TestIntegration_RabbitMQ_MultipleExchanges(t *testing.T) {
 // Uses Toxiproxy to inject latency into the network path.
 // NOTE: The producer uses async publishing, so we verify message DELIVERY rather than
 // measuring publish call duration (which returns before network I/O completes).
-func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
+func TestIntegration_Chaos_RabbitMQ_NetworkLatency(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -718,7 +718,7 @@ func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
 // continues attempting to publish during network outage and succeeds after recovery.
 // This validates that the built-in retry logic in ProducerDefault handles transient
 // network failures gracefully without losing messages.
-func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
+func TestIntegration_Chaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -826,7 +826,7 @@ func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 // - Admin manually closing problematic connections
 //
 // The producer's EnsureChannel should detect the closed connection and reconnect.
-func TestChaos_RabbitMQ_ConnectionKilledByBroker(t *testing.T) {
+func TestIntegration_Chaos_RabbitMQ_ConnectionKilledByBroker(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -953,7 +953,7 @@ func TestChaos_RabbitMQ_ConnectionKilledByBroker(t *testing.T) {
 
 // TestChaos_RabbitMQ_DataIntegrityAfterRestart tests that no messages are lost
 // during container restart (for durable queues).
-func TestChaos_RabbitMQ_DataIntegrityAfterRestart(t *testing.T) {
+func TestIntegration_Chaos_RabbitMQ_DataIntegrityAfterRestart(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -1025,7 +1025,7 @@ func TestChaos_RabbitMQ_DataIntegrityAfterRestart(t *testing.T) {
 // - Buffer or retry messages during pause
 // - Resume normal operation after unpause
 // - Not lose any messages that were accepted before pause
-func TestChaos_RabbitMQ_PauseUnpauseDuringPublish(t *testing.T) {
+func TestIntegration_Chaos_RabbitMQ_PauseUnpauseDuringPublish(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")

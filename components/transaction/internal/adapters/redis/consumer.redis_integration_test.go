@@ -398,7 +398,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 
 // TestChaos_Redis_RestartRecovery tests that the Redis consumer repository
 // recovers after a Redis container restart.
-func TestChaos_Redis_RestartRecovery(t *testing.T) {
+func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -464,7 +464,7 @@ func TestChaos_Redis_RestartRecovery(t *testing.T) {
 
 // TestChaos_Redis_DataIntegrityAfterRestart tests that balance data persists
 // correctly after container restart (Redis with persistence).
-func TestChaos_Redis_DataIntegrityAfterRestart(t *testing.T) {
+func TestIntegration_Chaos_Redis_DataIntegrityAfterRestart(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -524,7 +524,7 @@ func TestChaos_Redis_DataIntegrityAfterRestart(t *testing.T) {
 
 // TestChaos_Redis_NetworkLatency tests repository behavior under network latency.
 // Uses Toxiproxy to inject latency into the network path.
-func TestChaos_Redis_NetworkLatency(t *testing.T) {
+func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -611,7 +611,7 @@ func TestChaos_Redis_NetworkLatency(t *testing.T) {
 
 // TestChaos_Redis_NetworkPartition tests repository behavior during network partition.
 // Uses Toxiproxy to disconnect/reconnect the network path.
-func TestChaos_Redis_NetworkPartition(t *testing.T) {
+func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -697,7 +697,7 @@ func TestChaos_Redis_NetworkPartition(t *testing.T) {
 
 // TestChaos_Redis_ConcurrentBalanceOperations tests that concurrent balance
 // operations maintain data consistency through atomic Lua script execution.
-func TestChaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
+func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -769,7 +769,7 @@ func TestChaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 
 // TestChaos_Redis_InsufficientFundsUnderLoad tests that insufficient funds validation
 // works correctly under concurrent load.
-func TestChaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
+func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -854,7 +854,7 @@ func TestChaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 
 // TestChaos_Redis_GracefulDegradation tests that the repository fails
 // gracefully when Redis is unavailable.
-func TestChaos_Redis_GracefulDegradation(t *testing.T) {
+func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")

@@ -595,7 +595,7 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 // TestChaos_Transaction_PostgresRestart tests that the repository recovers
 // after a PostgreSQL container restart.
 // SKIPPED: lib-commons PostgreSQL connection pool does not recover after restart.
-func TestChaos_Transaction_PostgresRestart(t *testing.T) {
+func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
 	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
@@ -638,7 +638,7 @@ func TestChaos_Transaction_PostgresRestart(t *testing.T) {
 
 // TestChaos_Transaction_DataIntegrity tests that data remains consistent
 // after chaos events (no data loss, no corruption).
-func TestChaos_Transaction_DataIntegrity(t *testing.T) {
+func TestIntegration_Chaos_Transaction_DataIntegrity(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -686,7 +686,7 @@ func TestChaos_Transaction_DataIntegrity(t *testing.T) {
 
 // TestChaos_Transaction_NetworkLatency tests that the repository handles
 // network latency gracefully without timing out inappropriately.
-func TestChaos_Transaction_NetworkLatency(t *testing.T) {
+func TestIntegration_Chaos_Transaction_NetworkLatency(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -733,7 +733,7 @@ func TestChaos_Transaction_NetworkLatency(t *testing.T) {
 
 // TestChaos_Transaction_NetworkPartition tests that the repository handles
 // network partitions (disconnections) gracefully.
-func TestChaos_Transaction_NetworkPartition(t *testing.T) {
+func TestIntegration_Chaos_Transaction_NetworkPartition(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -786,7 +786,7 @@ func TestChaos_Transaction_NetworkPartition(t *testing.T) {
 
 // TestChaos_Transaction_PacketLoss tests that the repository handles
 // packet loss gracefully with retries.
-func TestChaos_Transaction_PacketLoss(t *testing.T) {
+func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -831,7 +831,7 @@ func TestChaos_Transaction_PacketLoss(t *testing.T) {
 
 // TestChaos_Transaction_IntermittentFailure tests that the repository handles
 // intermittent network failures (flapping connection).
-func TestChaos_Transaction_IntermittentFailure(t *testing.T) {
+func TestIntegration_Chaos_Transaction_IntermittentFailure(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")

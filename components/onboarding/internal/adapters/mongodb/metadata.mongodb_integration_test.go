@@ -619,7 +619,7 @@ func (infra *networkChaosTestInfra) createTestMetadata(t *testing.T, entityID, d
 // TestChaos_Metadata_MongoDBRestart tests that the repository recovers
 // after a MongoDB container restart.
 // SKIPPED: lib-commons MongoDB connection pool does not recover after restart.
-func TestChaos_Metadata_MongoDBRestart(t *testing.T) {
+func TestIntegration_Chaos_Metadata_MongoDBRestart(t *testing.T) {
 	t.Skip("skipping: lib-commons connection pool does not recover after MongoDB restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
@@ -663,7 +663,7 @@ func TestChaos_Metadata_MongoDBRestart(t *testing.T) {
 
 // TestChaos_Metadata_DataIntegrity tests that data remains consistent
 // after chaos events (no data loss, no corruption).
-func TestChaos_Metadata_DataIntegrity(t *testing.T) {
+func TestIntegration_Chaos_Metadata_DataIntegrity(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -712,7 +712,7 @@ func TestChaos_Metadata_DataIntegrity(t *testing.T) {
 
 // TestChaos_Metadata_NetworkLatency tests that the repository handles
 // network latency gracefully without timing out inappropriately.
-func TestChaos_Metadata_NetworkLatency(t *testing.T) {
+func TestIntegration_Chaos_Metadata_NetworkLatency(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -760,7 +760,7 @@ func TestChaos_Metadata_NetworkLatency(t *testing.T) {
 
 // TestChaos_Metadata_NetworkPartition tests that the repository handles
 // network partitions (disconnections) gracefully.
-func TestChaos_Metadata_NetworkPartition(t *testing.T) {
+func TestIntegration_Chaos_Metadata_NetworkPartition(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -814,7 +814,7 @@ func TestChaos_Metadata_NetworkPartition(t *testing.T) {
 
 // TestChaos_Metadata_PacketLoss tests that the repository handles
 // packet loss gracefully with retries.
-func TestChaos_Metadata_PacketLoss(t *testing.T) {
+func TestIntegration_Chaos_Metadata_PacketLoss(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -859,7 +859,7 @@ func TestChaos_Metadata_PacketLoss(t *testing.T) {
 
 // TestChaos_Metadata_IntermittentFailure tests that the repository handles
 // intermittent network failures (flapping connection).
-func TestChaos_Metadata_IntermittentFailure(t *testing.T) {
+func TestIntegration_Chaos_Metadata_IntermittentFailure(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
