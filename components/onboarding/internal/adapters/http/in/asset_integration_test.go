@@ -347,36 +347,24 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 	assetID := infra.createAsset(t, orgID, ledgerID, "US Dollar", "USD", "currency")
 	t.Logf("Created asset: %s", assetID)
 
-	// Step 4: GET Assets and verify USD exists
+	// Step 4: GET Asset by ID to verify it exists
 	req := httptest.NewRequest("GET",
-		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(),
 		nil)
 
 	resp, err := infra.app.Test(req, -1)
-	require.NoError(t, err, "GET assets request should not fail")
+	require.NoError(t, err, "GET asset by ID request should not fail")
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, 200, resp.StatusCode, "expected 200, got %d: %s", resp.StatusCode, string(respBody))
 
-	var assetsResult map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &assetsResult), "response should be valid JSON")
+	var assetResult map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &assetResult), "response should be valid JSON")
 
-	items, ok := assetsResult["items"].([]any)
-	require.True(t, ok, "response should contain items array")
-	require.GreaterOrEqual(t, len(items), 1, "should have at least 1 asset")
-
-	// Verify USD asset exists in the list
-	foundUSD := false
-	for _, item := range items {
-		assetItem := item.(map[string]any)
-		if assetItem["code"] == "USD" {
-			foundUSD = true
-			assert.Equal(t, "US Dollar", assetItem["name"], "asset name should match")
-			assert.Equal(t, "currency", assetItem["type"], "asset type should match")
-			break
-		}
-	}
-	require.True(t, foundUSD, "USD asset should exist in the list")
+	// Verify USD asset fields
+	assert.Equal(t, "USD", assetResult["code"], "asset code should be USD")
+	assert.Equal(t, "US Dollar", assetResult["name"], "asset name should match")
+	assert.Equal(t, "currency", assetResult["type"], "asset type should match")
 
 	// Step 5: Create Account with assetCode: "USD"
 	accountRequestBody := map[string]any{
@@ -506,4 +494,242 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 	assert.True(t, accountResp.StatusCode >= 400 && accountResp.StatusCode < 500,
 		"account creation with deleted asset should fail with 4xx, got %d: %s",
 		accountResp.StatusCode, string(accountRespBody))
+}
+
+// randString generates a random string of length n using common characters.
+func randString(n int) string {
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-@:/")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[i%len(letters)]
+	}
+	return string(b)
+}
+
+// TestIntegration_Fuzz_Account_AliasAndType tests that various account alias lengths
+// and types don't cause 5xx errors. This is a property-based integration test that
+// validates the system handles edge cases gracefully.
+func TestIntegration_Fuzz_Account_AliasAndType(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Create baseline org/ledger/asset
+	orgID := infra.createOrganization(t, "Fuzz Account Test Org")
+	ledgerID := infra.createLedger(t, orgID, "Fuzz Account Test Ledger")
+	_ = infra.createAsset(t, orgID, ledgerID, "US Dollar", "USD", "currency")
+
+	// Test cases with various alias lengths and types
+	testCases := []struct {
+		aliasLen int
+		accType  string
+	}{
+		{0, "deposit"},
+		{1, "deposit"},
+		{10, "deposit"},
+		{50, "external"},
+		{100, "deposit"},
+		{150, "external"},
+	}
+
+	for i, tc := range testCases {
+		t.Run(
+			"aliasLen="+string(rune('0'+tc.aliasLen/100))+string(rune('0'+(tc.aliasLen/10)%10))+string(rune('0'+tc.aliasLen%10))+"_type="+tc.accType,
+			func(t *testing.T) {
+				alias := ""
+				if tc.aliasLen > 0 {
+					prefix := "@fuzz-"
+					suffixLen := tc.aliasLen - len(prefix)
+					if suffixLen > 0 {
+						alias = prefix + randString(suffixLen)
+					} else {
+						// aliasLen is shorter than prefix, just use truncated prefix
+						alias = prefix[:tc.aliasLen]
+					}
+				}
+
+				accountRequestBody := map[string]any{
+					"name":      "Fuzz Account " + string(rune('A'+i)),
+					"assetCode": "USD",
+					"type":      tc.accType,
+				}
+				if alias != "" {
+					accountRequestBody["alias"] = alias
+				}
+
+				accountBody, _ := json.Marshal(accountRequestBody)
+				accountReq := httptest.NewRequest("POST",
+					"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+					bytes.NewBuffer(accountBody))
+				accountReq.Header.Set("Content-Type", "application/json")
+
+				accountResp, err := infra.app.Test(accountReq, -1)
+				require.NoError(t, err, "create account request should not fail")
+
+				// Property: Should never return 5xx
+				assert.Less(t, accountResp.StatusCode, 500,
+					"server should not return 5xx for aliasLen=%d type=%s", tc.aliasLen, tc.accType)
+			},
+		)
+	}
+}
+
+// TestIntegration_Fuzz_Account_DuplicateAlias tests that duplicate alias submission
+// is handled correctly (should return 409 Conflict, not 5xx).
+func TestIntegration_Fuzz_Account_DuplicateAlias(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Create baseline org/ledger/asset
+	orgID := infra.createOrganization(t, "Fuzz Duplicate Alias Org")
+	ledgerID := infra.createLedger(t, orgID, "Fuzz Duplicate Alias Ledger")
+	_ = infra.createAsset(t, orgID, ledgerID, "US Dollar", "USD", "currency")
+
+	// Create first account with a specific alias
+	alias := "@fuzz-dup-test"
+	accountRequestBody := map[string]any{
+		"name":      "First Account",
+		"assetCode": "USD",
+		"type":      "deposit",
+		"alias":     alias,
+	}
+	accountBody, _ := json.Marshal(accountRequestBody)
+
+	accountReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+		bytes.NewBuffer(accountBody))
+	accountReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(accountReq, -1)
+	require.NoError(t, err)
+	require.Equal(t, 201, resp.StatusCode, "first account creation should succeed")
+
+	// Act: Try to create second account with same alias
+	accountRequestBody["name"] = "Second Account"
+	accountBody, _ = json.Marshal(accountRequestBody)
+
+	duplicateReq := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
+		bytes.NewBuffer(accountBody))
+	duplicateReq.Header.Set("Content-Type", "application/json")
+
+	duplicateResp, err := infra.app.Test(duplicateReq, -1)
+	require.NoError(t, err)
+
+	respBody, _ := io.ReadAll(duplicateResp.Body)
+
+	// Assert: Should return 4xx (conflict or bad request), never 5xx
+	assert.True(t, duplicateResp.StatusCode >= 400 && duplicateResp.StatusCode < 500,
+		"duplicate alias should return 4xx, got %d: %s", duplicateResp.StatusCode, string(respBody))
+}
+
+// TestIntegration_Fuzz_Structural_InvalidJSON tests that various malformed inputs
+// are handled gracefully without causing 5xx errors.
+func TestIntegration_Fuzz_Structural_InvalidJSON(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	// Create baseline org for ledger tests
+	orgID := infra.createOrganization(t, "Fuzz Structural Org")
+
+	testCases := []struct {
+		name        string
+		contentType string
+		body        []byte
+		expect4xx   bool // false means server may accept it (lenient behavior)
+	}{
+		{"empty_body", "application/json", []byte{}, true},
+		{"invalid_json", "application/json", []byte("{ invalid json }"), true},
+		{"null_body", "application/json", []byte("null"), true},
+		{"array_instead_of_object", "application/json", []byte("[]"), true},
+		{"missing_required_fields", "application/json", []byte("{}"), true},
+		// Server is lenient: accepts valid JSON regardless of Content-Type header
+		{"wrong_content_type", "text/plain", []byte(`{"name": "Test"}`), false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST",
+				"/v1/organizations/"+orgID.String()+"/ledgers",
+				bytes.NewBuffer(tc.body))
+			req.Header.Set("Content-Type", tc.contentType)
+
+			resp, err := infra.app.Test(req, -1)
+			require.NoError(t, err)
+
+			// Property: Should never return 5xx
+			assert.Less(t, resp.StatusCode, 500,
+				"server should not return 5xx for %s", tc.name)
+
+			// Should return 4xx for structurally invalid inputs
+			if tc.expect4xx {
+				assert.GreaterOrEqual(t, resp.StatusCode, 400,
+					"server should return 4xx for bad input %s, got %d", tc.name, resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestIntegration_Fuzz_Structural_LargeMetadata tests that large metadata payloads
+// are handled gracefully without causing 5xx errors.
+func TestIntegration_Fuzz_Structural_LargeMetadata(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	orgID := infra.createOrganization(t, "Fuzz Large Metadata Org")
+
+	// Create a large metadata value (~250KB)
+	largeValue := make([]byte, 250*1024)
+	for i := range largeValue {
+		largeValue[i] = 'A'
+	}
+
+	ledgerRequestBody := map[string]any{
+		"name": "Large Metadata Ledger",
+		"metadata": map[string]any{
+			"largeBlob": string(largeValue),
+		},
+	}
+	body, _ := json.Marshal(ledgerRequestBody)
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers",
+		bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err)
+
+	// Property: Should never return 5xx (may return 413 or accept it)
+	assert.Less(t, resp.StatusCode, 500,
+		"server should not return 5xx for large metadata payload")
+}
+
+// TestIntegration_Fuzz_Structural_UnknownFields tests that payloads with unknown fields
+// are handled gracefully (should return 4xx, not 5xx or silently accept).
+func TestIntegration_Fuzz_Structural_UnknownFields(t *testing.T) {
+	// Arrange
+	infra := setupAssetTestInfra(t)
+
+	orgID := infra.createOrganization(t, "Fuzz Unknown Fields Org")
+
+	// Payload with unknown field
+	ledgerRequestBody := map[string]any{
+		"name":         "Test Ledger",
+		"unknownField": "should be rejected or ignored",
+		"anotherFake":  123,
+	}
+	body, _ := json.Marshal(ledgerRequestBody)
+
+	req := httptest.NewRequest("POST",
+		"/v1/organizations/"+orgID.String()+"/ledgers",
+		bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := infra.app.Test(req, -1)
+	require.NoError(t, err)
+
+	// Property: Should not return 5xx for unknown fields
+	// Note: behavior may be 4xx (strict validation) or 2xx (lenient, ignores unknown)
+	assert.Less(t, resp.StatusCode, 500,
+		"server should not return 5xx for payload with unknown fields")
 }

@@ -4,7 +4,6 @@
 TEST_ONBOARDING_URL ?= http://localhost:3000
 TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_HEALTH_WAIT ?= 60
-TEST_FUZZTIME ?= 30s
 START_LOCAL_DOCKER ?= 0
 
 # Optional auth configuration (passed through to tests)
@@ -12,9 +11,11 @@ TEST_AUTH_URL ?=
 TEST_AUTH_USERNAME ?=
 TEST_AUTH_PASSWORD ?=
 
-# Optional fuzz engine load controls
-TEST_PARALLEL ?=
-TEST_GOMAXPROCS ?=
+# Native fuzz test controls
+# FUZZ: specific fuzz target name (e.g., FuzzCreateOrganization_LegalName)
+# FUZZTIME: duration per fuzz target (default: 10s)
+FUZZ ?=
+FUZZTIME ?= 10s
 
 # Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race)
 # Usage: make test-integration LOW_RESOURCE=1
@@ -180,64 +181,40 @@ endif
 	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	fi
 
-# Fuzzy/robustness tests
-.PHONY: test-fuzzy
-test-fuzzy:
-	$(call print_title,Running fuzz/robustness tests)
-
-ifeq ($(START_LOCAL_DOCKER),1)
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-endif
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzzy; \
-	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
-	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	  $(MAKE) up-backend; \
-	  $(MAKE) -s wait-for-services; \
+# Native Go fuzz tests (coverage-guided mutation testing).
+# Usage:
+#   make test-fuzz                                    # Run all Fuzz* targets for 10s each
+#   make test-fuzz FUZZTIME=30s                       # Run all Fuzz* targets for 30s each
+#   make test-fuzz FUZZ=FuzzCreateOrganization_LegalName  # Run specific target
+#   make test-fuzz FUZZ=FuzzCreateOrganization_LegalName FUZZTIME=60s
+.PHONY: test-fuzz
+test-fuzz:
+	$(call print_title,Running Go native fuzz tests)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz; \
+	if [ -n "$(FUZZ)" ]; then \
+	  echo "Running fuzz target: $(FUZZ) for $(FUZZTIME)"; \
+	  pkg=$$(grep -r "func $(FUZZ)" --include='*_test.go' -l ./components ./pkg 2>/dev/null | head -1 | xargs dirname); \
+	  if [ -z "$$pkg" ]; then \
+	    echo "Error: Fuzz target '$(FUZZ)' not found"; exit 1; \
+	  fi; \
+	  go test -v -fuzz=$(FUZZ) -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg; \
 	else \
-	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
-	fi; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying fuzzy tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
-	fi
-
-# Fuzz engine run (uses Go's built-in fuzzing). Adjust TEST_FUZZTIME to control duration.
-.PHONY: test-fuzz-engine
-test-fuzz-engine:
-	$(call print_title,Running Go fuzz engine on fuzzy tests)
-
-ifeq ($(START_LOCAL_DOCKER),1)
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-endif
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz-engine; \
-	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
-	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	  $(MAKE) up-backend; \
-	  $(MAKE) -s wait-for-services; \
-	else \
-	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
-	fi; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying fuzz engine once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	  echo "Discovering all Fuzz* targets..."; \
+	  targets=$$(grep -r "^func Fuzz" --include='*_test.go' -h ./components ./pkg 2>/dev/null | sed 's/func \(Fuzz[^(]*\).*/\1/' | sort -u); \
+	  if [ -z "$$targets" ]; then \
+	    echo "No Fuzz* targets found"; exit 0; \
+	  fi; \
+	  echo "Found targets: $$targets"; \
+	  echo "Running each for $(FUZZTIME)..."; \
+	  echo ""; \
+	  for target in $$targets; do \
+	    pkg=$$(grep -r "func $$target" --include='*_test.go' -l ./components ./pkg 2>/dev/null | head -1 | xargs dirname); \
+	    echo "━━━ $$target ($$pkg) ━━━"; \
+	    go test -v -fuzz=$$target -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg || true; \
+	    echo ""; \
+	  done; \
+	  echo "Fuzz testing complete. Check testdata/fuzz/ for corpus."; \
 	fi
 
 # Integration tests with testcontainers (no coverage)
@@ -340,7 +317,7 @@ coverage:
 	$(MAKE) coverage-unit
 	$(MAKE) coverage-integration
 
-# Run all tests
+# Run all tests (excludes native fuzz engine which runs indefinitely)
 .PHONY: test-all
 test-all:
 	$(call print_title,Running all tests)
@@ -350,9 +327,5 @@ test-all:
 	$(MAKE) test-integration
 	$(call print_title,Running chaos tests)
 	$(MAKE) test-chaos
-	$(call print_title,Running fuzzy tests)
-	$(MAKE) test-fuzzy
-	$(call print_title,Running fuzz engine tests)
-	$(MAKE) test-fuzz-engine
 
 

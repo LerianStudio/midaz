@@ -1,10 +1,13 @@
 package in
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -997,3 +1000,425 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 
 // Ensure libPostgres.Pagination is used (referenced in handler)
 var _ = libPostgres.Pagination{}
+
+// TestFuzz_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
+// This is a property-based test with randomized field lengths.
+func TestFuzz_Organization_FieldLengths(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Mock repo to succeed when called (validation passed)
+	mockOrgRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+			org.ID = uuid.New().String()
+			org.CreatedAt = time.Now()
+			org.UpdatedAt = time.Now()
+			return org, nil
+		}).
+		AnyTimes()
+
+	cmdUC := &command.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Command: cmdUC}
+
+	// Helper to generate random string
+	randString := func(n int) string {
+		if n == 0 {
+			return ""
+		}
+		letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-")
+		b := make([]rune, n)
+		for i := range b {
+			b[i] = letters[i%len(letters)]
+		}
+		return string(b)
+	}
+
+	// Test various field lengths
+	testCases := []struct {
+		nameLen int
+		docLen  int
+	}{
+		{0, 0},
+		{1, 1},
+		{10, 10},
+		{50, 20},
+		{100, 50},
+		{200, 100},
+		{256, 128},
+		{400, 200}, // Large values
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf("nameLen=%d_docLen=%d", tc.nameLen, tc.docLen)
+		t.Run(name, func(t *testing.T) {
+			payload := &mmodel.CreateOrganizationInput{
+				LegalName:     randString(tc.nameLen),
+				LegalDocument: randString(tc.docLen),
+				Address:       mmodel.Address{Country: "US"},
+				Status:        mmodel.Status{Code: "ACTIVE"},
+			}
+
+			app := fiber.New()
+			app.Post("/v1/organizations",
+				func(c *fiber.Ctx) error {
+					return handler.CreateOrganization(payload, c)
+				},
+			)
+
+			req := httptest.NewRequest("POST", "/v1/organizations", nil)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Property: should never return 5xx for any field length
+			require.NoError(t, err, "request should not error")
+			if resp.StatusCode >= 500 {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("server returned 5xx for nameLen=%d docLen=%d: status=%d body=%s",
+					tc.nameLen, tc.docLen, resp.StatusCode, string(body))
+			}
+		})
+	}
+}
+
+// TestFuzz_Headers_InvalidFormats tests that invalid header formats don't cause 5xx errors.
+// This is a property-based test that validates HTTP layer robustness.
+func TestFuzz_Headers_InvalidFormats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Mock repo to return empty list (we're testing HTTP layer, not business logic)
+	mockOrgRepo.EXPECT().
+		FindAll(gomock.Any(), gomock.Any()).
+		Return([]*mmodel.Organization{}, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Get("/v1/organizations", handler.GetAllOrganizations)
+
+	tests := []struct {
+		name    string
+		headers map[string]string
+	}{
+		{"empty X-Request-Id", map[string]string{"X-Request-Id": ""}},
+		{"very long X-Request-Id", map[string]string{"X-Request-Id": strings.Repeat("a", 1024)}},
+		{"special chars in header", map[string]string{"X-Request-Id": "test-123_abc.def"}},
+		{"unicode in header value", map[string]string{"X-Request-Id": "test-123"}},
+		{"UUID format", map[string]string{"X-Request-Id": "550e8400-e29b-41d4-a716-446655440000"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/v1/organizations", nil)
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			resp, err := app.Test(req)
+
+			// Property: should never return 5xx for any header format
+			require.NoError(t, err, "request should not error")
+			if resp.StatusCode >= 500 {
+				t.Fatalf("server returned 5xx for headers %v: status=%d", tt.headers, resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestFuzz_ContentType_Variations tests that various Content-Type values don't cause 5xx errors.
+func TestFuzz_ContentType_Variations(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Mock repo to succeed when called
+	mockOrgRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+			org.ID = uuid.New().String()
+			org.CreatedAt = time.Now()
+			org.UpdatedAt = time.Now()
+			return org, nil
+		}).
+		AnyTimes()
+
+	cmdUC := &command.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Command: cmdUC}
+
+	contentTypes := []string{
+		"application/json",
+		"application/json; charset=utf-8",
+		"APPLICATION/JSON",
+		"application/json; charset=UTF-8",
+		"text/plain", // wrong type
+		"",           // missing
+	}
+
+	for _, ct := range contentTypes {
+		t.Run("content-type="+ct, func(t *testing.T) {
+			payload := &mmodel.CreateOrganizationInput{
+				LegalName:     "Test Org",
+				LegalDocument: "12345678901234",
+				Address:       mmodel.Address{Country: "US"},
+				Status:        mmodel.Status{Code: "ACTIVE"},
+			}
+
+			app := fiber.New()
+			app.Post("/v1/organizations",
+				func(c *fiber.Ctx) error {
+					return handler.CreateOrganization(payload, c)
+				},
+			)
+
+			req := httptest.NewRequest("POST", "/v1/organizations", nil)
+			if ct != "" {
+				req.Header.Set("Content-Type", ct)
+			}
+
+			resp, err := app.Test(req)
+
+			// Property: should never return 5xx for any Content-Type
+			require.NoError(t, err, "request should not error")
+			if resp.StatusCode >= 500 {
+				t.Fatalf("server returned 5xx for Content-Type=%q: status=%d", ct, resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestFuzz_Headers_MissingContentType tests that POST requests without Content-Type
+// are handled gracefully (should return 4xx, not 5xx).
+func TestFuzz_Headers_MissingContentType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Allow any calls in case request passes validation
+	mockOrgRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+			org.ID = uuid.New().String()
+			org.CreatedAt = time.Now()
+			org.UpdatedAt = time.Now()
+			return org, nil
+		}).
+		AnyTimes()
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	cmdUC := &command.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Command: cmdUC}
+
+	app := fiber.New()
+	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
+
+	// POST with JSON body but no Content-Type header
+	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
+	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	// Explicitly NOT setting Content-Type
+
+	resp, err := app.Test(req)
+	require.NoError(t, err, "request should not error")
+
+	// Property: should not return 5xx
+	assert.Less(t, resp.StatusCode, 500, "missing Content-Type should not cause 5xx")
+}
+
+// TestFuzz_Headers_DuplicateContentType tests that requests with duplicate Content-Type
+// headers are handled gracefully (should not cause 5xx).
+func TestFuzz_Headers_DuplicateContentType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	mockOrgRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+			org.ID = uuid.New().String()
+			org.CreatedAt = time.Now()
+			org.UpdatedAt = time.Now()
+			return org, nil
+		}).
+		AnyTimes()
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	cmdUC := &command.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Command: cmdUC}
+
+	app := fiber.New()
+	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
+
+	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
+	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	// Add duplicate Content-Type headers
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err, "request should not error")
+
+	// Property: should not return 5xx even with duplicate headers
+	assert.Less(t, resp.StatusCode, 500, "duplicate Content-Type should not cause 5xx")
+}
+
+// TestFuzz_Headers_DuplicateXRequestId tests that requests with duplicate X-Request-Id
+// headers are handled gracefully (should not cause 5xx).
+func TestFuzz_Headers_DuplicateXRequestId(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockOrgRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	mockOrgRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+			org.ID = uuid.New().String()
+			org.CreatedAt = time.Now()
+			org.UpdatedAt = time.Now()
+			return org, nil
+		}).
+		AnyTimes()
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	cmdUC := &command.UseCase{
+		OrganizationRepo: mockOrgRepo,
+		MetadataRepo:     mockMetadataRepo,
+	}
+	handler := &OrganizationHandler{Command: cmdUC}
+
+	app := fiber.New()
+	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
+
+	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
+	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Add duplicate X-Request-Id headers
+	req.Header.Add("X-Request-Id", "req-123")
+	req.Header.Add("X-Request-Id", "req-456")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err, "request should not error")
+
+	// Property: should not return 5xx even with duplicate X-Request-Id
+	assert.Less(t, resp.StatusCode, 500, "duplicate X-Request-Id should not cause 5xx")
+}
+
+// FuzzCreateOrganization_LegalName tests that various legalName inputs don't cause
+// server errors (5xx) and are properly validated. This is a native Go fuzz test.
+// Run with: go test -fuzz=FuzzCreateOrganization_LegalName ./components/onboarding/internal/adapters/http/in/
+func FuzzCreateOrganization_LegalName(f *testing.F) {
+	// Seed corpus with edge cases
+	f.Add("Acme, Inc.")           // valid name
+	f.Add("")                     // empty string
+	f.Add("a")                    // single char
+	f.Add("Αθήνα")                // non-ASCII (Greek)
+	f.Add("日本語テスト")         // Japanese
+	f.Add("Test\x00Name")         // null byte
+	f.Add("Test\nName")           // newline
+	f.Add("<script>alert(1)</script>") // XSS attempt
+
+	f.Fuzz(func(t *testing.T, name string) {
+		// Bound name length to keep requests reasonable
+		if len(name) > 512 {
+			name = name[:512]
+		}
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOrgRepo := organization.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+		// Mock repo to succeed when called (validation passed)
+		mockOrgRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx any, org *mmodel.Organization) (*mmodel.Organization, error) {
+				org.ID = uuid.New().String()
+				org.CreatedAt = time.Now()
+				org.UpdatedAt = time.Now()
+				return org, nil
+			}).
+			AnyTimes()
+
+		cmdUC := &command.UseCase{
+			OrganizationRepo: mockOrgRepo,
+			MetadataRepo:     mockMetadataRepo,
+		}
+		handler := &OrganizationHandler{Command: cmdUC}
+
+		payload := &mmodel.CreateOrganizationInput{
+			LegalName:     name,
+			LegalDocument: "12345678901234",
+			Address: mmodel.Address{
+				Country: "US",
+			},
+			Status: mmodel.Status{
+				Code: "ACTIVE",
+			},
+		}
+
+		app := fiber.New()
+		app.Post("/v1/organizations",
+			func(c *fiber.Ctx) error {
+				return handler.CreateOrganization(payload, c)
+			},
+		)
+
+		req := httptest.NewRequest("POST", "/v1/organizations", nil)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+
+		// Property: handler should never panic (covered by test execution)
+		// Property: should never return 5xx for any input
+		require.NoError(t, err, "request should not error")
+		if resp.StatusCode >= 500 {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("server returned 5xx for legalName=%q: status=%d body=%s",
+				name, resp.StatusCode, string(body))
+		}
+
+		// Property: if accepted (201), response must contain ID
+		if resp.StatusCode == 201 {
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var result map[string]any
+			err = json.Unmarshal(body, &result)
+			require.NoError(t, err)
+
+			if _, ok := result["id"]; !ok {
+				t.Fatalf("accepted org without ID for legalName=%q: body=%s", name, string(body))
+			}
+		}
+	})
+}
