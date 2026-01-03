@@ -1,4 +1,4 @@
-//go:build integration
+//go:build integration || chaos
 
 package redis
 
@@ -37,9 +37,10 @@ func DefaultContainerConfig() ContainerConfig {
 
 // ContainerResult holds the result of starting a Redis container.
 type ContainerResult struct {
-	Client  *redis.Client
-	Addr    string
-	Cleanup func()
+	Container testcontainers.Container
+	Client    *redis.Client
+	Addr      string
+	Cleanup   func()
 }
 
 // SetupContainer starts a Redis container for integration testing.
@@ -93,9 +94,71 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 
 	return &ContainerResult{
-		Client:  client,
-		Addr:    addr,
-		Cleanup: cleanup,
+		Container: container,
+		Client:    client,
+		Addr:      addr,
+		Cleanup:   cleanup,
+	}
+}
+
+// SetupContainerOnNetwork starts a Redis container on a specific Docker network.
+// The networkAlias is the hostname by which other containers on the network can reach this container.
+// This is useful for chaos testing with Toxiproxy where containers need to communicate directly.
+func SetupContainerOnNetwork(t *testing.T, networkName string, networkAlias string) *ContainerResult {
+	return SetupContainerOnNetworkWithConfig(t, DefaultContainerConfig(), networkName, networkAlias)
+}
+
+// SetupContainerOnNetworkWithConfig starts a Redis container on a specific Docker network with custom configuration.
+func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networkName string, networkAlias string) *ContainerResult {
+	t.Helper()
+
+	ctx := context.Background()
+
+	req := testcontainers.ContainerRequest{
+		Image:          cfg.Image,
+		ExposedPorts:   []string{"6379/tcp"},
+		Networks:       []string{networkName},
+		NetworkAliases: map[string][]string{networkName: {networkAlias}},
+		WaitingFor:     wait.ForLog("Ready to accept connections").WithStartupTimeout(60 * time.Second),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+		},
+	}
+
+	redisContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(t, err, "failed to start Redis container on network %s", networkName)
+
+	host, err := redisContainer.Host(ctx)
+	require.NoError(t, err, "failed to get Redis container host")
+
+	port, err := redisContainer.MappedPort(ctx, "6379")
+	require.NoError(t, err, "failed to get Redis container port")
+
+	addr := host + ":" + port.Port()
+
+	client := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+
+	// Verify connection
+	_, err = client.Ping(ctx).Result()
+	require.NoError(t, err, "failed to ping Redis container")
+
+	cleanup := func() {
+		client.Close()
+		if err := redisContainer.Terminate(ctx); err != nil {
+			t.Logf("failed to terminate Redis container: %v", err)
+		}
+	}
+
+	return &ContainerResult{
+		Client:    client,
+		Addr:      addr,
+		Cleanup:   cleanup,
+		Container: redisContainer,
 	}
 }
 
@@ -110,5 +173,34 @@ func CreateConnection(t *testing.T, addr string) *libRedis.RedisConnection {
 		Address: []string{addr},
 		Logger:  logger,
 	}
+}
+
+// CreateConnectionWithRetry creates a libRedis.RedisConnection wrapper with retry logic.
+// Useful after container restart when Redis may still be initializing.
+func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration) *libRedis.RedisConnection {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		client := redis.NewClient(&redis.Options{
+			Addr: addr,
+		})
+
+		_, err := client.Ping(context.Background()).Result()
+		client.Close()
+
+		if err == nil {
+			t.Log("Successfully connected to Redis after retry")
+			return CreateConnection(t, addr)
+		}
+
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	require.NoError(t, lastErr, "failed to connect to Redis at %s after %v", addr, timeout)
+	return nil
 }
 

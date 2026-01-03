@@ -1,10 +1,11 @@
-//go:build chaos
+//go:build integration || chaos
 
 package chaos
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tctoxiproxy "github.com/testcontainers/testcontainers-go/modules/toxiproxy"
 	"github.com/testcontainers/testcontainers-go/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // NetworkChaosConfig holds configuration for network chaos operations.
@@ -116,10 +118,19 @@ func SetupToxiproxyWithProxyAndConfig(t *testing.T, cfg NetworkChaosConfig, prox
 	sharedNetwork, err := network.New(ctx, network.WithCheckDuplicate())
 	require.NoError(t, err, "failed to create shared Docker network")
 
-	// Build options: shared network + pre-configured proxy
+	// Custom wait strategy with longer timeout for Docker Desktop networking delays
+	// When using custom networks, port mappings may take longer to become available
+	customWaitStrategy := wait.ForHTTP("/version").
+		WithPort("8474/tcp").
+		WithStatusCodeMatcher(func(status int) bool { return status == http.StatusOK }).
+		WithStartupTimeout(2 * time.Minute).
+		WithPollInterval(500 * time.Millisecond)
+
+	// Build options: shared network + pre-configured proxy + custom wait strategy
 	allOpts := []testcontainers.ContainerCustomizer{
 		network.WithNetwork([]string{"toxiproxy"}, sharedNetwork),
 		tctoxiproxy.WithProxy(proxyCfg.Name, proxyCfg.Upstream),
+		testcontainers.WithWaitStrategy(customWaitStrategy),
 	}
 	allOpts = append(allOpts, opts...)
 

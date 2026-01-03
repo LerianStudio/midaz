@@ -150,52 +150,6 @@ coverage-unit:
 	  echo "----------------------------------------"; \
 	fi
 
-# Chaos tests with testcontainers (adapter-level)
-# These tests use the `chaos` build tag and testcontainers-go to spin up
-# ephemeral containers with Toxiproxy for network chaos injection.
-# No external Docker stack is required.
-# Requirements:
-#   - Test files must follow the naming convention: *_chaos_test.go
-#   - Test functions must start with TestChaos_ (e.g., TestChaos_RabbitMQ_NetworkLatency)
-.PHONY: test-chaos
-test-chaos:
-	$(call print_title,Running adapter-level chaos tests with testcontainers)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	echo "Finding packages with *_chaos_test.go files..."; \
-	dirs=$$(find ./components ./pkg -name '*_chaos_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No chaos test packages found (files matching *_chaos_test.go)"; \
-	else \
-	  echo "Found packages: $$pkgs"; \
-	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
-	  fi; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running chaos tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos.xml -- \
-	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestChaos' $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying chaos tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos-rerun.xml -- \
-	          -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestChaos' $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestChaos' $$pkgs; \
-	  fi; \
-	fi
-
 # System-level chaos tests (full stack with docker-compose)
 # Starts the complete backend stack, runs chaos tests, then tears down.
 .PHONY: test-chaos-system
@@ -259,9 +213,20 @@ test-fuzz:
 # Integration tests with testcontainers (no coverage)
 # These tests use the `integration` build tag and testcontainers-go to spin up
 # ephemeral containers. No external Docker stack is required.
+#
+# NOTE: Integration tests always run with -p=1 (packages sequentially) because
+# testcontainers can overwhelm Docker when creating many containers in parallel.
+# This prevents transient failures like "port not found" or container timeouts.
+#
 # Requirements:
 #   - Test files must follow the naming convention: *_integration_test.go
 #   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
+#
+# Chaos tests (CHAOS=1):
+#   Chaos tests (TestChaos_*) are also included in integration test files but are
+#   skipped by default. To run chaos tests alongside integration tests, set CHAOS=1:
+#     make test-integration CHAOS=1
+#   This enables network chaos injection, container restarts, and other failure scenarios.
 .PHONY: test-integration
 test-integration:
 	$(call print_title,Running integration tests with testcontainers)
@@ -275,33 +240,49 @@ test-integration:
 	  echo "No integration test packages found (files matching *_integration_test.go)"; \
 	else \
 	  echo "Found packages: $$pkgs"; \
+	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
+	  fi; \
+	  if [ "$(CHAOS)" = "1" ]; then \
+	    echo "CHAOS=1: Running both TestIntegration_ and TestChaos_ tests"; \
+	    run_pattern='^(TestIntegration|TestChaos)'; \
+	  else \
+	    echo "Running TestIntegration_ tests only (set CHAOS=1 to include chaos tests)"; \
+	    run_pattern='^TestIntegration'; \
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
+	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' $$pkgs || { \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	      -run "$$run_pattern" $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
+	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestIntegration' $$pkgs; \
+	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	          -run "$$run_pattern" $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' $$pkgs; \
+	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	      -run "$$run_pattern" $$pkgs; \
 	  fi; \
 	fi
 
 # Integration tests with testcontainers (with coverage, uses covermode=atomic)
+#
+# NOTE: Integration tests always run with -p=1 (packages sequentially) because
+# testcontainers can overwhelm Docker when creating many containers in parallel.
+# This prevents transient failures like "port not found" or container timeouts.
+#
+# Chaos tests (CHAOS=1):
+#   To include chaos tests in coverage, set CHAOS=1:
+#     make coverage-integration CHAOS=1
 .PHONY: coverage-integration
 coverage-integration:
 	$(call print_title,Running integration tests with testcontainers (coverage enabled))
@@ -315,31 +296,39 @@ coverage-integration:
 	  echo "No integration test packages found (files matching *_integration_test.go)"; \
 	else \
 	  echo "Found packages: $$pkgs"; \
+	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
+	  fi; \
+	  if [ "$(CHAOS)" = "1" ]; then \
+	    echo "CHAOS=1: Running both TestIntegration_ and TestChaos_ tests"; \
+	    run_pattern='^(TestIntegration|TestChaos)'; \
+	  else \
+	    echo "Running TestIntegration_ tests only (set CHAOS=1 to include chaos tests)"; \
+	    run_pattern='^TestIntegration'; \
 	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
+	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	      -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
+	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	          -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
+	      -run "$$run_pattern" -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
 	  go tool cover -html=$(TEST_REPORTS_DIR)/integration_coverage.out -o $(TEST_REPORTS_DIR)/integration_coverage.html; \
@@ -349,63 +338,15 @@ coverage-integration:
 	  echo "----------------------------------------"; \
 	fi
 
-# Chaos tests with testcontainers and coverage (adapter-level)
-.PHONY: coverage-chaos
-coverage-chaos:
-	$(call print_title,Running adapter-level chaos tests with testcontainers (coverage enabled))
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	echo "Finding packages with *_chaos_test.go files..."; \
-	dirs=$$(find ./components ./pkg -name '*_chaos_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No chaos test packages found (files matching *_chaos_test.go)"; \
-	else \
-	  echo "Found packages: $$pkgs"; \
-	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
-	  fi; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running chaos tests with gotestsum (coverage enabled)"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos.xml -- \
-	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
-	      $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying chaos tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos-rerun.xml -- \
-	          -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
-	          $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
-	      $$pkgs; \
-	  fi; \
-	  go tool cover -html=$(TEST_REPORTS_DIR)/chaos_coverage.out -o $(TEST_REPORTS_DIR)/chaos_coverage.html; \
-	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/chaos_coverage.html"; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/chaos_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
-	fi
-
 # Run all coverage targets
 .PHONY: coverage
 coverage:
 	$(call print_title,Running all coverage targets)
 	$(MAKE) coverage-unit
 	$(MAKE) coverage-integration
-	$(MAKE) coverage-chaos
 
 # Run all tests (excludes native fuzz engine which runs indefinitely)
+# To include chaos tests: make test-all CHAOS=1
 .PHONY: test-all
 test-all:
 	$(call print_title,Running all tests)
@@ -413,7 +354,5 @@ test-all:
 	$(MAKE) test-unit
 	$(call print_title,Running integration tests)
 	$(MAKE) test-integration
-	$(call print_title,Running chaos tests)
-	$(MAKE) test-chaos
 
 

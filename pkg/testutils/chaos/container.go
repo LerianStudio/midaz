@@ -1,4 +1,4 @@
-//go:build chaos
+//go:build integration || chaos
 
 package chaos
 

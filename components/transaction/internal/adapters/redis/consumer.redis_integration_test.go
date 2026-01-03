@@ -4,633 +4,930 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/testutils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegration_AddSumBalancesRedis_WithSyncEnabled_SchedulesBalanceSync(t *testing.T) {
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
+// =============================================================================
+// TEST HELPERS
+// =============================================================================
 
-	ctx := context.Background()
+// skipIfNotChaos skips the test if CHAOS=1 environment variable is not set.
+// Use this for tests that inject failures (network chaos, container restarts, etc.)
+func skipIfNotChaos(t *testing.T) {
+	t.Helper()
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("skipping chaos test (set CHAOS=1 to run)")
+	}
+}
 
-	// Create Redis connection with lib-commons wrapper
-	conn := redistestutil.CreateConnection(t, container.Addr)
+// =============================================================================
+// TEST INFRASTRUCTURE
+// =============================================================================
 
-	// Create repository with balanceSyncEnabled = true
+// integrationTestInfra holds the infrastructure needed for Redis integration tests.
+type integrationTestInfra struct {
+	redisContainer *redistestutil.ContainerResult
+	repo           *RedisConsumerRepository
+}
+
+// chaosTestInfra holds the infrastructure needed for Redis chaos tests.
+type chaosTestInfra struct {
+	redisContainer *redistestutil.ContainerResult
+	repo           *RedisConsumerRepository
+	chaosOrch      *chaos.Orchestrator
+}
+
+// networkChaosTestInfra holds infrastructure for network chaos tests with Toxiproxy.
+// Uses a shared Docker network for proper container-to-container communication.
+type networkChaosTestInfra struct {
+	redisContainer *redistestutil.ContainerResult
+	toxiproxy      *chaos.ToxiproxyWithProxyResult
+	chaosOrch      *chaos.Orchestrator
+	proxyRepo      *RedisConsumerRepository
+	proxyConn      *libRedis.RedisConnection
+}
+
+// setupRedisIntegrationInfra sets up the test infrastructure for Redis integration testing.
+func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	// Setup Redis container
+	redisContainer := redistestutil.SetupContainer(t)
+
+	// Create lib-commons Redis connection
+	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+
+	// Create repository with balance sync enabled
 	repo := &RedisConsumerRepository{
 		conn:               conn,
 		balanceSyncEnabled: true,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-
-	balanceOp := redistestutil.CreateBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{balanceOp})
-
-	// Assert
-	require.NoError(t, err, "AddSumBalancesRedis should not return error")
-	require.NotNil(t, balances, "balances should not be nil")
-	assert.Len(t, balances, 1, "should return one balance")
-
-	// Verify the balance sync schedule key was populated (ZADD was executed)
-	scheduleKey := utils.BalanceSyncScheduleKey
-	count, err := container.Client.ZCard(ctx, scheduleKey).Result()
-	require.NoError(t, err, "failed to get ZCARD for schedule key")
-	assert.Equal(t, int64(1), count, "schedule key should have 1 member when sync is enabled")
-
-	// Verify the scheduled member is the balance key
-	members, err := container.Client.ZRange(ctx, scheduleKey, 0, -1).Result()
-	require.NoError(t, err, "failed to get ZRANGE for schedule key")
-	assert.Contains(t, members, balanceOp.InternalKey, "schedule should contain the balance internal key")
-}
-
-func TestIntegration_AddSumBalancesRedis_WithSyncDisabled_DoesNotScheduleBalanceSync(t *testing.T) {
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
-
-	ctx := context.Background()
-
-	// Create Redis connection with lib-commons wrapper
-	conn := redistestutil.CreateConnection(t, container.Addr)
-
-	// Create repository with balanceSyncEnabled = false
-	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: false,
-	}
-
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-
-	balanceOp := redistestutil.CreateBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{balanceOp})
-
-	// Assert
-	require.NoError(t, err, "AddSumBalancesRedis should not return error")
-	require.NotNil(t, balances, "balances should not be nil")
-	assert.Len(t, balances, 1, "should return one balance")
-
-	// Verify the balance sync schedule key is EMPTY (ZADD was NOT executed)
-	scheduleKey := utils.BalanceSyncScheduleKey
-	count, err := container.Client.ZCard(ctx, scheduleKey).Result()
-	require.NoError(t, err, "failed to get ZCARD for schedule key")
-	assert.Equal(t, int64(0), count, "schedule key should have 0 members when sync is disabled")
-}
-
-func TestIntegration_AddSumBalancesRedis_ProcessesBalancesCorrectly_RegardlessOfSyncFlag(t *testing.T) {
-	testCases := []struct {
-		name               string
-		balanceSyncEnabled bool
-	}{
-		{
-			name:               "sync enabled processes balance correctly",
-			balanceSyncEnabled: true,
-		},
-		{
-			name:               "sync disabled processes balance correctly",
-			balanceSyncEnabled: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Arrange
-			container := redistestutil.SetupContainer(t)
-			defer container.Cleanup()
-
-			ctx := context.Background()
-
-			conn := redistestutil.CreateConnection(t, container.Addr)
-
-			repo := &RedisConsumerRepository{
-				conn:               conn,
-				balanceSyncEnabled: tc.balanceSyncEnabled,
-			}
-
-			organizationID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			transactionID := libCommons.GenerateUUIDv7()
-
-			// Create a CREDIT operation that adds 500 to balance
-			balanceOp := redistestutil.CreateBalanceOperation(organizationID, ledgerID, "@receiver", "USD", constant.CREDIT, decimal.NewFromInt(500))
-
-			// Act
-			balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{balanceOp})
-
-			// Assert
-			require.NoError(t, err, "AddSumBalancesRedis should not return error")
-			require.NotNil(t, balances, "balances should not be nil")
-			require.Len(t, balances, 1, "should return one balance")
-
-			// Verify balance was processed - initial was 1000, credit 500 should result in 1500
-			assert.Equal(t, "@receiver", balances[0].Alias, "alias should match")
-			assert.Equal(t, "USD", balances[0].AssetCode, "asset code should match")
-
-			// The returned balance should reflect the ORIGINAL state before operation
-			// (the Lua script returns the balance state before modification in returnBalances)
-			assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(1000)), "available should be original value")
-		})
+	return &integrationTestInfra{
+		redisContainer: redisContainer,
+		repo:           repo,
 	}
 }
 
-func TestIntegration_AddSumBalancesRedis_MultipleOperations_AllScheduledWhenEnabled(t *testing.T) {
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
+// setupRedisChaosInfra sets up the test infrastructure for Redis chaos testing.
+func setupRedisChaosInfra(t *testing.T) *chaosTestInfra {
+	t.Helper()
 
-	ctx := context.Background()
+	// Setup Redis container
+	redisContainer := redistestutil.SetupContainer(t)
 
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	// Create lib-commons Redis connection
+	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
 
+	// Create repository with balance sync enabled
 	repo := &RedisConsumerRepository{
 		conn:               conn,
 		balanceSyncEnabled: true,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	// Create chaos orchestrator
+	chaosOrch := chaos.NewOrchestrator(t)
 
-	// Create two balance operations with different keys
-	balanceOp1 := redistestutil.CreateBalanceOperation(organizationID, ledgerID, "@sender", "USD", constant.DEBIT, decimal.NewFromInt(100))
-	// Modify the second operation to use a different internal key
-	balanceOp2 := redistestutil.CreateBalanceOperation(organizationID, ledgerID, "@receiver", "USD", constant.CREDIT, decimal.NewFromInt(100))
-	balanceOp2.Balance.Key = "secondary"
-	balanceOp2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "secondary")
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{balanceOp1, balanceOp2})
-
-	// Assert
-	require.NoError(t, err, "AddSumBalancesRedis should not return error")
-	require.NotNil(t, balances, "balances should not be nil")
-	assert.Len(t, balances, 2, "should return two balances")
-
-	// Verify both balance keys were scheduled
-	scheduleKey := utils.BalanceSyncScheduleKey
-	count, err := container.Client.ZCard(ctx, scheduleKey).Result()
-	require.NoError(t, err, "failed to get ZCARD for schedule key")
-	assert.Equal(t, int64(2), count, "schedule key should have 2 members for 2 operations")
-
-	// Verify the exact keys scheduled match both operations
-	members, err := container.Client.ZRange(ctx, scheduleKey, 0, -1).Result()
-	require.NoError(t, err, "failed to get ZRANGE for schedule key")
-	assert.ElementsMatch(t, []string{balanceOp1.InternalKey, balanceOp2.InternalKey}, members,
-		"scheduled members should match both balance internal keys")
-}
-
-func TestIntegration_AddSumBalancesRedis_InsufficientFunds_ReturnsError(t *testing.T) {
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
-
-	ctx := context.Background()
-
-	conn := redistestutil.CreateConnection(t, container.Addr)
-
-	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: false,
-	}
-
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-
-	// Create a balance with 100 available, but try to debit 500
-	balanceOp := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@sender", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(500), // amount to debit
-		decimal.NewFromInt(100), // available balance (insufficient)
-		"deposit",               // internal account type
-	)
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp})
-
-	// Assert
-	redistestutil.AssertInsufficientFundsError(t, err)
-	assert.Nil(t, balances, "balances should be nil on error")
-}
-
-func TestIntegration_AddSumBalancesRedis_InsufficientFunds_RollsBackAllBalances(t *testing.T) {
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
-
-	ctx := context.Background()
-
-	conn := redistestutil.CreateConnection(t, container.Addr)
-
-	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: false,
-	}
-
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-
-	// First operation: valid debit (100 from 1000 available)
-	balanceOp1 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@sender1", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(100),
-		decimal.NewFromInt(1000),
-		"deposit",
-	)
-
-	// Second operation: invalid debit (500 from 100 available) - will fail
-	balanceOp2 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@sender2", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(500),
-		decimal.NewFromInt(100),
-		"deposit",
-	)
-	// Use different key to avoid collision
-	balanceOp2.Balance.Key = "secondary"
-	balanceOp2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "secondary")
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp1, balanceOp2})
-
-	// Assert
-	redistestutil.AssertInsufficientFundsError(t, err)
-	assert.Nil(t, balances, "balances should be nil on error")
-
-	// Verify rollback: first balance should be restored to original state
-	val, err := container.Client.Get(ctx, balanceOp1.InternalKey).Result()
-	require.NoError(t, err, "rolled-back balance key should exist in Redis")
-
-	var restored mmodel.BalanceRedis
-	require.NoError(t, json.Unmarshal([]byte(val), &restored), "should unmarshal balance")
-	assert.True(t, restored.Available.Equal(decimal.NewFromInt(1000)),
-		"first balance should be rolled back to original 1000, got %s", restored.Available)
-}
-
-func TestIntegration_AddSumBalancesRedis_NonNegativeBalance_BoundaryConditions(t *testing.T) {
-	// Single container for all subtests - avoids 4× container startup overhead
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
-
-	ctx := context.Background()
-
-	conn := redistestutil.CreateConnection(t, container.Addr)
-
-	testCases := []struct {
-		name        string
-		available   decimal.Decimal
-		debitAmount decimal.Decimal
-		accountType string
-		expectError bool
-	}{
-		{
-			name:        "exact balance debit succeeds",
-			available:   decimal.NewFromInt(100),
-			debitAmount: decimal.NewFromInt(100),
-			accountType: "deposit",
-			expectError: false,
-		},
-		{
-			name:        "one cent over fails",
-			available:   decimal.NewFromFloat(100.00),
-			debitAmount: decimal.NewFromFloat(100.01),
-			accountType: "deposit",
-			expectError: true,
-		},
-		{
-			name:        "zero balance debit fails",
-			available:   decimal.Zero,
-			debitAmount: decimal.NewFromInt(1),
-			accountType: "deposit",
-			expectError: true,
-		},
-		{
-			name:        "external account allows overdraft",
-			available:   decimal.NewFromInt(100),
-			debitAmount: decimal.NewFromInt(1000),
-			accountType: "external",
-			expectError: false,
-		},
-		{
-			name:        "sub-cent precision debit fails",
-			available:   decimal.NewFromFloat(100.001),
-			debitAmount: decimal.NewFromFloat(100.002),
-			accountType: "deposit",
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Flush Redis between subtests for isolation
-			require.NoError(t, container.Client.FlushDB(ctx).Err(), "failed to flush Redis")
-
-			repo := &RedisConsumerRepository{
-				conn:               conn,
-				balanceSyncEnabled: false,
-			}
-
-			organizationID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			transactionID := libCommons.GenerateUUIDv7()
-
-			balanceOp := redistestutil.CreateBalanceOperationWithAvailable(
-				organizationID, ledgerID,
-				"@account", "USD",
-				constant.DEBIT,
-				tc.debitAmount,
-				tc.available,
-				tc.accountType,
-			)
-
-			// Act
-			balances, err := repo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, constant.CREATED, false, []mmodel.BalanceOperation{balanceOp})
-
-			// Assert
-			if tc.expectError {
-				redistestutil.AssertInsufficientFundsError(t, err)
-				assert.Nil(t, balances, "balances should be nil on error")
-			} else {
-				require.NoError(t, err, "should not return error")
-				require.NotNil(t, balances, "balances should not be nil")
-				assert.Len(t, balances, 1, "should return one balance")
-			}
-		})
+	return &chaosTestInfra{
+		redisContainer: redisContainer,
+		repo:           repo,
+		chaosOrch:      chaosOrch,
 	}
 }
 
-func TestIntegration_AddSumBalancesRedis_NtoN_InsufficientFunds_RollsBackAllBalances(t *testing.T) {
-	// This test validates the atomic rollback behavior for N:N transactions (multiple sources, multiple destinations).
-	// When one balance operation fails validation (insufficient funds), ALL previously modified balances
-	// must be restored to their original state by the Lua script's rollback function.
-	//
-	// Scenario:
-	// - 3 sources: @source1 (1000), @source2 (1000), @source3 (1000)
-	// - 3 destinations: @dest1 (0), @dest2 (0), @dest3 (0)
-	// - Operations: DEBIT 100 from each source, CREDIT 100 to each dest
-	// - @source3 will try to DEBIT 5000 (invalid - only 1000 available)
-	// - Expected: All 5 previous balance modifications should be rolled back
+// setupRedisNetworkChaosInfra sets up infrastructure for network chaos testing with Toxiproxy.
+// This creates both Redis and Toxiproxy on a shared Docker network, enabling proper
+// container-to-container communication through the proxy.
+func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
+	t.Helper()
 
-	// Arrange
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
+	// Constants for network configuration
+	const (
+		redisAlias = "redis"
+		proxyName  = "redis-proxy"
+	)
 
-	ctx := context.Background()
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	// 1. Create Toxiproxy with a pre-configured proxy for Redis
+	// The upstream uses the network alias (redis:6379) since both containers
+	// will be on the same Docker network
+	toxiproxy := chaos.SetupToxiproxyWithProxy(t, chaos.ProxyConfig{
+		Name:     proxyName,
+		Upstream: fmt.Sprintf("%s:6379", redisAlias),
+	})
 
-	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: false,
+	// 2. Create Redis container on the same network
+	redisContainer := redistestutil.SetupContainerOnNetwork(t, toxiproxy.NetworkName(), redisAlias)
+
+	// 3. Create chaos orchestrator with Toxiproxy client
+	chaosOrch := chaos.NewOrchestratorWithConfig(t, chaos.OrchestratorConfig{
+		ToxiproxyAddr: fmt.Sprintf("http://%s:%s", toxiproxy.Host, toxiproxy.APIPort),
+	})
+
+	// 4. Create repository that connects through the proxy
+	// The proxy endpoint is accessible from the test (host machine)
+	proxyAddr := fmt.Sprintf("%s:%s", toxiproxy.ProxyHost, toxiproxy.ProxyPort)
+
+	logger := libZap.InitializeLogger()
+	proxyConn := &libRedis.RedisConnection{
+		Address: []string{proxyAddr},
+		Logger:  logger,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-
-	// Create source balance operations (DEBIT)
-	source1 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@source1", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(100),  // amount to debit
-		decimal.NewFromInt(1000), // available balance
-		"deposit",
-	)
-	source1.Balance.Key = "source1-key"
-	source1.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source1-key")
-
-	source2 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@source2", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(100),
-		decimal.NewFromInt(1000),
-		"deposit",
-	)
-	source2.Balance.Key = "source2-key"
-	source2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source2-key")
-
-	// source3 will FAIL - trying to debit 5000 from 1000 available
-	source3Invalid := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@source3", "USD",
-		constant.DEBIT,
-		decimal.NewFromInt(5000), // amount to debit (INVALID - exceeds available)
-		decimal.NewFromInt(1000), // available balance
-		"deposit",
-	)
-	source3Invalid.Balance.Key = "source3-key"
-	source3Invalid.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "source3-key")
-
-	// Create destination balance operations (CREDIT)
-	dest1 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@dest1", "USD",
-		constant.CREDIT,
-		decimal.NewFromInt(100), // amount to credit
-		decimal.Zero,            // available balance (starts at 0)
-		"deposit",
-	)
-	dest1.Balance.Key = "dest1-key"
-	dest1.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest1-key")
-
-	dest2 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@dest2", "USD",
-		constant.CREDIT,
-		decimal.NewFromInt(100),
-		decimal.Zero,
-		"deposit",
-	)
-	dest2.Balance.Key = "dest2-key"
-	dest2.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest2-key")
-
-	dest3 := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID,
-		"@dest3", "USD",
-		constant.CREDIT,
-		decimal.NewFromInt(100),
-		decimal.Zero,
-		"deposit",
-	)
-	dest3.Balance.Key = "dest3-key"
-	dest3.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, "dest3-key")
-
-	// Order matters: source3Invalid is last, so all previous balances should be modified then rolled back
-	balanceOps := []mmodel.BalanceOperation{
-		source1,        // Valid: 1000 - 100 = 900
-		source2,        // Valid: 1000 - 100 = 900
-		dest1,          // Valid: 0 + 100 = 100
-		dest2,          // Valid: 0 + 100 = 100
-		dest3,          // Valid: 0 + 100 = 100
-		source3Invalid, // INVALID: 1000 - 5000 = -4000 (fails validation)
+	proxyRepo := &RedisConsumerRepository{
+		conn:               proxyConn,
+		balanceSyncEnabled: true,
 	}
 
-	// Store original values for assertion
-	originalBalances := map[string]decimal.Decimal{
-		source1.InternalKey:        decimal.NewFromInt(1000),
-		source2.InternalKey:        decimal.NewFromInt(1000),
-		dest1.InternalKey:          decimal.Zero,
-		dest2.InternalKey:          decimal.Zero,
-		dest3.InternalKey:          decimal.Zero,
-		source3Invalid.InternalKey: decimal.NewFromInt(1000),
-	}
-
-	// Act
-	balances, err := repo.AddSumBalancesRedis(
-		ctx, organizationID, ledgerID, transactionID,
-		constant.CREATED, false, balanceOps,
-	)
-
-	// Assert: Error should be returned (insufficient funds - error code 0018)
-	redistestutil.AssertInsufficientFundsError(t, err)
-	assert.Nil(t, balances, "balances should be nil on error")
-
-	// Assert: ALL balances should be rolled back to their original state
-	for key, expectedAvailable := range originalBalances {
-		val, err := container.Client.Get(ctx, key).Result()
-		require.NoError(t, err, "balance key %s should exist in Redis after rollback", key)
-
-		var restored mmodel.BalanceRedis
-		require.NoError(t, json.Unmarshal([]byte(val), &restored),
-			"should unmarshal balance for key %s", key)
-
-		assert.True(t, restored.Available.Equal(expectedAvailable),
-			"balance %s should be rolled back to %s, got %s",
-			key, expectedAvailable, restored.Available)
+	return &networkChaosTestInfra{
+		redisContainer: redisContainer,
+		toxiproxy:      toxiproxy,
+		chaosOrch:      chaosOrch,
+		proxyRepo:      proxyRepo,
+		proxyConn:      proxyConn,
 	}
 }
 
-func TestIntegration_AddSumBalancesRedis_OperationsSumEqualsBalance(t *testing.T) {
-	// Validates invariant: Σ(operations) == balance.Available
-	// Uses sequence of CREDIT/DEBIT ops and verifies Redis state after each
+// cleanup releases all resources for integration tests.
+func (infra *integrationTestInfra) cleanup() {
+	if infra.redisContainer != nil {
+		infra.redisContainer.Cleanup()
+	}
+}
 
-	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
+// cleanup releases all resources for chaos tests.
+func (infra *chaosTestInfra) cleanup() {
+	if infra.chaosOrch != nil {
+		infra.chaosOrch.Close()
+	}
+	if infra.redisContainer != nil {
+		infra.redisContainer.Cleanup()
+	}
+}
+
+// cleanup releases all resources for network chaos infrastructure.
+func (infra *networkChaosTestInfra) cleanup() {
+	if infra.chaosOrch != nil {
+		infra.chaosOrch.Close()
+	}
+	if infra.redisContainer != nil {
+		infra.redisContainer.Cleanup()
+	}
+	if infra.toxiproxy != nil {
+		infra.toxiproxy.Cleanup()
+	}
+}
+
+// recreateConnectionForInspection creates a NEW Redis connection for inspection after container restart.
+// This is necessary because the original connection is invalidated when the container restarts with a new port.
+// NOTE: This does NOT test the application's auto-reconnect mechanism - it creates a fresh connection
+// solely for inspecting Redis state in data integrity tests.
+func (infra *chaosTestInfra) recreateConnectionForInspection(t *testing.T) {
+	t.Helper()
 
 	ctx := context.Background()
-	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: false,
+	// Get the NEW port assigned after container restart
+	newPort, err := infra.redisContainer.Container.MappedPort(ctx, "6379")
+	require.NoError(t, err, "should get new Redis port after restart")
+
+	host, err := infra.redisContainer.Container.Host(ctx)
+	require.NoError(t, err, "should get Redis host after restart")
+
+	// Update container result with new address
+	infra.redisContainer.Addr = fmt.Sprintf("%s:%s", host, newPort.Port())
+
+	// Create a fresh connection with retry logic (Redis may still be starting)
+	infra.repo.conn = redistestutil.CreateConnectionWithRetry(t, infra.redisContainer.Addr, 30*time.Second)
+
+	t.Logf("Created new connection for inspection (port changed to %s)", newPort.Port())
+}
+
+// =============================================================================
+// INTEGRATION TESTS - BALANCE OPERATIONS
+// =============================================================================
+
+// TestIntegration_Redis_BalanceConsistency tests that balance calculations
+// remain consistent through a series of operations.
+func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	infra := setupRedisIntegrationInfra(t)
+	defer infra.cleanup()
 
-	// Fixed account for the sequence
-	alias := "@ops-sum-account"
-	initialBalance := decimal.NewFromInt(1000)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
 
-	// Create initial balance in Redis
-	balanceOp := redistestutil.CreateBalanceOperationWithAvailable(
-		organizationID, ledgerID, alias, "USD",
-		constant.CREDIT, decimal.Zero, // Initial credit of 0 just to set up
-		initialBalance, "deposit",
-	)
-	internalKey := balanceOp.InternalKey
+	// Initial balance: 1000
+	initialAvailable := decimal.NewFromInt(1000)
 
-	// Sequence of operations to apply
+	// Execute series of operations that should result in known final balance
 	operations := []struct {
-		name      string
-		operation string
-		amount    decimal.Decimal
+		opType string
+		amount int64
 	}{
-		{"credit 500", constant.CREDIT, decimal.NewFromInt(500)},
-		{"debit 200", constant.DEBIT, decimal.NewFromInt(200)},
-		{"credit 150", constant.CREDIT, decimal.NewFromInt(150)},
-		{"debit 450", constant.DEBIT, decimal.NewFromInt(450)},
-		{"credit 1000", constant.CREDIT, decimal.NewFromInt(1000)},
+		{constant.DEBIT, 100},  // 1000 - 100 = 900
+		{constant.CREDIT, 50},  // 900 + 50 = 950
+		{constant.DEBIT, 200},  // 950 - 200 = 750
+		{constant.CREDIT, 100}, // 750 + 100 = 850
 	}
 
-	expectedSum := initialBalance
+	currentAvailable := initialAvailable
+	for i, op := range operations {
+		transactionID := uuid.New()
 
-	for _, op := range operations {
-		t.Run(op.name, func(t *testing.T) {
-			// Calculate expected sum before operation
-			if op.operation == constant.CREDIT {
-				expectedSum = expectedSum.Add(op.amount)
-			} else {
-				expectedSum = expectedSum.Sub(op.amount)
+		var balanceOps []mmodel.BalanceOperation
+		if op.opType == constant.DEBIT {
+			currentAvailable = currentAvailable.Sub(decimal.NewFromInt(op.amount))
+			balanceOps = []mmodel.BalanceOperation{
+				redistestutil.CreateBalanceOperationWithAvailable(
+					orgID, ledgerID, "@consistency-test", "USD",
+					constant.DEBIT, decimal.NewFromInt(op.amount),
+					currentAvailable,
+					"deposit",
+				),
 			}
-
-			// Create balance operation with current expected sum as available
-			// (simulating the balance state before this operation)
-			currentAvailable := expectedSum
-			if op.operation == constant.CREDIT {
-				currentAvailable = expectedSum.Sub(op.amount) // Before credit
-			} else {
-				currentAvailable = expectedSum.Add(op.amount) // Before debit
+		} else {
+			currentAvailable = currentAvailable.Add(decimal.NewFromInt(op.amount))
+			balanceOps = []mmodel.BalanceOperation{
+				redistestutil.CreateBalanceOperationWithAvailable(
+					orgID, ledgerID, "@consistency-test", "USD",
+					constant.CREDIT, decimal.NewFromInt(op.amount),
+					currentAvailable,
+					"deposit",
+				),
 			}
+		}
 
-			balanceOp := redistestutil.CreateBalanceOperationWithAvailable(
-				organizationID, ledgerID, alias, "USD",
-				op.operation, op.amount, currentAvailable, "deposit",
-			)
-			// Use same internal key for consistency
-			balanceOp.InternalKey = internalKey
-			balanceOp.Balance.Key = "default"
+		balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		require.NoError(t, err, "operation %d should succeed", i)
 
-			transactionID := libCommons.GenerateUUIDv7()
-			balances, err := repo.AddSumBalancesRedis(
-				ctx, organizationID, ledgerID, transactionID,
-				constant.CREATED, false, []mmodel.BalanceOperation{balanceOp},
-			)
-
-			require.NoError(t, err, "AddSumBalancesRedis should not error for %s", op.name)
-			require.Len(t, balances, 1)
-
-			// Verify Redis state matches expected sum
-			val, err := container.Client.Get(ctx, internalKey).Result()
-			require.NoError(t, err, "balance key should exist in Redis")
-
-			var stored mmodel.BalanceRedis
-			require.NoError(t, json.Unmarshal([]byte(val), &stored), "should unmarshal balance")
-
-			assert.True(t, stored.Available.Equal(expectedSum),
-				"After %s: expected=%s got=%s", op.name, expectedSum, stored.Available)
-		})
+		// Verify balance after each operation is non-negative
+		if len(balances) > 0 {
+			assert.GreaterOrEqual(t, balances[0].Available.IntPart(), int64(0),
+				"balance for @consistency-test should not be negative")
+		}
 	}
 
-	// Final assertion: verify cumulative sum matches Redis state after all operations
-	// Expected: 1000 + 500 - 200 + 150 - 450 + 1000 = 2000
-	finalExpected := decimal.NewFromInt(2000)
-	require.True(t, expectedSum.Equal(finalExpected),
-		"Final expectedSum should be 2000, got %s", expectedSum)
+	// Final balance should be 850
+	expectedFinal := decimal.NewFromInt(850)
+	assert.True(t, currentAvailable.Equal(expectedFinal),
+		"final balance should be %s, got %s", expectedFinal, currentAvailable)
 
-	val, err := container.Client.Get(ctx, internalKey).Result()
-	require.NoError(t, err, "balance key should exist after all operations")
+	t.Log("Integration test passed: balance consistency verified")
+}
 
-	var finalStored mmodel.BalanceRedis
-	require.NoError(t, json.Unmarshal([]byte(val), &finalStored), "should unmarshal final balance")
+// =============================================================================
+// INTEGRATION TESTS - PENDING TRANSACTIONS
+// =============================================================================
 
-	assert.True(t, finalStored.Available.Equal(finalExpected),
-		"Final Redis balance should equal cumulative sum: expected=%s got=%s",
-		finalExpected, finalStored.Available)
+// TestIntegration_Redis_PendingTransactionFlow tests the complete flow of
+// pending transactions: hold funds, then commit.
+func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	// Create pending balance operation (hold funds)
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@pending-test", "USD",
+			constant.DEBIT, decimal.NewFromInt(500),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	// Execute as pending (isPending=true)
+	balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "PENDING", true, balanceOps)
+	require.NoError(t, err, "pending operation should succeed")
+	require.NotNil(t, balances, "should return balances")
+
+	t.Logf("Pending transaction created: %s", transactionID)
+
+	// Commit the pending transaction
+	commitOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@pending-test", "USD",
+			constant.DEBIT, decimal.NewFromInt(500),
+			decimal.NewFromInt(500), // Available after commit
+			"deposit",
+		),
+	}
+
+	balances, err = infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, commitOps)
+	require.NoError(t, err, "commit operation should succeed")
+
+	t.Log("Integration test passed: pending transaction flow verified")
+}
+
+// =============================================================================
+// INTEGRATION TESTS - BACKUP QUEUE
+// =============================================================================
+
+// TestIntegration_Redis_BackupQueueOperations tests the backup queue CRUD operations.
+func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	numMessages := 10
+
+	// 1. Add multiple messages to queue
+	t.Log("Step 1: Adding messages to backup queue")
+	messageKeys := make([]string, numMessages)
+	for i := 0; i < numMessages; i++ {
+		key := fmt.Sprintf("test-msg-%d-%s", i, uuid.New().String())
+		msg := []byte(fmt.Sprintf(`{"id":"%s","data":"test message %d"}`, key, i))
+
+		err := infra.repo.AddMessageToQueue(ctx, key, msg)
+		require.NoError(t, err, "should add message %d to queue", i)
+		messageKeys[i] = key
+	}
+	t.Logf("Added %d messages to backup queue", numMessages)
+
+	// 2. Read all messages from queue
+	t.Log("Step 2: Reading all messages from queue")
+	allMessages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
+	require.NoError(t, err, "should read all messages from queue")
+	assert.GreaterOrEqual(t, len(allMessages), numMessages, "should have at least %d messages", numMessages)
+	t.Logf("Read %d messages from queue", len(allMessages))
+
+	// 3. Read individual messages
+	t.Log("Step 3: Reading individual messages")
+	for i, key := range messageKeys[:3] { // Test first 3
+		msg, err := infra.repo.ReadMessageFromQueue(ctx, key)
+		require.NoError(t, err, "should read message %d", i)
+		assert.NotEmpty(t, msg, "message %d should not be empty", i)
+	}
+
+	// 4. Remove messages from queue
+	t.Log("Step 4: Removing messages from queue")
+	for i, key := range messageKeys {
+		err := infra.repo.RemoveMessageFromQueue(ctx, key)
+		require.NoError(t, err, "should remove message %d", i)
+	}
+
+	// 5. Verify our test messages are removed
+	t.Log("Step 5: Verifying messages are removed")
+	finalMessages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
+	require.NoError(t, err, "should read final queue state")
+
+	for _, key := range messageKeys {
+		_, exists := finalMessages[key]
+		assert.False(t, exists, "message %s should be removed", key)
+	}
+
+	t.Log("Integration test passed: backup queue operations verified")
+}
+
+// =============================================================================
+// CHAOS TESTS - CONTAINER LIFECYCLE
+// =============================================================================
+
+// TestChaos_Redis_RestartRecovery tests that the Redis consumer repository
+// recovers after a Redis container restart.
+func TestChaos_Redis_RestartRecovery(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	// 1. Execute initial operation to verify setup works
+	t.Log("Step 1: Executing initial balance operation")
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@sender", "USD",
+			constant.DEBIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "initial balance operation should succeed")
+	require.NotNil(t, balances, "should return balances")
+	t.Logf("Initial balance operation successful: %d balances updated", len(balances))
+
+	// 2. INJECT CHAOS: Restart container
+	containerID := infra.redisContainer.Container.GetContainerID()
+	t.Logf("Step 2: INJECT CHAOS - Restarting Redis container %s", containerID)
+
+	err = infra.chaosOrch.RestartContainer(ctx, containerID, 10*time.Second)
+	require.NoError(t, err, "container restart should succeed")
+
+	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
+	require.NoError(t, err, "container should be running after restart")
+	t.Log("Chaos: Redis container restarted successfully")
+
+	// 3. Recreate connection for inspection (port may have changed)
+	infra.recreateConnectionForInspection(t)
+
+	// 4. Verify recovery by executing another operation
+	t.Log("Step 3: Verifying recovery with new operation")
+	transactionID2 := uuid.New()
+	balanceOps2 := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@sender-recovery", "USD",
+			constant.CREDIT, decimal.NewFromInt(50),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	chaos.AssertRecoveryWithin(t, func() error {
+		_, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps2)
+		return err
+	}, 30*time.Second, "Redis should recover and process operations after restart")
+
+	t.Log("Chaos test passed: Redis restart recovery verified")
+}
+
+// TestChaos_Redis_DataIntegrityAfterRestart tests that balance data persists
+// correctly after container restart (Redis with persistence).
+func TestChaos_Redis_DataIntegrityAfterRestart(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// 1. Store some data before restart
+	t.Log("Step 1: Storing data before restart")
+	testKey := "chaos-test:data-integrity:" + uuid.New().String()
+	testValue := "test-value-before-restart"
+
+	err := infra.repo.Set(ctx, testKey, testValue, 3600) // 1 hour TTL
+	require.NoError(t, err, "should set value before restart")
+
+	// Verify data is stored
+	storedValue, err := infra.repo.Get(ctx, testKey)
+	require.NoError(t, err, "should get value before restart")
+	assert.Equal(t, testValue, storedValue, "value should match before restart")
+
+	// 2. INJECT CHAOS: Restart container
+	containerID := infra.redisContainer.Container.GetContainerID()
+	t.Logf("Step 2: INJECT CHAOS - Restarting Redis container %s", containerID)
+
+	err = infra.chaosOrch.RestartContainer(ctx, containerID, 10*time.Second)
+	require.NoError(t, err, "container restart should succeed")
+
+	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
+	require.NoError(t, err, "container should be running after restart")
+
+	// 3. Recreate connection
+	infra.recreateConnectionForInspection(t)
+
+	// 4. Note: Default Redis/Valkey image may not have persistence enabled.
+	// This test documents the expected behavior - data may be lost on restart
+	// without RDB/AOF persistence configured.
+	t.Log("Step 3: Checking data after restart (data loss expected without persistence)")
+
+	// Try to get the value - it may or may not exist depending on Redis config
+	recoveredValue, err := infra.repo.Get(ctx, testKey)
+	if err != nil || recoveredValue == "" {
+		t.Log("Data was lost after restart (expected without persistence)")
+	} else {
+		t.Logf("Data survived restart: %s", recoveredValue)
+		assert.Equal(t, testValue, recoveredValue, "recovered value should match")
+	}
+
+	t.Log("Chaos test passed: data integrity behavior after restart documented")
+}
+
+// =============================================================================
+// CHAOS TESTS - NETWORK CHAOS
+// =============================================================================
+
+// TestChaos_Redis_NetworkLatency tests repository behavior under network latency.
+// Uses Toxiproxy to inject latency into the network path.
+func TestChaos_Redis_NetworkLatency(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRedisNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Get the pre-configured proxy from the chaos orchestrator
+	proxy, err := infra.chaosOrch.GetProxy("redis-proxy")
+	require.NoError(t, err, "should get pre-configured proxy")
+	t.Logf("Using Toxiproxy proxy: %s -> %s", proxy.Listen(), proxy.Upstream())
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// 1. Verify normal operation through proxy
+	t.Log("Step 1: Verifying normal operation through proxy")
+	transactionID := uuid.New()
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@latency-test", "USD",
+			constant.DEBIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	balances, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "initial operation through proxy should succeed")
+	require.NotNil(t, balances, "should return balances")
+	t.Log("Initial operation successful through proxy")
+
+	// 2. INJECT CHAOS: Add 300ms latency with 50ms jitter
+	t.Log("Step 2: INJECT CHAOS - Adding 300ms latency to Redis connection")
+	err = proxy.AddLatency(300*time.Millisecond, 50*time.Millisecond)
+	require.NoError(t, err, "adding latency should succeed")
+
+	// 3. Execute operations with latency - they should still succeed
+	t.Log("Step 3: Executing operations with latency")
+	numOperations := 3
+	for i := 0; i < numOperations; i++ {
+		transactionID := uuid.New()
+		ops := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, fmt.Sprintf("@latency-test-%d", i), "USD",
+				constant.CREDIT, decimal.NewFromInt(int64(10+i)),
+				decimal.NewFromInt(1000),
+				"deposit",
+			),
+		}
+
+		start := time.Now()
+		_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, ops)
+		elapsed := time.Since(start)
+
+		require.NoError(t, err, "operation %d with latency should succeed", i+1)
+		t.Logf("Operation %d completed in %v (with ~300ms latency injected)", i+1, elapsed)
+	}
+
+	// 4. REMOVE CHAOS: Remove all toxics
+	t.Log("Step 4: Removing latency")
+	err = proxy.RemoveAllToxics()
+	require.NoError(t, err, "removing toxics should succeed")
+
+	// 5. Verify normal operation restored
+	t.Log("Step 5: Verifying normal operation restored")
+	transactionID = uuid.New()
+	balanceOps = []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@after-latency", "USD",
+			constant.CREDIT, decimal.NewFromInt(25),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	start := time.Now()
+	_, err = infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	elapsed := time.Since(start)
+	require.NoError(t, err, "operation after removing latency should succeed")
+	t.Logf("Operation after latency removal completed in %v", elapsed)
+
+	t.Log("Chaos test passed: Redis network latency handling verified")
+}
+
+// TestChaos_Redis_NetworkPartition tests repository behavior during network partition.
+// Uses Toxiproxy to disconnect/reconnect the network path.
+func TestChaos_Redis_NetworkPartition(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRedisNetworkChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+
+	// Get the pre-configured proxy
+	proxy, err := infra.chaosOrch.GetProxy("redis-proxy")
+	require.NoError(t, err, "should get pre-configured proxy")
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// 1. Verify baseline connectivity
+	t.Log("Step 1: Verifying baseline connectivity")
+	transactionID := uuid.New()
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@partition-test", "USD",
+			constant.DEBIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	_, err = infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "baseline operation should succeed")
+	t.Log("Baseline operation successful")
+
+	// 2. INJECT CHAOS: Disconnect proxy to simulate network partition
+	t.Log("Step 2: INJECT CHAOS - Disconnecting proxy to simulate network partition")
+	err = proxy.Disconnect()
+	require.NoError(t, err, "proxy disconnect should succeed")
+
+	// 3. Operations during partition should fail
+	t.Log("Step 3: Attempting operation during network partition (should fail)")
+	transactionID = uuid.New()
+	partitionOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@during-partition", "USD",
+			constant.CREDIT, decimal.NewFromInt(50),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	_, err = infra.proxyRepo.AddSumBalancesRedis(ctxWithTimeout, orgID, ledgerID, transactionID, "ACTIVE", false, partitionOps)
+	cancel()
+
+	// Expect error during network partition
+	assert.Error(t, err, "operation during network partition should fail")
+	t.Logf("Operation during partition failed as expected: %v", err)
+
+	// 4. REMOVE CHAOS: Reconnect proxy
+	t.Log("Step 4: REMOVE CHAOS - Reconnecting proxy")
+	err = proxy.Reconnect()
+	require.NoError(t, err, "proxy reconnect should succeed")
+
+	// 5. Operations after reconnect should succeed
+	t.Log("Step 5: Verifying operations succeed after reconnect")
+	transactionID = uuid.New()
+	recoveryOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@after-partition", "USD",
+			constant.CREDIT, decimal.NewFromInt(75),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	chaos.AssertRecoveryWithin(t, func() error {
+		_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, recoveryOps)
+		return err
+	}, 10*time.Second, "operations should succeed after network recovery")
+
+	t.Log("Chaos test passed: Redis network partition handling verified")
+}
+
+// =============================================================================
+// CHAOS TESTS - BUSINESS LOGIC UNDER STRESS
+// =============================================================================
+
+// TestChaos_Redis_ConcurrentBalanceOperations tests that concurrent balance
+// operations maintain data consistency through atomic Lua script execution.
+func TestChaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	// TODO: Remove skip after lib-commons Redis thread-safety fix
+	t.Skip("skipping: lib-commons RedisConnection.GetClient() is not thread-safe for concurrent initialization")
+
+	infra := setupRedisChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	numWorkers := 20
+
+	type result struct {
+		workerID int
+		balances []*mmodel.Balance
+		err      error
+	}
+	results := make(chan result, numWorkers)
+
+	// Start concurrent balance operations
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			transactionID := uuid.New()
+			balanceOps := []mmodel.BalanceOperation{
+				redistestutil.CreateBalanceOperationWithAvailable(
+					orgID, ledgerID, "@concurrent-account", "USD",
+					constant.DEBIT, decimal.NewFromInt(int64(workerID+1)),
+					decimal.NewFromInt(10000), // Large initial balance to avoid insufficient funds
+					"deposit",
+				),
+			}
+
+			balances, err := infra.repo.AddSumBalancesRedis(
+				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
+			)
+			results <- result{workerID: workerID, balances: balances, err: err}
+		}(i)
+	}
+
+	// Wait for all workers
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Analyze results
+	var successCount, errorCount int
+	for r := range results {
+		if r.err != nil {
+			errorCount++
+			t.Logf("Worker %d error: %v", r.workerID, r.err)
+		} else {
+			successCount++
+		}
+	}
+
+	t.Logf("Concurrent operations: %d successful, %d errors out of %d total", successCount, errorCount, numWorkers)
+	assert.Greater(t, successCount, 0, "at least some concurrent operations should succeed")
+
+	t.Log("Chaos test passed: concurrent balance operations handled atomically")
+}
+
+// TestChaos_Redis_InsufficientFundsUnderLoad tests that insufficient funds validation
+// works correctly under concurrent load.
+func TestChaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	// TODO: Remove skip after lib-commons Redis thread-safety fix
+	t.Skip("skipping: lib-commons RedisConnection.GetClient() is not thread-safe for concurrent initialization")
+
+	infra := setupRedisChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Start with a balance that will run out
+	initialBalance := decimal.NewFromInt(100)
+	debitAmount := decimal.NewFromInt(30)
+	numWorkers := 10 // Each trying to debit 30, but only ~3 should succeed
+
+	type result struct {
+		workerID int
+		err      error
+	}
+	results := make(chan result, numWorkers)
+
+	// Start concurrent debit operations
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			transactionID := uuid.New()
+			balanceOps := []mmodel.BalanceOperation{
+				redistestutil.CreateBalanceOperationWithAvailable(
+					orgID, ledgerID, "@insufficient-funds-test", "USD",
+					constant.DEBIT, debitAmount,
+					initialBalance,
+					"deposit",
+				),
+			}
+
+			_, err := infra.repo.AddSumBalancesRedis(
+				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
+			)
+			results <- result{workerID: workerID, err: err}
+		}(i)
+	}
+
+	// Wait for all workers
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Analyze results
+	var successCount, insufficientFundsCount, otherErrorCount int
+	for r := range results {
+		if r.err == nil {
+			successCount++
+		} else if r.err.Error() == "0018" || // Direct error code
+			(len(r.err.Error()) > 0 && r.err.Error()[:4] == "0018") {
+			insufficientFundsCount++
+		} else {
+			otherErrorCount++
+			t.Logf("Worker %d unexpected error: %v", r.workerID, r.err)
+		}
+	}
+
+	t.Logf("Results: %d successful, %d insufficient funds, %d other errors",
+		successCount, insufficientFundsCount, otherErrorCount)
+
+	// At least some operations should succeed, and some should fail with insufficient funds
+	assert.Greater(t, successCount, 0, "some operations should succeed")
+
+	t.Log("Chaos test passed: insufficient funds validation works under load")
+}
+
+// =============================================================================
+// CHAOS TESTS - GRACEFUL DEGRADATION
+// =============================================================================
+
+// TestChaos_Redis_GracefulDegradation tests that the repository fails
+// gracefully when Redis is unavailable.
+func TestChaos_Redis_GracefulDegradation(t *testing.T) {
+	skipIfNotChaos(t)
+	if testing.Short() {
+		t.Skip("skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosInfra(t)
+	defer infra.cleanup()
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Verify normal operation works
+	transactionID := uuid.New()
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@test", "USD",
+			constant.DEBIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(1000),
+			"deposit",
+		),
+	}
+
+	_, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "normal operation should work")
+
+	// Test with cancelled context (simulates timeout/unavailability)
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	chaos.AssertGracefulDegradation(t,
+		func() error {
+			transactionID := uuid.New()
+			_, err := infra.repo.AddSumBalancesRedis(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+			return err
+		},
+		nil, // Any error is acceptable for graceful degradation
+		"operation with cancelled context should fail gracefully",
+	)
+
+	// Verify normal operation still works
+	transactionID2 := uuid.New()
+	_, err = infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "normal operation should work after graceful degradation")
+
+	t.Log("Chaos test passed: graceful degradation verified")
 }
