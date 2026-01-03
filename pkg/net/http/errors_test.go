@@ -14,6 +14,8 @@ import (
 )
 
 func TestWithError_EntityConflictError_Returns409(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		err          error
@@ -57,6 +59,8 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			app := fiber.New()
 			app.Get("/test", func(c *fiber.Ctx) error {
 				return WithError(c, tt.err)
@@ -76,6 +80,8 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 }
 
 func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
+	t.Parallel()
+
 	app := fiber.New()
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return WithError(c, pkg.EntityNotFoundError{
@@ -98,6 +104,8 @@ func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
 }
 
 func TestWithError_ValidationError_Returns400(t *testing.T) {
+	t.Parallel()
+
 	app := fiber.New()
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return WithError(c, pkg.ValidationError{
@@ -119,6 +127,8 @@ func TestWithError_ValidationError_Returns400(t *testing.T) {
 }
 
 func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
+	t.Parallel()
+
 	app := fiber.New()
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return WithError(c, pkg.UnprocessableOperationError{
@@ -140,6 +150,8 @@ func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
 }
 
 func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
+	t.Parallel()
+
 	app := fiber.New()
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return WithError(c, pkg.UnauthorizedError{
@@ -161,6 +173,8 @@ func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
 }
 
 func TestWithError_ForbiddenError_Returns403(t *testing.T) {
+	t.Parallel()
+
 	app := fiber.New()
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return WithError(c, pkg.ForbiddenError{

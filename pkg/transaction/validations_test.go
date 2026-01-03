@@ -15,6 +15,8 @@ import (
 )
 
 func TestValidateBalancesRules(t *testing.T) {
+	t.Parallel()
+
 	// Create a context with logger and tracer
 	ctx := context.Background()
 	logger := &log.GoLogger{Level: log.InfoLevel}
@@ -225,6 +227,8 @@ func TestValidateBalancesRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances)
 
 			if tt.expectError {
@@ -245,6 +249,8 @@ func TestValidateBalancesRules(t *testing.T) {
 }
 
 func TestValidateFromBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		balance     *Balance
@@ -327,6 +333,8 @@ func TestValidateFromBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
 
 			if tt.expectError {
@@ -347,6 +355,8 @@ func TestValidateFromBalances(t *testing.T) {
 }
 
 func TestValidateToBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		balance     *Balance
@@ -430,6 +440,8 @@ func TestValidateToBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateToBalances(tt.balance, tt.to, tt.asset)
 
 			if tt.expectError {
@@ -450,6 +462,8 @@ func TestValidateToBalances(t *testing.T) {
 }
 
 func TestOperateBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		amount      Amount
@@ -583,6 +597,8 @@ func TestOperateBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := OperateBalances(tt.amount, tt.balance)
 
 			if tt.expectError {
@@ -603,6 +619,8 @@ func TestOperateBalances(t *testing.T) {
 }
 
 func TestAliasKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		alias      string
@@ -643,6 +661,8 @@ func TestAliasKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := AliasKey(tt.alias, tt.balanceKey)
 			assert.Equal(t, tt.want, got)
 		})
@@ -650,6 +670,8 @@ func TestAliasKey(t *testing.T) {
 }
 
 func TestSplitAlias(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		alias string
@@ -674,6 +696,8 @@ func TestSplitAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := SplitAlias(tt.alias)
 			assert.Equal(t, tt.want, got)
 		})
@@ -681,6 +705,8 @@ func TestSplitAlias(t *testing.T) {
 }
 
 func TestConcatAlias(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		index int
@@ -709,6 +735,8 @@ func TestConcatAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := ConcatAlias(tt.index, tt.alias)
 			assert.Equal(t, tt.want, got)
 		})
@@ -716,6 +744,8 @@ func TestConcatAlias(t *testing.T) {
 }
 
 func TestAppendIfNotExist(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		slice []string
@@ -756,6 +786,8 @@ func TestAppendIfNotExist(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := AppendIfNotExist(tt.slice, tt.s)
 			assert.Equal(t, tt.want, got)
 		})
@@ -763,6 +795,8 @@ func TestAppendIfNotExist(t *testing.T) {
 }
 
 func TestValidateSendSourceAndDistribute(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		transaction Transaction
@@ -982,6 +1016,8 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			got, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
 
@@ -1029,6 +1065,8 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 }
 
 func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		transaction Transaction
@@ -1131,6 +1169,8 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			// Call ValidateSendSourceAndDistribute to get the responses
 			responses, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
@@ -1181,6 +1221,8 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 // CREDIT/DEBIT operations results in a balance equal to the expected sum.
 // This is a pure property test with no I/O - runs 1000 iterations quickly.
 func TestProperty_OperateBalances_SumInvariant(t *testing.T) {
+	t.Parallel()
+
 	f := func(seed int64, numOps uint8) bool {
 		rng := rand.New(rand.NewSource(seed))
 		ops := int(numOps)%20 + 1

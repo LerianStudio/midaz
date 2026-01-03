@@ -10,6 +10,8 @@ import (
 )
 
 func TestTransactionRoute_ToCache(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	transactionRouteID := uuid.New()
 	orgID := uuid.New()
@@ -201,6 +203,8 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cache := tt.transactionRoute.ToCache()
 
 			assert.NotNil(t, cache.Source)
@@ -212,6 +216,8 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 }
 
 func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	routeID := uuid.New()
 
@@ -246,6 +252,8 @@ func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
 }
 
 func TestTransactionRouteCache_FromMsgpack(t *testing.T) {
+	t.Parallel()
+
 	original := TransactionRouteCache{
 		Source: map[string]OperationRouteCache{
 			"route-1": {
@@ -285,6 +293,8 @@ func TestTransactionRouteCache_FromMsgpack(t *testing.T) {
 }
 
 func TestTransactionRouteCache_ToMsgpack(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		cache   TransactionRouteCache
@@ -331,6 +341,8 @@ func TestTransactionRouteCache_ToMsgpack(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := tt.cache.ToMsgpack()
 
 			if tt.wantErr {
@@ -345,12 +357,16 @@ func TestTransactionRouteCache_ToMsgpack(t *testing.T) {
 }
 
 func TestTransactionRouteCache_FromMsgpack_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	var cache TransactionRouteCache
 	err := cache.FromMsgpack([]byte("invalid msgpack data"))
 	require.Error(t, err)
 }
 
 func TestTransactionRouteCache_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := TransactionRouteCache{
 		Source: map[string]OperationRouteCache{
 			"source-route-uuid": {
@@ -401,6 +417,8 @@ func TestTransactionRouteCache_RoundTrip(t *testing.T) {
 }
 
 func TestOperationRouteCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		cache  OperationRouteCache
@@ -425,6 +443,8 @@ func TestOperationRouteCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tt.hasAcc {
 				assert.NotNil(t, tt.cache.Account)
 			} else {
@@ -435,6 +455,8 @@ func TestOperationRouteCache(t *testing.T) {
 }
 
 func TestAccountCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		cache    *AccountCache
@@ -472,6 +494,8 @@ func TestAccountCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.ruleType, tt.cache.RuleType)
 			assert.Equal(t, tt.validIf, tt.cache.ValidIf)
 		})

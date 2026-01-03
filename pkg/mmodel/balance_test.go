@@ -13,6 +13,8 @@ import (
 )
 
 func TestBalance_IDtoUUID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		balance *Balance
@@ -36,6 +38,8 @@ func TestBalance_IDtoUUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.balance.IDtoUUID()
 			assert.Equal(t, tt.want, got)
 		})
@@ -43,6 +47,7 @@ func TestBalance_IDtoUUID(t *testing.T) {
 }
 
 func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		key            string
@@ -77,6 +82,8 @@ func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cab := &CreateAdditionalBalance{
 				Key:            tt.key,
 				AllowSending:   &[]bool{true}[0],
@@ -90,6 +97,7 @@ func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 }
 
 func TestBalance_KeyField(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		key         string
@@ -119,6 +127,8 @@ func TestBalance_KeyField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			balance := &Balance{
 				ID:             "balance-123",
 				OrganizationID: "org-123",
@@ -146,6 +156,7 @@ func TestBalance_KeyField(t *testing.T) {
 }
 
 func TestBalance_ToTransactionBalance(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC().Truncate(time.Second)
 	deletedAt := now.Add(time.Hour)
 
@@ -281,6 +292,8 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.balance.ToTransactionBalance()
 
 			assert.Equal(t, tt.want.ID, got.ID)
@@ -305,6 +318,8 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 }
 
 func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -370,6 +385,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var br BalanceRedis
 			err := br.UnmarshalJSON([]byte(tt.input))
 
@@ -389,6 +406,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 }
 
 func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
+	t.Parallel()
 	input := `{
 		"id": "balance-uuid-123",
 		"alias": "@merchant",

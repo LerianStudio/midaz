@@ -10,6 +10,8 @@ import (
 )
 
 func TestAccount_ToProto(t *testing.T) {
+	t.Parallel()
+
 	tm := time.Now()
 
 	var timeDel *time.Time = &tm
@@ -62,6 +64,8 @@ func TestAccount_ToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.account
 			t.Log(result)
 		})
@@ -69,6 +73,7 @@ func TestAccount_ToProto(t *testing.T) {
 }
 
 func TestAccount_IDtoUUID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		account *Account
@@ -92,6 +97,8 @@ func TestAccount_IDtoUUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.account.IDtoUUID()
 			assert.Equal(t, tt.want, got)
 		})

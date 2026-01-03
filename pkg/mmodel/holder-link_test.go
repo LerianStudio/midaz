@@ -7,6 +7,8 @@ import (
 )
 
 func TestIsValidLinkType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		linkTypeStr string
@@ -56,6 +58,8 @@ func TestIsValidLinkType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := IsValidLinkType(tt.linkTypeStr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -63,6 +67,7 @@ func TestIsValidLinkType(t *testing.T) {
 }
 
 func TestGetValidLinkTypes(t *testing.T) {
+	t.Parallel()
 	validTypes := GetValidLinkTypes()
 
 	assert.Len(t, validTypes, 3, "should return exactly 3 valid link types")
@@ -85,6 +90,8 @@ func TestGetValidLinkTypes(t *testing.T) {
 }
 
 func TestLinkTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		linkType LinkType
@@ -109,12 +116,15 @@ func TestLinkTypeConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, string(tt.linkType))
 		})
 	}
 }
 
 func TestValidLinkTypeMapping(t *testing.T) {
+	t.Parallel()
 	assert.True(t, ValidLinkTypeMapping[LinkTypePrimaryHolder], "PRIMARY_HOLDER should be valid")
 	assert.True(t, ValidLinkTypeMapping[LinkTypeLegalRepresentative], "LEGAL_REPRESENTATIVE should be valid")
 	assert.True(t, ValidLinkTypeMapping[LinkTypeResponsibleParty], "RESPONSIBLE_PARTY should be valid")

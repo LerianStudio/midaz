@@ -23,6 +23,8 @@ type ComplexStruct struct {
 }
 
 func TestNewOfType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		input        any
@@ -53,6 +55,8 @@ func TestNewOfType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := newOfType(tc.input)
 			err := json.Unmarshal([]byte(tc.jsonData), s)
 			require.NoError(t, err)
@@ -62,6 +66,8 @@ func TestNewOfType(t *testing.T) {
 }
 
 func TestFieldsRequired(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    pkg.FieldValidations
@@ -95,6 +101,8 @@ func TestFieldsRequired(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := fieldsRequired(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -102,6 +110,8 @@ func TestFieldsRequired(t *testing.T) {
 }
 
 func TestParseUUIDPathParameters(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		route          string
@@ -141,6 +151,8 @@ func TestParseUUIDPathParameters(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			app := fiber.New()
 			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c *fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
@@ -155,6 +167,8 @@ func TestParseUUIDPathParameters(t *testing.T) {
 }
 
 func TestFindUnknownFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		original  map[string]any
@@ -255,6 +269,8 @@ func TestFindUnknownFields(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			diff := FindUnknownFields(tc.original, tc.marshaled)
 			assert.Equal(t, tc.expected, diff)
 		})
@@ -262,6 +278,7 @@ func TestFindUnknownFields(t *testing.T) {
 }
 
 func TestIsStringNumeric(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected bool
@@ -276,6 +293,8 @@ func TestIsStringNumeric(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
 			result := isStringNumeric(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -283,6 +302,8 @@ func TestIsStringNumeric(t *testing.T) {
 }
 
 func TestIsDecimalEqual(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		a        any
@@ -341,6 +362,8 @@ func TestIsDecimalEqual(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := isDecimalEqual(tc.a, tc.b)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -348,6 +371,8 @@ func TestIsDecimalEqual(t *testing.T) {
 }
 
 func TestMetadataValidation_KeyMaxLength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		key      string
@@ -384,6 +409,8 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys"`
 			}
@@ -399,6 +426,8 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 }
 
 func TestMetadataValidation_ValueMaxLength(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    any
@@ -455,6 +484,8 @@ func TestMetadataValidation_ValueMaxLength(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,endkeys,valuemax=2000"`
 			}
@@ -470,6 +501,8 @@ func TestMetadataValidation_ValueMaxLength(t *testing.T) {
 }
 
 func TestMetadataValidation_NestedValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    any
@@ -506,6 +539,8 @@ func TestMetadataValidation_NestedValues(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,endkeys,nonested"`
 			}
@@ -521,6 +556,8 @@ func TestMetadataValidation_NestedValues(t *testing.T) {
 }
 
 func TestMetadataValidation_Combined(t *testing.T) {
+	t.Parallel()
+
 	// Tests combined validation rules - only cases not covered by individual tests
 	tests := []struct {
 		name     string
@@ -548,6 +585,8 @@ func TestMetadataValidation_Combined(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 			}
@@ -563,6 +602,8 @@ func TestMetadataValidation_Combined(t *testing.T) {
 }
 
 func TestValidateCPF(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		cpf      string
@@ -629,6 +670,8 @@ func TestValidateCPF(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				CPF string `validate:"cpf"`
 			}
@@ -644,6 +687,8 @@ func TestValidateCPF(t *testing.T) {
 }
 
 func TestValidateCNPJ(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		cnpj     string
@@ -710,6 +755,8 @@ func TestValidateCNPJ(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				CNPJ string `validate:"cnpj"`
 			}
@@ -725,6 +772,8 @@ func TestValidateCNPJ(t *testing.T) {
 }
 
 func TestValidateCPFCNPJ(t *testing.T) {
+	t.Parallel()
+
 	// Tests cpfcnpj combined validator - only length edge cases not covered by individual validators
 	tests := []struct {
 		name     string
@@ -762,6 +811,8 @@ func TestValidateCPFCNPJ(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Document string `validate:"cpfcnpj"`
 			}
@@ -777,6 +828,8 @@ func TestValidateCPFCNPJ(t *testing.T) {
 }
 
 func TestAreDatesEqual(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		a        string
@@ -889,6 +942,8 @@ func TestAreDatesEqual(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := areDatesEqual(tc.a, tc.b)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -896,6 +951,8 @@ func TestAreDatesEqual(t *testing.T) {
 }
 
 func TestFindUnknownFields_DateComparison(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		original  map[string]any
@@ -1020,6 +1077,8 @@ func TestFindUnknownFields_DateComparison(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := FindUnknownFields(tc.original, tc.marshaled)
 			assert.Equal(t, tc.expected, result)
 		})
