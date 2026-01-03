@@ -63,13 +63,13 @@ type chaosTestInfra struct {
 }
 
 // networkChaosTestInfra holds infrastructure for network chaos tests with Toxiproxy.
-// Uses a shared Docker network for proper container-to-container communication.
+// Uses the unified chaos.Infrastructure for Toxiproxy management.
 type networkChaosTestInfra struct {
 	rmqContainer  *rmqtestutil.ContainerResult
-	toxiproxy     *chaos.ToxiproxyWithProxyResult
-	chaosOrch     *chaos.Orchestrator
+	chaosInfra    *chaos.Infrastructure
 	proxyProducer *ProducerRabbitMQRepository
 	proxyConn     *libRabbitmq.RabbitMQConnection
+	proxy         *chaos.Proxy
 	exchange      string
 	routingKey    string
 	queue         string
@@ -162,49 +162,47 @@ func setupRabbitMQChaosInfra(t *testing.T) *chaosTestInfra {
 }
 
 // setupRabbitMQNetworkChaosInfra sets up infrastructure for network chaos testing with Toxiproxy.
-// This creates both RabbitMQ and Toxiproxy on a shared Docker network, enabling proper
-// container-to-container communication through the proxy.
+// Uses the unified chaos.Infrastructure which manages Toxiproxy lifecycle.
 func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	t.Helper()
-
-	// Constants for network configuration
-	const (
-		rabbitmqAlias = "rabbitmq"
-		proxyName     = "rabbitmq-proxy"
-	)
 
 	// Setup exchange and queue names
 	exchange := "test-exchange"
 	routingKey := "test.routing.key"
 	queue := "test-queue"
 
-	// 1. Create Toxiproxy with a pre-configured proxy for RabbitMQ
-	// The upstream uses the network alias (rabbitmq:5672) since both containers
-	// will be on the same Docker network
-	toxiproxy := chaos.SetupToxiproxyWithProxy(t, chaos.ProxyConfig{
-		Name:     proxyName,
-		Upstream: fmt.Sprintf("%s:5672", rabbitmqAlias),
-	})
+	// 1. Create chaos infrastructure (creates network + Toxiproxy)
+	chaosInfra := chaos.NewInfrastructure(t)
 
-	// 2. Create RabbitMQ container on the same network
-	rmqContainer := rmqtestutil.SetupContainerOnNetwork(t, toxiproxy.NetworkName(), rabbitmqAlias)
+	// 2. Create RabbitMQ container (on host network, not chaos infra network)
+	rmqContainer := rmqtestutil.SetupContainer(t)
 
 	// 3. Setup exchange and queue
 	rmqtestutil.SetupExchange(t, rmqContainer.Channel, exchange, "topic")
 	rmqtestutil.SetupQueue(t, rmqContainer.Channel, queue, exchange, routingKey)
 
-	// 4. Create chaos orchestrator with Toxiproxy client
-	chaosOrch := chaos.NewOrchestratorWithConfig(t, chaos.OrchestratorConfig{
-		ToxiproxyAddr: fmt.Sprintf("http://%s:%s", toxiproxy.Host, toxiproxy.APIPort),
-	})
+	// 4. Register RabbitMQ container with infrastructure for proxy creation
+	_, err := chaosInfra.RegisterContainerWithPort("rabbitmq", rmqContainer.Container, "5672/tcp")
+	require.NoError(t, err, "failed to register RabbitMQ container")
 
-	// 5. Create producer that connects through the proxy
-	// The proxy endpoint is accessible from the test (host machine)
-	proxyURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
+	// 5. Create proxy for RabbitMQ (Toxiproxy -> RabbitMQ via host-mapped port)
+	// Use port 8667 which is one of the exposed proxy ports on the Toxiproxy container
+	proxy, err := chaosInfra.CreateProxyFor("rabbitmq", "8667/tcp")
+	require.NoError(t, err, "failed to create Toxiproxy proxy for RabbitMQ")
+
+	// 6. Get proxy address for client connections
+	containerInfo, ok := chaosInfra.GetContainer("rabbitmq")
+	require.True(t, ok, "RabbitMQ container should be registered")
+	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
+
+	// Parse proxy address for AMQP connection
+	proxyAddr := containerInfo.ProxyListen
+
+	// 7. Create producer that connects through the proxy
+	proxyURI := fmt.Sprintf("amqp://%s:%s@%s/",
 		rmqtestutil.DefaultUser,
 		rmqtestutil.DefaultPassword,
-		toxiproxy.ProxyHost,
-		toxiproxy.ProxyPort,
+		proxyAddr,
 	)
 
 	logger := libZap.InitializeLogger()
@@ -212,8 +210,8 @@ func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	proxyConn := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: proxyURI,
 		HealthCheckURL:         healthCheckURL,
-		Host:                   toxiproxy.ProxyHost,
-		Port:                   toxiproxy.ProxyPort,
+		Host:                   chaosInfra.ToxiproxyHost(),
+		Port:                   "15672", // Proxy listen port
 		User:                   rmqtestutil.DefaultUser,
 		Pass:                   rmqtestutil.DefaultPassword,
 		Logger:                 logger,
@@ -222,10 +220,10 @@ func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 
 	return &networkChaosTestInfra{
 		rmqContainer:  rmqContainer,
-		toxiproxy:     toxiproxy,
-		chaosOrch:     chaosOrch,
+		chaosInfra:    chaosInfra,
 		proxyProducer: proxyProducer,
 		proxyConn:     proxyConn,
+		proxy:         proxy,
 		exchange:      exchange,
 		routingKey:    routingKey,
 		queue:         queue,
@@ -254,11 +252,14 @@ func (infra *chaosTestInfra) cleanup() {
 
 // cleanup releases all resources for network chaos infrastructure.
 func (infra *networkChaosTestInfra) cleanup() {
+	// Cleanup RabbitMQ container first (managed separately from Infrastructure)
 	if infra.rmqContainer != nil {
 		infra.rmqContainer.Cleanup()
 	}
-	if infra.toxiproxy != nil {
-		infra.toxiproxy.Cleanup()
+	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
+	// Note: This may log warnings about already-terminated containers
+	if infra.chaosInfra != nil {
+		infra.chaosInfra.Cleanup()
 	}
 }
 
@@ -670,11 +671,7 @@ func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
 	defer infra.cleanup()
 
 	ctx := context.Background()
-
-	// Get the pre-configured proxy from the chaos orchestrator
-	proxy, err := infra.chaosOrch.GetProxy("rabbitmq-proxy")
-	require.NoError(t, err, "should get pre-configured proxy")
-	t.Logf("Using Toxiproxy proxy: %s -> %s", proxy.Listen(), proxy.Upstream())
+	t.Logf("Using Toxiproxy proxy: %s -> %s", infra.proxy.Listen(), infra.proxy.Upstream())
 
 	// 1. Verify normal operation through proxy - message should be delivered
 	msg1 := chaosTestMessage{
@@ -684,7 +681,7 @@ func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
 	}
 	msgBytes1, _ := json.Marshal(msg1)
 
-	_, err = infra.proxyProducer.ProducerDefault(ctx, infra.exchange, infra.routingKey, msgBytes1)
+	_, err := infra.proxyProducer.ProducerDefault(ctx, infra.exchange, infra.routingKey, msgBytes1)
 	require.NoError(t, err, "initial publish through proxy should succeed")
 
 	// Wait for message to be delivered and verify it arrived
@@ -693,7 +690,7 @@ func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
 
 	// 2. INJECT CHAOS: Add 500ms latency with 100ms jitter
 	t.Log("Chaos: Adding 500ms latency to RabbitMQ connection")
-	err = proxy.AddLatency(500*time.Millisecond, 100*time.Millisecond)
+	err = infra.proxy.AddLatency(500*time.Millisecond, 100*time.Millisecond)
 	require.NoError(t, err, "adding latency should succeed")
 
 	// 3. Publish multiple messages with latency - they should still be delivered
@@ -717,7 +714,7 @@ func TestChaos_RabbitMQ_NetworkLatency(t *testing.T) {
 
 	// 4. REMOVE CHAOS: Remove all toxics
 	t.Log("Chaos: Removing latency")
-	err = proxy.RemoveAllToxics()
+	err = infra.proxy.RemoveAllToxics()
 	require.NoError(t, err, "removing toxics should succeed")
 
 	// 5. Verify normal operation restored - messages should still be delivered quickly
@@ -753,11 +750,7 @@ func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 	defer infra.cleanup()
 
 	ctx := context.Background()
-
-	// Get the pre-configured proxy from the chaos orchestrator
-	proxy, err := infra.chaosOrch.GetProxy("rabbitmq-proxy")
-	require.NoError(t, err, "should get pre-configured proxy")
-	t.Logf("Using Toxiproxy proxy: %s -> %s", proxy.Listen(), proxy.Upstream())
+	t.Logf("Using Toxiproxy proxy: %s -> %s", infra.proxy.Listen(), infra.proxy.Upstream())
 
 	// 1. Publish baseline message to verify infrastructure is working
 	t.Log("Step 1: Publishing baseline message to verify setup")
@@ -768,7 +761,7 @@ func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 	}
 	baselineMsgBytes, _ := json.Marshal(baselineMsg)
 
-	_, err = infra.proxyProducer.ProducerDefault(ctx, infra.exchange, infra.routingKey, baselineMsgBytes)
+	_, err := infra.proxyProducer.ProducerDefault(ctx, infra.exchange, infra.routingKey, baselineMsgBytes)
 	require.NoError(t, err, "baseline publish should succeed")
 
 	rmqtestutil.WaitForQueueCount(t, infra.rmqContainer.Channel, infra.queue, 1, 5*time.Second)
@@ -809,7 +802,7 @@ func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 
 	// 4. INJECT CHAOS: Disconnect proxy to simulate network outage
 	t.Log("Step 4: INJECT CHAOS - Disconnecting proxy to simulate network outage")
-	err = proxy.Disconnect()
+	err = infra.proxy.Disconnect()
 	require.NoError(t, err, "proxy disconnect should succeed")
 	t.Log("Chaos: Network outage injected - proxy disconnected")
 
@@ -821,7 +814,7 @@ func TestChaos_RabbitMQ_RetryDuringNetworkOutage(t *testing.T) {
 
 	// 6. REMOVE CHAOS: Reconnect proxy to restore network
 	t.Log("Step 6: REMOVE CHAOS - Reconnecting proxy to restore network")
-	err = proxy.Reconnect()
+	err = infra.proxy.Reconnect()
 	require.NoError(t, err, "proxy reconnect should succeed")
 	t.Log("Chaos: Network restored - proxy reconnected")
 

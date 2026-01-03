@@ -27,12 +27,13 @@ type Infrastructure struct {
 
 // ContainerInfo holds information about a managed container.
 type ContainerInfo struct {
-	Container   testcontainers.Container
-	ID          string
-	Host        string
-	Port        string
-	ProxyListen string // Address to connect through proxy (if proxied)
-	DirectAddr  string // Direct address (bypassing proxy)
+	Container    testcontainers.Container
+	ID           string
+	Host         string
+	Port         string
+	ProxyListen  string // Address to connect through proxy (if proxied)
+	DirectAddr   string // Direct address from host (bypassing proxy)
+	UpstreamAddr string // Address for Toxiproxy to reach this container (uses host.docker.internal)
 }
 
 // InfrastructureConfig holds configuration for the chaos infrastructure.
@@ -154,11 +155,12 @@ func (i *Infrastructure) RegisterContainerWithPort(name string, container testco
 	}
 
 	info := &ContainerInfo{
-		Container:  container,
-		ID:         id,
-		Host:       host,
-		Port:       mappedPort.Port(),
-		DirectAddr: fmt.Sprintf("%s:%s", host, mappedPort.Port()),
+		Container:    container,
+		ID:           id,
+		Host:         host,
+		Port:         mappedPort.Port(),
+		DirectAddr:   fmt.Sprintf("%s:%s", host, mappedPort.Port()),
+		UpstreamAddr: fmt.Sprintf("host.docker.internal:%s", mappedPort.Port()),
 	}
 
 	i.containers[name] = info
@@ -186,8 +188,11 @@ func (i *Infrastructure) CreateProxyFor(containerName string, listenPort string)
 	}
 
 	proxyName := fmt.Sprintf("%s-proxy", containerName)
-	upstream := info.DirectAddr
-	listen := fmt.Sprintf("0.0.0.0:%s", listenPort)
+	// Use UpstreamAddr which uses host.docker.internal to reach the target from inside Toxiproxy container
+	upstream := info.UpstreamAddr
+	// Extract just the port number from the port ID (e.g., "8666/tcp" -> "8666")
+	portNum := nat.Port(listenPort).Port()
+	listen := fmt.Sprintf("0.0.0.0:%s", portNum)
 
 	proxy, err := i.orch.CreateProxy(proxyName, upstream, listen)
 	if err != nil {

@@ -5,7 +5,6 @@ package chaos
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tctoxiproxy "github.com/testcontainers/testcontainers-go/modules/toxiproxy"
-	"github.com/testcontainers/testcontainers-go/network"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // NetworkChaosConfig holds configuration for network chaos operations.
@@ -51,11 +48,16 @@ func SetupToxiproxy(t *testing.T) *ToxiproxyResult {
 }
 
 // SetupToxiproxyWithConfig starts a Toxiproxy container with custom configuration.
+// Exposes ports 8666-8676 for dynamic proxy creation (in addition to 8474 for API).
 func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyResult {
 	t.Helper()
 	ctx := context.Background()
 
-	container, err := tctoxiproxy.Run(ctx, cfg.Image)
+	// Expose a range of ports for dynamic proxy creation
+	// Ports 8666-8676 are commonly used for Toxiproxy proxies
+	container, err := tctoxiproxy.Run(ctx, cfg.Image,
+		testcontainers.WithExposedPorts("8666/tcp", "8667/tcp", "8668/tcp", "8669/tcp", "8670/tcp"),
+	)
 	require.NoError(t, err, "failed to start Toxiproxy container")
 
 	host, err := container.Host(ctx)
@@ -80,106 +82,6 @@ func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyRe
 		APIPort:   apiPort.Port(),
 		Cleanup:   cleanup,
 	}
-}
-
-// ToxiproxyWithProxyResult extends ToxiproxyResult with pre-configured proxy information.
-// Use this when you need Toxiproxy and target container on the same Docker network.
-type ToxiproxyWithProxyResult struct {
-	*ToxiproxyResult
-	// Network is the shared Docker network for container-to-container communication.
-	Network *testcontainers.DockerNetwork
-	// ProxyHost is the host address to connect to the proxy from the test.
-	ProxyHost string
-	// ProxyPort is the port to connect to the proxy from the test.
-	ProxyPort string
-}
-
-// ProxyConfig defines a proxy to be created with the Toxiproxy container.
-type ProxyConfig struct {
-	// Name is the proxy name (used to retrieve and manipulate the proxy).
-	Name string
-	// Upstream is the target service address (e.g., "rabbitmq:5672" on the shared network).
-	Upstream string
-}
-
-// SetupToxiproxyWithProxy creates a Toxiproxy container with a pre-configured proxy on a shared network.
-// This is the recommended approach for chaos testing as it handles Docker networking correctly.
-// The upstream container must be on the same network for container-to-container communication.
-func SetupToxiproxyWithProxy(t *testing.T, proxyCfg ProxyConfig, opts ...testcontainers.ContainerCustomizer) *ToxiproxyWithProxyResult {
-	return SetupToxiproxyWithProxyAndConfig(t, DefaultNetworkChaosConfig(), proxyCfg, opts...)
-}
-
-// SetupToxiproxyWithProxyAndConfig creates a Toxiproxy container with custom configuration and a pre-configured proxy.
-func SetupToxiproxyWithProxyAndConfig(t *testing.T, cfg NetworkChaosConfig, proxyCfg ProxyConfig, opts ...testcontainers.ContainerCustomizer) *ToxiproxyWithProxyResult {
-	t.Helper()
-	ctx := context.Background()
-
-	// Create a shared Docker network for container-to-container communication
-	sharedNetwork, err := network.New(ctx, network.WithCheckDuplicate())
-	require.NoError(t, err, "failed to create shared Docker network")
-
-	// Custom wait strategy with longer timeout for Docker Desktop networking delays
-	// When using custom networks, port mappings may take longer to become available
-	customWaitStrategy := wait.ForHTTP("/version").
-		WithPort("8474/tcp").
-		WithStatusCodeMatcher(func(status int) bool { return status == http.StatusOK }).
-		WithStartupTimeout(2 * time.Minute).
-		WithPollInterval(500 * time.Millisecond)
-
-	// Build options: shared network + pre-configured proxy + custom wait strategy
-	allOpts := []testcontainers.ContainerCustomizer{
-		network.WithNetwork([]string{"toxiproxy"}, sharedNetwork),
-		tctoxiproxy.WithProxy(proxyCfg.Name, proxyCfg.Upstream),
-		testcontainers.WithWaitStrategy(customWaitStrategy),
-	}
-	allOpts = append(allOpts, opts...)
-
-	// Create Toxiproxy container with the proxy pre-configured
-	container, err := tctoxiproxy.Run(ctx, cfg.Image, allOpts...)
-	require.NoError(t, err, "failed to start Toxiproxy container with proxy")
-
-	// Get the proxied endpoint (host:port accessible from the test)
-	// WithProxy allocates ports starting from 8666
-	const firstProxyPort = 8666
-	proxyHost, proxyPort, err := container.ProxiedEndpoint(firstProxyPort)
-	require.NoError(t, err, "failed to get proxied endpoint for %s", proxyCfg.Name)
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err, "failed to get Toxiproxy host")
-
-	apiPort, err := container.MappedPort(ctx, "8474")
-	require.NoError(t, err, "failed to get Toxiproxy API port")
-
-	apiURL := fmt.Sprintf("http://%s:%s", host, apiPort.Port())
-	client := toxiproxyclient.NewClient(apiURL)
-
-	cleanup := func() {
-		if err := container.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate Toxiproxy container: %v", err)
-		}
-		if err := sharedNetwork.Remove(ctx); err != nil {
-			t.Logf("failed to remove shared network: %v", err)
-		}
-	}
-
-	return &ToxiproxyWithProxyResult{
-		ToxiproxyResult: &ToxiproxyResult{
-			Container: container,
-			Client:    client,
-			Host:      host,
-			APIPort:   apiPort.Port(),
-			Cleanup:   cleanup,
-		},
-		Network:   sharedNetwork,
-		ProxyHost: proxyHost,
-		ProxyPort: proxyPort,
-	}
-}
-
-// NetworkName returns the name of the shared Docker network.
-// Use this to add other containers to the same network.
-func (r *ToxiproxyWithProxyResult) NetworkName() string {
-	return r.Network.Name
 }
 
 // Proxy represents a Toxiproxy proxy configuration.

@@ -54,13 +54,13 @@ type chaosTestInfra struct {
 }
 
 // networkChaosTestInfra holds infrastructure for network chaos tests with Toxiproxy.
-// Uses a shared Docker network for proper container-to-container communication.
+// Uses the unified chaos.Infrastructure for Toxiproxy management.
 type networkChaosTestInfra struct {
 	redisContainer *redistestutil.ContainerResult
-	toxiproxy      *chaos.ToxiproxyWithProxyResult
-	chaosOrch      *chaos.Orchestrator
+	chaosInfra     *chaos.Infrastructure
 	proxyRepo      *RedisConsumerRepository
 	proxyConn      *libRedis.RedisConnection
+	proxy          *chaos.Proxy
 }
 
 // setupRedisIntegrationInfra sets up the test infrastructure for Redis integration testing.
@@ -112,37 +112,33 @@ func setupRedisChaosInfra(t *testing.T) *chaosTestInfra {
 }
 
 // setupRedisNetworkChaosInfra sets up infrastructure for network chaos testing with Toxiproxy.
-// This creates both Redis and Toxiproxy on a shared Docker network, enabling proper
-// container-to-container communication through the proxy.
+// Uses the unified chaos.Infrastructure which manages Toxiproxy lifecycle.
 func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	t.Helper()
 
-	// Constants for network configuration
-	const (
-		redisAlias = "redis"
-		proxyName  = "redis-proxy"
-	)
+	// 1. Create chaos infrastructure (creates network + Toxiproxy)
+	chaosInfra := chaos.NewInfrastructure(t)
 
-	// 1. Create Toxiproxy with a pre-configured proxy for Redis
-	// The upstream uses the network alias (redis:6379) since both containers
-	// will be on the same Docker network
-	toxiproxy := chaos.SetupToxiproxyWithProxy(t, chaos.ProxyConfig{
-		Name:     proxyName,
-		Upstream: fmt.Sprintf("%s:6379", redisAlias),
-	})
+	// 2. Create Redis container (on host network, not chaos infra network)
+	redisContainer := redistestutil.SetupContainer(t)
 
-	// 2. Create Redis container on the same network
-	redisContainer := redistestutil.SetupContainerOnNetwork(t, toxiproxy.NetworkName(), redisAlias)
+	// 3. Register Redis container with infrastructure for proxy creation
+	_, err := chaosInfra.RegisterContainerWithPort("redis", redisContainer.Container, "6379/tcp")
+	require.NoError(t, err, "failed to register Redis container")
 
-	// 3. Create chaos orchestrator with Toxiproxy client
-	chaosOrch := chaos.NewOrchestratorWithConfig(t, chaos.OrchestratorConfig{
-		ToxiproxyAddr: fmt.Sprintf("http://%s:%s", toxiproxy.Host, toxiproxy.APIPort),
-	})
+	// 4. Create proxy for Redis (Toxiproxy -> Redis via host-mapped port)
+	// Use port 8666 which is one of the exposed proxy ports on the Toxiproxy container
+	proxy, err := chaosInfra.CreateProxyFor("redis", "8666/tcp")
+	require.NoError(t, err, "failed to create Toxiproxy proxy for Redis")
 
-	// 4. Create repository that connects through the proxy
-	// The proxy endpoint is accessible from the test (host machine)
-	proxyAddr := fmt.Sprintf("%s:%s", toxiproxy.ProxyHost, toxiproxy.ProxyPort)
+	// 5. Get proxy address for client connections
+	containerInfo, ok := chaosInfra.GetContainer("redis")
+	require.True(t, ok, "Redis container should be registered")
+	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
 
+	proxyAddr := containerInfo.ProxyListen
+
+	// 6. Create Redis connection through proxy
 	logger := libZap.InitializeLogger()
 	proxyConn := &libRedis.RedisConnection{
 		Address: []string{proxyAddr},
@@ -156,10 +152,10 @@ func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 
 	return &networkChaosTestInfra{
 		redisContainer: redisContainer,
-		toxiproxy:      toxiproxy,
-		chaosOrch:      chaosOrch,
+		chaosInfra:     chaosInfra,
 		proxyRepo:      proxyRepo,
 		proxyConn:      proxyConn,
+		proxy:          proxy,
 	}
 }
 
@@ -182,14 +178,14 @@ func (infra *chaosTestInfra) cleanup() {
 
 // cleanup releases all resources for network chaos infrastructure.
 func (infra *networkChaosTestInfra) cleanup() {
-	if infra.chaosOrch != nil {
-		infra.chaosOrch.Close()
-	}
+	// Cleanup Redis container first (managed separately from Infrastructure)
 	if infra.redisContainer != nil {
 		infra.redisContainer.Cleanup()
 	}
-	if infra.toxiproxy != nil {
-		infra.toxiproxy.Cleanup()
+	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
+	// Note: This may log warnings about already-terminated containers
+	if infra.chaosInfra != nil {
+		infra.chaosInfra.Cleanup()
 	}
 }
 
@@ -553,11 +549,7 @@ func TestChaos_Redis_NetworkLatency(t *testing.T) {
 	defer infra.cleanup()
 
 	ctx := context.Background()
-
-	// Get the pre-configured proxy from the chaos orchestrator
-	proxy, err := infra.chaosOrch.GetProxy("redis-proxy")
-	require.NoError(t, err, "should get pre-configured proxy")
-	t.Logf("Using Toxiproxy proxy: %s -> %s", proxy.Listen(), proxy.Upstream())
+	t.Logf("Using Toxiproxy proxy: %s -> %s", infra.proxy.Listen(), infra.proxy.Upstream())
 
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -581,7 +573,7 @@ func TestChaos_Redis_NetworkLatency(t *testing.T) {
 
 	// 2. INJECT CHAOS: Add 300ms latency with 50ms jitter
 	t.Log("Step 2: INJECT CHAOS - Adding 300ms latency to Redis connection")
-	err = proxy.AddLatency(300*time.Millisecond, 50*time.Millisecond)
+	err = infra.proxy.AddLatency(300*time.Millisecond, 50*time.Millisecond)
 	require.NoError(t, err, "adding latency should succeed")
 
 	// 3. Execute operations with latency - they should still succeed
@@ -608,7 +600,7 @@ func TestChaos_Redis_NetworkLatency(t *testing.T) {
 
 	// 4. REMOVE CHAOS: Remove all toxics
 	t.Log("Step 4: Removing latency")
-	err = proxy.RemoveAllToxics()
+	err = infra.proxy.RemoveAllToxics()
 	require.NoError(t, err, "removing toxics should succeed")
 
 	// 5. Verify normal operation restored
@@ -645,10 +637,6 @@ func TestChaos_Redis_NetworkPartition(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Get the pre-configured proxy
-	proxy, err := infra.chaosOrch.GetProxy("redis-proxy")
-	require.NoError(t, err, "should get pre-configured proxy")
-
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
@@ -664,13 +652,13 @@ func TestChaos_Redis_NetworkPartition(t *testing.T) {
 		),
 	}
 
-	_, err = infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "baseline operation should succeed")
 	t.Log("Baseline operation successful")
 
 	// 2. INJECT CHAOS: Disconnect proxy to simulate network partition
 	t.Log("Step 2: INJECT CHAOS - Disconnecting proxy to simulate network partition")
-	err = proxy.Disconnect()
+	err = infra.proxy.Disconnect()
 	require.NoError(t, err, "proxy disconnect should succeed")
 
 	// 3. Operations during partition should fail
@@ -695,7 +683,7 @@ func TestChaos_Redis_NetworkPartition(t *testing.T) {
 
 	// 4. REMOVE CHAOS: Reconnect proxy
 	t.Log("Step 4: REMOVE CHAOS - Reconnecting proxy")
-	err = proxy.Reconnect()
+	err = infra.proxy.Reconnect()
 	require.NoError(t, err, "proxy reconnect should succeed")
 
 	// 5. Operations after reconnect should succeed
