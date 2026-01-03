@@ -51,7 +51,6 @@ type ContainerResult struct {
 	Database  *mongo.Database
 	URI       string
 	DBName    string
-	Cleanup   func()
 }
 
 // SetupContainer starts a MongoDB container for integration testing.
@@ -97,14 +96,14 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	err = client.Ping(ctx, nil)
 	require.NoError(t, err, "failed to ping MongoDB container")
 
-	cleanup := func() {
-		if err := client.Disconnect(ctx); err != nil {
+	t.Cleanup(func() {
+		if err := client.Disconnect(context.Background()); err != nil {
 			t.Logf("failed to disconnect MongoDB client: %v", err)
 		}
-		if err := container.Terminate(ctx); err != nil {
+		if err := container.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate MongoDB container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Container: container,
@@ -112,7 +111,6 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Database:  client.Database(cfg.DBName),
 		URI:       uri,
 		DBName:    cfg.DBName,
-		Cleanup:   cleanup,
 	}
 }
 

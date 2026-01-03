@@ -44,7 +44,6 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Ledg
 func TestIntegration_LedgerRepository_ListByIDs_ReturnsMatchingLedgers(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -83,7 +82,6 @@ func TestIntegration_LedgerRepository_ListByIDs_ReturnsMatchingLedgers(t *testin
 func TestIntegration_LedgerRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -114,7 +112,6 @@ func TestIntegration_LedgerRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T
 func TestIntegration_LedgerRepository_ListByIDs_IsolatesByOrganization(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -146,7 +143,6 @@ func TestIntegration_LedgerRepository_ListByIDs_IsolatesByOrganization(t *testin
 
 func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)

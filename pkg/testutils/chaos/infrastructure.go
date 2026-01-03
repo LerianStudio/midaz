@@ -80,6 +80,11 @@ func NewInfrastructureWithConfig(t *testing.T, cfg InfrastructureConfig) *Infras
 		infra.orch.SetToxiproxyClient(infra.toxiproxy.Client)
 	}
 
+	// Register cleanup to run when test completes
+	t.Cleanup(func() {
+		infra.cleanup()
+	})
+
 	return infra
 }
 
@@ -216,7 +221,14 @@ func (i *Infrastructure) GetProxy(containerName string) (*Proxy, bool) {
 }
 
 // Cleanup releases all resources held by the infrastructure.
+// Deprecated: Cleanup is now handled automatically via t.Cleanup().
+// This method is kept for backward compatibility but is a no-op.
 func (i *Infrastructure) Cleanup() {
+	// No-op: cleanup is now handled automatically via t.Cleanup()
+}
+
+// cleanup is the internal cleanup implementation called by t.Cleanup().
+func (i *Infrastructure) cleanup() {
 	i.t.Helper()
 	ctx := context.Background()
 
@@ -227,10 +239,7 @@ func (i *Infrastructure) Cleanup() {
 		}
 	}
 
-	// Terminate Toxiproxy
-	if i.toxiproxy != nil {
-		i.toxiproxy.Cleanup()
-	}
+	// Note: Toxiproxy container cleanup is handled by its own t.Cleanup() registered in SetupToxiproxy
 
 	// Terminate all containers
 	for name, info := range i.containers {

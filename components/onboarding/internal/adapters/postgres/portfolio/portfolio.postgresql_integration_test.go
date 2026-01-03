@@ -47,7 +47,6 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Port
 
 func TestIntegration_PortfolioRepository_Find_ReturnsPortfolio(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -80,7 +79,6 @@ func TestIntegration_PortfolioRepository_Find_ReturnsPortfolio(t *testing.T) {
 
 func TestIntegration_PortfolioRepository_Find_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -104,7 +102,6 @@ func TestIntegration_PortfolioRepository_Find_ReturnsErrNotFound(t *testing.T) {
 
 func TestIntegration_PortfolioRepository_Find_IgnoresDeletedPortfolio(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -136,7 +133,6 @@ func TestIntegration_PortfolioRepository_Find_IgnoresDeletedPortfolio(t *testing
 
 func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsPortfolio(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -167,7 +163,6 @@ func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsPortfolio(t *test
 
 func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -194,7 +189,6 @@ func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsErrNotFound(t *te
 
 func TestIntegration_PortfolioRepository_Create_InsertsAndReturnsPortfolio(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -239,7 +233,6 @@ func TestIntegration_PortfolioRepository_Create_InsertsAndReturnsPortfolio(t *te
 
 func TestIntegration_PortfolioRepository_Update_ChangesNameAndStatus(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -286,7 +279,6 @@ func TestIntegration_PortfolioRepository_Update_ChangesNameAndStatus(t *testing.
 
 func TestIntegration_PortfolioRepository_Update_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -316,7 +308,6 @@ func TestIntegration_PortfolioRepository_Update_ReturnsErrNotFound(t *testing.T)
 
 func TestIntegration_PortfolioRepository_FindAll_ReturnsPortfolios(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -350,7 +341,6 @@ func TestIntegration_PortfolioRepository_FindAll_ReturnsPortfolios(t *testing.T)
 
 func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -425,7 +415,6 @@ func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 
 func TestIntegration_PortfolioRepository_FindAll_ExcludesDeleted(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -467,7 +456,6 @@ func TestIntegration_PortfolioRepository_FindAll_ExcludesDeleted(t *testing.T) {
 
 func TestIntegration_PortfolioRepository_ListByIDs_ReturnsMatchingPortfolios(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -503,7 +491,6 @@ func TestIntegration_PortfolioRepository_ListByIDs_ReturnsMatchingPortfolios(t *
 
 func TestIntegration_PortfolioRepository_ListByIDs_ReturnsEmptyForNoMatches(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -527,7 +514,6 @@ func TestIntegration_PortfolioRepository_ListByIDs_ReturnsEmptyForNoMatches(t *t
 
 func TestIntegration_PortfolioRepository_Delete_SoftDeletesPortfolio(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -563,7 +549,6 @@ func TestIntegration_PortfolioRepository_Delete_SoftDeletesPortfolio(t *testing.
 
 func TestIntegration_PortfolioRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -589,7 +574,6 @@ func TestIntegration_PortfolioRepository_Delete_ReturnsErrNotFound(t *testing.T)
 
 func TestIntegration_PortfolioRepository_Count_ReturnsCorrectCount(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -619,7 +603,6 @@ func TestIntegration_PortfolioRepository_Count_ReturnsCorrectCount(t *testing.T)
 
 func TestIntegration_PortfolioRepository_Count_ExcludesDeletedPortfolios(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -652,7 +635,6 @@ func TestIntegration_PortfolioRepository_Count_ExcludesDeletedPortfolios(t *test
 
 func TestIntegration_PortfolioRepository_Count_ReturnsZeroForEmptyLedger(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 

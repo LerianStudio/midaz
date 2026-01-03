@@ -54,7 +54,6 @@ type ContainerResult struct {
 	AMQPPort  string
 	MgmtPort  string
 	URI       string
-	Cleanup   func()
 }
 
 // SetupContainer starts a RabbitMQ container for integration testing.
@@ -111,17 +110,17 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	ch, err := conn.Channel()
 	require.NoError(t, err, "failed to open RabbitMQ channel")
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		if ch != nil {
 			ch.Close()
 		}
 		if conn != nil {
 			conn.Close()
 		}
-		if err := container.Terminate(ctx); err != nil {
+		if err := container.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate RabbitMQ container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Container: container,
@@ -131,7 +130,6 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		AMQPPort:  amqpPort.Port(),
 		MgmtPort:  mgmtPort.Port(),
 		URI:       uri,
-		Cleanup:   cleanup,
 	}
 }
 
@@ -192,17 +190,17 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 	ch, err := conn.Channel()
 	require.NoError(t, err, "failed to open RabbitMQ channel")
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		if ch != nil {
 			ch.Close()
 		}
 		if conn != nil {
 			conn.Close()
 		}
-		if err := rmqContainer.Terminate(ctx); err != nil {
+		if err := rmqContainer.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate RabbitMQ container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Container: rmqContainer,
@@ -212,7 +210,6 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		AMQPPort:  amqpPort.Port(),
 		MgmtPort:  mgmtPort.Port(),
 		URI:       uri,
-		Cleanup:   cleanup,
 	}
 }
 

@@ -57,7 +57,6 @@ type ContainerResult struct {
 	Port      string
 	DSN       string
 	Config    ContainerConfig
-	Cleanup   func()
 }
 
 // SetupContainer starts a PostgreSQL container for integration testing.
@@ -107,12 +106,12 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	require.NoError(t, db.Ping(), "failed to ping database")
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		db.Close()
-		if err := container.Terminate(ctx); err != nil {
+		if err := container.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate PostgreSQL container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Container: container,
@@ -121,7 +120,6 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Port:      port.Port(),
 		DSN:       dsn,
 		Config:    cfg,
-		Cleanup:   cleanup,
 	}
 }
 

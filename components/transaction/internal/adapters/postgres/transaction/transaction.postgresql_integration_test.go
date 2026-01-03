@@ -233,29 +233,17 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 }
 
-// cleanup releases all resources for integration tests.
-func (infra *integrationTestInfra) cleanup() {
-	if infra.pgContainer != nil {
-		infra.pgContainer.Cleanup()
-	}
-}
-
 // cleanup releases all resources for chaos tests.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *chaosTestInfra) cleanup() {
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
-	if infra.pgContainer != nil {
-		infra.pgContainer.Cleanup()
-	}
 }
 
 // cleanup releases all resources for network chaos infrastructure.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *networkChaosTestInfra) cleanup() {
-	// Cleanup PostgreSQL container first
-	if infra.pgResult != nil {
-		infra.pgResult.Cleanup()
-	}
 	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
 	if infra.chaosInfra != nil {
 		infra.chaosInfra.Cleanup()

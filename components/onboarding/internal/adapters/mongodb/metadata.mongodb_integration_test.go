@@ -41,7 +41,6 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 func TestIntegration_MetadataRepository_Create_InsertsMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -73,7 +72,6 @@ func TestIntegration_MetadataRepository_Create_InsertsMetadata(t *testing.T) {
 func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -114,7 +112,6 @@ func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T)
 func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -170,7 +167,6 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -206,7 +202,6 @@ func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testi
 func TestIntegration_MetadataRepository_FindByEntity_ReturnsMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -232,7 +227,6 @@ func TestIntegration_MetadataRepository_FindByEntity_ReturnsMetadata(t *testing.
 func TestIntegration_MetadataRepository_FindByEntity_ReturnsNilForNonExistent(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -252,7 +246,6 @@ func TestIntegration_MetadataRepository_FindByEntity_ReturnsNilForNonExistent(t 
 func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsBatch(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -284,7 +277,6 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsBatch(t *testing.
 func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsEmptyForEmptyInput(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -300,7 +292,6 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_ReturnsEmptyForEmptyInpu
 func TestIntegration_MetadataRepository_FindByEntityIDs_HandlesPartialMatch(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -328,7 +319,6 @@ func TestIntegration_MetadataRepository_FindByEntityIDs_HandlesPartialMatch(t *t
 func TestIntegration_MetadataRepository_Update_UpdatesExisting(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -357,7 +347,6 @@ func TestIntegration_MetadataRepository_Update_UpdatesExisting(t *testing.T) {
 func TestIntegration_MetadataRepository_Update_UpsertsIfNotExists(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -383,7 +372,6 @@ func TestIntegration_MetadataRepository_Update_UpsertsIfNotExists(t *testing.T) 
 func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -413,7 +401,6 @@ func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 func TestIntegration_MetadataRepository_Delete_IsIdempotent(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -432,7 +419,6 @@ func TestIntegration_MetadataRepository_Delete_IsIdempotent(t *testing.T) {
 func TestIntegration_MetadataRepository_CollectionIsolation(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -582,17 +568,10 @@ func (infra *chaosTestInfra) cleanup() {
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
-	if infra.container != nil {
-		infra.container.Cleanup()
-	}
 }
 
 // cleanup releases all resources for network chaos infrastructure.
 func (infra *networkChaosTestInfra) cleanup() {
-	// Cleanup MongoDB container first
-	if infra.mongoResult != nil {
-		infra.mongoResult.Cleanup()
-	}
 	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
 	if infra.chaosInfra != nil {
 		infra.chaosInfra.Cleanup()

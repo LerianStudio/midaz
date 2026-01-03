@@ -40,7 +40,6 @@ type ToxiproxyResult struct {
 	Client    *toxiproxyclient.Client
 	Host      string
 	APIPort   string
-	Cleanup   func()
 }
 
 // SetupToxiproxy starts a Toxiproxy container for network chaos testing.
@@ -76,18 +75,17 @@ func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyRe
 	apiURL := fmt.Sprintf("http://%s:%s", host, apiPort.Port())
 	client := toxiproxyclient.NewClient(apiURL)
 
-	cleanup := func() {
-		if err := toxiContainer.Terminate(ctx); err != nil {
+	t.Cleanup(func() {
+		if err := toxiContainer.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate Toxiproxy container: %v", err)
 		}
-	}
+	})
 
 	return &ToxiproxyResult{
 		Container: toxiContainer,
 		Client:    client,
 		Host:      host,
 		APIPort:   apiPort.Port(),
-		Cleanup:   cleanup,
 	}
 }
 

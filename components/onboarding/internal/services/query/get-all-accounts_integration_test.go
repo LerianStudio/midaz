@@ -24,7 +24,6 @@ import (
 func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 	// Setup container
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	// Setup repository and use case
 	logger := libZap.InitializeLogger()
@@ -109,7 +108,6 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 	// Setup container
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	// Setup repository and use case
 	logger := libZap.InitializeLogger()

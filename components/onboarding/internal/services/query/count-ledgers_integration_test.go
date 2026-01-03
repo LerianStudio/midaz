@@ -24,7 +24,6 @@ import (
 func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 	// Setup container
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	// Setup repository and use case
 	logger := libZap.InitializeLogger()
@@ -85,7 +84,6 @@ func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 func TestIntegration_CountLedgers_IsolatedByOrganization(t *testing.T) {
 	// Setup container
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	// Setup repository and use case
 	logger := libZap.InitializeLogger()

@@ -47,7 +47,6 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Asse
 
 func TestIntegration_AssetRepository_Find_ReturnsAsset(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -82,7 +81,6 @@ func TestIntegration_AssetRepository_Find_ReturnsAsset(t *testing.T) {
 
 func TestIntegration_AssetRepository_Find_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -106,7 +104,6 @@ func TestIntegration_AssetRepository_Find_ReturnsErrNotFound(t *testing.T) {
 
 func TestIntegration_AssetRepository_Find_IgnoresDeletedAsset(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -139,7 +136,6 @@ func TestIntegration_AssetRepository_Find_IgnoresDeletedAsset(t *testing.T) {
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateName(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -166,7 +162,6 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateNam
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateCode(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -193,7 +188,6 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateCod
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsFalseWhenNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -216,7 +210,6 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsFalseWhenNotFound(t
 
 func TestIntegration_AssetRepository_Create(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -264,7 +257,6 @@ func TestIntegration_AssetRepository_Create(t *testing.T) {
 
 func TestIntegration_AssetRepository_Update_ChangesNameAndStatus(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -312,7 +304,6 @@ func TestIntegration_AssetRepository_Update_ChangesNameAndStatus(t *testing.T) {
 
 func TestIntegration_AssetRepository_Update_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -342,7 +333,6 @@ func TestIntegration_AssetRepository_Update_ReturnsErrNotFound(t *testing.T) {
 
 func TestIntegration_AssetRepository_FindAll_ReturnsAssets(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -378,7 +368,6 @@ func TestIntegration_AssetRepository_FindAll_ReturnsAssets(t *testing.T) {
 
 func TestIntegration_AssetRepository_FindAll_EmptyForNonExistentLedger(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -397,7 +386,6 @@ func TestIntegration_AssetRepository_FindAll_EmptyForNonExistentLedger(t *testin
 
 func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -473,7 +461,6 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 
 func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -522,7 +509,6 @@ func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 
 func TestIntegration_AssetRepository_ListByIDs_ReturnsMatchingAssets(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -558,7 +544,6 @@ func TestIntegration_AssetRepository_ListByIDs_ReturnsMatchingAssets(t *testing.
 
 func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -578,7 +563,6 @@ func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing
 
 func TestIntegration_AssetRepository_ListByIDs_IgnoresDeletedAssets(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -613,7 +597,6 @@ func TestIntegration_AssetRepository_ListByIDs_IgnoresDeletedAssets(t *testing.T
 
 func TestIntegration_AssetRepository_Delete_SoftDeletesAsset(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -650,7 +633,6 @@ func TestIntegration_AssetRepository_Delete_SoftDeletesAsset(t *testing.T) {
 
 func TestIntegration_AssetRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -676,7 +658,6 @@ func TestIntegration_AssetRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 
 func TestIntegration_AssetRepository_Count_ReturnsCorrectCount(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -707,7 +688,6 @@ func TestIntegration_AssetRepository_Count_ReturnsCorrectCount(t *testing.T) {
 
 func TestIntegration_AssetRepository_Count_ExcludesDeletedAssets(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -740,7 +720,6 @@ func TestIntegration_AssetRepository_Count_ExcludesDeletedAssets(t *testing.T) {
 
 func TestIntegration_AssetRepository_Count_ReturnsZeroForEmptyLedger(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 

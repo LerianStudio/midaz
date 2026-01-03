@@ -47,7 +47,6 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Orga
 
 func TestIntegration_OrganizationRepository_Create(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -76,7 +75,6 @@ func TestIntegration_OrganizationRepository_Create(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Find(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -96,7 +94,6 @@ func TestIntegration_OrganizationRepository_Find(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -116,7 +113,6 @@ func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Find_ExcludesSoftDeleted(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -140,7 +136,6 @@ func TestIntegration_OrganizationRepository_Find_ExcludesSoftDeleted(t *testing.
 
 func TestIntegration_OrganizationRepository_Update(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -165,7 +160,6 @@ func TestIntegration_OrganizationRepository_Update(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -192,7 +186,6 @@ func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Delete(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -223,7 +216,6 @@ func TestIntegration_OrganizationRepository_Delete(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -242,7 +234,6 @@ func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Delete_AlreadyDeleted(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -270,7 +261,6 @@ func TestIntegration_OrganizationRepository_Delete_AlreadyDeleted(t *testing.T) 
 
 func TestIntegration_OrganizationRepository_Count(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -295,7 +285,6 @@ func TestIntegration_OrganizationRepository_Count(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_Count_ExcludesSoftDeleted(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -329,7 +318,6 @@ func TestIntegration_OrganizationRepository_Count_ExcludesSoftDeleted(t *testing
 func TestIntegration_OrganizationRepository_ListByIDs_ReturnsMatchingOrganizations(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -369,7 +357,6 @@ func TestIntegration_OrganizationRepository_ListByIDs_ReturnsMatchingOrganizatio
 func TestIntegration_OrganizationRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -399,7 +386,6 @@ func TestIntegration_OrganizationRepository_ListByIDs_ExcludesSoftDeleted(t *tes
 
 func TestIntegration_OrganizationRepository_ListByIDs_EdgeCases(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -474,7 +460,6 @@ func defaultPagination(page, limit int) http.Pagination {
 
 func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -533,7 +518,6 @@ func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 
 func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -570,7 +554,6 @@ func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *t
 
 func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 	ctx := context.Background()

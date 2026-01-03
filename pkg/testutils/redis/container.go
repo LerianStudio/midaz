@@ -40,7 +40,6 @@ type ContainerResult struct {
 	Container testcontainers.Container
 	Client    *redis.Client
 	Addr      string
-	Cleanup   func()
 }
 
 // SetupContainer starts a Redis container for integration testing.
@@ -86,18 +85,17 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	_, err = client.Ping(ctx).Result()
 	require.NoError(t, err, "failed to ping Redis container")
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		client.Close()
-		if err := container.Terminate(ctx); err != nil {
+		if err := container.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate Redis container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Container: container,
 		Client:    client,
 		Addr:      addr,
-		Cleanup:   cleanup,
 	}
 }
 
@@ -147,17 +145,16 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 	_, err = client.Ping(ctx).Result()
 	require.NoError(t, err, "failed to ping Redis container")
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		client.Close()
-		if err := redisContainer.Terminate(ctx); err != nil {
+		if err := redisContainer.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate Redis container: %v", err)
 		}
-	}
+	})
 
 	return &ContainerResult{
 		Client:    client,
 		Addr:      addr,
-		Cleanup:   cleanup,
 		Container: redisContainer,
 	}
 }

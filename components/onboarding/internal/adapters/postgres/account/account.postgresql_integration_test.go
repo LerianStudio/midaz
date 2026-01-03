@@ -51,7 +51,6 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Acco
 func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	// Create repository - lib-commons auto-runs migrations via MigrationsPath
 	repo := createRepository(t, container)
@@ -93,7 +92,6 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 
 func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -150,7 +148,6 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -197,7 +194,6 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -258,7 +254,6 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -309,7 +304,6 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -372,7 +366,6 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -411,7 +404,6 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -466,7 +458,6 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -503,7 +494,6 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -545,7 +535,6 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -576,7 +565,6 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -604,7 +592,6 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *t
 func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -630,7 +617,6 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testin
 func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -650,7 +636,6 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *t
 func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -678,7 +663,6 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -701,7 +685,6 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testin
 func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -721,7 +704,6 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *te
 func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -749,7 +731,6 @@ func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing
 func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -779,7 +760,6 @@ func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -812,7 +792,6 @@ func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -842,7 +821,6 @@ func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -864,7 +842,6 @@ func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *test
 func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -892,7 +869,6 @@ func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing
 func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -941,7 +917,6 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -971,7 +946,6 @@ func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1007,7 +981,6 @@ func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *test
 func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1038,7 +1011,6 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1063,7 +1035,6 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1087,7 +1058,6 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1121,7 +1091,6 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccoun
 func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 
@@ -1179,8 +1148,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			container := pgtestutil.SetupContainer(t)
-			defer container.Cleanup()
-
+		
 			repo := createRepository(t, container)
 
 			orgID := pgtestutil.CreateTestOrganization(t, container.DB)
@@ -1214,7 +1182,6 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	repo := createRepository(t, container)
 

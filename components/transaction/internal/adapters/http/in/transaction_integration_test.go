@@ -74,13 +74,6 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.mongoContainer = mongotestutil.SetupContainer(t)
 	infra.redisContainer = redistestutil.SetupContainer(t)
 
-	// Register cleanup
-	t.Cleanup(func() {
-		infra.redisContainer.Cleanup()
-		infra.mongoContainer.Cleanup()
-		infra.pgContainer.Cleanup()
-	})
-
 	// Create PostgreSQL connection following lib-commons pattern
 	logger := libZap.InitializeLogger()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
@@ -547,10 +540,11 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra.redisContainer = redistestutil.SetupContainer(t)
 	infra.rabbitmqContainer = rabbitmqtestutil.SetupContainer(t)
 
-	// Register cleanup (reverse order of creation)
+	// Register cleanup for consumer connection
 	// NOTE: Consumer connection must be closed BEFORE containers to avoid reconnection errors.
 	// The consumer has an infinite retry loop with exponential backoff (designed for production resilience),
 	// so some "connection reset" logs may still appear during cleanup - this is expected behavior.
+	// Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 	t.Cleanup(func() {
 		// Close the consumer's RabbitMQ channel and connection first to signal goroutines to stop.
 		// The consumer watches for channel closure via NotifyClose, then enters retry mode.
@@ -565,10 +559,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 			// so container termination happens while consumer is sleeping, not connecting.
 			time.Sleep(500 * time.Millisecond)
 		}
-		infra.rabbitmqContainer.Cleanup()
-		infra.redisContainer.Cleanup()
-		infra.mongoContainer.Cleanup()
-		infra.pgContainer.Cleanup()
 	})
 
 	// Set RabbitMQ environment variables for async mode

@@ -71,12 +71,6 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 	infra.pgContainer = postgrestestutil.SetupContainer(t)
 	infra.mongoContainer = mongotestutil.SetupContainer(t)
 
-	// Register cleanup (reverse order of creation)
-	t.Cleanup(func() {
-		infra.mongoContainer.Cleanup()
-		infra.pgContainer.Cleanup()
-	})
-
 	// Create PostgreSQL connection following lib-commons pattern
 	logger := libZap.InitializeLogger()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")

@@ -159,29 +159,17 @@ func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 }
 
-// cleanup releases all resources for integration tests.
-func (infra *integrationTestInfra) cleanup() {
-	if infra.redisContainer != nil {
-		infra.redisContainer.Cleanup()
-	}
-}
-
 // cleanup releases all resources for chaos tests.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *chaosTestInfra) cleanup() {
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
-	if infra.redisContainer != nil {
-		infra.redisContainer.Cleanup()
-	}
 }
 
 // cleanup releases all resources for network chaos infrastructure.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *networkChaosTestInfra) cleanup() {
-	// Cleanup Redis container first (managed separately from Infrastructure)
-	if infra.redisContainer != nil {
-		infra.redisContainer.Cleanup()
-	}
 	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
 	// Note: This may log warnings about already-terminated containers
 	if infra.chaosInfra != nil {
@@ -917,4 +905,3 @@ func TestChaos_Redis_GracefulDegradation(t *testing.T) {
 
 	t.Log("Chaos test passed: graceful degradation verified")
 }
-

@@ -230,32 +230,17 @@ func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 }
 
-// cleanup releases all resources for integration tests.
-func (infra *integrationTestInfra) cleanup() {
-	if infra.rmqContainer != nil {
-		infra.rmqContainer.Cleanup()
-	}
-}
-
 // cleanup releases all resources for chaos tests.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *chaosTestInfra) cleanup() {
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
-	if infra.toxiproxy != nil {
-		infra.toxiproxy.Cleanup()
-	}
-	if infra.rmqContainer != nil {
-		infra.rmqContainer.Cleanup()
-	}
 }
 
 // cleanup releases all resources for network chaos infrastructure.
+// Note: Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 func (infra *networkChaosTestInfra) cleanup() {
-	// Cleanup RabbitMQ container first (managed separately from Infrastructure)
-	if infra.rmqContainer != nil {
-		infra.rmqContainer.Cleanup()
-	}
 	// Cleanup Infrastructure (Toxiproxy, network, orchestrator)
 	// Note: This may log warnings about already-terminated containers
 	if infra.chaosInfra != nil {

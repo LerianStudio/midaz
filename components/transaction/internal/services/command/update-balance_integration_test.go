@@ -26,7 +26,6 @@ import (
 func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *testing.T) {
 	// Arrange
 	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	ctx := context.Background()
 
@@ -84,7 +83,6 @@ func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *tes
 func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *testing.T) {
 	// Arrange
 	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	ctx := context.Background()
 
@@ -144,7 +142,6 @@ func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *te
 func TestIntegration_FilterStaleBalances_CacheMiss_IncludesBalance(t *testing.T) {
 	// Arrange
 	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	ctx := context.Background()
 
@@ -184,7 +181,6 @@ func TestIntegration_FilterStaleBalances_CacheMiss_IncludesBalance(t *testing.T)
 func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *testing.T) {
 	// Arrange
 	container := redistestutil.SetupContainer(t)
-	defer container.Cleanup()
 
 	ctx := context.Background()
 
