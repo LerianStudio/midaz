@@ -1,3 +1,99 @@
+## [v3.5.0-beta.30] - 2025-12-30
+
+### ✨ Features
+- add HTTP recovery middleware with customizable logging
+
+### 🔄 Changes
+- remove redundant span attribute setting for payload
+- replace direct UUID extraction from context with a safe utility function across multiple handlers
+
+### 🧪 Testing
+- add unit tests for GetUUIDFromLocals function and SafeTimePtr utility
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.29] - 2025-12-30
+
+### ✨ Features
+- implement CheckHealth method for balance service and update related tests
+
+### 🐛 Bug Fixes
+- update error messages in delete metadata index tests
+- default grpc envs for microservices mode
+- update context timeout variable in gRPC health check
+- add health check for balance gRPC service in account and asset creation
+- implement CheckHealth method in balance gRPC repository
+- add grpc connection ready check
+- add whitespace for improved readability
+- move MongoDB port and parameters extraction to utils and remove deprecated function
+- style
+- set default values for TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT in onboarding, and update PROTO_ADDRESS default in transaction configuration
+- update version numbers in console and onboarding environment files to v3.4.8
+- update Next.js version to 15.5.9
+- add panic recovery and context timeout for balance processing in BalanceSyncWorker
+- update version numbers in onboarding and transaction
+- add version balance fields to transaction operations in PostgreSQL adapter
+- remove unused operation variable and clean up transaction processing logic in PostgreSQL adapter
+- add whitespace for improved code readability in Redis consumer and environment helper
+- sanitize account aliases in transaction processing to ensure correct alias formats
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing
+- add backward compatibility for MongoDB connection parameters extraction
+- set default balance key for operations and balances in PostgreSQL and Redis consumers
+- improve error handling and logging for transaction backup cache operations
+- implement idempotency caching for transaction retrieval and mapping
+- enhance nullable pointer handling in transaction operations
+- add panic recovery and nil validation for message processing in Redis consumer
+- correct comment for lock acquisition in transaction handling
+- handle unique violation errors for duplicate inserts in PostgreSQL operations and transactions
+
+### 🔄 Changes
+- replace default key string with constant
+- cache key generation functions
+
+### 🔧 Maintenance
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons dependency to v2.5.3
+
+
+## [v3.5.0-beta.28] - 2025-12-29
+
+### ✨ Features
+- add enum values for entityName in Swagger documentation for ledger API
+- add 404 response for organization or ledger not found and clean up 204 response in API documentation
+- add metadata index endpoints to ledger API documentation and implement related routes
+- move metadata index to ledger component
+- add 409 Conflict response to API documentation for metadata index creation
+- implement metadata index creation, deletion, and retrieval functionality
+- add metadata index management functionality
+
+### 🐛 Bug Fixes
+- remove unnecessary schema definition for 204 response in transaction Swagger files
+- correct variable name typos and ensure proper span handling in MongoDB index methods
+
+### 🔄 Changes
+- update metadata index routes to use a unified endpoint structure under /v1/settings/metadata-indexes
+- clean up API documentation by removing unnecessary whitespace and adding date-time format to createdAt fields
+- revert unnecessary changes to documentation
+- multiple fixes in metadata indexes endpoints + add metadata indexes endpoints to docs
+- improve span handling in MongoDB index deletion and enhance code readability in metadata index retrieval
+- simplify metadata index methods by removing organization and ledger ID parameters, and enhance error handling for entity name validation
+
+### 📚 Documentation
+- enhance metadata index deletion endpoint description to specify required entity_name query parameter
+
+### 🧪 Testing
+- add error handling tests for CreateMetadataIndex and DeleteMetadataIndex endpoints
+- add comprehensive unit tests for metadata index creation, deletion, and retrieval
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update docs
+
+
 ## [v3.5.0-beta.28] - 2025-12-22
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.27...v3.5.0-beta.28)
@@ -273,7 +369,42 @@ Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
 - **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
 - **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
 
-## [v3.4.7] - 2025-12-09
+## [v3.5.0-beta.29] - 2025-12-29
+## [v3.5.0-beta.30] - 2025-12-30
+
+### 🐛 Bug Fixes
+- update context timeout variable in gRPC health check
+- add health check for balance gRPC service in account and asset creation
+- implement CheckHealth method in balance gRPC repository
+- add grpc connection ready check
+- add whitespace for improved readability
+- move MongoDB port and parameters extraction to utils and remove deprecated function
+- style
+- set default values for TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT in onboarding, and update PROTO_ADDRESS default in transaction configuration
+- update version numbers in console and onboarding environment files to v3.4.8
+- update Next.js version to 15.5.9
+- add panic recovery and context timeout for balance processing in BalanceSyncWorker
+- update version numbers in onboarding and transaction
+- add version balance fields to transaction operations in PostgreSQL adapter
+- remove unused operation variable and clean up transaction processing logic in PostgreSQL adapter
+- add whitespace for improved code readability in Redis consumer and environment helper
+- sanitize account aliases in transaction processing to ensure correct alias formats
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing
+- add backward compatibility for MongoDB connection parameters extraction
+- set default balance key for operations and balances in PostgreSQL and Redis consumers
+- improve error handling and logging for transaction backup cache operations
+- implement idempotency caching for transaction retrieval and mapping
+- enhance nullable pointer handling in transaction operations
+- add panic recovery and nil validation for message processing in Redis consumer
+- correct comment for lock acquisition in transaction handling
+- handle unique violation errors for duplicate inserts in PostgreSQL operations and transactions
+
+### 🔧 Maintenance
+- update lib-commons dependency to v2.5.3
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.31] - 2025-12-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
 Contributors: Clara Tersi

@@ -567,6 +567,8 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	metadataIndexAdapter := NewMetadataIndexAdapter(useCase, queryUseCase)
+
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -590,6 +592,12 @@ func InitServers() *Service {
 	app := in.NewRouter(logger, telemetry, cfg.OtelServiceVersion, cfg.EnvName, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
+
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
@@ -621,11 +629,12 @@ func InitServers() *Service {
 		BalanceSyncWorker:           balanceSyncWorker,
 		BalanceSyncWorkerEnabled:    cfg.BalanceSyncWorkerEnabled,
 		DLQConsumer:                 dlqConsumer,
-		DLQConsumerEnabled:          cfg.DLQConsumerEnabled, // H5: Use cfg field consistently
+		DLQConsumerEnabled:          cfg.DLQConsumerEnabled,
 		MetadataOutboxWorker:        metadataOutboxWorker,
 		MetadataOutboxWorkerEnabled: cfg.MetadataOutboxWorkerEnabled,
 		Logger:                      logger,
 		balancePort:                 useCase,
+		metadataIndexPort:           metadataIndexAdapter,
 		auth:                        auth,
 		transactionHandler:          transactionHandler,
 		operationHandler:            operationHandler,

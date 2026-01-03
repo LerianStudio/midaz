@@ -85,3 +85,56 @@ func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 
 	return nil
 }
+
+// MetadataIndexMongoDBModel represents the metadata index into mongodb context
+type MetadataIndexMongoDBModel struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	EntityName  string             `bson:"entity_name"`
+	MetadataKey string             `bson:"metadata_key"`
+	Unique      bool               `bson:"unique"`
+	Sparse      bool               `bson:"sparse"`
+	CreatedAt   time.Time          `bson:"created_at"`
+	UpdatedAt   time.Time          `bson:"updated_at"`
+}
+
+// MongoDBIndexInfo represents the native MongoDB index structure returned by Indexes().List()
+type MongoDBIndexInfo struct {
+	Key    primitive.D `bson:"key"`
+	Name   string      `bson:"name"`
+	Unique bool        `bson:"unique"`
+	Sparse bool        `bson:"sparse"`
+}
+
+// MetadataIndex is a struct designed to encapsulate payload data.
+type MetadataIndex struct {
+	ID          primitive.ObjectID
+	EntityName  string
+	MetadataKey string
+	Unique      bool
+	Sparse      bool
+	CreatedAt   time.Time
+}
+
+// ToEntity converts an MetadataIndexMongoDBModel to entity.MetadataIndex
+func (mim *MetadataIndexMongoDBModel) ToEntity() *MetadataIndex {
+	return &MetadataIndex{
+		ID:          mim.ID,
+		EntityName:  mim.EntityName,
+		MetadataKey: mim.MetadataKey,
+		Unique:      mim.Unique,
+		Sparse:      mim.Sparse,
+		CreatedAt:   mim.CreatedAt,
+	}
+}
+
+// FromEntity converts an entity.MetadataIndex to MetadataIndexMongoDBModel
+func (mim *MetadataIndexMongoDBModel) FromEntity(mi *MetadataIndex) error {
+	mim.ID = mi.ID
+	mim.EntityName = mi.EntityName
+	mim.MetadataKey = mi.MetadataKey
+	mim.Unique = mi.Unique
+	mim.Sparse = mi.Sparse
+	mim.CreatedAt = time.Now()
+
+	return nil
+}

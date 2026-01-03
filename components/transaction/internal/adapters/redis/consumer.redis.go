@@ -470,9 +470,14 @@ func (rr *RedisConsumerRepository) convertRedisBalancesToModel(blcsRedis []mmode
 			"balance_id", b.ID,
 			"available_aliases", mapBalanceKeys(mapBalances))
 
+		balanceKey := mapBalance.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
 		balances = append(balances, &mmodel.Balance{
 			Alias:          b.Alias,
-			Key:            mapBalance.Key,
+			Key:            balanceKey,
 			ID:             b.ID,
 			AccountID:      b.AccountID,
 			Available:      b.Available,

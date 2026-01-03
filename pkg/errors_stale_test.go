@@ -17,8 +17,8 @@ func TestValidateBusinessError_StaleBalanceUpdateSkipped(t *testing.T) {
 		t.Fatalf("Expected FailedPreconditionError, got %T", result)
 	}
 
-	if failedPreconditionErr.Code != "0129" {
-		t.Errorf("Code = %q, want %q", failedPreconditionErr.Code, "0129")
+	if failedPreconditionErr.Code != "0139" {
+		t.Errorf("Code = %q, want %q", failedPreconditionErr.Code, "0139")
 	}
 
 	expectedTitle := "Stale Balance Update Skipped"

@@ -84,11 +84,6 @@ func (hlm *MongoDBRepository) Create(ctx context.Context, organizationID string,
 
 	span.SetAttributes(attributes...)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", holderLink)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
 	db, err := hlm.connection.GetDB(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)

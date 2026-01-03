@@ -254,6 +254,46 @@ func TestCreateAlias(t *testing.T) {
 				LedgerID:  &ledgerID,
 			},
 		},
+		{
+			name:     "Rollback alias when HolderLink creation fails",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+				LinkType:  &linkTypePrimaryHolder,
+			},
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+
+				mockAliasRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						AccountID: &accountID,
+						LedgerID:  &ledgerID,
+					}, nil)
+
+				mockHolderLinkRepo.EXPECT().
+					FindByAliasIDAndLinkType(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil, nil)
+
+				mockHolderLinkRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, cn.ErrInternalServer)
+
+				mockAliasRepo.EXPECT().
+					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), true).
+					Return(nil)
+			},
+			expectedErr:    cn.ErrInternalServer,
+			expectedResult: nil,
+		},
 	}
 
 	for _, testCase := range testCases {

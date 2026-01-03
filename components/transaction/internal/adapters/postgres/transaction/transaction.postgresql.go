@@ -27,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
@@ -169,6 +170,15 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.Route,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+			libOpentelemetry.HandleSpanEvent(&spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
+
+			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry)")
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		logger.Errorf("Failed to execute query: %v", err)

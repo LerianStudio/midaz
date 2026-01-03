@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -378,6 +378,11 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	b.OnHold, err = convertToDecimal(aux.OnHold, ErrConvertOnHoldToDecimal, ErrUnsupportedOnHoldType)
 	if err != nil {
 		return err
+	}
+
+	// Set default value for Key if not provided (backwards compatibility)
+	if b.Key == "" {
+		b.Key = constant.DefaultBalanceKey
 	}
 
 	return nil

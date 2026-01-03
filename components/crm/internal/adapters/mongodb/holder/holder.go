@@ -7,6 +7,7 @@ import (
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -314,8 +315,8 @@ func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) 
 		Name:       name,
 		Document:   document,
 		Metadata:   hmm.Metadata,
-		CreatedAt:  *hmm.CreatedAt,
-		UpdatedAt:  *hmm.UpdatedAt,
+		CreatedAt:  utils.SafeTimePtr(hmm.CreatedAt),
+		UpdatedAt:  utils.SafeTimePtr(hmm.UpdatedAt),
 		DeletedAt:  hmm.DeletedAt,
 	}
 

@@ -40,6 +40,20 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CheckHealth mocks base method.
+func (m *MockRepository) CheckHealth(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckHealth", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckHealth indicates an expected call of CheckHealth.
+func (mr *MockRepositoryMockRecorder) CheckHealth(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHealth", reflect.TypeOf((*MockRepository)(nil).CheckHealth), arg0)
+}
+
 // CreateBalance mocks base method.
 func (m *MockRepository) CreateBalance(arg0 context.Context, arg1 string, arg2 *balance.BalanceRequest) (*balance.BalanceResponse, error) {
 	m.ctrl.T.Helper()

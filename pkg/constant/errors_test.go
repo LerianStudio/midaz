@@ -11,7 +11,7 @@ func TestErrStaleBalanceUpdateSkipped_Exists(t *testing.T) {
 		t.Fatal("ErrStaleBalanceUpdateSkipped should be defined")
 	}
 
-	expected := "0129"
+	expected := "0139"
 	if ErrStaleBalanceUpdateSkipped.Error() != expected {
 		t.Errorf("ErrStaleBalanceUpdateSkipped.Error() = %q, want %q", ErrStaleBalanceUpdateSkipped.Error(), expected)
 	}

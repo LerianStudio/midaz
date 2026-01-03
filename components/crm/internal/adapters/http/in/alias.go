@@ -54,11 +54,6 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
 	out, err := handler.Service.CreateAlias(ctx, organizationID, holderID, payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create alias", err)
@@ -177,12 +172,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.alias_id", id.String()),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
+	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to convert fields_to_remove to JSON string", err)
 	}

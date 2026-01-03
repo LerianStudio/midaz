@@ -992,6 +992,13 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	transactionID := http.LocalUUID(c, "transaction_id")
 
+	// Try to get transaction from idempotency cache first
+	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
+		c.Set("X-Cache-Hit", "true")
+
+		return http.OK(c, cachedTran)
+	}
+
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
@@ -1554,10 +1561,28 @@ func (handler *TransactionHandler) validateAndGetBalances(ctx context.Context, t
 		return nil, nil, businessErr
 	}
 
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-	defer spanGetBalances.End()
+	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	handler.Command.SendTransactionToRedisQueue(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
+
+		logger.Errorf("Failed to send transaction to backup cache: %v", err.Error())
+
+		// Only delete idempotency key if marshal failed
+		// If Redis is down, Del would also fail
+		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
+			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, key)
+		}
+
+		spanSendTransactionToRedisQueue.End()
+
+		return nil, nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Transaction{}).Name())
+	}
+
+	spanSendTransactionToRedisQueue.End()
+
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
@@ -1875,7 +1900,7 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 
 // acquireTransactionLock acquires a lock for the transaction and returns a cleanup function.
 func (handler *TransactionHandler) acquireTransactionLock(ctx context.Context, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, tranID string) (func(), error) {
-	lockPendingTransactionKey := utils.GenericInternalKeyWithContext("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tranID)
+	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tranID)
 	ttl := time.Duration(pendingTransactionLockTTLSeconds)
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)

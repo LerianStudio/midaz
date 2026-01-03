@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -505,4 +506,50 @@ func TestValidateCurrency(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSafeTimePtr_NilInput(t *testing.T) {
+	result := SafeTimePtr(nil)
+
+	assert.True(t, result.IsZero())
+	assert.Equal(t, time.Time{}, result)
+}
+
+func TestSafeTimePtr_ValidTimeInput(t *testing.T) {
+	testTime := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+
+	result := SafeTimePtr(&testTime)
+
+	assert.False(t, result.IsZero())
+	assert.Equal(t, testTime, result)
+	assert.Equal(t, 2024, result.Year())
+	assert.Equal(t, time.June, result.Month())
+	assert.Equal(t, 15, result.Day())
+}
+
+func TestSafeTimePtr_ZeroTimeInput(t *testing.T) {
+	zeroTime := time.Time{}
+
+	result := SafeTimePtr(&zeroTime)
+
+	assert.True(t, result.IsZero())
+	assert.Equal(t, zeroTime, result)
+}
+
+func TestSafeTimePtr_PreservesTimezone(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Sao_Paulo")
+	testTime := time.Date(2024, 12, 25, 14, 30, 0, 0, loc)
+
+	result := SafeTimePtr(&testTime)
+
+	assert.Equal(t, testTime, result)
+	assert.Equal(t, loc.String(), result.Location().String())
+}
+
+func TestSafeTimePtr_PreservesNanoseconds(t *testing.T) {
+	testTime := time.Date(2024, 1, 1, 0, 0, 0, 123456789, time.UTC)
+
+	result := SafeTimePtr(&testTime)
+
+	assert.Equal(t, 123456789, result.Nanosecond())
 }

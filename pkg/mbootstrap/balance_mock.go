@@ -70,3 +70,17 @@ func (mr *MockBalancePortMockRecorder) DeleteAllBalancesByAccountID(ctx, organiz
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockBalancePort)(nil).DeleteAllBalancesByAccountID), ctx, organizationID, ledgerID, accountID, requestID)
 }
+
+// CheckHealth mocks base method.
+func (m *MockBalancePort) CheckHealth(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckHealth", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckHealth indicates an expected call of CheckHealth.
+func (mr *MockBalancePortMockRecorder) CheckHealth(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHealth", reflect.TypeOf((*MockBalancePort)(nil).CheckHealth), ctx)
+}

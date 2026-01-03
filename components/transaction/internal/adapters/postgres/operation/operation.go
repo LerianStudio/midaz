@@ -8,6 +8,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 )
@@ -127,6 +128,11 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *mmodel.Operation) {
 		ID = operation.ID
 	}
 
+	balanceKey := operation.BalanceKey
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
 	*t = OperationPostgreSQLModel{
 		ID:                    ID,
 		TransactionID:         operation.TransactionID,
@@ -145,7 +151,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *mmodel.Operation) {
 		StatusDescription:     operation.Status.Description,
 		AccountID:             operation.AccountID,
 		AccountAlias:          operation.AccountAlias,
-		BalanceKey:            operation.BalanceKey,
+		BalanceKey:            balanceKey,
 		BalanceID:             operation.BalanceID,
 		LedgerID:              operation.LedgerID,
 		OrganizationID:        operation.OrganizationID,

@@ -4,6 +4,7 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -80,6 +81,11 @@ type UseCase struct {
 func (uc *UseCase) isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode
+}
+
+// CheckHealth returns nil for unified mode (in-process calls don't need health checks).
+func (uc *UseCase) CheckHealth(ctx context.Context) error {
+	return nil
 }
 
 const (

@@ -45,8 +45,9 @@ var _ onboarding.OnboardingService = (*StubService)(nil)
 // It returns pre-configured values without verifying interactions.
 type StubTransactionService struct {
 	mbootstrap.Service
-	runnables   []mbootstrap.RunnableConfig
-	balancePort mbootstrap.BalancePort
+	runnables         []mbootstrap.RunnableConfig
+	balancePort       mbootstrap.BalancePort
+	metadataIndexPort mbootstrap.MetadataIndexPort
 }
 
 func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -55,6 +56,10 @@ func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
 
 func (s *StubTransactionService) GetBalancePort() mbootstrap.BalancePort {
 	return s.balancePort
+}
+
+func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
+	return s.metadataIndexPort
 }
 
 func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
@@ -138,6 +143,33 @@ func TestInitServers_UnifiedMode_BalancePortWiring(t *testing.T) {
 	// This verifies the wiring contract:
 	// 1. Transaction service exposes GetBalancePort()
 	// 2. The port can be passed to Onboarding for in-process calls
+	// 3. No intermediate adapter needed - direct reference passing
+}
+
+// TestInitServers_UnifiedMode_MetadataIndexPortWiring verifies that in unified mode,
+// the MetadataIndexPort from Transaction is correctly passed to Ledger.
+// This test focuses on verifying the wiring contract, not actual initialization.
+func TestInitServers_UnifiedMode_MetadataIndexPortWiring(t *testing.T) {
+	// Arrange
+	mockMetadataIndexPort := mbootstrap.NewMockMetadataIndexPort(nil)
+
+	stubTransactionService := &StubTransactionService{
+		metadataIndexPort: mockMetadataIndexPort,
+		runnables: []mbootstrap.RunnableConfig{
+			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
+		},
+	}
+
+	// Act - verify GetMetadataIndexPort returns the expected port
+	retrievedPort := stubTransactionService.GetMetadataIndexPort()
+
+	// Assert
+	require.NotNil(t, retrievedPort, "GetMetadataIndexPort should return a non-nil MetadataIndexPort")
+	assert.Equal(t, mockMetadataIndexPort, retrievedPort, "GetMetadataIndexPort should return the same MetadataIndexPort that was set")
+
+	// This verifies the wiring contract:
+	// 1. Transaction service exposes GetMetadataIndexPort()
+	// 2. The port can be passed to Ledger for in-process calls
 	// 3. No intermediate adapter needed - direct reference passing
 }
 

@@ -108,6 +108,15 @@ func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 	})
 }
 
+// ServiceUnavailable sends an HTTP 503 Service Unavailable response with a custom code, title and message.
+func ServiceUnavailable(c *fiber.Ctx, code, title, message string) error {
+	return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
+		"code":    code,
+		"title":   title,
+		"message": message,
+	})
+}
+
 // JSONResponseError sends a JSON formatted error response with a custom error struct.
 func JSONResponseError(c *fiber.Ctx, err pkg.ResponseError) error {
 	code, _ := strconv.Atoi(err.Code)

@@ -77,6 +77,11 @@ func handleStandardErrors(c *fiber.Ctx, err error) (bool, error) {
 		return true, Forbidden(c, forbiddenErr.Code, forbiddenErr.Title, forbiddenErr.Message)
 	}
 
+	var serviceUnavailableErr pkg.ServiceUnavailableError
+	if errors.As(err, &serviceUnavailableErr) {
+		return true, ServiceUnavailable(c, serviceUnavailableErr.Code, serviceUnavailableErr.Title, serviceUnavailableErr.Message)
+	}
+
 	return false, nil
 }
 

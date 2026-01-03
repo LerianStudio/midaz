@@ -49,11 +49,6 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.organization_id", organizationID),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
 	out, err := handler.Service.CreateHolder(ctx, organizationID, payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder", err)
@@ -166,12 +161,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
+	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to convert fields_to_remove to JSON string", err)
 	}
