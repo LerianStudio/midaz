@@ -166,23 +166,20 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
-	@echo "  START_LOCAL_DOCKER            - 0|1 (default: $(START_LOCAL_DOCKER))"
 	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
 	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
-	@echo "  TEST_FUZZTIME                 - default: $(TEST_FUZZTIME)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
 	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
 	@sh -c 'if [ -n "$(TEST_AUTH_PASSWORD)" ]; then echo "  TEST_AUTH_PASSWORD            - [set]"; else echo "  TEST_AUTH_PASSWORD            - [unset]"; fi'
-	@echo "  TEST_PARALLEL                 - go test -parallel (default: $(TEST_PARALLEL))"
-	@echo "  TEST_GOMAXPROCS               - env GOMAXPROCS (default: $(TEST_GOMAXPROCS))"
+	@echo "  LOW_RESOURCE                  - 0|1 (default: 0) - reduces parallelism for CI"
 	@echo "  RETRY_ON_FAIL                 - 0|1 (default: $(RETRY_ON_FAIL))"
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
-	@echo "  test-integration: LOW_RESOURCE (testcontainers-based, no external services needed)"
-	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
-	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-integration:  LOW_RESOURCE (testcontainers-based, no external services needed)"
+	@echo "  test-chaos:        LOW_RESOURCE (testcontainers-based, no external services needed)"
+	@echo "  test-chaos-system: TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_* (starts full stack)"
+	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
 
  
 

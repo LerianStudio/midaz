@@ -89,15 +89,41 @@ func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, param
 	return id
 }
 
+// PortfolioParams holds parameters for creating a test portfolio with full control.
+type PortfolioParams struct {
+	Name              string
+	EntityID          string // TEXT field, not UUID
+	Status            string
+	StatusDescription *string
+	DeletedAt         *time.Time
+}
+
+// DefaultPortfolioParams returns default parameters for creating a test portfolio.
+func DefaultPortfolioParams() PortfolioParams {
+	return PortfolioParams{
+		Name:     "Test Portfolio",
+		EntityID: "entity-123",
+		Status:   "ACTIVE",
+	}
+}
+
 // CreateTestPortfolio inserts a test portfolio and returns its ID.
 func CreateTestPortfolio(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) uuid.UUID {
 	t.Helper()
+	return CreateTestPortfolioWithParams(t, db, orgID, ledgerID, DefaultPortfolioParams())
+}
+
+// CreateTestPortfolioWithParams inserts a test portfolio with custom params and returns its ID.
+func CreateTestPortfolioWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params PortfolioParams) uuid.UUID {
+	t.Helper()
 
 	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
 	_, err := db.Exec(`
-		INSERT INTO portfolio (id, name, entity_id, ledger_id, organization_id, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, id, "Test Portfolio", "entity-123", ledgerID, orgID, "ACTIVE", time.Now(), time.Now())
+		INSERT INTO portfolio (id, name, entity_id, ledger_id, organization_id, status, status_description, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, id, params.Name, params.EntityID, ledgerID, orgID, params.Status, params.StatusDescription, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test portfolio")
 
 	return id
@@ -112,6 +138,43 @@ func CreateTestAsset(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, code s
 		INSERT INTO asset (id, name, type, code, organization_id, ledger_id, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, id, code+" Asset", "currency", code, orgID, ledgerID, "ACTIVE", time.Now(), time.Now())
+	require.NoError(t, err, "failed to create test asset")
+
+	return id
+}
+
+// AssetParams holds parameters for creating a test asset with full control.
+type AssetParams struct {
+	Name              string
+	Type              string
+	Code              string
+	Status            string
+	StatusDescription *string
+	DeletedAt         *time.Time
+}
+
+// DefaultAssetParams returns default parameters for creating a test asset.
+func DefaultAssetParams() AssetParams {
+	return AssetParams{
+		Name:   "Test Asset",
+		Type:   "currency",
+		Code:   "USD",
+		Status: "ACTIVE",
+	}
+}
+
+// CreateTestAssetWithParams inserts a test asset with custom params and returns its ID.
+func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AssetParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO asset (id, name, type, code, status, status_description, ledger_id, organization_id, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, id, params.Name, params.Type, params.Code, params.Status, params.StatusDescription,
+		ledgerID, orgID, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test asset")
 
 	return id
@@ -427,4 +490,69 @@ func GetBalanceByAlias(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, alia
 	require.NoError(t, err, "failed to get balance by alias %s", alias)
 
 	return available
+}
+
+// SegmentParams holds parameters for creating a test segment.
+type SegmentParams struct {
+	Name              string
+	Status            string
+	StatusDescription *string
+	DeletedAt         *time.Time
+}
+
+// DefaultSegmentParams returns default parameters for creating a test segment.
+func DefaultSegmentParams() SegmentParams {
+	return SegmentParams{
+		Name:   "Test Segment",
+		Status: "ACTIVE",
+	}
+}
+
+// CreateTestSegmentWithParams inserts a test segment with custom params and returns its ID.
+func CreateTestSegmentWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params SegmentParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO segment (id, name, ledger_id, organization_id, status, status_description, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, id, params.Name, ledgerID, orgID, params.Status, params.StatusDescription, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test segment")
+
+	return id
+}
+
+// AccountTypeParams holds parameters for creating a test account type.
+type AccountTypeParams struct {
+	Name        string
+	Description string
+	KeyValue    string
+	DeletedAt   *time.Time
+}
+
+// DefaultAccountTypeParams returns default parameters for creating a test account type.
+func DefaultAccountTypeParams() AccountTypeParams {
+	return AccountTypeParams{
+		Name:        "Test Account Type",
+		Description: "Test description",
+		KeyValue:    "test-key",
+	}
+}
+
+// CreateTestAccountType inserts an account type directly into DB for test setup.
+func CreateTestAccountType(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AccountTypeParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO account_type (id, organization_id, ledger_id, name, description, key_value, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, id, orgID, ledgerID, params.Name, params.Description, params.KeyValue, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test account type")
+
+	return id
 }

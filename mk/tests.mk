@@ -4,7 +4,6 @@
 TEST_ONBOARDING_URL ?= http://localhost:3000
 TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_HEALTH_WAIT ?= 60
-START_LOCAL_DOCKER ?= 0
 
 # Optional auth configuration (passed through to tests)
 TEST_AUTH_URL ?=
@@ -151,28 +150,68 @@ coverage-unit:
 	  echo "----------------------------------------"; \
 	fi
 
-# Chaos tests
+# Chaos tests with testcontainers (adapter-level)
+# These tests use the `chaos` build tag and testcontainers-go to spin up
+# ephemeral containers with Toxiproxy for network chaos injection.
+# No external Docker stack is required.
+# Requirements:
+#   - Test files must follow the naming convention: *_chaos_test.go
+#   - Test functions must start with TestChaos_ (e.g., TestChaos_RabbitMQ_NetworkLatency)
 .PHONY: test-chaos
 test-chaos:
-	$(call print_title,Running chaos tests)
+	$(call print_title,Running adapter-level chaos tests with testcontainers)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	echo "Finding packages with *_chaos_test.go files..."; \
+	dirs=$$(find ./components ./pkg -name '*_chaos_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No chaos test packages found (files matching *_chaos_test.go)"; \
+	else \
+	  echo "Found packages: $$pkgs"; \
+	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
+	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	  fi; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    echo "Running chaos tests with gotestsum"; \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos.xml -- \
+	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	      -run '^TestChaos' $$pkgs || { \
+	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	        echo "Retrying chaos tests once..."; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos-rerun.xml -- \
+	          -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	          -run '^TestChaos' $$pkgs; \
+	      else \
+	        exit 1; \
+	      fi; \
+	    }; \
+	  else \
+	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	      -run '^TestChaos' $$pkgs; \
+	  fi; \
+	fi
 
-ifeq ($(START_LOCAL_DOCKER),1)
+# System-level chaos tests (full stack with docker-compose)
+# Starts the complete backend stack, runs chaos tests, then tears down.
+.PHONY: test-chaos-system
+test-chaos-system:
+	$(call print_title,Running system-level chaos tests)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-endif
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
-	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
-	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	  $(MAKE) up-backend; \
-	  $(MAKE) -s wait-for-services; \
-	else \
-	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
-	fi; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	$(MAKE) up-backend; \
+	$(MAKE) -s wait-for-services; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
@@ -310,12 +349,61 @@ coverage-integration:
 	  echo "----------------------------------------"; \
 	fi
 
+# Chaos tests with testcontainers and coverage (adapter-level)
+.PHONY: coverage-chaos
+coverage-chaos:
+	$(call print_title,Running adapter-level chaos tests with testcontainers (coverage enabled))
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
+	echo "Finding packages with *_chaos_test.go files..."; \
+	dirs=$$(find ./components ./pkg -name '*_chaos_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No chaos test packages found (files matching *_chaos_test.go)"; \
+	else \
+	  echo "Found packages: $$pkgs"; \
+	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
+	    echo "LOW_RESOURCE mode: -p=1 -parallel=1, race detector disabled"; \
+	  fi; \
+	  if [ -n "$(GOTESTSUM)" ]; then \
+	    echo "Running chaos tests with gotestsum (coverage enabled)"; \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos.xml -- \
+	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	      -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
+	      $$pkgs || { \
+	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
+	        echo "Retrying chaos tests once..."; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos-rerun.xml -- \
+	          -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	          $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	          -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
+	          $$pkgs; \
+	      else \
+	        exit 1; \
+	      fi; \
+	    }; \
+	  else \
+	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	      $(LOW_RES_P_FLAG) $(LOW_RES_PARALLEL_FLAG) \
+	      -run '^TestChaos' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/chaos_coverage.out \
+	      $$pkgs; \
+	  fi; \
+	  go tool cover -html=$(TEST_REPORTS_DIR)/chaos_coverage.out -o $(TEST_REPORTS_DIR)/chaos_coverage.html; \
+	  echo "Coverage report generated: file://$$PWD/$(TEST_REPORTS_DIR)/chaos_coverage.html"; \
+	  echo "----------------------------------------"; \
+	  go tool cover -func=$(TEST_REPORTS_DIR)/chaos_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
+	  echo "----------------------------------------"; \
+	fi
+
 # Run all coverage targets
 .PHONY: coverage
 coverage:
 	$(call print_title,Running all coverage targets)
 	$(MAKE) coverage-unit
 	$(MAKE) coverage-integration
+	$(MAKE) coverage-chaos
 
 # Run all tests (excludes native fuzz engine which runs indefinitely)
 .PHONY: test-all
