@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mretry"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +44,7 @@ const (
 //   - PENDING -> PROCESSING (worker claims entry)
 //   - PROCESSING -> PUBLISHED (success)
 //   - PROCESSING -> FAILED (error, will retry)
+//   - PROCESSING -> DLQ (final attempt failed, max retries exceeded)
 //   - FAILED -> PROCESSING (retry attempt)
 //   - FAILED -> DLQ (max retries exceeded)
 //
@@ -51,7 +53,7 @@ const (
 //   - DLQ: Permanently failed, requires manual intervention
 var ValidOutboxTransitions = map[OutboxStatus][]OutboxStatus{
 	StatusPending:    {StatusProcessing},
-	StatusProcessing: {StatusPublished, StatusFailed},
+	StatusProcessing: {StatusPublished, StatusFailed, StatusDLQ},
 	StatusFailed:     {StatusProcessing, StatusDLQ},
 	StatusPublished:  {}, // Terminal state
 	StatusDLQ:        {}, // Terminal state
@@ -90,20 +92,19 @@ const (
 	MaxMetadataSize = 64 * 1024
 	// MaxEntityIDLength is the maximum allowed length for entity IDs (UUID is 36 chars).
 	MaxEntityIDLength = 255
-	// DefaultMaxRetries is the default number of retry attempts before DLQ.
-	DefaultMaxRetries = 10
 )
 
 // Errors for validation
 var (
-	ErrInvalidEntityType = errors.New("invalid entity type: must be 'Transaction' or 'Operation'")
-	ErrMetadataTooLarge  = errors.New("metadata exceeds maximum size limit")
-	ErrMetadataNil       = errors.New("metadata cannot be nil")
-	ErrEntityIDEmpty     = errors.New("entity ID cannot be empty")
-	ErrEntityIDTooLong   = errors.New("entity ID exceeds maximum length")
-	ErrMarshalMetadata   = errors.New("failed to marshal metadata")
-	ErrUnmarshalMetadata = errors.New("failed to unmarshal metadata")
-	ErrParseUUID         = errors.New("failed to parse UUID")
+	ErrInvalidEntityType    = errors.New("invalid entity type: must be 'Transaction' or 'Operation'")
+	ErrMetadataTooLarge     = errors.New("metadata exceeds maximum size limit")
+	ErrMetadataNil          = errors.New("metadata cannot be nil")
+	ErrEntityIDEmpty        = errors.New("entity ID cannot be empty")
+	ErrEntityIDTooLong      = errors.New("entity ID exceeds maximum length")
+	ErrMarshalMetadata      = errors.New("failed to marshal metadata")
+	ErrUnmarshalMetadata    = errors.New("failed to unmarshal metadata")
+	ErrParseUUID            = errors.New("failed to parse UUID")
+	ErrDuplicateOutboxEntry = errors.New("duplicate outbox entry: entry already exists for this entity in PENDING or PROCESSING status")
 )
 
 // allowedEntityTypes defines valid entity types for validation.
@@ -265,7 +266,7 @@ func NewMetadataOutbox(entityID, entityType string, metadata map[string]any) (*M
 		Metadata:   metadata,
 		Status:     StatusPending,
 		RetryCount: 0,
-		MaxRetries: DefaultMaxRetries,
+		MaxRetries: mretry.DefaultMaxRetries,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}, nil

@@ -18,6 +18,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
@@ -118,9 +119,23 @@ func SanitizeErrorMessage(errMsg string) string {
 // SecureRandomFloat64 returns a cryptographically secure random float64 in [0,1).
 // Exported for use by worker backoff calculation.
 // Falls back to math/rand if crypto/rand fails (extremely rare, only in low-entropy environments).
+// TODO(review): Consider adding a warning log when falling back to weak PRNG for observability.
 func SecureRandomFloat64() float64 {
 	var b [8]byte
 	if _, err := cryptoRand.Read(b[:]); err != nil {
+		// Observability: crypto/rand failures are rare and can indicate low entropy or system issues.
+		// We keep execution unchanged (fallback remains) but emit a warning with non-sensitive context.
+		logger := libZap.InitializeLogger()
+		logger.WithFields(
+			"component", "transaction",
+			"subsystem", "outbox",
+			"operation", "secure_random_float64",
+			"function", "SecureRandomFloat64",
+			"fallback", "math/rand",
+			"fallback_at", time.Now().UTC().Format(time.RFC3339Nano),
+			"error", SanitizeErrorMessage(err.Error()),
+		).Warn("crypto/rand failed; falling back to weak PRNG for jitter/backoff")
+
 		// Fallback to math/rand - less secure but acceptable for backoff jitter
 		return mathRand.Float64() //nolint:gosec // Fallback for crypto failure
 	}
@@ -224,6 +239,8 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 
 	rows, rowsErr := result.RowsAffected()
 	if rowsErr != nil {
+		// TODO(review): Consider returning an error or querying for existing entry to detect duplicates.
+		// Currently we assume success and rely on downstream idempotency checks.
 		logger.Warnf("Failed to read outbox insert rows affected: %v", rowsErr)
 	} else {
 		assert.That(rows == 0 || rows == 1,
@@ -232,9 +249,11 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 			"entity_id", entry.EntityID,
 			"entity_type", entry.EntityType)
 		if rows == 0 {
-			logger.Infof("Outbox entry already exists for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
-
-			return nil
+			logger.Warnf("Duplicate outbox entry detected for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Duplicate outbox entry", ErrDuplicateOutboxEntry)
+			// TODO(review): Consider using pkg.ValidateBusinessError for consistency with
+			// other duplicate detection patterns (see pkg/errors.go for ErrDuplicateLedger).
+			return ErrDuplicateOutboxEntry
 		}
 	}
 
@@ -543,6 +562,8 @@ func (r *OutboxPostgreSQLRepository) markEntriesAsProcessing(
 }
 
 // FindByEntityID checks if an entry exists for the given entity (for idempotency checks).
+// TODO(review): Add explicit error returns for empty parameters (in addition to assertions)
+// for defense-in-depth when assertions are disabled in production.
 func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error) {
 	// Validate preconditions - early return for empty parameters
 	assert.NotEmpty(entityID, "entityID must not be empty", "method", "FindByEntityID")
@@ -876,6 +897,7 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 
 // MarkDLQ marks an entry as permanently failed (Dead Letter Queue).
 // Error message is sanitized to remove PII before storage.
+// Also increments retry_count to reflect the final failed attempt.
 func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, errMsg string) error {
 	// Validate preconditions
 	assert.That(assert.ValidUUID(id), "outbox entry ID must be valid UUID",
@@ -903,12 +925,13 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 	now := time.Now()
 
 	// Enforce state machine: PROCESSING -> DLQ or FAILED -> DLQ are valid
-	// Note: PROCESSING -> DLQ happens when processing fails and max retries already exceeded
-	// FAILED -> DLQ happens when retry count check happens before retry attempt
+	// Note: PROCESSING -> DLQ happens when processing fails and this is the final attempt
+	// We accept entries where retry_count = max_retries - 1 (final attempt) or retry_count >= max_retries
+	// The retry_count is incremented to reflect the final failed attempt
 	query := `
 		UPDATE metadata_outbox
-		SET status = $1, last_error = $2, updated_at = $3
-		WHERE id = $4 AND status IN ($5, $6) AND retry_count >= max_retries AND processed_at IS NULL
+		SET status = $1, last_error = $2, updated_at = $3, retry_count = retry_count + 1
+		WHERE id = $4 AND status IN ($5, $6) AND retry_count >= max_retries - 1 AND processed_at IS NULL
 		RETURNING retry_count, max_retries, processed_at
 	`
 
@@ -956,7 +979,8 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 		return pkg.ValidateInternalError(ErrOutboxEntryNotFound, "MetadataOutbox")
 	}
 
-	assert.That(retryCount >= maxRetries, "retry_count must be >= max_retries before DLQ",
+	// After increment, retry_count should be >= max_retries
+	assert.That(retryCount >= maxRetries, "retry_count must be >= max_retries after DLQ (post-increment)",
 		"id", id, "retry_count", retryCount, "max_retries", maxRetries)
 	assert.That(!processedAt.Valid, "processed_at must be nil for DLQ entries",
 		"id", id)
@@ -967,7 +991,7 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 
 	// Log DLQ event for alerting (no PII in message)
 	// TODO(review): Consider adding metrics/alerting hook for DLQ entries
-	logger.Warnf("METADATA_OUTBOX_DLQ: Entry moved to Dead Letter Queue: id=%s", id)
+	logger.Warnf("METADATA_OUTBOX_DLQ: Entry moved to Dead Letter Queue: id=%s, final_retry_count=%d", id, retryCount)
 
 	return nil
 }

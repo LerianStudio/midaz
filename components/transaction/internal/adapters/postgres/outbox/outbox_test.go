@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/mretry"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func TestNewMetadataOutbox_Success(t *testing.T) {
 	assert.Equal(t, EntityTypeTransaction, entry.EntityType)
 	assert.Equal(t, StatusPending, entry.Status)
 	assert.Equal(t, 0, entry.RetryCount)
-	assert.Equal(t, DefaultMaxRetries, entry.MaxRetries)
+	assert.Equal(t, mretry.DefaultMaxRetries, entry.MaxRetries)
 }
 
 func TestNewMetadataOutbox_EmptyEntityID(t *testing.T) {
@@ -109,3 +110,15 @@ func TestOutboxStatus_Values(t *testing.T) {
 	assert.Equal(t, OutboxStatus("FAILED"), StatusFailed)
 	assert.Equal(t, OutboxStatus("DLQ"), StatusDLQ)
 }
+
+func TestErrDuplicateOutboxEntry_ErrorMessage(t *testing.T) {
+	// Verify the error message is descriptive
+	assert.Contains(t, ErrDuplicateOutboxEntry.Error(), "duplicate")
+	assert.Contains(t, ErrDuplicateOutboxEntry.Error(), "PENDING")
+	assert.Contains(t, ErrDuplicateOutboxEntry.Error(), "PROCESSING")
+}
+
+// NOTE: Integration tests for Create() returning ErrDuplicateOutboxEntry require a database.
+// The duplicate detection is tested via the SQL ON CONFLICT behavior in integration tests.
+// See: components/transaction/internal/adapters/postgres/outbox/outbox.postgresql.go:234-238
+// State machine transition tests are in state_machine_test.go

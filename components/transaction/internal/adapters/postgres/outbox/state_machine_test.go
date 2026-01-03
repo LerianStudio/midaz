@@ -23,6 +23,7 @@ func TestOutboxStatus_CanTransitionTo_ValidTransitions(t *testing.T) {
 		{StatusPending, StatusProcessing},
 		{StatusProcessing, StatusPublished},
 		{StatusProcessing, StatusFailed},
+		{StatusProcessing, StatusDLQ}, // Direct DLQ when final attempt fails
 		{StatusFailed, StatusProcessing},
 		{StatusFailed, StatusDLQ},
 	}
@@ -44,9 +45,8 @@ func TestOutboxStatus_CanTransitionTo_InvalidTransitions(t *testing.T) {
 		{StatusPending, StatusPublished},
 		{StatusPending, StatusFailed},
 		{StatusPending, StatusDLQ},
-		// PROCESSING cannot go back to PENDING or directly to DLQ
+		// PROCESSING cannot go back to PENDING
 		{StatusProcessing, StatusPending},
-		{StatusProcessing, StatusDLQ},
 		// PUBLISHED is terminal
 		{StatusPublished, StatusPending},
 		{StatusPublished, StatusProcessing},
@@ -113,11 +113,11 @@ func TestOutboxStatus_AllTransitions_Coverage(t *testing.T) {
 		}
 	}
 
-	// Expected: 5 valid transitions (per state machine diagram)
-	assert.Equal(t, 5, validCount, "should have exactly 5 valid transitions")
+	// Expected: 6 valid transitions (per state machine diagram, including PROCESSING -> DLQ)
+	assert.Equal(t, 6, validCount, "should have exactly 6 valid transitions")
 
-	// Expected: 5*4 - 5 = 15 invalid transitions (20 pairs minus self minus 5 valid)
-	assert.Equal(t, 15, invalidCount, "should have exactly 15 invalid transitions")
+	// Expected: 5*4 - 6 = 14 invalid transitions (20 pairs minus self minus 6 valid)
+	assert.Equal(t, 14, invalidCount, "should have exactly 14 invalid transitions")
 }
 
 func TestOutboxStatus_TerminalStates_NoOutgoingTransitions(t *testing.T) {
@@ -152,9 +152,9 @@ func TestOutboxStatus_PendingCanOnlyGoToProcessing(t *testing.T) {
 	}
 }
 
-func TestOutboxStatus_ProcessingCanGoToPublishedOrFailed(t *testing.T) {
-	validTargets := []OutboxStatus{StatusPublished, StatusFailed}
-	invalidTargets := []OutboxStatus{StatusPending, StatusDLQ}
+func TestOutboxStatus_ProcessingCanGoToPublishedFailedOrDLQ(t *testing.T) {
+	validTargets := []OutboxStatus{StatusPublished, StatusFailed, StatusDLQ}
+	invalidTargets := []OutboxStatus{StatusPending}
 
 	for _, target := range validTargets {
 		assert.True(t, StatusProcessing.CanTransitionTo(target),
