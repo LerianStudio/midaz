@@ -269,18 +269,6 @@ func (p *Proxy) AddBandwidthLimit(rateKBps int64) error {
 	return err
 }
 
-// AddSlowClose adds slow close behavior to the proxy.
-// This simulates connections that take a long time to close.
-func (p *Proxy) AddSlowClose(delay time.Duration) error {
-	p.t.Helper()
-	p.t.Logf("Chaos: adding slow close to proxy %s (delay: %v)", p.proxy.Name, delay)
-
-	_, err := p.proxy.AddToxic("slow_close", "slow_close", "downstream", 1.0, toxiproxyclient.Attributes{
-		"delay": int(delay.Milliseconds()),
-	})
-	return err
-}
-
 // Disconnect disables the proxy, simulating network partition.
 func (p *Proxy) Disconnect() error {
 	p.t.Helper()

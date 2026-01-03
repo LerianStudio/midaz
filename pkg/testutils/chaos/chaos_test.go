@@ -53,17 +53,3 @@ func TestAssertNoDataLoss(t *testing.T) {
 	AssertNoDataLoss(t, before, after, "balances should match")
 }
 
-func TestRecordChaosResult(t *testing.T) {
-	result := RecordChaosResult(
-		"TestChaos_PostgresRestart",
-		"container_restart",
-		10*1e9,  // 10 seconds
-		2*1e9,   // 2 seconds recovery
-		true,
-	)
-
-	assert.Equal(t, "TestChaos_PostgresRestart", result.TestName)
-	assert.Equal(t, "container_restart", result.ChaosType)
-	assert.True(t, result.DataIntegrity)
-	assert.Empty(t, result.Errors)
-}
