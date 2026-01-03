@@ -141,9 +141,9 @@ func FuzzValidAmount(f *testing.F) {
 
 		result := assert.ValidAmount(d)
 
-	// Verify: exponent outside [-18, 18] should return false
-	exp := d.Exponent()
-	expectedValid := exp >= -18 && exp <= 18
+		// Verify: exponent outside [-18, 18] should return false
+		exp := d.Exponent()
+		expectedValid := exp >= -18 && exp <= 18
 
 		if result != expectedValid {
 			t.Errorf("ValidAmount(%s) with exp=%d: got %v, want %v",
