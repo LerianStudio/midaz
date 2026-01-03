@@ -287,7 +287,7 @@ func TestValidateCode(t *testing.T) {
 			name:        "invalid code - single letter (too short)",
 			code:        "A",
 			expectError: true,
-			errorCode:   "0133",
+			errorCode:   "0143",
 		},
 		{
 			name:        "valid code - long uppercase (10 chars)",
@@ -298,13 +298,13 @@ func TestValidateCode(t *testing.T) {
 			name:        "invalid code - too long (11 chars)",
 			code:        "ABCDEFGHIJK",
 			expectError: true,
-			errorCode:   "0133",
+			errorCode:   "0143",
 		},
 		{
 			name:        "invalid code - empty string",
 			code:        "",
 			expectError: true,
-			errorCode:   "0133",
+			errorCode:   "0143",
 		},
 		{
 			name:        "valid code - minimum length (2 chars)",

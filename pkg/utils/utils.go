@@ -29,7 +29,7 @@ var (
 	// ErrInvalidCurrencyCode is returned when currency code is not in ISO 4217 list
 	ErrInvalidCurrencyCode = ValidationError{Code: "0005"}
 	// ErrInvalidCodeLength is returned when code length is not between 2 and 10 characters
-	ErrInvalidCodeLength = ValidationError{Code: "0133"}
+	ErrInvalidCodeLength = ValidationError{Code: "0143"}
 )
 
 // ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
