@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -21,6 +22,7 @@ import (
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
 	"github.com/LerianStudio/midaz/v3/pkg/mmigration"
 	"github.com/lib/pq"
@@ -43,6 +45,20 @@ var (
 	ErrGetDBConnection     = errors.New("failed to get database connection")
 	ErrScanRow             = errors.New("failed to scan row")
 )
+
+// secureRandLogger is used only for SecureRandomFloat64's (rare) crypto/rand fallback warning.
+// It is initialized lazily to avoid repeated initialization and to respect global logger config timing.
+var (
+	secureRandLoggerOnce sync.Once
+	secureRandLogger     libLog.Logger
+)
+
+func getSecureRandLogger() libLog.Logger {
+	secureRandLoggerOnce.Do(func() {
+		secureRandLogger = libZap.InitializeLogger()
+	})
+	return secureRandLogger
+}
 
 // piiPatterns defines patterns to sanitize from error messages
 // TODO(review): Add IPv6 address patterns for complete IP sanitization
@@ -70,7 +86,6 @@ type Repository interface {
 	// Returns (nil, nil) if no entry exists - this is intentional for idempotency checks.
 	// Returns (*MetadataOutbox, nil) if entry exists.
 	// Returns (nil, error) on database errors.
-	// TODO(review): Add early return for empty entityID or entityType parameters.
 	FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error)
 
 	// FindMetadataByEntityIDs retrieves the latest metadata for each entity ID (if any).
@@ -125,8 +140,7 @@ func SecureRandomFloat64() float64 {
 	if _, err := cryptoRand.Read(b[:]); err != nil {
 		// Observability: crypto/rand failures are rare and can indicate low entropy or system issues.
 		// We keep execution unchanged (fallback remains) but emit a warning with non-sensitive context.
-		logger := libZap.InitializeLogger()
-		logger.WithFields(
+		getSecureRandLogger().WithFields(
 			"component", "transaction",
 			"subsystem", "outbox",
 			"operation", "secure_random_float64",
@@ -562,10 +576,28 @@ func (r *OutboxPostgreSQLRepository) markEntriesAsProcessing(
 }
 
 // FindByEntityID checks if an entry exists for the given entity (for idempotency checks).
-// TODO(review): Add explicit error returns for empty parameters (in addition to assertions)
-// for defense-in-depth when assertions are disabled in production.
 func (r *OutboxPostgreSQLRepository) FindByEntityID(ctx context.Context, entityID, entityType string) (*MetadataOutbox, error) {
-	// Validate preconditions - early return for empty parameters
+	// Runtime validation (defense-in-depth): return a clear error instead of panicking on invalid inputs.
+	// Keep assertions below for development/debug signal.
+	if strings.TrimSpace(entityID) == "" {
+		return nil, pkg.ValidationError{
+			EntityType: "MetadataOutbox",
+			Code:       constant.ErrBadRequest.Error(),
+			Title:      "Invalid Argument",
+			Message:    "entityID must not be empty",
+		}
+	}
+
+	if strings.TrimSpace(entityType) == "" {
+		return nil, pkg.ValidationError{
+			EntityType: "MetadataOutbox",
+			Code:       constant.ErrBadRequest.Error(),
+			Title:      "Invalid Argument",
+			Message:    "entityType must not be empty",
+		}
+	}
+
+	// Validate preconditions (assertions for debug builds)
 	assert.NotEmpty(entityID, "entityID must not be empty", "method", "FindByEntityID")
 	assert.NotEmpty(entityType, "entityType must not be empty",
 		"entityID", entityID, "method", "FindByEntityID")
