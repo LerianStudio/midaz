@@ -318,7 +318,6 @@ func TestIntegration_Transaction_Create(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -348,7 +347,6 @@ func TestIntegration_Transaction_Find(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -371,7 +369,6 @@ func TestIntegration_Transaction_FindAll(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -395,7 +392,6 @@ func TestIntegration_Transaction_Update(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -423,7 +419,6 @@ func TestIntegration_Transaction_Delete(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -453,7 +448,6 @@ func TestIntegration_Transaction_ConcurrentWrites(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	numWriters := 10
@@ -530,7 +524,6 @@ func TestIntegration_Transaction_Idempotency(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -571,7 +564,6 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 

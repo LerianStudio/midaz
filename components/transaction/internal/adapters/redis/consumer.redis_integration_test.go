@@ -214,7 +214,6 @@ func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	orgID := uuid.New()
@@ -291,7 +290,6 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	orgID := uuid.New()
@@ -342,7 +340,6 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	numMessages := 10

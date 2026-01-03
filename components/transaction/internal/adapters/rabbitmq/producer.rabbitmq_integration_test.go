@@ -354,7 +354,6 @@ func TestIntegration_RabbitMQ_ProducerBasicPublish(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -390,7 +389,6 @@ func TestIntegration_RabbitMQ_ConcurrentPublish(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	numPublishers := 20
@@ -460,7 +458,6 @@ func TestIntegration_RabbitMQ_HealthCheck(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	// Health check should not panic
 	healthy := infra.producer.CheckRabbitMQHealth()
@@ -489,7 +486,6 @@ func TestIntegration_RabbitMQ_MessageOrdering(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 	numMessages := 10
@@ -527,7 +523,6 @@ func TestIntegration_RabbitMQ_LargeMessage(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -568,7 +563,6 @@ func TestIntegration_RabbitMQ_EmptyMessage(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
@@ -593,7 +587,6 @@ func TestIntegration_RabbitMQ_MultipleExchanges(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	defer infra.cleanup()
 
 	ctx := context.Background()
 
