@@ -33,11 +33,6 @@ const (
 	// dlqMaxBackoff is the maximum delay between DLQ replay attempts.
 	dlqMaxBackoff = 30 * time.Minute
 
-	// dlqMaxRetries is the maximum number of DLQ replay attempts per message.
-	// Higher than regular maxRetries (4) because infrastructure should be stable.
-	// Deprecated: Use mretry.Config.MaxRetries via NewDLQConsumer config parameter instead.
-	dlqMaxRetries = 10
-
 	// healthCheckTimeout is the maximum time to wait for health check responses.
 	healthCheckTimeout = 5 * time.Second
 

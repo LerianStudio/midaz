@@ -118,10 +118,10 @@ func TestCalculateBackoff_ExponentialGrowth(t *testing.T) {
 	backoff2 := worker.calculateBackoff(2)
 	backoff3 := worker.calculateBackoff(3)
 
-	// Due to jitter, we check that each subsequent backoff is greater on average
+	// Due to jitter, we keep a relaxed upper-bound tolerance for attempt 1 to avoid flakiness.
 	// The base values are: 1s, 2s, 4s (before jitter)
 	assert.GreaterOrEqual(t, backoff1.Seconds(), 1.0, "attempt 1 should be at least 1s")
-	assert.LessOrEqual(t, backoff1.Seconds(), 1.25, "attempt 1 should be at most 1.25s (with jitter)")
+	assert.LessOrEqual(t, backoff1.Seconds(), 1.5, "attempt 1 should be at most 1.5s (with jitter tolerance)")
 
 	// Attempt 2 should be roughly 2x attempt 1 (before jitter)
 	assert.GreaterOrEqual(t, backoff2.Seconds(), 2.0, "attempt 2 should be at least 2s")

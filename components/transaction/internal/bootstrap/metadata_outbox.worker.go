@@ -41,18 +41,6 @@ const (
 
 	// metadataOutboxProcessingTimeout is the timeout for processing a single metadata outbox entry.
 	metadataOutboxProcessingTimeout = 30 * time.Second
-
-	// metadataOutboxInitialBackoff is the initial delay for retry backoff (1 second).
-	// Deprecated: Use mretry.Config.InitialBackoff via NewMetadataOutboxWorker config parameter instead.
-	metadataOutboxInitialBackoff = 1 * time.Second
-
-	// metadataOutboxMaxBackoff is the maximum delay for retry backoff (30 minutes).
-	// Deprecated: Use mretry.Config.MaxBackoff via NewMetadataOutboxWorker config parameter instead.
-	metadataOutboxMaxBackoff = 30 * time.Minute
-
-	// metadataOutboxJitterFactor is the percentage of jitter to add (25%).
-	// Deprecated: Use mretry.Config.JitterFactor via NewMetadataOutboxWorker config parameter instead.
-	metadataOutboxJitterFactor = 0.25
 )
 
 // Metric names for observability (for future Prometheus integration)
@@ -371,7 +359,6 @@ func (w *MetadataOutboxWorker) handleProcessingError(
 }
 
 // calculateBackoff calculates exponential backoff with jitter using the worker's retry config.
-// TODO(review): Consider using bit shifting (1 << attempt) for efficiency instead of loop.
 func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
 	cfg := w.retryConfig
 	if attempt <= 0 {
@@ -380,11 +367,25 @@ func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
 
 	// Exponential backoff: initial * 2^(attempt-1)
 	backoff := cfg.InitialBackoff
-	for i := 1; i < attempt; i++ {
-		backoff *= 2
-		if backoff > cfg.MaxBackoff {
-			backoff = cfg.MaxBackoff
-			break
+	shift := attempt - 1
+
+	// Compute multiplier = 1 << (attempt-1) safely.
+	// Shifting by >= 63 would overflow int64/time.Duration, so treat it as overflow and cap early.
+	if shift >= 63 {
+		backoff = cfg.MaxBackoff
+	} else {
+		multiplier := uint64(1) << uint(shift)
+
+		// Avoid intermediate overflow when multiplying durations by doing a capped multiplication.
+		// If initialBackoff > maxBackoff/multiplier, the product would exceed maxBackoff, so cap.
+		if cfg.InitialBackoff > 0 && cfg.MaxBackoff > 0 {
+			initialU := uint64(cfg.InitialBackoff)
+			maxU := uint64(cfg.MaxBackoff)
+			if initialU > maxU/multiplier {
+				backoff = cfg.MaxBackoff
+			} else {
+				backoff = time.Duration(initialU * multiplier)
+			}
 		}
 	}
 
