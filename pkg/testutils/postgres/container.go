@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -50,12 +51,13 @@ func DefaultContainerConfig() ContainerConfig {
 
 // ContainerResult holds the result of starting a PostgreSQL container.
 type ContainerResult struct {
-	DB      *sql.DB
-	Host    string
-	Port    string
-	DSN     string
-	Config  ContainerConfig
-	Cleanup func()
+	Container testcontainers.Container
+	DB        *sql.DB
+	Host      string
+	Port      string
+	DSN       string
+	Config    ContainerConfig
+	Cleanup   func()
 }
 
 // SetupContainer starts a PostgreSQL container for integration testing.
@@ -113,12 +115,13 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 
 	return &ContainerResult{
-		DB:      db,
-		Host:    host,
-		Port:    port.Port(),
-		DSN:     dsn,
-		Config:  cfg,
-		Cleanup: cleanup,
+		Container: container,
+		DB:        db,
+		Host:      host,
+		Port:      port.Port(),
+		DSN:       dsn,
+		Config:    cfg,
+		Cleanup:   cleanup,
 	}
 }
 
@@ -128,5 +131,12 @@ func BuildConnectionString(host, port string, cfg ContainerConfig) string {
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port, cfg.DBUser, cfg.DBPassword, cfg.DBName,
 	)
+}
+
+// BuildConnectionStringWithHost builds a PostgreSQL connection string from a host:port address and config.
+// This is useful when connecting through a proxy where you have a combined address.
+func BuildConnectionStringWithHost(hostPort string, cfg ContainerConfig) string {
+	host, port, _ := net.SplitHostPort(hostPort)
+	return BuildConnectionString(host, port, cfg)
 }
 

@@ -718,8 +718,7 @@ func TestChaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	// TODO: Remove skip after lib-commons Redis thread-safety fix
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() is not thread-safe for concurrent initialization")
+	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
@@ -791,8 +790,7 @@ func TestChaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	// TODO: Remove skip after lib-commons Redis thread-safety fix
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() is not thread-safe for concurrent initialization")
+	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
