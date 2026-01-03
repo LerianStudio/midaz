@@ -19,6 +19,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
+	"github.com/LerianStudio/midaz/v3/pkg/mretry"
 	"github.com/LerianStudio/midaz/v3/pkg/mruntime"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,6 +35,7 @@ const (
 
 	// dlqMaxRetries is the maximum number of DLQ replay attempts per message.
 	// Higher than regular maxRetries (4) because infrastructure should be stable.
+	// Deprecated: Use mretry.Config.MaxRetries via NewDLQConsumer config parameter instead.
 	dlqMaxRetries = 10
 
 	// healthCheckTimeout is the maximum time to wait for health check responses.
@@ -66,7 +68,9 @@ const (
 	hoursPerDay      = 24
 
 	// staleMessageThresholdDays is the number of days after which a DLQ message is considered stale.
-	staleMessageThresholdDays = 30
+	// Set to 24 days to ensure TTL in milliseconds (2,073,600,000) fits within int32 max (2,147,483,647).
+	// This provides compatibility with RabbitMQ versions that use int32 for x-message-ttl.
+	staleMessageThresholdDays = 24
 
 	// clockSkewAllowanceSeconds is the maximum allowed clock skew for timestamp validation (1 hour).
 	clockSkewAllowanceSeconds = 3600
@@ -114,15 +118,18 @@ type DLQConsumer struct {
 	RedisConn           *libRedis.RedisConnection
 	QueueNames          []string        // Original queue names (DLQ names derived by adding suffix)
 	validOriginalQueues map[string]bool // H8: Allowlist for security - prevent queue name injection
+	retryConfig         mretry.Config   // Shared retry configuration
 }
 
 // NewDLQConsumer creates a new DLQ consumer instance.
+// If no retry config is provided, defaults to mretry.DefaultDLQConfig().
 func NewDLQConsumer(
 	logger libLog.Logger,
 	rabbitMQConn *libRabbitmq.RabbitMQConnection,
 	postgresConn *libPostgres.PostgresConnection,
 	redisConn *libRedis.RedisConnection,
 	queueNames []string,
+	config ...mretry.Config,
 ) *DLQConsumer {
 	assert.NotNil(logger, "Logger required for DLQConsumer")
 	assert.NotNil(rabbitMQConn, "RabbitMQConnection required for DLQConsumer")
@@ -140,6 +147,12 @@ func NewDLQConsumer(
 		validQueues[q] = true
 	}
 
+	// Use provided config or default
+	retryConfig := mretry.DefaultDLQConfig()
+	if len(config) > 0 {
+		retryConfig = config[0]
+	}
+
 	return &DLQConsumer{
 		Logger:              logger,
 		RabbitMQConn:        rabbitMQConn,
@@ -147,6 +160,7 @@ func NewDLQConsumer(
 		RedisConn:           redisConn,
 		QueueNames:          queueNames,
 		validOriginalQueues: validQueues,
+		retryConfig:         retryConfig,
 	}
 }
 
@@ -277,13 +291,20 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 	}
 
 	// Declare DLQ if it doesn't exist (idempotent)
+	// Set message TTL to automatically expire stale messages after 24 days
+	// Note: 24 days in ms (2,073,600,000) fits within int32 max (2,147,483,647)
+	dlqTTLMs := int64(staleMessageThresholdDays) * int64(hoursPerDay) * int64(minutesPerHour) * int64(secondsPerMinute) * 1000
+	dlqArgs := amqp.Table{
+		"x-message-ttl": dlqTTLMs, // 24 days in ms
+	}
+
 	_, err = ch.QueueDeclare(
 		dlqName,
-		true,  // durable
-		false, // autoDelete
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
+		true,    // durable
+		false,   // autoDelete
+		false,   // exclusive
+		false,   // noWait
+		dlqArgs, // arguments with TTL
 	)
 	if err != nil {
 		ch.Close()
@@ -554,10 +575,11 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 		attribute.String("dlq.reason", getStringHeader(msg.Headers, dlqReasonHeader)),
 	)
 
-	// Check if max DLQ retries exceeded
-	if dlqRetryCount >= dlqMaxRetries {
+	// Check if max DLQ retries exceeded (use config value)
+	maxRetries := d.retryConfig.MaxRetries
+	if dlqRetryCount >= maxRetries {
 		logger.Errorf("DLQ_REPLAY_FAILED: Max DLQ retries exceeded (%d/%d) - message will be permanently lost - queue=%s",
-			dlqRetryCount, dlqMaxRetries, originalQueue)
+			dlqRetryCount, maxRetries, originalQueue)
 
 		// H4: Add span attributes for alerting on permanent message loss
 		span.SetAttributes(
@@ -586,7 +608,7 @@ func (d *DLQConsumer) replayMessageToOriginalQueue(ctx context.Context, msg *amq
 	defer cleanup()
 
 	// Wait for broker confirmation
-	if err := waitForPublishConfirmation(confirms, logger, originalQueue, dlqRetryCount); err != nil {
+	if err := waitForPublishConfirmation(confirms, logger, originalQueue, dlqRetryCount, maxRetries); err != nil {
 		return err
 	}
 
@@ -680,7 +702,7 @@ func publishDLQMessage(conn *libRabbitmq.RabbitMQConnection, originalQueue strin
 
 // waitForPublishConfirmation waits for RabbitMQ broker confirmation after publishing.
 // Returns nil on success, error on timeout or NACK.
-func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog.Logger, originalQueue string, dlqRetryCount int) error {
+func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog.Logger, originalQueue string, dlqRetryCount, maxRetries int) error {
 	select {
 	case confirmation, ok := <-confirms:
 		if !ok {
@@ -694,7 +716,7 @@ func waitForPublishConfirmation(confirms <-chan amqp.Confirmation, logger libLog
 		}
 
 		logger.Infof("DLQ_REPLAY_SUCCESS: message replayed to %s (DLQ retry %d/%d)",
-			originalQueue, dlqRetryCount+1, dlqMaxRetries)
+			originalQueue, dlqRetryCount+1, maxRetries)
 
 		return nil
 
