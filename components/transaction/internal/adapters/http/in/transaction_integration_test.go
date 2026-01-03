@@ -748,6 +748,34 @@ func waitForTransactionStatus(t *testing.T, db *sql.DB, transactionID uuid.UUID,
 	return false
 }
 
+// waitForOperations polls the database until the expected number of operations exist for a transaction.
+// Returns true if the expected count is reached within the timeout.
+func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expectedCount int, timeout time.Duration) bool {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		var count int
+		err := db.QueryRow(`SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, transactionID).Scan(&count)
+		if err != nil {
+			t.Logf("Error querying operation count: %v", err)
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		if count >= expectedCount {
+			return true
+		}
+
+		t.Logf("Transaction %s has %d operations, waiting for %d...", transactionID, count, expectedCount)
+		time.Sleep(pollInterval)
+	}
+
+	return false
+}
+
 // TestIntegration_TransactionHandler_CreateTransactionJSON_Async validates that
 // CreateTransactionJSON correctly creates a non-pending transaction in async mode.
 // This tests the complete async flow:
@@ -893,6 +921,12 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 	assert.True(t, destAvailable.Equal(decimal.NewFromInt(100)),
 		"destination balance should be 100 after transaction, got %s", destAvailable.String())
 
+	// Wait for operations to be created (async processing may still be in progress)
+	// Operations are created after transaction status is updated
+	operationsCreated := waitForOperations(t, infra.pgContainer.DB, txID, 2, 10*time.Second)
+	require.True(t, operationsCreated,
+		"operations should be created within timeout (async processing should complete)")
+
 	// Assert: 2 operations created (1 DEBIT, 1 CREDIT)
 	opCount := postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, 2, opCount,
@@ -902,8 +936,8 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 	var debitCount, creditCount int
 	err = infra.pgContainer.DB.QueryRow(`
 		SELECT
-			SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END) as debit_count,
-			SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END) as credit_count
+			COALESCE(SUM(CASE WHEN type = 'DEBIT' THEN 1 ELSE 0 END), 0) as debit_count,
+			COALESCE(SUM(CASE WHEN type = 'CREDIT' THEN 1 ELSE 0 END), 0) as credit_count
 		FROM operation
 		WHERE transaction_id = $1
 	`, txID).Scan(&debitCount, &creditCount)
