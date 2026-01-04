@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/adapters/postgres"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -48,13 +49,15 @@ type balanceRedis struct {
 type RedisChecker struct {
 	db        *sql.DB
 	redisConn *libRedis.RedisConnection
+	logger    libLog.Logger
 }
 
 // NewRedisChecker creates a new Redis checker.
-func NewRedisChecker(db *sql.DB, redisConn *libRedis.RedisConnection) *RedisChecker {
+func NewRedisChecker(db *sql.DB, redisConn *libRedis.RedisConnection, logger libLog.Logger) *RedisChecker {
 	return &RedisChecker{
 		db:        db,
 		redisConn: redisConn,
+		logger:    logger,
 	}
 }
 
@@ -97,6 +100,7 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 	defer rows.Close()
 
 	var balances []balanceRow
+
 	for rows.Next() {
 		var b balanceRow
 		if err := rows.Scan(
@@ -113,6 +117,7 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		); err != nil {
 			return nil, fmt.Errorf("redis check scan failed: %w", err)
 		}
+
 		balances = append(balances, b)
 	}
 
@@ -150,12 +155,15 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		b := balances[i]
 
 		if val == nil {
+			// Balance not in Redis cache - this is expected/normal behavior
+			// (balance never transacted or TTL expired). NOT a discrepancy.
 			result.MissingRedis++
-			c.appendRedisDiscrepancy(result, b, balanceRedis{}, config.MaxResults)
+
 			continue
 		}
 
 		var data []byte
+
 		switch v := val.(type) {
 		case string:
 			data = []byte(v)
@@ -164,6 +172,26 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		default:
 			result.ValueMismatches++
 			c.appendRedisDiscrepancy(result, b, balanceRedis{}, config.MaxResults)
+			if c.logger != nil {
+				sc := trace.SpanContextFromContext(ctx)
+				traceID := ""
+				if sc.HasTraceID() {
+					traceID = sc.TraceID().String()
+				}
+
+				// Keep log lightweight and avoid dumping potentially sensitive content.
+				c.logger.Debugf(
+					"redis check unexpected MGET value type (trace_id=%s, index=%d, org_id=%s, ledger_id=%s, balance_id=%s, redis_key=%s, value_type=%s)",
+					traceID,
+					i,
+					b.OrganizationID,
+					b.LedgerID,
+					b.ID,
+					redactRedisKey(keys[i]),
+					fmt.Sprintf("%T", val),
+				)
+			}
+
 			continue
 		}
 
@@ -171,6 +199,7 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		if err := json.Unmarshal(data, &rb); err != nil {
 			result.ValueMismatches++
 			c.appendRedisDiscrepancy(result, b, balanceRedis{}, config.MaxResults)
+
 			continue
 		}
 
@@ -180,6 +209,7 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		if valueMismatch {
 			result.ValueMismatches++
 		}
+
 		if versionMismatch {
 			result.VersionMismatches++
 		}
@@ -191,7 +221,9 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 
 	result.SyncQueueDepth, result.OldestSyncScore, result.OldestSyncAt = getSyncQueueStats(ctx, rds)
 
-	issueCount := result.MissingRedis + result.ValueMismatches + result.VersionMismatches
+	// Only count actual mismatches (value/version) as issues for status determination.
+	// MissingRedis is informational only - balances not in cache is expected behavior.
+	issueCount := result.ValueMismatches + result.VersionMismatches
 	result.Status = postgres.DetermineStatus(issueCount, postgres.StatusThresholds{
 		WarningThreshold:          10,
 		WarningThresholdExclusive: true,
@@ -221,19 +253,24 @@ func (c *RedisChecker) appendRedisDiscrepancy(result *domain.RedisCheckResult, d
 }
 
 func balanceInternalKey(organizationID, ledgerID, key string) string {
-	var builder strings.Builder
-	builder.WriteString("balance")
-	builder.WriteString(":")
-	builder.WriteString("{")
-	builder.WriteString("transactions")
-	builder.WriteString("}")
-	builder.WriteString(":")
-	builder.WriteString(organizationID)
-	builder.WriteString(":")
-	builder.WriteString(ledgerID)
-	builder.WriteString(":")
-	builder.WriteString(key)
-	return builder.String()
+	return fmt.Sprintf("balance:{transactions}:%s:%s:%s", organizationID, ledgerID, key)
+}
+
+func redactRedisKey(k string) string {
+	// Keys can contain aliases/account keys. Log only a short prefix+suffix to aid debugging.
+	const max = 40
+	if k == "" {
+		return ""
+	}
+	if len(k) <= max {
+		return k
+	}
+	const prefix = 18
+	const suffix = 10
+	if len(k) <= prefix+suffix+1 {
+		return k[:max]
+	}
+	return k[:prefix] + "…" + k[len(k)-suffix:]
 }
 
 func getSyncQueueStats(ctx context.Context, rds redis.UniversalClient) (int64, int64, *time.Time) {

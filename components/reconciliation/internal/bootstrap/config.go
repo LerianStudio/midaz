@@ -298,6 +298,7 @@ func (c *Config) ApplyEnvDefaults() {
 	if envMissingOrEmpty("MAX_DISCREPANCIES_TO_REPORT") {
 		c.MaxDiscrepanciesToReport = defaultMaxDiscrepanciesToReport
 	}
+
 	if envMissingOrEmpty("DB_MAX_OPEN_CONNS") {
 		c.MaxOpenConnections = defaultMaxOpenConnections
 	}
@@ -310,6 +311,7 @@ func (c *Config) ApplyEnvDefaults() {
 	if envMissingOrEmpty("TRANSACTION_DB_SSLMODE") {
 		c.TransactionDBSSLMode = "require"
 	}
+
 	if envMissingOrEmpty("OUTBOX_STALE_SECONDS") {
 		c.OutboxStaleSeconds = defaultOutboxStaleSeconds
 	}
@@ -325,9 +327,11 @@ func (c *Config) ApplyEnvDefaults() {
 	if envMissingOrEmpty("CROSSDB_MAX_SCAN") {
 		c.CrossDBMaxScan = defaultCrossDBMaxScan
 	}
+
 	if envMissingOrEmpty("REDIS_SAMPLE_SIZE") {
 		c.RedisSampleSize = defaultRedisSampleSize
 	}
+
 	if envMissingOrEmpty("REPORTS_DIR") {
 		c.ReportDir = defaultReportDir
 	}
@@ -337,6 +341,7 @@ func (c *Config) ApplyEnvDefaults() {
 	if envMissingOrEmpty("REPORTS_RETENTION_DAYS") {
 		c.ReportRetentionDays = defaultReportRetentionDays
 	}
+
 	if envMissingOrEmpty("REDIS_PROTOCOL") {
 		c.RedisProtocol = 3
 	}
@@ -390,6 +395,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrLoadConfig, err)
 	}
+
 	cfg.ApplyEnvDefaults()
 
 	// Validate configuration
@@ -444,6 +450,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	onboardingMongoDB := mongoClient.Database(cfg.OnboardingMongoDBName)
 	transactionMongoDB := mongoClient.Database(cfg.TransactionMongoDBName)
+
 	var crmMongoDB *mongo.Database
 	if cfg.CRMMongoDBName != "" {
 		crmMongoDB = mongoClient.Database(cfg.CRMMongoDBName)
@@ -481,7 +488,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		postgres.NewDLQChecker(transactionDB),
 		postgres.NewOutboxChecker(transactionDB),
 		metadata.NewMetadataChecker(transactionDB, onboardingMongoDB, transactionMongoDB),
-		redis.NewRedisChecker(transactionDB, redisConn),
+		redis.NewRedisChecker(transactionDB, redisConn, logger),
 		crossdb.NewCrossDBChecker(onboardingDB, transactionDB),
 		crm.NewAliasChecker(onboardingDB, crmMongoDB),
 	}
