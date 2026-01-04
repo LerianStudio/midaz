@@ -38,6 +38,7 @@ func (c *OutboxChecker) Check(ctx context.Context, config CheckerConfig) (CheckR
 	if staleSeconds <= 0 {
 		staleSeconds = config.StaleThresholdSeconds
 	}
+
 	if staleSeconds <= 0 {
 		staleSeconds = 600
 	}

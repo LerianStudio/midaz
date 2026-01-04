@@ -66,6 +66,7 @@ func (c *CrossDBChecker) Check(ctx context.Context, config postgres.CheckerConfi
 	if err != nil {
 		return nil, err
 	}
+
 	result.MissingAccounts = missingAccounts
 
 	missingLedgers, ledgerSamples, scannedLedgers, err := c.checkMissingIDs(ctx,
@@ -84,6 +85,7 @@ func (c *CrossDBChecker) Check(ctx context.Context, config postgres.CheckerConfi
 	if err != nil {
 		return nil, err
 	}
+
 	result.MissingLedgers = missingLedgers
 
 	missingOrgs, orgSamples, scannedOrgs, err := c.checkMissingIDs(ctx,
@@ -102,6 +104,7 @@ func (c *CrossDBChecker) Check(ctx context.Context, config postgres.CheckerConfi
 	if err != nil {
 		return nil, err
 	}
+
 	result.MissingOrganizations = missingOrgs
 
 	result.Samples = append(result.Samples, accountSamples...)
@@ -133,26 +136,30 @@ func (c *CrossDBChecker) checkMissingIDs(
 	samples := make([]domain.CrossDBMissing, 0, maxResults)
 
 	for scanned < maxScan {
-		rows, err := c.transactionDB.QueryContext(ctx, fmt.Sprintf("%s LIMIT $1 OFFSET $2", query), batchSize, offset)
+		rows, err := c.transactionDB.QueryContext(ctx, query+" LIMIT $1 OFFSET $2", batchSize, offset)
 		if err != nil {
 			return 0, nil, scanned, fmt.Errorf("crossdb query failed: %w", err)
 		}
 
 		var ids []string
+
 		for rows.Next() {
 			var id string
 			if err := rows.Scan(&id); err != nil {
 				rows.Close()
 				return 0, nil, scanned, fmt.Errorf("crossdb scan failed: %w", err)
 			}
+
 			if id != "" {
 				ids = append(ids, id)
 			}
 		}
+
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return 0, nil, scanned, fmt.Errorf("crossdb rows iteration error: %w", err)
 		}
+
 		rows.Close()
 
 		if len(ids) == 0 {
@@ -173,6 +180,7 @@ func (c *CrossDBChecker) checkMissingIDs(
 			}
 
 			missingCount++
+
 			if maxResults > 0 && len(samples) < maxResults {
 				samples = append(samples, domain.CrossDBMissing{
 					Source:   "transaction_db",
@@ -193,6 +201,7 @@ func (c *CrossDBChecker) fetchExistingIDs(ctx context.Context, entityType string
 	}
 
 	var query string
+
 	switch entityType {
 	case "account":
 		query = `SELECT id::text FROM account WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL`
@@ -211,11 +220,13 @@ func (c *CrossDBChecker) fetchExistingIDs(ctx context.Context, entityType string
 	defer rows.Close()
 
 	exists := make(map[string]struct{}, len(ids))
+
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, fmt.Errorf("crossdb onboarding scan failed: %w", err)
 		}
+
 		exists[id] = struct{}{}
 	}
 

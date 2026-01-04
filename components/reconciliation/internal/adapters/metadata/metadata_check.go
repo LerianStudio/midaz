@@ -107,11 +107,13 @@ func (c *MetadataChecker) Check(ctx context.Context, config postgres.CheckerConf
 }
 
 func (c *MetadataChecker) collectCollectionSummaries(ctx context.Context) ([]domain.MetadataCollectionSummary, int, int, int, int, error) {
-	var summaries []domain.MetadataCollectionSummary
-	var totalMissingEntityIDs int
-	var totalDuplicateEntityIDs int
-	var totalMissingRequiredFields int
-	var totalEmptyMetadata int
+	var (
+		summaries                  []domain.MetadataCollectionSummary
+		totalMissingEntityIDs      int
+		totalDuplicateEntityIDs    int
+		totalMissingRequiredFields int
+		totalEmptyMetadata         int
+	)
 
 	requiredFields := []string{"entity_id", "entity_name", "created_at", "updated_at"}
 
@@ -178,6 +180,7 @@ func (c *MetadataChecker) collectCollectionSummaries(ctx context.Context) ([]dom
 
 		missingRequired := make(map[string]int64)
 		missingRequiredTotal := 0
+
 		for _, field := range requiredFields {
 			count, err := mongoColl.CountDocuments(ctx, bson.M{
 				field: bson.M{"$exists": false},
@@ -185,6 +188,7 @@ func (c *MetadataChecker) collectCollectionSummaries(ctx context.Context) ([]dom
 			if err != nil {
 				return nil, 0, 0, 0, 0, fmt.Errorf("metadata required field check failed: %w", err)
 			}
+
 			if count > 0 {
 				missingRequired[field] = count
 				missingRequiredTotal += int(count)
@@ -276,11 +280,13 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 	}
 
 	var entries []entry
+
 	for rows.Next() {
 		var e entry
 		if err := rows.Scan(&e.EntityID, &e.EntityType, &e.TotalCount); err != nil {
 			return outboxPublishedCheckResult{}, fmt.Errorf("metadata outbox scan failed: %w", err)
 		}
+
 		entries = append(entries, e)
 	}
 
@@ -348,12 +354,14 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 		typ := normalizeType(e.EntityType)
 		targets := targetsForType(typ)
 		available := false
+
 		for _, t := range targets {
 			if t.db != nil {
 				available = true
 				break
 			}
 		}
+
 		if !available {
 			continue
 		}
@@ -369,13 +377,16 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 			if t.db == nil {
 				continue
 			}
+
 			found, err := c.findIDs(ctx, t.db, t.collection, ids)
 			if err != nil {
 				return outboxPublishedCheckResult{}, err
 			}
+
 			if _, ok := foundIDsByType[typ]; !ok {
 				foundIDsByType[typ] = map[string]struct{}{}
 			}
+
 			for id := range found {
 				foundIDsByType[typ][id] = struct{}{}
 			}
@@ -394,11 +405,13 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 		}
 
 		validatedCount++
+
 		if _, ok := foundIDsByType[typ][e.EntityID]; ok {
 			continue
 		}
 
 		missingCount++
+
 		if maxResults > 0 && len(missingEntities) < maxResults {
 			missingEntities = append(missingEntities, domain.MetadataMissingEntity{
 				EntityID:   e.EntityID,
@@ -432,11 +445,13 @@ func mongoFindEntityIDs(ctx context.Context, db *mongo.Database, collection stri
 	if db == nil {
 		return map[string]struct{}{}, nil
 	}
+
 	if len(ids) == 0 {
 		return map[string]struct{}{}, nil
 	}
 
 	coll := db.Collection(collection)
+
 	cursor, err := coll.Find(ctx, bson.M{"entity_id": bson.M{"$in": ids}}, options.Find().SetProjection(bson.M{"entity_id": 1}))
 	if err != nil {
 		return nil, fmt.Errorf("metadata mongo lookup failed: %w", err)
@@ -444,6 +459,7 @@ func mongoFindEntityIDs(ctx context.Context, db *mongo.Database, collection stri
 	defer cursor.Close(ctx)
 
 	found := make(map[string]struct{}, len(ids))
+
 	for cursor.Next(ctx) {
 		var doc struct {
 			EntityID string `bson:"entity_id"`
@@ -451,10 +467,12 @@ func mongoFindEntityIDs(ctx context.Context, db *mongo.Database, collection stri
 		if err := cursor.Decode(&doc); err != nil {
 			return nil, fmt.Errorf("metadata mongo decode failed: %w", err)
 		}
+
 		if doc.EntityID != "" {
 			found[doc.EntityID] = struct{}{}
 		}
 	}
+
 	if err := cursor.Err(); err != nil {
 		return nil, fmt.Errorf("metadata mongo cursor failed: %w", err)
 	}

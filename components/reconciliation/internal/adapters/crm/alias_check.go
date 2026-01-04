@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -104,6 +105,7 @@ func (c *AliasChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 					cursor.Close(ctx)
 					return nil, err
 				}
+
 				if !exists {
 					result.MissingLedgerIDs++
 					c.appendSample(result, aliasID, doc.LedgerID, "", "missing_ledger", config.MaxResults)
@@ -116,6 +118,7 @@ func (c *AliasChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 					cursor.Close(ctx)
 					return nil, err
 				}
+
 				if !exists {
 					result.MissingAccountIDs++
 					c.appendSample(result, aliasID, "", doc.AccountID, "missing_account", config.MaxResults)
@@ -153,17 +156,21 @@ func (c *AliasChecker) existsInOnboarding(ctx context.Context, entity, id string
 
 	// NOTE: table comes from a strict allowlist (not user input). Keep id parameterized.
 	query := "SELECT 1 FROM " + table + " WHERE id = $1 AND deleted_at IS NULL"
+
 	var tmp int
+
 	err = c.onboardingDB.QueryRowContext(ctx, query, id).Scan(&tmp)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			cache[id] = false
 			return false, nil
 		}
+
 		return false, fmt.Errorf("crm alias onboarding lookup failed: %w", err)
 	}
 
 	cache[id] = true
+
 	return true, nil
 }
 

@@ -64,6 +64,7 @@ func (s *FileStore) Save(ctx context.Context, report *domain.ReconciliationRepor
 	}
 
 	filename := s.buildFilename(report)
+
 	tmpFile, err := os.CreateTemp(s.dir, "reconciliation_*.tmp")
 	if err != nil {
 		return err
@@ -71,9 +72,11 @@ func (s *FileStore) Save(ctx context.Context, report *domain.ReconciliationRepor
 
 	encoder := json.NewEncoder(tmpFile)
 	encoder.SetIndent("", "  ")
+
 	if err := encoder.Encode(report); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
+
 		return err
 	}
 
@@ -89,6 +92,7 @@ func (s *FileStore) Save(ctx context.Context, report *domain.ReconciliationRepor
 	}
 
 	s.prune()
+
 	return nil
 }
 
@@ -98,9 +102,11 @@ func (s *FileStore) LoadLatest(ctx context.Context) (*domain.ReconciliationRepor
 	if err != nil {
 		return nil, err
 	}
+
 	if len(reports) == 0 {
 		return nil, nil
 	}
+
 	return reports[0], nil
 }
 
@@ -125,6 +131,7 @@ func (s *FileStore) LoadRecent(ctx context.Context, limit int) ([]*domain.Reconc
 	for _, file := range files {
 		_ = ctx // reserved for future cancellation-aware I/O
 		path := filepath.Join(s.dir, file.Name())
+
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
@@ -143,10 +150,12 @@ func (s *FileStore) LoadRecent(ctx context.Context, limit int) ([]*domain.Reconc
 
 func (s *FileStore) buildFilename(report *domain.ReconciliationReport) string {
 	ts := report.Timestamp.UTC().Format(reportFilenameTimestampLayout)
+
 	runID := report.RunID
 	if runID == "" {
 		runID = "unknown"
 	}
+
 	return "reconciliation_" + ts + "_" + runID + ".json"
 }
 
@@ -158,11 +167,13 @@ func (s *FileStore) sortReportFilesNewestFirst(files []fs.FileInfo) {
 func (s *FileStore) sortReportFilesNewestFirstWith(files []fs.FileInfo, effectiveTime func(fi fs.FileInfo) time.Time) {
 	sort.Slice(files, func(i, j int) bool {
 		ti := effectiveTime(files[i])
+
 		tj := effectiveTime(files[j])
 		if ti.Equal(tj) {
 			// Deterministic tie-breaker (newer-ish filenames tend to sort later lexicographically).
 			return files[i].Name() > files[j].Name()
 		}
+
 		return ti.After(tj)
 	})
 }
@@ -176,6 +187,7 @@ func (s *FileStore) newReportEffectiveTimeFunc(sizeHint int) func(fi fs.FileInfo
 	if sizeHint < 0 {
 		sizeHint = 0
 	}
+
 	cache := make(map[string]tsResult, sizeHint)
 
 	return func(fi fs.FileInfo) time.Time {
@@ -184,6 +196,7 @@ func (s *FileStore) newReportEffectiveTimeFunc(sizeHint int) func(fi fs.FileInfo
 			if res.ok {
 				return res.ts
 			}
+
 			return fi.ModTime()
 		}
 
@@ -200,6 +213,7 @@ func (s *FileStore) newReportEffectiveTimeFunc(sizeHint int) func(fi fs.FileInfo
 		if res.ok {
 			return res.ts
 		}
+
 		return fi.ModTime()
 	}
 }
@@ -219,13 +233,16 @@ func parseReportTimestampFromFilename(name string) (time.Time, bool) {
 	}
 
 	tsPart := rest[:len(reportFilenameTimestampLayout)]
+
 	ts, err := time.Parse(reportFilenameTimestampLayout, tsPart)
 	if err != nil {
 		return time.Time{}, false
 	}
+
 	if ts.IsZero() {
 		return time.Time{}, false
 	}
+
 	return ts, true
 }
 
@@ -244,6 +261,7 @@ func (s *FileStore) parseReportTimestampFromFile(path string) (time.Time, bool) 
 	if err := json.Unmarshal(data, &t); err != nil {
 		return time.Time{}, false
 	}
+
 	if t.Timestamp.IsZero() {
 		return time.Time{}, false
 	}
@@ -257,21 +275,26 @@ func (s *FileStore) listReportFiles() ([]fs.FileInfo, error) {
 		if os.IsNotExist(err) {
 			return []fs.FileInfo{}, nil
 		}
+
 		return nil, err
 	}
 
 	var files []fs.FileInfo
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
+
 		if !strings.HasPrefix(entry.Name(), "reconciliation_") || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
+
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
+
 		files = append(files, info)
 	}
 
@@ -284,6 +307,7 @@ func (s *FileStore) prune() {
 		if s.logger != nil {
 			s.logger.Errorf("reportstore: failed to list report files for pruning: %v", err)
 		}
+
 		return
 	}
 
@@ -293,6 +317,7 @@ func (s *FileStore) prune() {
 
 	// Remove by retention days
 	removedByRetention := map[string]struct{}{}
+
 	if s.retentionDays > 0 {
 		cutoff := now.Add(-time.Duration(s.retentionDays) * 24 * time.Hour)
 		for _, file := range files {
@@ -303,8 +328,10 @@ func (s *FileStore) prune() {
 					if s.logger != nil && !os.IsNotExist(err) {
 						s.logger.Warnf("reportstore: failed to remove report file (retention): %s: %v", path, err)
 					}
+
 					continue
 				}
+
 				removedByRetention[file.Name()] = struct{}{}
 			}
 		}
@@ -323,8 +350,10 @@ func (s *FileStore) prune() {
 				if _, removed := removedByRetention[f.Name()]; removed {
 					continue
 				}
+
 				filtered = append(filtered, f)
 			}
+
 			files = filtered
 		} else {
 			files = refreshed

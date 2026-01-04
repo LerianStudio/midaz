@@ -122,6 +122,7 @@ func (c *ReferentialChecker) checkOnboardingOrphans(ctx context.Context, result 
 		default:
 			// Count + log unknown entity types so schema changes aren't silently ignored.
 			result.OrphanUnknown++
+
 			log.Printf(
 				"reconciliation referential check: unexpected orphan entity_type=%q entity_id=%q reference_type=%q reference_id=%q",
 				o.EntityType, o.EntityID, o.ReferenceType, o.ReferenceID,

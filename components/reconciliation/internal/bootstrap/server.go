@@ -252,6 +252,7 @@ func (s *HTTPServer) getReports(c *fiber.Ctx) error {
 	}
 
 	limit := 10
+
 	if value := c.Query("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed <= 0 {
@@ -259,9 +260,11 @@ func (s *HTTPServer) getReports(c *fiber.Ctx) error {
 				"error": "Invalid limit; must be a positive integer",
 			})
 		}
+
 		if parsed > maxReportsLimit {
 			parsed = maxReportsLimit
 		}
+
 		limit = parsed
 	}
 
@@ -441,7 +444,7 @@ func writeBalanceCheckSection(html *strings.Builder, bc *domain.BalanceCheckResu
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">Current</th><th class="num">Expected</th><th class="num">Diff</th><th class="num">Ops</th></tr></thead><tbody>`)
 
 		for _, d := range bc.Discrepancies {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%s</td><td class=\"num\">%d</td></tr>",
 				truncateID(d.AccountID), d.AssetCode, formatDecimal(d.CurrentBalance), formatDecimal(d.ExpectedBalance),
 				ternary(d.Discrepancy.IsNegative(), "#ef4444", "#22c55e"), formatSignedDecimal(d.Discrepancy), d.OperationCount)
 		}
@@ -453,7 +456,7 @@ func writeBalanceCheckSection(html *strings.Builder, bc *domain.BalanceCheckResu
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">On-Hold</th><th class="num">Expected</th><th class="num">Diff</th><th class="num">Ops</th></tr></thead><tbody>`)
 
 		for _, d := range bc.OnHoldDiscrepancies {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\" style=\"color:%s;\">%s</td><td class=\"num\">%s</td><td class=\"num\">%d</td></tr>",
 				truncateID(d.AccountID), d.AssetCode, formatDecimal(d.CurrentOnHold), formatDecimal(d.ExpectedOnHold),
 				ternary(d.Discrepancy.IsNegative(), "#ef4444", "#22c55e"), formatSignedDecimal(d.Discrepancy), d.OperationCount)
 		}
@@ -596,20 +599,25 @@ func writeMetadataSection(html *strings.Builder, mc *domain.MetadataCheckResult)
 
 	if len(mc.CollectionSummaries) > 0 {
 		html.WriteString(`<table><thead><tr><th>Collection</th><th class="num">Total</th><th class="num">Empty</th><th class="num">Missing ID</th><th class="num">Duplicates</th></tr></thead><tbody>`)
+
 		for _, s := range mc.CollectionSummaries {
-			fmt.Fprintf(html, `<tr><td>%s</td><td class="num">%d</td><td class="num">%d</td><td class="num">%d</td><td class="num">%d</td></tr>`,
+			fmt.Fprintf(html, "<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
 				s.Collection, s.TotalDocuments, s.EmptyMetadata, s.MissingEntityIDs, s.DuplicateEntityIDs)
 		}
+
 		html.WriteString(`</tbody></table>`)
 	}
 
 	if len(mc.MissingEntities) > 0 {
 		html.WriteString(`<table><thead><tr><th>Entity Type</th><th>Entity ID</th><th>Reason</th></tr></thead><tbody>`)
+
 		for _, m := range mc.MissingEntities {
 			fmt.Fprintf(html, `<tr><td>%s</td><td class="mono">%s</td><td>%s</td></tr>`, m.EntityType, truncateID(m.EntityID), m.Reason)
 		}
+
 		html.WriteString(`</tbody></table>`)
 	}
+
 	html.WriteString(`</div>`)
 }
 
@@ -682,7 +690,7 @@ func writeRedisSection(html *strings.Builder, rc *domain.RedisCheckResult) {
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">DB Avail</th><th class="num">Redis Avail</th><th class="num">DB Hold</th><th class="num">Redis Hold</th></tr></thead><tbody>`)
 
 		for _, d := range rc.Discrepancies {
-			fmt.Fprintf(html, `<tr><td class="mono">%s</td><td>%s</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td></tr>`,
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td></tr>",
 				truncateID(d.AccountID), d.AssetCode,
 				formatDecimal(d.DBAvailable), formatDecimal(d.RedisAvailable),
 				formatDecimal(d.DBOnHold), formatDecimal(d.RedisOnHold))

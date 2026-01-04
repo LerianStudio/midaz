@@ -98,6 +98,7 @@ func NewReconciliationEngine(
 			if logger != nil {
 				logger.Warnf("Ignoring checker with empty name")
 			}
+
 			continue
 		}
 
@@ -142,14 +143,17 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 	ctx, span := tracer.Start(ctx, "reconciliation.run")
+
 	span.SetAttributes(attribute.String("reconciliation.run_id", runID))
 	defer span.End()
 
 	var previous *domain.ReconciliationReport
+
 	e.mu.RLock()
 	if e.lastReport != nil {
 		previous = e.lastReport
 	}
+
 	e.mu.RUnlock()
 
 	report := &domain.ReconciliationReport{
@@ -176,6 +180,7 @@ func (e *ReconciliationEngine) RunReconciliation(ctx context.Context) (*domain.R
 		report.PreviousRunID = previous.RunID
 		report.PreviousStatus = previous.Status
 		report.StatusChanged = previous.Status != report.Status
+
 		report.Delta = computeDelta(previous, report)
 		if report.StatusChanged && e.logger != nil {
 			e.logger.Infof("Reconciliation status changed: %s -> %s", previous.Status, report.Status)
@@ -244,11 +249,14 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 			)
 
 			cfg := e.checkerConfigs[checkerName]
+
 			result, err := checkerInstance.Check(checkCtx, cfg)
 			if err != nil {
 				span.RecordError(err)
 			}
+
 			span.End()
+
 			durationMs := time.Since(start).Milliseconds()
 			resultCh <- e.buildCheckResult(checkerName, result, err, durationMs)
 		})
@@ -260,10 +268,12 @@ func (e *ReconciliationEngine) runParallelChecks(ctx context.Context, report *do
 	// Drain channel and populate report on single goroutine (no race)
 	for res := range resultCh {
 		e.applyCheckResult(report, res)
+
 		if res.durationMs > 0 {
 			if report.CheckDurations == nil {
 				report.CheckDurations = make(map[string]int64, checkerCount)
 			}
+
 			report.CheckDurations[res.name] = res.durationMs
 		}
 	}
@@ -274,6 +284,7 @@ func (e *ReconciliationEngine) buildCheckResult(name string, result postgres.Che
 		e.logCheckError(name, err)
 		res := errorCheckResult(name)
 		res.durationMs = durationMs
+
 		return res
 	}
 
@@ -281,112 +292,166 @@ func (e *ReconciliationEngine) buildCheckResult(name string, result postgres.Che
 		if e.logger != nil {
 			e.logger.Errorf("%s check returned nil result", checkerLabel(name))
 		}
+
 		res := errorCheckResult(name)
 		res.durationMs = durationMs
+
 		return res
 	}
 
 	switch name {
 	case postgres.CheckerNameBalance:
-		typedResult, ok := result.(*domain.BalanceCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.BalanceCheckResult) {
+			r.balanceCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, balanceCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameDoubleEntry:
-		typedResult, ok := result.(*domain.DoubleEntryCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.DoubleEntryCheckResult) {
+			r.doubleEntryCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, doubleEntryCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameOrphans:
-		typedResult, ok := result.(*domain.OrphanCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.OrphanCheckResult) {
+			r.orphanCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, orphanCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameReferential:
-		typedResult, ok := result.(*domain.ReferentialCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.ReferentialCheckResult) {
+			r.referentialCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, referentialCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameSync:
-		typedResult, ok := result.(*domain.SyncCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.SyncCheckResult) {
+			r.syncCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, syncCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameDLQ:
-		typedResult, ok := result.(*domain.DLQCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.DLQCheckResult) {
+			r.dlqCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, dlqCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameOutbox:
-		typedResult, ok := result.(*domain.OutboxCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.OutboxCheckResult) {
+			r.outboxCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, outboxCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameMetadata:
-		typedResult, ok := result.(*domain.MetadataCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.MetadataCheckResult) {
+			r.metadataCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, metadataCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameRedis:
-		typedResult, ok := result.(*domain.RedisCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.RedisCheckResult) {
+			r.redisCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, redisCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameCrossDB:
-		typedResult, ok := result.(*domain.CrossDBCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.CrossDBCheckResult) {
+			r.crossDBCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, crossDBCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	case postgres.CheckerNameCRMAlias:
-		typedResult, ok := result.(*domain.CRMAliasCheckResult)
-		if !ok {
-			res := e.unexpectedResult(name, result)
-			res.durationMs = durationMs
+		if res, ok := buildTypedResult(name, result, durationMs, func(r *checkResult, v *domain.CRMAliasCheckResult) {
+			r.crmAliasCheck = v
+		}); ok {
 			return res
 		}
-		return checkResult{name: name, crmAliasCheck: typedResult, durationMs: durationMs}
+
+		res := e.unexpectedResult(name, result)
+		res.durationMs = durationMs
+
+		return res
 	default:
 		if e.logger != nil {
 			e.logger.Warnf("Unknown checker name: %s", name)
 		}
+
 		return checkResult{name: name, durationMs: durationMs}
 	}
+}
+
+func buildTypedResult[T postgres.CheckResult](
+	name string,
+	result postgres.CheckResult,
+	durationMs int64,
+	set func(*checkResult, T),
+) (checkResult, bool) {
+	typed, ok := result.(T)
+	if !ok {
+		return checkResult{}, false
+	}
+
+	res := checkResult{name: name, durationMs: durationMs}
+	set(&res, typed)
+
+	return res, true
 }
 
 func (e *ReconciliationEngine) unexpectedResult(name string, result postgres.CheckResult) checkResult {
 	if e.logger != nil {
 		e.logger.Errorf("%s check returned unexpected result type: %T", checkerLabel(name), result)
 	}
+
 	return errorCheckResult(name)
 }
 

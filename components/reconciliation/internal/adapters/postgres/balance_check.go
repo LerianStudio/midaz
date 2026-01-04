@@ -77,8 +77,10 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 		FROM balance_calc
 	`
 
-	var totalDiscrepancy decimal.Decimal
-	var totalOnHoldDiscrepancy decimal.Decimal
+	var (
+		totalDiscrepancy       decimal.Decimal
+		totalOnHoldDiscrepancy decimal.Decimal
+	)
 
 	err := c.db.QueryRowContext(ctx, summaryQuery, config.DiscrepancyThreshold).Scan(
 		&result.TotalBalances,
@@ -94,6 +96,7 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 	}
 
 	result.TotalAbsoluteDiscrepancy = totalDiscrepancy
+
 	result.TotalOnHoldDiscrepancy = totalOnHoldDiscrepancy
 	if result.TotalBalances > 0 {
 		result.DiscrepancyPercentage = float64(result.BalancesWithDiscrepancy) / float64(result.TotalBalances) * percentageMultiplier

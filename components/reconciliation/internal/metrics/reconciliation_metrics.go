@@ -129,19 +129,24 @@ func (m *ReconciliationMetrics) RecordRun(ctx context.Context, report *domain.Re
 	if report.BalanceCheck != nil {
 		m.factory.Gauge(balanceDiscrepanciesMetric).Set(ctx, int64(report.BalanceCheck.BalancesWithDiscrepancy))
 	}
+
 	if report.DoubleEntryCheck != nil {
 		m.factory.Gauge(doubleEntryUnbalancedMetric).Set(ctx, int64(report.DoubleEntryCheck.UnbalancedTransactions))
 	}
+
 	if report.OrphanCheck != nil {
 		m.factory.Gauge(orphanTransactionsMetric).Set(ctx, int64(report.OrphanCheck.OrphanTransactions))
 	}
+
 	if report.OutboxCheck != nil {
 		m.factory.Gauge(outboxPendingMetric).Set(ctx, report.OutboxCheck.Pending)
 		m.factory.Gauge(outboxFailedMetric).Set(ctx, report.OutboxCheck.Failed)
 	}
+
 	if report.DLQCheck != nil {
 		m.factory.Gauge(dlqEntriesMetric).Set(ctx, report.DLQCheck.Total)
 	}
+
 	if report.RedisCheck != nil {
 		mismatch := int64(report.RedisCheck.MissingRedis + report.RedisCheck.ValueMismatches + report.RedisCheck.VersionMismatches)
 		m.factory.Gauge(redisMismatchMetric).Set(ctx, mismatch)
