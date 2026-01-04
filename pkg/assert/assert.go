@@ -1,7 +1,18 @@
+// Package assert provides assertion utilities for validating invariants.
+//
+// IMPORTANT: This package uses panics intentionally for fail-fast behavior.
+// Assertions are meant for catching programming errors and data integrity
+// violations, not for handling expected runtime errors. All panics from
+// this package are expected to be caught by worker-level recovery handlers
+// (see mruntime.SafeGoWithContextAndComponent).
+//
+// In production (ENV=production or GO_ENV=production), stack traces are
+// omitted from panic messages to prevent information disclosure.
 package assert
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"runtime/debug"
 	"strconv"
@@ -117,9 +128,14 @@ func panicWithContext(msg string, kv ...any) {
 		}
 	}
 
-	// Append stack trace
-	sb.WriteString("\nstack trace:\n")
-	sb.WriteString(string(debug.Stack()))
+	// Only include stack trace in non-production environments
+	// In production, the panic recovery handler will capture the stack if needed
+	env := strings.TrimSpace(os.Getenv("ENV"))
+	goEnv := strings.TrimSpace(os.Getenv("GO_ENV"))
+	if !strings.EqualFold(env, "production") && !strings.EqualFold(goEnv, "production") {
+		sb.WriteString("\nstack trace:\n")
+		sb.WriteString(string(debug.Stack()))
+	}
 
 	panic(sb.String())
 }
