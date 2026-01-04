@@ -509,6 +509,7 @@ func InitServers() *Service {
 	}
 
 	useCase := &command.UseCase{
+		Logger:                 logger,
 		TransactionRepo:        transactionPostgreSQLRepository,
 		OperationRepo:          operationPostgreSQLRepository,
 		AssetRateRepo:          assetRatePostgreSQLRepository,

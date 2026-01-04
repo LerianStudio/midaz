@@ -417,20 +417,38 @@ func TestOperateBalances_InvalidPrecision_Panics(t *testing.T) {
 	OperateBalances(amount, balance)
 }
 
-func TestApplyCanceledOperation_NegativeOnHold_Panics(t *testing.T) {
-	// Arrange: Try to release more than what's on hold
+func TestApplyCanceledOperation_Release_Succeeds_WhenOnHoldGTEReleaseAmount(t *testing.T) {
+	// Arrange: normal successful release where onHold >= release amount
 	amount := Amount{
-		Value:     decimal.NewFromInt(500),
+		Value:     decimal.NewFromInt(100),
 		Operation: constant.RELEASE,
 	}
 	available := decimal.NewFromInt(1000)
-	onHold := decimal.NewFromInt(100) // Less than release amount
+	onHold := decimal.NewFromInt(250)
 
-	// Act & Assert: Should panic because onHold would go negative
+	// Act
+	newAvailable, newOnHold, changed := applyCanceledOperation(amount, available, onHold)
+
+	// Assert
+	assert.Equal(t, decimal.NewFromInt(1100).String(), newAvailable.String(), "Available should increase by released amount")
+	assert.Equal(t, decimal.NewFromInt(150).String(), newOnHold.String(), "OnHold should decrease by released amount")
+	assert.True(t, changed, "changed should be true for successful RELEASE")
+}
+
+func TestApplyCanceledOperation_Release_Panics_WhenOnHoldInsufficientButNonZero(t *testing.T) {
+	// Arrange: Try to release more than what's on hold (0 < onHold < release amount)
+	amount := Amount{
+		Value:     decimal.NewFromInt(100),
+		Operation: constant.RELEASE,
+	}
+	available := decimal.NewFromInt(1000)
+	onHold := decimal.NewFromInt(50)
+
+	// Act & Assert: should panic due to validations.go assertion at line ~201
 	defer func() {
 		r := recover()
 		if r == nil {
-			t.Errorf("Expected panic for negative onHold, got none")
+			t.Errorf("Expected panic for insufficient onHold during RELEASE, got none")
 		}
 		panicMsg := fmt.Sprintf("%v", r)
 		if !strings.Contains(panicMsg, "onHold cannot go negative during RELEASE") {
@@ -439,6 +457,80 @@ func TestApplyCanceledOperation_NegativeOnHold_Panics(t *testing.T) {
 	}()
 
 	applyCanceledOperation(amount, available, onHold)
+}
+
+func TestApplyCanceledOperation_Idempotency_ZeroOnHold(t *testing.T) {
+	// Arrange: Try to release when onHold is already zero (idempotency case)
+	// This simulates a retry where the previous attempt already released the funds
+	amount := Amount{
+		Value:     decimal.NewFromInt(100),
+		Operation: constant.RELEASE,
+	}
+	available := decimal.NewFromInt(1500) // Already increased from previous release
+	onHold := decimal.NewFromInt(0)       // Already released
+
+	// Act
+	newAvailable, newOnHold, changed := applyCanceledOperation(amount, available, onHold)
+
+	// Assert: Should return unchanged values with changed=false (idempotent behavior)
+	assert.Equal(t, available.String(), newAvailable.String(), "Available should be unchanged")
+	assert.Equal(t, onHold.String(), newOnHold.String(), "OnHold should be unchanged")
+	assert.False(t, changed, "changed should be false for idempotent operation")
+}
+
+func TestApplyApprovedOperation_Idempotency_ZeroOnHold(t *testing.T) {
+	// Arrange: Try to debit when onHold is already zero (idempotency case)
+	// This simulates a retry where the previous attempt already debited the funds
+	amount := Amount{
+		Value:     decimal.NewFromInt(100),
+		Operation: constant.DEBIT,
+	}
+	available := decimal.NewFromInt(1000)
+	onHold := decimal.NewFromInt(0) // Already debited
+
+	// Act
+	newAvailable, newOnHold, changed := applyApprovedOperation(amount, available, onHold)
+
+	// Assert: Should return unchanged values with changed=false (idempotent behavior)
+	assert.Equal(t, available.String(), newAvailable.String(), "Available should be unchanged")
+	assert.Equal(t, onHold.String(), newOnHold.String(), "OnHold should be unchanged")
+	assert.False(t, changed, "changed should be false for idempotent operation")
+}
+
+func TestApplyApprovedOperation_NormalDebit_OnHoldGteAmount(t *testing.T) {
+	// Arrange: Normal debit where the hold fully covers the debit amount
+	amount := Amount{
+		Value:     decimal.NewFromInt(100),
+		Operation: constant.DEBIT,
+	}
+	available := decimal.NewFromInt(1000)
+	onHold := decimal.NewFromInt(200)
+
+	// Act
+	newAvailable, newOnHold, changed := applyApprovedOperation(amount, available, onHold)
+
+	// Assert: Available unchanged, onHold decreased by debit, changed=true
+	assert.Equal(t, available.String(), newAvailable.String(), "Available should be unchanged")
+	assert.Equal(t, decimal.NewFromInt(100).String(), newOnHold.String(), "OnHold should be decreased by debit amount")
+	assert.True(t, changed, "changed should be true when debit is applied")
+}
+
+func TestApplyApprovedOperation_EdgeCasePartialHold_ClampsToZero(t *testing.T) {
+	// Arrange: Edge case where 0 < onHold < debit amount (retry/convergence case)
+	amount := Amount{
+		Value:     decimal.NewFromInt(100),
+		Operation: constant.DEBIT,
+	}
+	available := decimal.NewFromInt(1000)
+	onHold := decimal.NewFromInt(50)
+
+	// Act
+	newAvailable, newOnHold, changed := applyApprovedOperation(amount, available, onHold)
+
+	// Assert: Clamp onHold to zero (never negative), available unchanged, changed=true
+	assert.Equal(t, available.String(), newAvailable.String(), "Available should be unchanged")
+	assert.True(t, newOnHold.IsZero(), "OnHold should be clamped to zero when it is less than debit amount")
+	assert.True(t, changed, "changed should be true when onHold is adjusted")
 }
 
 func TestCalculateTotal_ShareSumExceeds100_Panics(t *testing.T) {

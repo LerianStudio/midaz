@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -30,6 +31,11 @@ type DBProvider = dbtx.TxBeginner
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
 type UseCase struct {
+	// Logger provides a service-level logger for use cases that need to log but do not
+	// receive a logger explicitly via parameters.
+	// It may be nil in tests or when not wired by bootstrap; callers should guard usage.
+	Logger libLog.Logger
+
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
 

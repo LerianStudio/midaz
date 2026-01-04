@@ -148,7 +148,7 @@ func (uc *UseCase) updateBalancesStep(ctx context.Context, tracer trace.Tracer, 
 
 	logger.Infof("Trying to update balances")
 
-	if err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances); err != nil {
+	if err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, t.Transaction.ID, *t.Validate, t.Balances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
@@ -195,6 +195,14 @@ func (uc *UseCase) queueTransactionMetadata(ctx context.Context, tran *transacti
 	}
 
 	if err := uc.OutboxRepo.Create(ctx, entry); err != nil {
+		// Idempotency: if entry already exists (e.g., RabbitMQ retry), skip silently
+		if errors.Is(err, outbox.ErrDuplicateOutboxEntry) {
+			if uc.Logger != nil {
+				uc.Logger.Debugf("Outbox duplicate entry; skipping transaction metadata (transaction_id=%v)", tran.ID)
+			}
+			return nil
+		}
+
 		return fmt.Errorf("failed to queue transaction metadata to outbox: %w", err)
 	}
 
@@ -214,6 +222,11 @@ func (uc *UseCase) queueOperationsMetadata(ctx context.Context, operations []*op
 		}
 
 		if err := uc.OutboxRepo.Create(ctx, entry); err != nil {
+			// Idempotency: if entry already exists (e.g., RabbitMQ retry), skip silently
+			if errors.Is(err, outbox.ErrDuplicateOutboxEntry) {
+				continue
+			}
+
 			return fmt.Errorf("failed to queue operation metadata to outbox: %w", err)
 		}
 	}

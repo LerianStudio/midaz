@@ -8,14 +8,43 @@ import (
 	"github.com/LerianStudio/lib-commons/v2/commons"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libmetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	localConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
 	// percentageMultiplier is used to convert percentages to decimal values (divide by 100)
 	percentageMultiplier = 100
+)
+
+var (
+	// balanceOperationIdempotencySkipMetric tracks when we short-circuit balance changes due to idempotency checks.
+	// This helps distinguish legitimate retries (e.g., RabbitMQ redelivery) from unexpected call order bugs
+	// (e.g., RELEASE without a prior ONHOLD).
+	balanceOperationIdempotencySkipMetric = libmetrics.Metric{
+		Name:        "balance_operation_idempotency_skip_total",
+		Unit:        "1",
+		Description: "Total number of times a balance operation was skipped due to idempotency short-circuit checks",
+	}
+
+	// transactionsIdempotentDebitMetric tracks approved DEBIT idempotency skips specifically.
+	// This is useful to distinguish retry-driven reprocessing from unexpected flows.
+	transactionsIdempotentDebitMetric = libmetrics.Metric{
+		Name:        "transactions_idempotent_debit_total",
+		Unit:        "1",
+		Description: "Total number of times an approved DEBIT was skipped because onHold was zero (already applied)",
+	}
+
+	// balanceOperationClampMetric tracks when we clamp a positive onHold that is less than a DEBIT amount to zero.
+	// This indicates an unexpected partial-hold state (often retry-related) that should be traceable.
+	balanceOperationClampMetric = libmetrics.Metric{
+		Name:        "balance_operation_clamp_total",
+		Unit:        "1",
+		Description: "Total number of times balance onHold was clamped to zero because it was positive but less than the DEBIT amount",
+	}
 )
 
 // ValidateBalancesRules function with some validates in accounts and DSL operations
@@ -188,6 +217,13 @@ func applyPendingOperation(amount Amount, available, onHold decimal.Decimal) (de
 // applyCanceledOperation applies canceled transaction operations
 func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
 	if amount.Operation == constant.RELEASE {
+		// Idempotency check: if onHold is zero, the release was already applied
+		// (e.g., during a successful previous attempt before RabbitMQ retry).
+		// Return unchanged to avoid double-processing.
+		if onHold.IsZero() {
+			return available, onHold, false
+		}
+
 		newOnHold := onHold.Sub(amount.Value)
 		// OnHold can never be negative - this indicates a programming error
 		// (trying to release more than was held)
@@ -206,6 +242,20 @@ func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (d
 // applyApprovedOperation applies approved transaction operations
 func applyApprovedOperation(amount Amount, available, onHold decimal.Decimal) (decimal.Decimal, decimal.Decimal, bool) {
 	if amount.Operation == constant.DEBIT {
+		// Idempotency check: if onHold is zero, the debit was already applied
+		// (e.g., during a successful previous attempt before RabbitMQ retry).
+		// Return unchanged to avoid double-processing.
+		if onHold.IsZero() {
+			return available, onHold, false
+		}
+
+		// Convergence/safety: if onHold is positive but less than the debit amount,
+		// clamp to zero instead of going negative. This can happen during retries
+		// where part of the hold was already consumed by a previous successful attempt.
+		if onHold.LessThan(amount.Value) {
+			return available, decimal.Zero, true
+		}
+
 		return available, onHold.Sub(amount.Value), true
 	}
 
@@ -290,6 +340,107 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 		OnHold:    totalOnHold,
 		Version:   newVersion,
 	}, nil
+}
+
+func isBalanceIdempotencySkip(amount Amount, balance Balance) (bool, string) {
+	// RELEASE idempotency: balance already has no on-hold funds, so a retry must not double-apply.
+	if amount.TransactionType == constant.CANCELED &&
+		amount.Operation == constant.RELEASE &&
+		balance.OnHold.IsZero() {
+		return true, "release_onhold_zero"
+	}
+
+	// DEBIT idempotency: on-hold already consumed, so a retry must not double-apply.
+	if amount.TransactionType == constant.APPROVED &&
+		amount.Operation == constant.DEBIT &&
+		balance.OnHold.IsZero() {
+		return true, "debit_onhold_zero"
+	}
+
+	return false, ""
+}
+
+func isBalanceClamp(amount Amount, balance Balance) (bool, string) {
+	// Clamp case: convergence/safety during retries where onHold was partially consumed by a prior successful attempt.
+	if amount.TransactionType == constant.APPROVED &&
+		amount.Operation == constant.DEBIT &&
+		balance.OnHold.IsPositive() &&
+		balance.OnHold.LessThan(amount.Value) {
+		return true, "debit_onhold_lt_amount"
+	}
+
+	return false, ""
+}
+
+// OperateBalancesWithContext is a context-aware wrapper around OperateBalances.
+// It adds observability for idempotency short-circuit paths without changing the
+// core balance math or versioning behavior.
+func OperateBalancesWithContext(ctx context.Context, transactionID string, amount Amount, balance Balance) (Balance, error) {
+	logger, _, reqID, metricFactory := commons.NewTrackingFromContext(ctx)
+
+	if ok, reason := isBalanceIdempotencySkip(amount, balance); ok {
+		if metricFactory != nil {
+			metricFactory.Counter(balanceOperationIdempotencySkipMetric).
+				WithLabels(map[string]string{
+					"transaction_type": amount.TransactionType,
+					"operation":        amount.Operation,
+					"reason":           reason,
+				}).
+				AddOne(ctx)
+
+			if reason == "debit_onhold_zero" {
+				metricFactory.Counter(transactionsIdempotentDebitMetric).
+					AddOne(ctx)
+			}
+		}
+
+		if logger != nil {
+			logger.Debugf(
+				"balance_operation_idempotency_skip: transaction_id=%s account_id=%s txType=%s op=%s reason=%s balanceAlias=%s balanceKey=%s",
+				transactionID, balance.AccountID, amount.TransactionType, amount.Operation, reason, balance.Alias, balance.Key,
+			)
+		}
+	}
+
+	if ok, reason := isBalanceClamp(amount, balance); ok {
+		if metricFactory != nil {
+			metricFactory.Counter(balanceOperationClampMetric).
+				WithLabels(map[string]string{
+					"transaction_type": amount.TransactionType,
+					"operation":        amount.Operation,
+					"reason":           reason,
+				}).
+				AddOne(ctx)
+		}
+
+		if logger != nil {
+			spanCtx := trace.SpanContextFromContext(ctx)
+			traceID := ""
+			spanID := ""
+			if spanCtx.IsValid() {
+				traceID = spanCtx.TraceID().String()
+				spanID = spanCtx.SpanID().String()
+			}
+
+			logger.Warnf(
+				"balance_operation_clamp: transaction_id=%s account_id=%s txType=%s op=%s reason=%s amount=%s onHold=%s request_id=%s trace_id=%s span_id=%s balanceAlias=%s balanceKey=%s",
+				transactionID,
+				balance.AccountID,
+				amount.TransactionType,
+				amount.Operation,
+				reason,
+				amount.Value.String(),
+				balance.OnHold.String(),
+				reqID,
+				traceID,
+				spanID,
+				balance.Alias,
+				balance.Key,
+			)
+		}
+	}
+
+	return OperateBalances(amount, balance)
 }
 
 // determineOperationForPendingTransaction determines the operation for pending transactions
@@ -421,7 +572,9 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 
 			firstPart := percentage.Div(oneHundred)
 			secondPart := percentageOfPercentage.Div(oneHundred)
-			shareValue := transaction.Send.Value.Mul(firstPart).Mul(secondPart)
+			// Truncate to 18 decimal places to ensure exponent stays within valid range [-18, 18].
+			// Division can produce very high precision exponents (e.g., -32, -34) which would fail ValidAmount.
+			shareValue := transaction.Send.Value.Mul(firstPart).Mul(secondPart).Truncate(18)
 
 			amounts[fromTos[i].AccountAlias] = Amount{
 				Asset:           transaction.Send.Asset,

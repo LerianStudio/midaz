@@ -114,7 +114,7 @@ func TestUpdateBalances_AllStale_RefreshesFromCache(t *testing.T) {
 			return nil
 		})
 
-	err := uc.UpdateBalances(ctx, orgID, ledgerID, validate, balances)
+	err := uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
 
 	assert.NoError(t, err, "UpdateBalances should succeed after cache refresh when all balances are stale")
 }
@@ -207,7 +207,7 @@ func TestUpdateBalances_PartialStale_SucceedsWithFreshBalances(t *testing.T) {
 		})
 
 	// Execute
-	err := uc.UpdateBalances(ctx, orgID, ledgerID, validate, balances)
+	err := uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
 
 	// Assert: No error (partial stale is acceptable)
 	assert.NoError(t, err, "UpdateBalances should succeed after cache refresh with partial stale balances")
@@ -265,7 +265,7 @@ func TestUpdateBalances_StaleRefreshFails_ReturnsError(t *testing.T) {
 			Return(nil, errors.New("redis down")),
 	)
 
-	err := uc.UpdateBalances(ctx, orgID, ledgerID, validate, balances)
+	err := uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
 
 	var failedPreconditionErr pkg.FailedPreconditionError
 	assert.True(t, errors.As(err, &failedPreconditionErr),
@@ -306,7 +306,7 @@ func TestUpdateBalances_EmptyBalances_Panics(t *testing.T) {
 
 	// Verify panic occurs with expected assertion
 	assert.Panics(t, func() {
-		_ = uc.UpdateBalances(ctx, orgID, ledgerID, validate, balances)
+		_ = uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
 	}, "UpdateBalances should panic when balancesToUpdate is empty")
 }
 
@@ -381,7 +381,7 @@ func TestRefreshBalancesFromCache_MissingAmount_UsesWarnFallback(t *testing.T) {
 	logger := &MockLogger{}
 
 	// Call refreshBalancesFromCache directly
-	refreshed, err := uc.refreshBalancesFromCache(ctx, orgID, ledgerID, balances, fromTo, logger)
+	refreshed, err := uc.refreshBalancesFromCache(ctx, orgID, ledgerID, uuid.New().String(), balances, fromTo, logger)
 
 	// Verify no error
 	assert.NoError(t, err, "refreshBalancesFromCache should succeed with fallback path")
@@ -390,9 +390,10 @@ func TestRefreshBalancesFromCache_MissingAmount_UsesWarnFallback(t *testing.T) {
 	// Find balances by ID
 	var bal1, bal2 *mmodel.Balance
 	for _, b := range refreshed {
-		if b.ID == balanceID1 {
+		switch b.ID {
+		case balanceID1:
 			bal1 = b
-		} else if b.ID == balanceID2 {
+		case balanceID2:
 			bal2 = b
 		}
 	}
