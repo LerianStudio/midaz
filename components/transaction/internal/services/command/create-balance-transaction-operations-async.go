@@ -270,6 +270,14 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 }
 
 // handleCreateTransactionError handles errors during transaction creation, including unique violations.
+// When a pending transaction is committed/canceled and encounters a unique constraint violation,
+// this function updates the status AND ensures the original transaction's Operations array is preserved.
+// The Operations (RELEASE/DEBIT) will be created by createOperationsWithoutMetadata() which is called
+// after this function returns, using the operations from the original queue transaction.
+//
+// State machine for status transitions:
+//   - PENDING -> CANCELED: RELEASE operations (OnHold -= amount, Available += amount)
+//   - PENDING -> APPROVED: DEBIT operations (OnHold -= amount)
 func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace.Span, logger libLog.Logger, tran *transaction.Transaction, pending bool, err error) error {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != constant.UniqueViolationCode {
@@ -280,6 +288,23 @@ func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace
 	}
 
 	if pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+		// Validate that operations exist from the original queue transaction.
+		// For PENDING -> APPROVED/CANCELED transitions, operations (RELEASE/DEBIT) MUST be present
+		// to properly update the balance state machine (OnHold adjustments).
+		assert.That(len(tran.Operations) > 0,
+			"operations must not be empty for pending->approved/canceled status transition",
+			"transaction_id", tran.ID,
+			"status", tran.Status.Code,
+			"pending_flag", pending)
+
+		// Preserve the operation count before status update for logging.
+		// These operations (RELEASE/DEBIT) from the original queue transaction will be created
+		// by createOperationsWithoutMetadata() after this function returns successfully.
+		operationCount := len(tran.Operations)
+
+		logger.Infof("Updating pending transaction %v to %v with %d operations to be created",
+			tran.ID, tran.Status.Code, operationCount)
+
 		_, err = uc.UpdateTransactionStatus(ctx, tran)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction", err)
@@ -287,6 +312,18 @@ func (uc *UseCase) handleCreateTransactionError(ctx context.Context, span *trace
 
 			return pkg.ValidateInternalError(err, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
+
+		// IMPORTANT: tran.Operations is preserved from the original queue transaction.
+		// The caller (CreateOrUpdateTransaction) returns this tran, and createOperationsWithoutMetadata()
+		// will use tran.Operations to create the RELEASE/DEBIT operations in the database.
+		// This ensures the balance state machine transitions are properly recorded:
+		// - CANCELED: RELEASE operations restore funds from OnHold to Available
+		// - APPROVED: DEBIT operations finalize the deduction from OnHold
+		logger.Infof("Transaction %v status updated to %v, %d operations will be created",
+			tran.ID, tran.Status.Code, operationCount)
+
+		// Status transition handled; do not emit the generic "skipping to create" log below.
+		return nil
 	}
 
 	logger.Infof("skipping to create transaction, transaction already exists: %v", tran.ID)

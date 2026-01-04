@@ -100,14 +100,8 @@ func (mq *MultiQueueConsumer) validateBTOMessage(body []byte) (*mmodel.Queue, er
 		"message ledger_id must not be nil UUID",
 		"queue", "bto",
 		"organization_id", message.OrganizationID)
+
 	queueDataLen := len(message.QueueData)
-	if queueDataLen == 0 {
-		assert.That(false,
-			"message queue_data must not be empty",
-			"queue", "bto",
-			"organization_id", message.OrganizationID,
-			"ledger_id", message.LedgerID)
-	}
 	assert.That(queueDataLen == 1,
 		"message queue_data must contain exactly one item",
 		"queue", "bto",
