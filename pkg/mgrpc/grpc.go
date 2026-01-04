@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -66,7 +65,7 @@ func (c *GRPCConnection) Connect() error {
 func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 	if c.Conn == nil {
 		if err := c.Connect(); err != nil {
-			log.Printf("ERRCONECT %s", err)
+			c.Logger.Errorf("Failed to reconnect gRPC: %v", err)
 			return nil, err
 		}
 	}
@@ -105,7 +104,7 @@ var ErrGRPCConnectionNotReady = errors.New("gRPC connection is not ready")
 // getHealthCheckTimeout returns the configured health check timeout from environment variable
 // GRPC_HEALTH_CHECK_TIMEOUT. If the variable is not set or has an invalid value,
 // returns the default timeout of 5 seconds.
-func getHealthCheckTimeout() time.Duration {
+func getHealthCheckTimeout(logger libLog.Logger) time.Duration {
 	timeoutStr := os.Getenv("GRPC_HEALTH_CHECK_TIMEOUT")
 	if timeoutStr == "" {
 		return defaultHealthCheckTimeout
@@ -113,7 +112,7 @@ func getHealthCheckTimeout() time.Duration {
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+		logger.Warnf("invalid GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
 
 		return defaultHealthCheckTimeout
 	}
@@ -137,7 +136,7 @@ func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 	}
 
 	state := c.Conn.GetState()
-	timeout := getHealthCheckTimeout()
+	timeout := getHealthCheckTimeout(c.Logger)
 
 	// Ready means connection is established and ready - healthy
 	if state == connectivity.Ready {
