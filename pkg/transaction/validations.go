@@ -196,6 +196,7 @@ func applyCanceledOperation(amount Amount, available, onHold decimal.Decimal) (d
 			"original_onHold", onHold.String(),
 			"release_amount", amount.Value.String(),
 			"result", newOnHold.String())
+
 		return available.Add(amount.Value), newOnHold, true
 	}
 
@@ -359,6 +360,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 
 	// Track total share percentage and remaining count for validation
 	var totalSharePercentage int64 = 0
+
 	anyShareUsed := false
 	remainingCount := 0
 
@@ -367,7 +369,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 
 		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
 
-		assert.That(!(fromTos[i].Amount != nil && fromTos[i].Share != nil),
+		assert.That(fromTos[i].Amount == nil || fromTos[i].Share == nil,
 			"from/to entry cannot contain both amount and share",
 			"alias", fromTos[i].AccountAlias)
 
@@ -375,6 +377,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		if fromTos[i].Amount != nil {
 			amountAsset = fromTos[i].Amount.Asset
 		}
+
 		assert.That(fromTos[i].Amount == nil || amountAsset == transaction.Send.Asset,
 			"amount asset must match transaction asset",
 			"alias", fromTos[i].AccountAlias,

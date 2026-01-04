@@ -4,7 +4,7 @@
 package bootstrap
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -122,7 +122,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Get the MetadataIndexPort from transaction for metadata index operations
 	metadataIndexPort := transactionService.GetMetadataIndexPort()
 	if metadataIndexPort == nil {
-		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
+		return nil, errors.New("failed to get MetadataIndexPort from transaction module")
 	}
 
 	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")

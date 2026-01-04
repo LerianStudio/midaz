@@ -314,6 +314,7 @@ func NewOperation(id, transactionID, opType, assetCode string, amountValue decim
 		"value", amountValue.String())
 
 	now := time.Now()
+
 	return &Operation{
 		ID:            id,
 		TransactionID: transactionID,

@@ -258,6 +258,7 @@ func TransactionCanTransitionTo(current, target string) bool {
 	if !exists {
 		return false
 	}
+
 	return allowed[target]
 }
 
@@ -290,6 +291,7 @@ func BalanceSufficientForRelease(onHold, releaseAmount decimal.Decimal) bool {
 	if onHold.IsNegative() {
 		return false
 	}
+
 	return onHold.GreaterThanOrEqual(releaseAmount)
 }
 
@@ -305,6 +307,7 @@ func DateNotInFuture(t time.Time) bool {
 	if t.IsZero() {
 		return true
 	}
+
 	return !t.After(time.Now())
 }
 

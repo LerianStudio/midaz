@@ -50,19 +50,23 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	assert.That(len(operationRouteList) == len(payload.OperationRoutes), "operation routes count mismatch after lookup",
 		"expected_count", len(payload.OperationRoutes),
 		"actual_count", len(operationRouteList))
+
 	payloadIDs := make(map[uuid.UUID]struct{}, len(payload.OperationRoutes))
 	for _, routeID := range payload.OperationRoutes {
 		payloadIDs[routeID] = struct{}{}
 	}
+
 	for _, operationRoute := range operationRouteList {
 		_, ok := payloadIDs[operationRoute.ID]
 		assert.That(ok, "operation route id missing from payload after lookup",
 			"operation_route_id", operationRoute.ID)
 	}
+
 	operationRouteIDs := make(map[uuid.UUID]struct{}, len(operationRouteList))
 	for _, operationRoute := range operationRouteList {
 		operationRouteIDs[operationRoute.ID] = struct{}{}
 	}
+
 	for _, routeID := range payload.OperationRoutes {
 		_, ok := operationRouteIDs[routeID]
 		assert.That(ok, "payload operation route id missing from lookup results",

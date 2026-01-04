@@ -60,6 +60,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	assert.That(operationUpdated.LedgerID == ledgerID.String(), "operation ledger id mismatch after update",
 		"expected_ledger_id", ledgerID.String(),
 		"actual_ledger_id", operationUpdated.LedgerID)
+
 	if uoi.Description != "" {
 		assert.That(operationUpdated.Description == uoi.Description, "operation description mismatch after update",
 			"expected_description", uoi.Description,

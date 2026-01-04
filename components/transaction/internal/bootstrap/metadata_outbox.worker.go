@@ -380,6 +380,7 @@ func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
 		// If initialBackoff > maxBackoff/multiplier, the product would exceed maxBackoff, so cap.
 		if cfg.InitialBackoff > 0 && cfg.MaxBackoff > 0 {
 			initialU := uint64(cfg.InitialBackoff)
+
 			maxU := uint64(cfg.MaxBackoff)
 			if initialU > maxU/multiplier {
 				backoff = cfg.MaxBackoff

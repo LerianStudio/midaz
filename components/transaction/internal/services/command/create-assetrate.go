@@ -130,6 +130,7 @@ func (uc *UseCase) updateExistingAssetRate(ctx context.Context, span *trace.Span
 	assert.That(updated.LedgerID == ledgerID.String(), "asset rate ledger id mismatch after update",
 		"expected_ledger_id", ledgerID.String(),
 		"actual_ledger_id", updated.LedgerID)
+
 	if !libCommons.IsNilOrEmpty(cari.ExternalID) {
 		assert.That(updated.ExternalID == *cari.ExternalID, "asset rate external id mismatch after update",
 			"expected_external_id", *cari.ExternalID,

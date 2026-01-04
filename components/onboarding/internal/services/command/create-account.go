@@ -178,12 +178,7 @@ func (uc *UseCase) handleBalanceCreationError(ctx context.Context, err error, or
 		logger.Errorf("Failed to delete account during compensation: %v", delErr)
 	}
 
-	var (
-		unauthorized pkg.UnauthorizedError
-		forbidden    pkg.ForbiddenError
-	)
-
-	if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+	if isAuthorizationError(err) {
 		return err
 	}
 

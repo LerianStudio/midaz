@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -420,7 +419,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-	indexName := fmt.Sprintf("metadata.%s", metadata.MetadataKey)
+	indexName := "metadata." + metadata.MetadataKey
 
 	opts := options.Index().
 		SetUnique(metadata.Unique).

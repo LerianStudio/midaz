@@ -57,6 +57,7 @@ func getSecureRandLogger() libLog.Logger {
 	secureRandLoggerOnce.Do(func() {
 		secureRandLogger = libZap.InitializeLogger()
 	})
+
 	return secureRandLogger
 }
 
@@ -262,6 +263,7 @@ func (r *OutboxPostgreSQLRepository) Create(ctx context.Context, entry *Metadata
 			"rows_affected", rows,
 			"entity_id", entry.EntityID,
 			"entity_type", entry.EntityType)
+
 		if rows == 0 {
 			logger.Warnf("Duplicate outbox entry detected for entity_id=%s, entity_type=%s", entry.EntityID, entry.EntityType)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Duplicate outbox entry", ErrDuplicateOutboxEntry)
@@ -445,6 +447,7 @@ func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
 	if fetchSize < batchSize {
 		fetchSize = batchSize
 	}
+
 	if fetchSize > maxBatchSize {
 		fetchSize = maxBatchSize
 	}
@@ -529,7 +532,9 @@ func dedupePendingEntries(entries []*MetadataOutbox, batchSize int) ([]*Metadata
 		if _, ok := seen[key]; ok {
 			continue
 		}
+
 		seen[key] = struct{}{}
+
 		selected = append(selected, entry)
 		if len(selected) >= batchSize {
 			break
@@ -798,14 +803,17 @@ func (r *OutboxPostgreSQLRepository) MarkPublished(ctx context.Context, id strin
 
 			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
 		}
+
 		rowsAffected++
 	}
+
 	if rowsErr := rows.Err(); rowsErr != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked published rows", rowsErr)
 		logger.Errorf("Failed to iterate marked published rows: %v", rowsErr)
 
 		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
 	}
+
 	if rowsAffected == 0 {
 		// Could be: entry not found OR entry not in PROCESSING status
 		logger.Warnf("MarkPublished: no rows affected - entry may not exist or not in PROCESSING status: id=%s", id)
@@ -895,14 +903,17 @@ func (r *OutboxPostgreSQLRepository) MarkFailed(ctx context.Context, id string, 
 
 			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
 		}
+
 		rowsAffected++
 	}
+
 	if rowsErr := rows.Err(); rowsErr != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked failed rows", rowsErr)
 		logger.Errorf("Failed to iterate marked failed rows: %v", rowsErr)
 
 		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
 	}
+
 	if rowsAffected == 0 {
 		// Could be: entry not found OR entry not in PROCESSING status
 		logger.Warnf("MarkFailed: no rows affected - entry may not exist or not in PROCESSING status: id=%s", id)
@@ -996,14 +1007,17 @@ func (r *OutboxPostgreSQLRepository) MarkDLQ(ctx context.Context, id string, err
 
 			return pkg.ValidateInternalError(scanErr, "MetadataOutbox")
 		}
+
 		rowsAffected++
 	}
+
 	if rowsErr := rows.Err(); rowsErr != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate marked DLQ rows", rowsErr)
 		logger.Errorf("Failed to iterate marked DLQ rows: %v", rowsErr)
 
 		return pkg.ValidateInternalError(rowsErr, "MetadataOutbox")
 	}
+
 	if rowsAffected == 0 {
 		// Could be: entry not found OR entry not in PROCESSING/FAILED status
 		logger.Warnf("MarkDLQ: no rows affected - entry may not exist or in invalid status: id=%s", id)

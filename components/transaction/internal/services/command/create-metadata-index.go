@@ -32,7 +32,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.Create
 		return nil, err
 	}
 
-	expectedIndexKey := fmt.Sprintf("metadata.%s", input.MetadataKey)
+	expectedIndexKey := "metadata." + input.MetadataKey
 	for _, idx := range existingIndexes {
 		if idx.MetadataKey == expectedIndexKey {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Metadata index already exists", nil)

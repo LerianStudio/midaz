@@ -782,6 +782,7 @@ func validateDoubleEntry(operations []*mmodel.Operation) {
 		if op == nil || op.Amount.Value == nil {
 			continue
 		}
+
 		switch op.Type {
 		case constant.DEBIT:
 			debitTotal = debitTotal.Add(*op.Amount.Value)

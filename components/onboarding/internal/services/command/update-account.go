@@ -28,6 +28,14 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to update account: %v", uai)
 
+	normalizeNilMetadata := func(m map[string]any) map[string]any {
+		if m == nil {
+			return map[string]any{}
+		}
+
+		return m
+	}
+
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		logger.Errorf("Error finding account by alias: %v", err)
@@ -91,13 +99,6 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	assert.That(accountUpdated.LedgerID == ledgerID.String(), "account ledger id mismatch after update",
 		"expected_ledger_id", ledgerID.String(),
 		"actual_ledger_id", accountUpdated.LedgerID)
-	if uai.Metadata == nil {
-		assert.That(reflect.DeepEqual(accountUpdated.Metadata, accFound.Metadata),
-			"account metadata should remain unchanged when update metadata is nil",
-			"account_id", id,
-			"organization_id", organizationID,
-			"ledger_id", ledgerID)
-	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
@@ -109,6 +110,14 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	accountUpdated.Metadata = metadataUpdated
+
+	if uai.Metadata == nil {
+		assert.That(reflect.DeepEqual(normalizeNilMetadata(accountUpdated.Metadata), normalizeNilMetadata(accFound.Metadata)),
+			"account metadata should remain unchanged when update metadata is nil",
+			"account_id", id,
+			"organization_id", organizationID,
+			"ledger_id", ledgerID)
+	}
 
 	return accountUpdated, nil
 }
