@@ -483,7 +483,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		postgres.NewBalanceChecker(transactionDB),
 		postgres.NewDoubleEntryChecker(transactionDB),
 		postgres.NewOrphanChecker(transactionDB),
-		postgres.NewReferentialChecker(onboardingDB, transactionDB),
+		postgres.NewReferentialChecker(onboardingDB, transactionDB, logger),
 		postgres.NewSyncChecker(transactionDB),
 		postgres.NewDLQChecker(transactionDB),
 		postgres.NewOutboxChecker(transactionDB),

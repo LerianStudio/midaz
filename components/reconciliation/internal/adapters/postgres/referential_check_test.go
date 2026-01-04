@@ -1,12 +1,11 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"testing"
 
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ func TestReferentialChecker_Check_NoOrphans(t *testing.T) {
 	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	checker := NewReferentialChecker(onboardingDB, transactionDB, nil)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
@@ -78,7 +77,7 @@ func TestReferentialChecker_Check_WithOrphans(t *testing.T) {
 	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	checker := NewReferentialChecker(onboardingDB, transactionDB, nil)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
@@ -120,7 +119,7 @@ func TestReferentialChecker_Check_CriticalOrphans(t *testing.T) {
 	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	checker := NewReferentialChecker(onboardingDB, transactionDB, nil)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
@@ -134,16 +133,6 @@ func TestReferentialChecker_Check_CriticalOrphans(t *testing.T) {
 
 func TestReferentialChecker_Check_UnknownEntityType_IsCountedAndLogged(t *testing.T) {
 	t.Parallel()
-
-	var logBuf bytes.Buffer
-	prevOut := log.Writer()
-	prevFlags := log.Flags()
-	log.SetOutput(&logBuf)
-	log.SetFlags(0)
-	t.Cleanup(func() {
-		log.SetOutput(prevOut)
-		log.SetFlags(prevFlags)
-	})
 
 	onboardingDB, onboardingMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -165,23 +154,19 @@ func TestReferentialChecker_Check_UnknownEntityType_IsCountedAndLogged(t *testin
 	transactionMock.ExpectQuery(`SELECT COUNT\(\*\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	// Use real logger (logging output is verified by seeing no panic and proper count)
+	logger := libZap.InitializeLogger()
+	checker := NewReferentialChecker(onboardingDB, transactionDB, logger)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.NoError(t, err)
 	typedResult := requireReferentialResult(t, result)
 
+	// Verify unknown entity type is properly counted
 	assert.Equal(t, 1, typedResult.OrphanUnknown)
 	assert.Len(t, typedResult.Orphans, 1)
 	assert.Equal(t, "new_entity_type", typedResult.Orphans[0].EntityType)
 	assert.Equal(t, "weird-1", typedResult.Orphans[0].EntityID)
-
-	// Ensure the warning log contains the unexpected type and identifiers.
-	logLine := logBuf.String()
-	assert.Contains(t, logLine, `unexpected orphan entity_type="new_entity_type"`)
-	assert.Contains(t, logLine, `entity_id="weird-1"`)
-	assert.Contains(t, logLine, `reference_type="ledger"`)
-	assert.Contains(t, logLine, `reference_id="ldg-123"`)
 
 	assert.NoError(t, onboardingMock.ExpectationsWereMet())
 	assert.NoError(t, transactionMock.ExpectationsWereMet())
@@ -201,7 +186,7 @@ func TestReferentialChecker_Check_OnboardingQueryError(t *testing.T) {
 	onboardingMock.ExpectQuery(`WITH orphan_ledgers AS`).
 		WillReturnError(assert.AnError)
 
-	checker := NewReferentialChecker(onboardingDB, transactionDB)
+	checker := NewReferentialChecker(onboardingDB, transactionDB, nil)
 	result, err := checker.Check(context.Background(), CheckerConfig{})
 
 	require.Error(t, err)

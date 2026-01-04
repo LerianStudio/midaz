@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
@@ -18,13 +18,19 @@ const (
 type ReferentialChecker struct {
 	onboardingDB  *sql.DB
 	transactionDB *sql.DB
+	logger        libLog.Logger
 }
 
 // NewReferentialChecker creates a new referential checker
-func NewReferentialChecker(onboardingDB, transactionDB *sql.DB) *ReferentialChecker {
+func NewReferentialChecker(onboardingDB, transactionDB *sql.DB, logger libLog.Logger) *ReferentialChecker {
+	if logger == nil {
+		logger = &libLog.NoneLogger{}
+	}
+
 	return &ReferentialChecker{
 		onboardingDB:  onboardingDB,
 		transactionDB: transactionDB,
+		logger:        logger,
 	}
 }
 
@@ -123,7 +129,7 @@ func (c *ReferentialChecker) checkOnboardingOrphans(ctx context.Context, result 
 			// Count + log unknown entity types so schema changes aren't silently ignored.
 			result.OrphanUnknown++
 
-			log.Printf(
+			c.logger.Warnf(
 				"reconciliation referential check: unexpected orphan entity_type=%q entity_id=%q reference_type=%q reference_id=%q",
 				o.EntityType, o.EntityID, o.ReferenceType, o.ReferenceID,
 			)
