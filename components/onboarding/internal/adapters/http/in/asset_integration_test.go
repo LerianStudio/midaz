@@ -500,10 +500,10 @@ func randString(n int) string {
 	return string(b)
 }
 
-// TestIntegration_Fuzz_Account_AliasAndType tests that various account alias lengths
+// TestIntegration_Property_Account_AliasAndType tests that various account alias lengths
 // and types don't cause 5xx errors. This is a property-based integration test that
 // validates the system handles edge cases gracefully.
-func TestIntegration_Fuzz_Account_AliasAndType(t *testing.T) {
+func TestIntegration_Property_Account_AliasAndType(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)
 
@@ -567,9 +567,9 @@ func TestIntegration_Fuzz_Account_AliasAndType(t *testing.T) {
 	}
 }
 
-// TestIntegration_Fuzz_Account_DuplicateAlias tests that duplicate alias submission
+// TestIntegration_Property_Account_DuplicateAlias tests that duplicate alias submission
 // is handled correctly (should return 409 Conflict, not 5xx).
-func TestIntegration_Fuzz_Account_DuplicateAlias(t *testing.T) {
+func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)
 
@@ -616,9 +616,9 @@ func TestIntegration_Fuzz_Account_DuplicateAlias(t *testing.T) {
 		"duplicate alias should return 4xx, got %d: %s", duplicateResp.StatusCode, string(respBody))
 }
 
-// TestIntegration_Fuzz_Structural_InvalidJSON tests that various malformed inputs
+// TestIntegration_Property_Structural_InvalidJSON tests that various malformed inputs
 // are handled gracefully without causing 5xx errors.
-func TestIntegration_Fuzz_Structural_InvalidJSON(t *testing.T) {
+func TestIntegration_Property_Structural_InvalidJSON(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)
 
@@ -663,9 +663,9 @@ func TestIntegration_Fuzz_Structural_InvalidJSON(t *testing.T) {
 	}
 }
 
-// TestIntegration_Fuzz_Structural_LargeMetadata tests that large metadata payloads
+// TestIntegration_Property_Structural_LargeMetadata tests that large metadata payloads
 // are handled gracefully without causing 5xx errors.
-func TestIntegration_Fuzz_Structural_LargeMetadata(t *testing.T) {
+func TestIntegration_Property_Structural_LargeMetadata(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)
 
@@ -698,9 +698,9 @@ func TestIntegration_Fuzz_Structural_LargeMetadata(t *testing.T) {
 		"server should not return 5xx for large metadata payload")
 }
 
-// TestIntegration_Fuzz_Structural_UnknownFields tests that payloads with unknown fields
+// TestIntegration_Property_Structural_UnknownFields tests that payloads with unknown fields
 // are handled gracefully (should return 4xx, not 5xx or silently accept).
-func TestIntegration_Fuzz_Structural_UnknownFields(t *testing.T) {
+func TestIntegration_Property_Structural_UnknownFields(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)
 

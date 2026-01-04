@@ -2292,10 +2292,10 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
 }
 
-// TestIntegration_Fuzz_Transaction_Amounts tests that various transaction amount values
+// TestIntegration_Property_Transaction_Amounts tests that various transaction amount values
 // are handled gracefully without causing 5xx errors. This validates edge cases like
 // negative, zero, very large, and high-precision decimal amounts.
-func TestIntegration_Fuzz_Transaction_Amounts(t *testing.T) {
+func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
@@ -2380,9 +2380,9 @@ func TestIntegration_Fuzz_Transaction_Amounts(t *testing.T) {
 	}
 }
 
-// TestIntegration_Fuzz_Protocol_RapidFire tests that rapid-fire transactions
+// TestIntegration_Property_Protocol_RapidFire tests that rapid-fire transactions
 // are handled correctly without race conditions or 5xx errors.
-func TestIntegration_Fuzz_Protocol_RapidFire(t *testing.T) {
+func TestIntegration_Property_Protocol_RapidFire(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
@@ -2473,9 +2473,9 @@ func TestIntegration_Fuzz_Protocol_RapidFire(t *testing.T) {
 	assert.Greater(t, success, 0, "at least some transactions should succeed")
 }
 
-// TestIntegration_Fuzz_Protocol_Idempotency tests that idempotent retries
+// TestIntegration_Property_Protocol_Idempotency tests that idempotent retries
 // are handled correctly (same request returns same response or 409).
-func TestIntegration_Fuzz_Protocol_Idempotency(t *testing.T) {
+func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")

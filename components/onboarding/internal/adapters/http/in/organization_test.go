@@ -1001,9 +1001,9 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 // Ensure libPostgres.Pagination is used (referenced in handler)
 var _ = libPostgres.Pagination{}
 
-// TestFuzz_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
+// TestProperty_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
 // This is a property-based test with randomized field lengths.
-func TestFuzz_Organization_FieldLengths(t *testing.T) {
+func TestProperty_Organization_FieldLengths(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -1087,9 +1087,9 @@ func TestFuzz_Organization_FieldLengths(t *testing.T) {
 	}
 }
 
-// TestFuzz_Headers_InvalidFormats tests that invalid header formats don't cause 5xx errors.
+// TestProperty_Headers_InvalidFormats tests that invalid header formats don't cause 5xx errors.
 // This is a property-based test that validates HTTP layer robustness.
-func TestFuzz_Headers_InvalidFormats(t *testing.T) {
+func TestProperty_Headers_InvalidFormats(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -1140,8 +1140,8 @@ func TestFuzz_Headers_InvalidFormats(t *testing.T) {
 	}
 }
 
-// TestFuzz_ContentType_Variations tests that various Content-Type values don't cause 5xx errors.
-func TestFuzz_ContentType_Variations(t *testing.T) {
+// TestProperty_ContentType_Variations tests that various Content-Type values don't cause 5xx errors.
+func TestProperty_ContentType_Variations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -1206,9 +1206,9 @@ func TestFuzz_ContentType_Variations(t *testing.T) {
 	}
 }
 
-// TestFuzz_Headers_MissingContentType tests that POST requests without Content-Type
+// TestProperty_Headers_MissingContentType tests that POST requests without Content-Type
 // are handled gracefully (should return 4xx, not 5xx).
-func TestFuzz_Headers_MissingContentType(t *testing.T) {
+func TestProperty_Headers_MissingContentType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -1248,9 +1248,9 @@ func TestFuzz_Headers_MissingContentType(t *testing.T) {
 	assert.Less(t, resp.StatusCode, 500, "missing Content-Type should not cause 5xx")
 }
 
-// TestFuzz_Headers_DuplicateContentType tests that requests with duplicate Content-Type
+// TestProperty_Headers_DuplicateContentType tests that requests with duplicate Content-Type
 // headers are handled gracefully (should not cause 5xx).
-func TestFuzz_Headers_DuplicateContentType(t *testing.T) {
+func TestProperty_Headers_DuplicateContentType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -1290,9 +1290,9 @@ func TestFuzz_Headers_DuplicateContentType(t *testing.T) {
 	assert.Less(t, resp.StatusCode, 500, "duplicate Content-Type should not cause 5xx")
 }
 
-// TestFuzz_Headers_DuplicateXRequestId tests that requests with duplicate X-Request-Id
+// TestProperty_Headers_DuplicateXRequestId tests that requests with duplicate X-Request-Id
 // headers are handled gracefully (should not cause 5xx).
-func TestFuzz_Headers_DuplicateXRequestId(t *testing.T) {
+func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
