@@ -30,14 +30,19 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		setupMocks     func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID)
+		setupMocks     func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:        "success returns 200 with transaction",
 			queryParams: "",
-			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				// Redis cache miss (empty string = not found)
+				redisRepo.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
+					Return("", nil).
+					Times(1)
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -82,7 +87,12 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 		{
 			name:        "not found returns 404",
 			queryParams: "",
-			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				// Redis cache miss (empty string = not found)
+				redisRepo.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
+					Return("", nil).
+					Times(1)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
@@ -106,7 +116,12 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 		{
 			name:        "repository error returns 500",
 			queryParams: "",
-			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				// Redis cache miss (empty string = not found)
+				redisRepo.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
+					Return("", nil).
+					Times(1)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.InternalServerError{
@@ -129,7 +144,12 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 		{
 			name:        "metadata error returns 500",
 			queryParams: "",
-			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				// Redis cache miss (empty string = not found)
+				redisRepo.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
+					Return("", nil).
+					Times(1)
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -166,7 +186,12 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 		{
 			name:        "operations error returns 500",
 			queryParams: "",
-			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+				// Redis cache miss (empty string = not found)
+				redisRepo.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
+					Return("", nil).
+					Times(1)
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -219,12 +244,14 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
 			mockOperationRepo := operation.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-			tt.setupMocks(mockTransactionRepo, mockOperationRepo, mockMetadataRepo, orgID, ledgerID, transactionID)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			tt.setupMocks(mockTransactionRepo, mockOperationRepo, mockMetadataRepo, mockRedisRepo, orgID, ledgerID, transactionID)
 
 			uc := &query.UseCase{
 				TransactionRepo: mockTransactionRepo,
 				OperationRepo:   mockOperationRepo,
 				MetadataRepo:    mockMetadataRepo,
+				RedisRepo:       mockRedisRepo,
 			}
 			handler := &TransactionHandler{Query: uc}
 

@@ -24,8 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	mongotestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/mongodb"
-	postgrestestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/postgres"
+	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
+	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +47,10 @@ func (m *mockBalancePort) CreateBalanceSync(ctx context.Context, input mmodel.Cr
 }
 
 func (m *mockBalancePort) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+	return nil
+}
+
+func (m *mockBalancePort) CheckHealth(ctx context.Context) error {
 	return nil
 }
 

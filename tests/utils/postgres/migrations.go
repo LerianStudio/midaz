@@ -33,6 +33,7 @@ func FindMigrationsPath(t *testing.T, component string) string {
 		if parent == dir {
 			t.Fatalf("could not find migrations directory for component %q", component)
 		}
+
 		dir = parent
 	}
 }

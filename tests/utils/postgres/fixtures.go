@@ -276,6 +276,7 @@ type TransactionParams struct {
 // DefaultTransactionParams returns default parameters for creating a test transaction.
 func DefaultTransactionParams() TransactionParams {
 	body := `{"send":{"asset":"USD","value":"100"}}`
+
 	return TransactionParams{
 		Description:              "Test transaction",
 		Status:                   "PENDING",
@@ -357,14 +358,17 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 	if status == "" {
 		status = "APPROVED"
 	}
+
 	balanceKey := params.BalanceKey
 	if balanceKey == "" {
 		balanceKey = "default"
 	}
+
 	chartOfAccounts := params.ChartOfAccounts
 	if chartOfAccounts == "" {
 		chartOfAccounts = "default"
 	}
+
 	balanceAffected := true
 	if !params.BalanceAffected && params.Status != "" {
 		// Only respect false if explicitly set (Status is set as indicator)
@@ -403,6 +407,7 @@ func GetTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID) string {
 	t.Helper()
 
 	var status string
+
 	err := db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, txID).Scan(&status)
 	require.NoError(t, err, "failed to get transaction status")
 
@@ -414,6 +419,7 @@ func GetTransactionParentID(t *testing.T, db *sql.DB, txID uuid.UUID) *uuid.UUID
 	t.Helper()
 
 	var parentID *string
+
 	err := db.QueryRow(`SELECT parent_transaction_id FROM transaction WHERE id = $1`, txID).Scan(&parentID)
 	require.NoError(t, err, "failed to get transaction parent ID")
 
@@ -432,6 +438,7 @@ func GetBalanceAvailable(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.
 	t.Helper()
 
 	var available decimal.Decimal
+
 	err := db.QueryRow(`SELECT available FROM balance WHERE id = $1`, balanceID).Scan(&available)
 	require.NoError(t, err, "failed to get balance available")
 
@@ -443,6 +450,7 @@ func GetBalanceOnHold(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.Dec
 	t.Helper()
 
 	var onHold decimal.Decimal
+
 	err := db.QueryRow(`SELECT on_hold FROM balance WHERE id = $1`, balanceID).Scan(&onHold)
 	require.NoError(t, err, "failed to get balance on_hold")
 
@@ -454,6 +462,7 @@ func CountOperationsByTransactionID(t *testing.T, db *sql.DB, txID uuid.UUID) in
 	t.Helper()
 
 	var count int
+
 	err := db.QueryRow(`SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, txID).Scan(&count)
 	require.NoError(t, err, "failed to count operations")
 
@@ -466,10 +475,12 @@ func GetTransactionByParentID(t *testing.T, db *sql.DB, parentID uuid.UUID) *uui
 	t.Helper()
 
 	var id string
+
 	err := db.QueryRow(`SELECT id FROM transaction WHERE parent_transaction_id = $1`, parentID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil
 	}
+
 	require.NoError(t, err, "failed to get transaction by parent ID")
 
 	txID, err := uuid.Parse(id)
@@ -483,6 +494,7 @@ func GetBalanceByAlias(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, alia
 	t.Helper()
 
 	var available decimal.Decimal
+
 	err := db.QueryRow(`
 		SELECT available FROM balance
 		WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL
@@ -571,6 +583,7 @@ type AssetRateParams struct {
 // DefaultAssetRateParams returns default parameters for creating a test asset rate.
 func DefaultAssetRateParams() AssetRateParams {
 	source := "Test Source"
+
 	return AssetRateParams{
 		From:      "USD",
 		To:        "BRL",

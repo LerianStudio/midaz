@@ -13,7 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/postgres"
+	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"

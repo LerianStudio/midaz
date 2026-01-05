@@ -11,7 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	redistestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/redis"
+	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"

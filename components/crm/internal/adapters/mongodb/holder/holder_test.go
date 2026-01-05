@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

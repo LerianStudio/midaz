@@ -10,8 +10,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
-	mongotestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/mongodb"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
+	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

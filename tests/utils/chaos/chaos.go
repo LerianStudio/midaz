@@ -37,12 +37,14 @@ func DefaultOrchestratorConfig() OrchestratorConfig {
 // NewOrchestrator creates a new chaos orchestrator.
 // It initializes Docker client for container operations.
 func NewOrchestrator(t *testing.T) *Orchestrator {
+	t.Helper()
 	return NewOrchestratorWithConfig(t, DefaultOrchestratorConfig())
 }
 
 // NewOrchestratorWithConfig creates a new chaos orchestrator with custom configuration.
 func NewOrchestratorWithConfig(t *testing.T, cfg OrchestratorConfig) *Orchestrator {
 	t.Helper()
+
 	ctx := context.Background()
 	_ = ctx // Silence unused variable warning
 
@@ -74,6 +76,7 @@ func (o *Orchestrator) Close() error {
 	if o.docker != nil {
 		return o.docker.Close()
 	}
+
 	return nil
 }
 
@@ -83,10 +86,12 @@ func (o *Orchestrator) WaitForRecovery(ctx context.Context, check func() error, 
 	o.t.Helper()
 
 	deadline := time.Now().Add(timeout)
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	var lastErr error
+
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
@@ -103,6 +108,7 @@ func (o *Orchestrator) WaitForRecovery(ctx context.Context, check func() error, 
 	if lastErr != nil {
 		return lastErr
 	}
+
 	return context.DeadlineExceeded
 }
 

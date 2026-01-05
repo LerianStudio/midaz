@@ -14,7 +14,7 @@ import (
 
 // AssertRecoveryWithin asserts that a check function succeeds within the given timeout.
 // This is useful for verifying that a service recovers after chaos injection.
-func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duration, msgAndArgs ...interface{}) {
+func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duration, msgAndArgs ...any) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -24,6 +24,7 @@ func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duratio
 	defer ticker.Stop()
 
 	var lastErr error
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -31,7 +32,9 @@ func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duratio
 			if lastErr != nil {
 				msg = fmt.Sprintf("%s: last error: %v", msg, lastErr)
 			}
+
 			require.Fail(t, msg, msgAndArgs...)
+
 			return
 		case <-ticker.C:
 			if err := check(); err == nil {
@@ -45,21 +48,22 @@ func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duratio
 
 // AssertNoDataLoss asserts that data is preserved after chaos.
 // It compares the result of a query function before and after chaos.
-func AssertNoDataLoss[T comparable](t *testing.T, before, after T, msgAndArgs ...interface{}) {
+func AssertNoDataLoss[T comparable](t *testing.T, before, after T, msgAndArgs ...any) {
 	t.Helper()
 	assert.Equal(t, before, after, msgAndArgs...)
 }
 
 // AssertDataIntegrity runs a custom integrity check function and fails if it returns an error.
-func AssertDataIntegrity(t *testing.T, check func() error, msgAndArgs ...interface{}) {
+func AssertDataIntegrity(t *testing.T, check func() error, msgAndArgs ...any) {
 	t.Helper()
+
 	err := check()
 	require.NoError(t, err, msgAndArgs...)
 }
 
 // AssertGracefulDegradation asserts that operations fail gracefully during chaos.
 // It expects the operation to return an error (not panic) and optionally validates the error.
-func AssertGracefulDegradation(t *testing.T, operation func() error, validateError func(error) bool, msgAndArgs ...interface{}) {
+func AssertGracefulDegradation(t *testing.T, operation func() error, validateError func(error) bool, msgAndArgs ...any) {
 	t.Helper()
 
 	err := operation()

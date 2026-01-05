@@ -54,16 +54,18 @@ func DefaultInfrastructureConfig() InfrastructureConfig {
 
 // NewInfrastructure creates a new chaos test infrastructure.
 func NewInfrastructure(t *testing.T) *Infrastructure {
+	t.Helper()
 	return NewInfrastructureWithConfig(t, DefaultInfrastructureConfig())
 }
 
 // NewInfrastructureWithConfig creates a new chaos test infrastructure with custom configuration.
 func NewInfrastructureWithConfig(t *testing.T, cfg InfrastructureConfig) *Infrastructure {
 	t.Helper()
+
 	ctx := context.Background()
 
 	// Create Docker network for containers
-	network, err := tcNetwork.New(ctx, tcNetwork.WithCheckDuplicate())
+	network, err := tcNetwork.New(ctx)
 	require.NoError(t, err, "failed to create Docker network")
 
 	infra := &Infrastructure{
@@ -107,6 +109,7 @@ func (i *Infrastructure) NetworkName() string {
 // This allows the infrastructure to track and manage the container.
 func (i *Infrastructure) RegisterContainer(name string, container testcontainers.Container) (*ContainerInfo, error) {
 	i.t.Helper()
+
 	ctx := context.Background()
 
 	id := container.GetContainerID()
@@ -123,6 +126,7 @@ func (i *Infrastructure) RegisterContainer(name string, container testcontainers
 	}
 
 	var port string
+
 	for _, bindings := range ports {
 		if len(bindings) > 0 {
 			port = bindings[0].HostPort
@@ -139,12 +143,14 @@ func (i *Infrastructure) RegisterContainer(name string, container testcontainers
 	}
 
 	i.containers[name] = info
+
 	return info, nil
 }
 
 // RegisterContainerWithPort registers a container with a specific port.
 func (i *Infrastructure) RegisterContainerWithPort(name string, container testcontainers.Container, portID string) (*ContainerInfo, error) {
 	i.t.Helper()
+
 	ctx := context.Background()
 
 	id := container.GetContainerID()
@@ -169,6 +175,7 @@ func (i *Infrastructure) RegisterContainerWithPort(name string, container testco
 	}
 
 	i.containers[name] = info
+
 	return info, nil
 }
 
@@ -211,6 +218,7 @@ func (i *Infrastructure) CreateProxyFor(containerName string, listenPort string)
 	info.ProxyListen = fmt.Sprintf("%s:%s", toxiHost, mappedPort.Port())
 
 	i.proxies[containerName] = proxy
+
 	return proxy, nil
 }
 
@@ -230,6 +238,7 @@ func (i *Infrastructure) Cleanup() {
 // cleanup is the internal cleanup implementation called by t.Cleanup().
 func (i *Infrastructure) cleanup() {
 	i.t.Helper()
+
 	ctx := context.Background()
 
 	// Delete all proxies
@@ -266,6 +275,7 @@ func (i *Infrastructure) ToxiproxyHost() string {
 	if i.toxiproxy == nil {
 		return ""
 	}
+
 	return i.toxiproxy.Host
 }
 
@@ -274,5 +284,6 @@ func (i *Infrastructure) ToxiproxyClient() *toxiproxyclient.Client {
 	if i.toxiproxy == nil {
 		return nil
 	}
+
 	return i.toxiproxy.Client
 }

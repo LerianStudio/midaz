@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
@@ -62,12 +62,14 @@ type ContainerResult struct {
 // SetupContainer starts a PostgreSQL container for integration testing.
 // Returns raw sql.DB for direct inserts and connection info for lib-commons.
 func SetupContainer(t *testing.T) *ContainerResult {
+	t.Helper()
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a PostgreSQL container with custom configuration.
 func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
 	t.Helper()
+
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
@@ -81,22 +83,22 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
 			wait.ForListeningPort("5432/tcp"),
-		).WithStartupTimeout(120 * time.Second),
+		).WithDeadline(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	require.NoError(t, err, "failed to start PostgreSQL container")
 
-	host, err := container.Host(ctx)
+	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get container host")
 
-	port, err := container.MappedPort(ctx, "5432")
+	port, err := ctr.MappedPort(ctx, "5432")
 	require.NoError(t, err, "failed to get container port")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
@@ -109,13 +111,14 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	t.Cleanup(func() {
 		db.Close()
-		if err := container.Terminate(context.Background()); err != nil {
+
+		if err := ctr.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate PostgreSQL container: %v", err)
 		}
 	})
 
 	return &ContainerResult{
-		Container: container,
+		Container: ctr,
 		DB:        db,
 		Host:      host,
 		Port:      port.Port(),
@@ -138,4 +141,3 @@ func BuildConnectionStringWithHost(hostPort string, cfg ContainerConfig) string 
 	host, port, _ := net.SplitHostPort(hostPort)
 	return BuildConnectionString(host, port, cfg)
 }
-

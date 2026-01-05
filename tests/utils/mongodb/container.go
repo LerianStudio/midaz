@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
@@ -56,6 +56,7 @@ type ContainerResult struct {
 // SetupContainer starts a MongoDB container for integration testing.
 // Returns client and connection info.
 func SetupContainer(t *testing.T) *ContainerResult {
+	t.Helper()
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
@@ -71,22 +72,22 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Waiting for connections"),
 			wait.ForListeningPort("27017/tcp"),
-		).WithStartupTimeout(60 * time.Second),
+		).WithDeadline(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	require.NoError(t, err, "failed to start MongoDB container")
 
-	host, err := container.Host(ctx)
+	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get MongoDB container host")
 
-	port, err := container.MappedPort(ctx, "27017")
+	port, err := ctr.MappedPort(ctx, "27017")
 	require.NoError(t, err, "failed to get MongoDB container port")
 
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
@@ -103,13 +104,14 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		if err := client.Disconnect(context.Background()); err != nil {
 			t.Logf("failed to disconnect MongoDB client: %v", err)
 		}
-		if err := container.Terminate(context.Background()); err != nil {
+
+		if err := ctr.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate MongoDB container: %v", err)
 		}
 	})
 
 	return &ContainerResult{
-		Container: container,
+		Container: ctr,
 		Client:    client,
 		Database:  client.Database(cfg.DBName),
 		URI:       uri,
@@ -129,4 +131,3 @@ func CreateConnection(t *testing.T, uri, dbName string) *libMongo.MongoConnectio
 		Logger:                 logger,
 	}
 }
-

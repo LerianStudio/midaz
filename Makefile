@@ -13,6 +13,7 @@ LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
+PKG_DIR := ./pkg
 
 # Define component groups for easier management
 BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
@@ -319,12 +320,29 @@ lint:
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+			(cd $(TESTS_DIR) && golangci-lint run --fix --build-tags=integration ./... --verbose) || exit 1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \
 	else \
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
+	fi
+	@echo "Checking for Go files in $(PKG_DIR)..."
+	@if [ -d "$(PKG_DIR)" ]; then \
+		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
+			echo "Linting in $(PKG_DIR)..."; \
+			if ! command -v golangci-lint >/dev/null 2>&1; then \
+				echo "golangci-lint not found, installing..."; \
+				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			else \
+				echo "golangci-lint already installed ✔️"; \
+			fi; \
+			(cd $(PKG_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+		else \
+			echo "No Go files found in $(PKG_DIR), skipping linting"; \
+		fi; \
+	else \
+		echo "No pkg directory found at $(PKG_DIR), skipping linting"; \
 	fi
 	@echo "[ok] Linting completed successfully"
 

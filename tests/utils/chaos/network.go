@@ -44,6 +44,7 @@ type ToxiproxyResult struct {
 
 // SetupToxiproxy starts a Toxiproxy container for network chaos testing.
 func SetupToxiproxy(t *testing.T) *ToxiproxyResult {
+	t.Helper()
 	return SetupToxiproxyWithConfig(t, DefaultNetworkChaosConfig())
 }
 
@@ -51,6 +52,7 @@ func SetupToxiproxy(t *testing.T) *ToxiproxyResult {
 // Exposes ports 8666-8676 for dynamic proxy creation (in addition to 8474 for API).
 func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyResult {
 	t.Helper()
+
 	ctx := context.Background()
 
 	// Expose a range of ports for dynamic proxy creation
@@ -149,6 +151,7 @@ func (p *Proxy) AddLatency(latency, jitter time.Duration) error {
 		"latency": int(latency.Milliseconds()),
 		"jitter":  int(jitter.Milliseconds()),
 	})
+
 	return err
 }
 
@@ -161,6 +164,7 @@ func (p *Proxy) AddPacketLoss(percent float64) error {
 	_, err := p.proxy.AddToxic("packet_loss", "timeout", "downstream", float32(percent/100), toxiproxyclient.Attributes{
 		"timeout": 0, // Drop immediately
 	})
+
 	return err
 }
 
@@ -173,6 +177,7 @@ func (p *Proxy) AddBandwidthLimit(rateKBps int64) error {
 	_, err := p.proxy.AddToxic("bandwidth", "bandwidth", "downstream", 1.0, toxiproxyclient.Attributes{
 		"rate": rateKBps,
 	})
+
 	return err
 }
 
@@ -181,6 +186,7 @@ func (p *Proxy) Disconnect() error {
 	p.t.Helper()
 	p.t.Logf("Chaos: disconnecting proxy %s", p.proxy.Name)
 	p.proxy.Enabled = false
+
 	return p.proxy.Save()
 }
 
@@ -189,6 +195,7 @@ func (p *Proxy) Reconnect() error {
 	p.t.Helper()
 	p.t.Logf("Chaos: reconnecting proxy %s", p.proxy.Name)
 	p.proxy.Enabled = true
+
 	return p.proxy.Save()
 }
 
@@ -207,6 +214,7 @@ func (p *Proxy) RemoveAllToxics() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -214,6 +222,7 @@ func (p *Proxy) RemoveAllToxics() error {
 func (p *Proxy) Delete() error {
 	p.t.Helper()
 	p.t.Logf("Chaos: deleting proxy %s", p.proxy.Name)
+
 	return p.proxy.Delete()
 }
 

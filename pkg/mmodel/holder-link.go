@@ -37,6 +37,7 @@ func GetValidLinkTypes() []string {
 	for linkType := range ValidLinkTypeMapping {
 		validTypes = append(validTypes, string(linkType))
 	}
+
 	return validTypes
 }
 

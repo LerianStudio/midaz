@@ -13,8 +13,8 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/testutils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/postgres"
+	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

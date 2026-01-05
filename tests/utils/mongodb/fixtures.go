@@ -30,9 +30,11 @@ func InsertMetadata(t *testing.T, db *mongo.Database, collection string, fixture
 	if fixture.ID.IsZero() {
 		fixture.ID = primitive.NewObjectID()
 	}
+
 	if fixture.CreatedAt.IsZero() {
 		fixture.CreatedAt = time.Now()
 	}
+
 	if fixture.UpdatedAt.IsZero() {
 		fixture.UpdatedAt = time.Now()
 	}

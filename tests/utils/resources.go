@@ -21,9 +21,10 @@ import (
 //	}
 func ApplyResourceLimits(hostConfig *container.HostConfig, memoryMB int64, cpuLimit float64) {
 	if memoryMB > 0 {
-		hostConfig.Resources.Memory = memoryMB * 1024 * 1024 // Convert MB to bytes
+		hostConfig.Memory = memoryMB * 1024 * 1024 // Convert MB to bytes
 	}
+
 	if cpuLimit > 0 {
-		hostConfig.Resources.NanoCPUs = int64(cpuLimit * 1e9) // Convert cores to nanoseconds
+		hostConfig.NanoCPUs = int64(cpuLimit * 1e9) // Convert cores to nanoseconds
 	}
 }

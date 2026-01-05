@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
@@ -59,6 +59,7 @@ type ContainerResult struct {
 // SetupContainer starts a RabbitMQ container for integration testing.
 // Returns connection and channel for queue operations.
 func SetupContainer(t *testing.T) *ContainerResult {
+	t.Helper()
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
@@ -87,19 +88,19 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		},
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	require.NoError(t, err, "failed to start RabbitMQ container")
 
-	host, err := container.Host(ctx)
+	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get RabbitMQ container host")
 
-	amqpPort, err := container.MappedPort(ctx, "5672")
+	amqpPort, err := ctr.MappedPort(ctx, "5672")
 	require.NoError(t, err, "failed to get RabbitMQ AMQP port")
 
-	mgmtPort, err := container.MappedPort(ctx, "15672")
+	mgmtPort, err := ctr.MappedPort(ctx, "15672")
 	require.NoError(t, err, "failed to get RabbitMQ management port")
 
 	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, amqpPort.Port())
@@ -114,16 +115,18 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		if ch != nil {
 			ch.Close()
 		}
+
 		if conn != nil {
 			conn.Close()
 		}
-		if err := container.Terminate(context.Background()); err != nil {
+
+		if err := ctr.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate RabbitMQ container: %v", err)
 		}
 	})
 
 	return &ContainerResult{
-		Container: container,
+		Container: ctr,
 		Conn:      conn,
 		Channel:   ch,
 		Host:      host,
@@ -137,6 +140,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 // The networkAlias is the hostname by which other containers on the network can reach this container.
 // This is useful for chaos testing with Toxiproxy where containers need to communicate directly.
 func SetupContainerOnNetwork(t *testing.T, networkName string, networkAlias string) *ContainerResult {
+	t.Helper()
 	return SetupContainerOnNetworkWithConfig(t, DefaultContainerConfig(), networkName, networkAlias)
 }
 
@@ -194,9 +198,11 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		if ch != nil {
 			ch.Close()
 		}
+
 		if conn != nil {
 			conn.Close()
 		}
+
 		if err := rmqContainer.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate RabbitMQ container: %v", err)
 		}
@@ -258,7 +264,7 @@ func SetupQueue(t *testing.T, ch *amqp.Channel, queueName, exchangeName, routing
 func GetQueueMessageCount(t *testing.T, ch *amqp.Channel, queueName string) int {
 	t.Helper()
 
-	q, err := ch.QueueInspect(queueName)
+	q, err := ch.QueueDeclarePassive(queueName, false, false, false, false, nil)
 	require.NoError(t, err, "failed to inspect queue %s", queueName)
 
 	return q.Messages
@@ -274,8 +280,10 @@ func WaitForQueueEmpty(t *testing.T, ch *amqp.Channel, queueName string, timeout
 		if count == 0 {
 			return
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	t.Fatalf("timeout waiting for queue %s to be empty", queueName)
 }
 
@@ -284,14 +292,17 @@ func WaitForQueueCount(t *testing.T, ch *amqp.Channel, queueName string, expecte
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
+
 	var lastCount int
 	for time.Now().Before(deadline) {
 		lastCount = GetQueueMessageCount(t, ch, queueName)
 		if lastCount == expected {
 			return
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	t.Fatalf("timeout waiting for queue %s to have %d messages (last count: %d)", queueName, expected, lastCount)
 }
 
@@ -316,6 +327,7 @@ func CreateChannel(t *testing.T, uri string) *amqp.Channel {
 		if ch != nil {
 			ch.Close()
 		}
+
 		if conn != nil {
 			conn.Close()
 		}
@@ -331,21 +343,27 @@ func CreateChannelWithRetry(t *testing.T, uri string, timeout time.Duration) *am
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
+
 	var lastErr error
 
 	for time.Now().Before(deadline) {
 		conn, err := amqp.Dial(uri)
 		if err != nil {
 			lastErr = err
+
 			time.Sleep(500 * time.Millisecond)
+
 			continue
 		}
 
 		ch, err := conn.Channel()
 		if err != nil {
 			conn.Close()
+
 			lastErr = err
+
 			time.Sleep(500 * time.Millisecond)
+
 			continue
 		}
 
@@ -353,16 +371,18 @@ func CreateChannelWithRetry(t *testing.T, uri string, timeout time.Duration) *am
 			if ch != nil {
 				ch.Close()
 			}
+
 			if conn != nil {
 				conn.Close()
 			}
 		})
 
 		t.Log("Successfully connected to RabbitMQ after retry")
+
 		return ch
 	}
 
 	require.NoError(t, lastErr, "failed to connect to RabbitMQ at %s after %v", uri, timeout)
+
 	return nil // unreachable, require.NoError fails the test
 }
-

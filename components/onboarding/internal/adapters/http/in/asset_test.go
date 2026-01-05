@@ -45,6 +45,12 @@ func TestHandler_CreateAsset(t *testing.T) {
 				},
 			},
 			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				// FindByNameOrCode check for duplicate names/codes (returns false = name/code available)
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").
@@ -103,6 +109,12 @@ func TestHandler_CreateAsset(t *testing.T) {
 				Type: "commodity",
 			},
 			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				// FindByNameOrCode returns error for duplicate
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Existing Asset", "EXS").
@@ -127,6 +139,12 @@ func TestHandler_CreateAsset(t *testing.T) {
 				Type: "commodity",
 			},
 			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").
 					Return(false, nil).

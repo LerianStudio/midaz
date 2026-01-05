@@ -45,6 +45,12 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				},
 			},
 			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				// FindByNameOrCode to check if asset exists
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "USD").
@@ -93,6 +99,12 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				Type:      "deposit",
 			},
 			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				// FindByNameOrCode returns false - asset not found
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "UNKNOWN").
@@ -117,6 +129,12 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				Type:      "deposit",
 			},
 			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
+				// CheckHealth is called first to verify balance service availability
+				balancePort.EXPECT().
+					CheckHealth(gomock.Any()).
+					Return(nil).
+					Times(1)
+
 				// Asset exists
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "USD").

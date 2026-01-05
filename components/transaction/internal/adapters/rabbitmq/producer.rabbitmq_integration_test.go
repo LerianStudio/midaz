@@ -15,8 +15,8 @@ import (
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/pkg/testutils/chaos"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/pkg/testutils/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
+	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

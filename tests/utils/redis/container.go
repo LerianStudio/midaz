@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/testutils"
+	"github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
@@ -45,6 +45,7 @@ type ContainerResult struct {
 // SetupContainer starts a Redis container for integration testing.
 // Returns client and connection info.
 func SetupContainer(t *testing.T) *ContainerResult {
+	t.Helper()
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
@@ -60,22 +61,22 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
-		).WithStartupTimeout(60 * time.Second),
+		).WithDeadline(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	require.NoError(t, err, "failed to start Redis container")
 
-	host, err := container.Host(ctx)
+	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get Redis container host")
 
-	port, err := container.MappedPort(ctx, "6379")
+	port, err := ctr.MappedPort(ctx, "6379")
 	require.NoError(t, err, "failed to get Redis container port")
 
 	addr := host + ":" + port.Port()
@@ -90,13 +91,14 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	t.Cleanup(func() {
 		client.Close()
-		if err := container.Terminate(context.Background()); err != nil {
+
+		if err := ctr.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate Redis container: %v", err)
 		}
 	})
 
 	return &ContainerResult{
-		Container: container,
+		Container: ctr,
 		Client:    client,
 		Addr:      addr,
 	}
@@ -106,6 +108,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 // The networkAlias is the hostname by which other containers on the network can reach this container.
 // This is useful for chaos testing with Toxiproxy where containers need to communicate directly.
 func SetupContainerOnNetwork(t *testing.T, networkName string, networkAlias string) *ContainerResult {
+	t.Helper()
 	return SetupContainerOnNetworkWithConfig(t, DefaultContainerConfig(), networkName, networkAlias)
 }
 
@@ -123,7 +126,7 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
-		).WithStartupTimeout(60 * time.Second),
+		).WithDeadline(60 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -153,6 +156,7 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 
 	t.Cleanup(func() {
 		client.Close()
+
 		if err := redisContainer.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate Redis container: %v", err)
 		}
@@ -184,6 +188,7 @@ func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration)
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
+
 	var lastErr error
 
 	for time.Now().Before(deadline) {
@@ -200,10 +205,11 @@ func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration)
 		}
 
 		lastErr = err
+
 		time.Sleep(500 * time.Millisecond)
 	}
 
 	require.NoError(t, lastErr, "failed to connect to Redis at %s after %v", addr, timeout)
+
 	return nil
 }
-
