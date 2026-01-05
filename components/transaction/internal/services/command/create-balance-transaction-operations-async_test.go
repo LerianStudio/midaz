@@ -8,7 +8,6 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -16,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/testsupport"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	midazconstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/dbtx"
@@ -34,28 +34,6 @@ import (
 func Int64Ptr(v int64) *int64 {
 	return &v
 }
-
-// MockLogger is a mock implementation of logger for testing
-type MockLogger struct{}
-
-func (m *MockLogger) Debug(args ...any)                                        {}
-func (m *MockLogger) Debugf(format string, args ...any)                        {}
-func (m *MockLogger) Debugln(args ...any)                                      {}
-func (m *MockLogger) Info(args ...any)                                         {}
-func (m *MockLogger) Infof(format string, args ...any)                         {}
-func (m *MockLogger) Infoln(args ...any)                                       {}
-func (m *MockLogger) Warn(args ...any)                                         {}
-func (m *MockLogger) Warnf(format string, args ...any)                         {}
-func (m *MockLogger) Warnln(args ...any)                                       {}
-func (m *MockLogger) Error(args ...any)                                        {}
-func (m *MockLogger) Errorf(format string, args ...any)                        {}
-func (m *MockLogger) Errorln(args ...any)                                      {}
-func (m *MockLogger) Fatal(args ...any)                                        {}
-func (m *MockLogger) Fatalf(format string, args ...any)                        {}
-func (m *MockLogger) Fatalln(args ...any)                                      {}
-func (m *MockLogger) Sync() error                                              { return nil }
-func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
-func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
 
 // mockDBProvider implements dbtx.TxBeginner for testing
 type mockDBProvider struct {
@@ -1527,7 +1505,7 @@ func TestCreateOrUpdateTransaction_UnknownStatusCode_Panics(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	logger := &MockLogger{}
+	logger := &testsupport.MockLogger{}
 	tracer := noop.NewTracerProvider().Tracer("test")
 
 	unknownTran := &transaction.Transaction{
@@ -1560,7 +1538,7 @@ func TestCreateMetadataAsync(t *testing.T) {
 
 	ctx := context.Background()
 
-	logger := &MockLogger{}
+	logger := &testsupport.MockLogger{}
 	metadata := map[string]any{"key": "value"}
 	ID := uuid.New().String()
 	collection := "Transaction"

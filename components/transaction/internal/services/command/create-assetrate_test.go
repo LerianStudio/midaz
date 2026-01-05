@@ -9,6 +9,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/testsupport"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -612,7 +613,7 @@ func TestUpdateExistingAssetRate_RepoReturnsNil_Panics(t *testing.T) {
 	tracer := noop.NewTracerProvider().Tracer("test")
 	_, span := tracer.Start(ctx, "test")
 
-	logger := &MockLogger{}
+	logger := &testsupport.MockLogger{}
 
 	mockAssetRateRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -646,7 +647,7 @@ func TestCreateNewAssetRate_RepoReturnsNil_Panics(t *testing.T) {
 	tracer := noop.NewTracerProvider().Tracer("test")
 	_, span := tracer.Start(ctx, "test")
 
-	logger := &MockLogger{}
+	logger := &testsupport.MockLogger{}
 
 	mockAssetRateRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).

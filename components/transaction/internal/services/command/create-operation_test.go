@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/testsupport"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
@@ -104,9 +105,6 @@ func TestCreateOperation_NilErrorChannel_Panics(t *testing.T) {
 
 // TestCreateOperationForBalance_SetsBalanceAffectedTrue verifies that operations
 // created via createOperationForBalance have BalanceAffected set to true.
-// TODO(review): Consider moving MockLogger to a shared test helper file instead of
-// depending on the one defined in create-balance-transaction-operations-async_test.go
-// (reported by code-reviewer on 2024-12-28, severity: Low)
 // TODO(review): Consider adding more defensive assertions for other critical fields
 // like ID, TransactionID, Type to strengthen test coverage
 // (reported by business-logic-reviewer on 2024-12-28, severity: Low)
@@ -177,7 +175,7 @@ func TestCreateOperationForBalance_SetsBalanceAffectedTrue(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	logger := &MockLogger{}
+	logger := &testsupport.MockLogger{}
 	var span trace.Span
 
 	// Call the function under test
