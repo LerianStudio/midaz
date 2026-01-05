@@ -54,6 +54,17 @@ func TestExtractAuthToken(t *testing.T) {
 			),
 			expected: "",
 		},
+		{
+			name: "multiple_auth_values",
+			ctx: metadata.NewOutgoingContext(
+				context.Background(),
+				metadata.Pairs(
+					libConstant.MetadataAuthorization, "Bearer first-token",
+					libConstant.MetadataAuthorization, "Bearer second-token",
+				),
+			),
+			expected: "Bearer first-token",
+		},
 	}
 
 	for _, tt := range tests {
@@ -326,6 +337,76 @@ func TestBalanceAdapter_CreateBalanceSync(t *testing.T) {
 				require.NotNil(t, result)
 				assert.True(t, result.Available.IsZero())
 				assert.True(t, result.OnHold.IsZero())
+			},
+		},
+		{
+			name: "empty_decimal",
+			input: mmodel.CreateBalanceInput{
+				RequestID:      "req-empty",
+				OrganizationID: orgID,
+				LedgerID:       ledgerID,
+				AccountID:      accountID,
+				Alias:          "@empty-user",
+				Key:            "default",
+				AssetCode:      "EUR",
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+			},
+			setupMocks: func(t *testing.T, mockRepo *MockRepository) {
+				t.Helper()
+				mockRepo.EXPECT().
+					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&proto.BalanceResponse{
+						Id:             "balance-empty-decimal",
+						Alias:          "@empty-user",
+						Key:            "default",
+						AssetCode:      "EUR",
+						Available:      "",
+						OnHold:         "0",
+						AllowSending:   true,
+						AllowReceiving: true,
+					}, nil)
+			},
+			wantErr:     true,
+			errContains: "failed to parse Available for balance balance-empty-decimal",
+		},
+		{
+			name: "high_precision",
+			input: mmodel.CreateBalanceInput{
+				RequestID:      "req-highprec",
+				OrganizationID: orgID,
+				LedgerID:       ledgerID,
+				AccountID:      accountID,
+				Alias:          "@highprec-user",
+				Key:            "default",
+				AssetCode:      "BTC",
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+			},
+			setupMocks: func(t *testing.T, mockRepo *MockRepository) {
+				t.Helper()
+				mockRepo.EXPECT().
+					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&proto.BalanceResponse{
+						Id:             "balance-highprec",
+						Alias:          "@highprec-user",
+						Key:            "default",
+						AssetCode:      "BTC",
+						Available:      "999999999999.123456789",
+						OnHold:         "0.000000001",
+						AllowSending:   true,
+						AllowReceiving: true,
+					}, nil)
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *mmodel.Balance) {
+				t.Helper()
+				require.NotNil(t, result)
+				assert.Equal(t, "balance-highprec", result.ID)
+				assert.True(t, result.Available.Equal(mustParseDecimal("999999999999.123456789")))
+				assert.True(t, result.OnHold.Equal(mustParseDecimal("0.000000001")))
 			},
 		},
 	}

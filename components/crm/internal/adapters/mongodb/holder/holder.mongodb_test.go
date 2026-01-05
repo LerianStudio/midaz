@@ -105,7 +105,7 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 			query: http.QueryHeader{
 				Limit:      10,
 				Page:       1,
-				ExternalID: ptr(""),
+				ExternalID: testutils.Ptr(""),
 			},
 			wantExternalID: false,
 		},
@@ -173,7 +173,7 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 			query: http.QueryHeader{
 				Limit:    10,
 				Page:     1,
-				Document: ptr(""),
+				Document: testutils.Ptr(""),
 			},
 			wantDocument: false,
 		},
@@ -464,11 +464,3 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	assert.Nil(t, filter[0].Value)
 }
 
-// ============================================================================
-// Test Helpers
-// ============================================================================
-
-// ptr returns a pointer to the given value.
-func ptr[T any](v T) *T {
-	return &v
-}

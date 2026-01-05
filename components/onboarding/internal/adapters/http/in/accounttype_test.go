@@ -1,6 +1,7 @@
 package in
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -139,13 +140,14 @@ func TestHandler_CreateAccountType(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
-					return handler.CreateAccountType(tt.payload, c)
-				},
+				http.WithBody(new(mmodel.CreateAccountTypeInput), handler.CreateAccountType),
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", nil)
+			bodyBytes, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -343,13 +345,14 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 					c.Locals("id", accountTypeID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
-					return handler.UpdateAccountType(tt.payload, c)
-				},
+				http.WithBody(new(mmodel.UpdateAccountTypeInput), handler.UpdateAccountType),
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
+			bodyBytes, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
@@ -875,5 +878,3 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
