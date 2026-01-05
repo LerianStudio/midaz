@@ -1,5 +1,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
+# v3.3.14
+
 WORKDIR /transaction-app
 
 COPY go.mod go.sum ./
