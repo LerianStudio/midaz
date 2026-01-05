@@ -4,42 +4,15 @@ import (
 	"testing"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// setupCrypto creates a Crypto instance for testing
-func setupCrypto(t *testing.T) *libCrypto.Crypto {
-	t.Helper()
-
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
-
-	// Keys must be hex-encoded 32-byte (64 hex chars) values
-	hashKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	encryptKey := "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
-
-	crypto := &libCrypto.Crypto{
-		HashSecretKey:    hashKey,
-		EncryptSecretKey: encryptKey,
-		Logger:           logger,
-	}
-
-	err := crypto.InitializeCipher()
-	require.NoError(t, err)
-
-	return crypto
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func TestMongoDBModel_FromEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
@@ -53,10 +26,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "minimal alias",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("12345678901"),
-				Type:      ptr("NATURAL_PERSON"),
-				LedgerID:  ptr("ledger-123"),
-				AccountID: ptr("account-456"),
+				Document:  testutils.Ptr("12345678901"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-123"),
+				AccountID: testutils.Ptr("account-456"),
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
@@ -66,10 +39,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with holder",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("98765432100"),
-				Type:      ptr("LEGAL_PERSON"),
-				LedgerID:  ptr("ledger-789"),
-				AccountID: ptr("account-012"),
+				Document:  testutils.Ptr("98765432100"),
+				Type:      testutils.Ptr("LEGAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-789"),
+				AccountID: testutils.Ptr("account-012"),
 				HolderID:  &holderID,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -80,18 +53,18 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with banking details",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("11122233344"),
-				Type:      ptr("NATURAL_PERSON"),
-				LedgerID:  ptr("ledger-456"),
-				AccountID: ptr("account-789"),
+				Document:  testutils.Ptr("11122233344"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-456"),
+				AccountID: testutils.Ptr("account-789"),
 				BankingDetails: &mmodel.BankingDetails{
-					Branch:      ptr("0001"),
-					Account:     ptr("123456"),
-					Type:        ptr("CACC"),
-					OpeningDate: ptr("2025-01-01"),
-					IBAN:        ptr("BR1234567890123456789012345"),
-					CountryCode: ptr("BR"),
-					BankID:      ptr("001"),
+					Branch:      testutils.Ptr("0001"),
+					Account:     testutils.Ptr("123456"),
+					Type:        testutils.Ptr("CACC"),
+					OpeningDate: testutils.Ptr("2025-01-01"),
+					IBAN:        testutils.Ptr("BR1234567890123456789012345"),
+					CountryCode: testutils.Ptr("BR"),
+					BankID:      testutils.Ptr("001"),
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -102,10 +75,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with metadata",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("55566677788"),
-				Type:      ptr("NATURAL_PERSON"),
-				LedgerID:  ptr("ledger-meta"),
-				AccountID: ptr("account-meta"),
+				Document:  testutils.Ptr("55566677788"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-meta"),
+				AccountID: testutils.Ptr("account-meta"),
 				Metadata: map[string]any{
 					"key1": "value1",
 					"key2": 123,
@@ -119,10 +92,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with nil metadata initializes empty map",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("77788899900"),
-				Type:      ptr("LEGAL_PERSON"),
-				LedgerID:  ptr("ledger-nil"),
-				AccountID: ptr("account-nil"),
+				Document:  testutils.Ptr("77788899900"),
+				Type:      testutils.Ptr("LEGAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-nil"),
+				AccountID: testutils.Ptr("account-nil"),
 				Metadata:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -133,11 +106,11 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with participant document",
 			alias: &mmodel.Alias{
 				ID:                  &aliasID,
-				Document:            ptr("99900011122"),
-				Type:                ptr("NATURAL_PERSON"),
-				LedgerID:            ptr("ledger-part"),
-				AccountID:           ptr("account-part"),
-				ParticipantDocument: ptr("12345678901234"),
+				Document:            testutils.Ptr("99900011122"),
+				Type:                testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:            testutils.Ptr("ledger-part"),
+				AccountID:           testutils.Ptr("account-part"),
+				ParticipantDocument: testutils.Ptr("12345678901234"),
 				CreatedAt:           now,
 				UpdatedAt:           now,
 			},
@@ -147,10 +120,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with closing date",
 			alias: &mmodel.Alias{
 				ID:          &aliasID,
-				Document:    ptr("44455566677"),
-				Type:        ptr("NATURAL_PERSON"),
-				LedgerID:    ptr("ledger-close"),
-				AccountID:   ptr("account-close"),
+				Document:    testutils.Ptr("44455566677"),
+				Type:        testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:    testutils.Ptr("ledger-close"),
+				AccountID:   testutils.Ptr("account-close"),
 				ClosingDate: &now,
 				CreatedAt:   now,
 				UpdatedAt:   now,
@@ -161,24 +134,24 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "alias with all fields",
 			alias: &mmodel.Alias{
 				ID:        &aliasID,
-				Document:  ptr("11111111111"),
-				Type:      ptr("LEGAL_PERSON"),
-				LedgerID:  ptr("ledger-full"),
-				AccountID: ptr("account-full"),
+				Document:  testutils.Ptr("11111111111"),
+				Type:      testutils.Ptr("LEGAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-full"),
+				AccountID: testutils.Ptr("account-full"),
 				HolderID:  &holderID,
 				BankingDetails: &mmodel.BankingDetails{
-					Branch:      ptr("9999"),
-					Account:     ptr("999999"),
-					Type:        ptr("SVGS"),
-					OpeningDate: ptr("2020-06-15"),
-					IBAN:        ptr("US12345678901234567890"),
-					CountryCode: ptr("US"),
-					BankID:      ptr("BANK123"),
+					Branch:      testutils.Ptr("9999"),
+					Account:     testutils.Ptr("999999"),
+					Type:        testutils.Ptr("SVGS"),
+					OpeningDate: testutils.Ptr("2020-06-15"),
+					IBAN:        testutils.Ptr("US12345678901234567890"),
+					CountryCode: testutils.Ptr("US"),
+					BankID:      testutils.Ptr("BANK123"),
 				},
 				Metadata: map[string]any{
 					"complete": true,
 				},
-				ParticipantDocument: ptr("98765432109876"),
+				ParticipantDocument: testutils.Ptr("98765432109876"),
 				ClosingDate:         &now,
 				CreatedAt:           now,
 				UpdatedAt:           now,
@@ -259,7 +232,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
@@ -267,24 +240,24 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	// First create a model from an entity, then convert back
 	originalAlias := &mmodel.Alias{
 		ID:        &aliasID,
-		Document:  ptr("33344455566"),
-		Type:      ptr("NATURAL_PERSON"),
-		LedgerID:  ptr("ledger-roundtrip"),
-		AccountID: ptr("account-roundtrip"),
+		Document:  testutils.Ptr("33344455566"),
+		Type:      testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:  testutils.Ptr("ledger-roundtrip"),
+		AccountID: testutils.Ptr("account-roundtrip"),
 		HolderID:  &holderID,
 		BankingDetails: &mmodel.BankingDetails{
-			Branch:      ptr("1234"),
-			Account:     ptr("567890"),
-			Type:        ptr("CACC"),
-			OpeningDate: ptr("2023-06-15"),
-			IBAN:        ptr("BR9876543210987654321098765"),
-			CountryCode: ptr("BR"),
-			BankID:      ptr("341"),
+			Branch:      testutils.Ptr("1234"),
+			Account:     testutils.Ptr("567890"),
+			Type:        testutils.Ptr("CACC"),
+			OpeningDate: testutils.Ptr("2023-06-15"),
+			IBAN:        testutils.Ptr("BR9876543210987654321098765"),
+			CountryCode: testutils.Ptr("BR"),
+			BankID:      testutils.Ptr("341"),
 		},
 		Metadata: map[string]any{
 			"testKey": "testValue",
 		},
-		ParticipantDocument: ptr("11223344556677"),
+		ParticipantDocument: testutils.Ptr("11223344556677"),
 		ClosingDate:         &now,
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -323,16 +296,16 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
 	originalAlias := &mmodel.Alias{
 		ID:             &aliasID,
-		Document:       ptr("99988877766"),
-		Type:           ptr("LEGAL_PERSON"),
-		LedgerID:       ptr("ledger-no-bank"),
-		AccountID:      ptr("account-no-bank"),
+		Document:       testutils.Ptr("99988877766"),
+		Type:           testutils.Ptr("LEGAL_PERSON"),
+		LedgerID:       testutils.Ptr("ledger-no-bank"),
+		AccountID:      testutils.Ptr("account-no-bank"),
 		BankingDetails: nil,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -350,16 +323,16 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 
 	originalAlias := &mmodel.Alias{
 		ID:        &aliasID,
-		Document:  ptr("66677788899"),
-		Type:      ptr("NATURAL_PERSON"),
-		LedgerID:  ptr("ledger-deleted"),
-		AccountID: ptr("account-deleted"),
+		Document:  testutils.Ptr("66677788899"),
+		Type:      testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:  testutils.Ptr("ledger-deleted"),
+		AccountID: testutils.Ptr("account-deleted"),
 		CreatedAt: now,
 		UpdatedAt: now,
 		DeletedAt: &now,

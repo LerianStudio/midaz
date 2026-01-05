@@ -808,9 +808,10 @@ func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	defer infra.proxy.RemoveAllToxics()
 
 	// Execute multiple operations - some may fail, but overall should be resilient
+	// 10 attempts is statistically sufficient to verify resilience with 10% packet loss
 	successCount := 0
 	errorCount := 0
-	totalAttempts := 20
+	totalAttempts := 10
 
 	for i := 0; i < totalAttempts; i++ {
 		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))

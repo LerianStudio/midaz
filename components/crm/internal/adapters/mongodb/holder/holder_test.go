@@ -4,42 +4,15 @@ import (
 	"testing"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// setupCrypto creates a Crypto instance for testing
-func setupCrypto(t *testing.T) *libCrypto.Crypto {
-	t.Helper()
-
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
-
-	// Keys must be hex-encoded 32-byte (64 hex chars) values
-	hashKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	encryptKey := "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
-
-	crypto := &libCrypto.Crypto{
-		HashSecretKey:    hashKey,
-		EncryptSecretKey: encryptKey,
-		Logger:           logger,
-	}
-
-	err := crypto.InitializeCipher()
-	require.NoError(t, err)
-
-	return crypto
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func TestMongoDBModel_FromEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
@@ -52,9 +25,9 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "minimal holder",
 			holder: &mmodel.Holder{
 				ID:        &holderID,
-				Type:      ptr("NATURAL_PERSON"),
-				Name:      ptr("John Doe"),
-				Document:  ptr("12345678901"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				Name:      testutils.Ptr("John Doe"),
+				Document:  testutils.Ptr("12345678901"),
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
@@ -64,13 +37,13 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with addresses",
 			holder: &mmodel.Holder{
 				ID:       &holderID,
-				Type:     ptr("NATURAL_PERSON"),
-				Name:     ptr("Jane Doe"),
-				Document: ptr("98765432100"),
+				Type:     testutils.Ptr("NATURAL_PERSON"),
+				Name:     testutils.Ptr("Jane Doe"),
+				Document: testutils.Ptr("98765432100"),
 				Addresses: &mmodel.Addresses{
 					Primary: &mmodel.Address{
 						Line1:   "123 Main St",
-						Line2:   ptr("Apt 4B"),
+						Line2:   testutils.Ptr("Apt 4B"),
 						ZipCode: "12345",
 						City:    "New York",
 						State:   "NY",
@@ -86,14 +59,14 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with contact",
 			holder: &mmodel.Holder{
 				ID:       &holderID,
-				Type:     ptr("NATURAL_PERSON"),
-				Name:     ptr("Bob Smith"),
-				Document: ptr("11122233344"),
+				Type:     testutils.Ptr("NATURAL_PERSON"),
+				Name:     testutils.Ptr("Bob Smith"),
+				Document: testutils.Ptr("11122233344"),
 				Contact: &mmodel.Contact{
-					PrimaryEmail:   ptr("bob@example.com"),
-					SecondaryEmail: ptr("bob.secondary@example.com"),
-					MobilePhone:    ptr("+1555123456"),
-					OtherPhone:     ptr("+1555654321"),
+					PrimaryEmail:   testutils.Ptr("bob@example.com"),
+					SecondaryEmail: testutils.Ptr("bob.secondary@example.com"),
+					MobilePhone:    testutils.Ptr("+1555123456"),
+					OtherPhone:     testutils.Ptr("+1555654321"),
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -104,19 +77,19 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with natural person",
 			holder: &mmodel.Holder{
 				ID:       &holderID,
-				Type:     ptr("NATURAL_PERSON"),
-				Name:     ptr("Alice Johnson"),
-				Document: ptr("55566677788"),
+				Type:     testutils.Ptr("NATURAL_PERSON"),
+				Name:     testutils.Ptr("Alice Johnson"),
+				Document: testutils.Ptr("55566677788"),
 				NaturalPerson: &mmodel.NaturalPerson{
-					FavoriteName: ptr("Alice"),
-					SocialName:   ptr("Alice J"),
-					Gender:       ptr("Female"),
-					BirthDate:    ptr("1990-05-15"),
-					CivilStatus:  ptr("Single"),
-					Nationality:  ptr("American"),
-					MotherName:   ptr("Mary Johnson"),
-					FatherName:   ptr("Robert Johnson"),
-					Status:       ptr("Active"),
+					FavoriteName: testutils.Ptr("Alice"),
+					SocialName:   testutils.Ptr("Alice J"),
+					Gender:       testutils.Ptr("Female"),
+					BirthDate:    testutils.Ptr("1990-05-15"),
+					CivilStatus:  testutils.Ptr("Single"),
+					Nationality:  testutils.Ptr("American"),
+					MotherName:   testutils.Ptr("Mary Johnson"),
+					FatherName:   testutils.Ptr("Robert Johnson"),
+					Status:       testutils.Ptr("Active"),
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -127,21 +100,21 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with legal person",
 			holder: &mmodel.Holder{
 				ID:       &holderID,
-				Type:     ptr("LEGAL_PERSON"),
-				Name:     ptr("ACME Corp"),
-				Document: ptr("12345678000199"),
+				Type:     testutils.Ptr("LEGAL_PERSON"),
+				Name:     testutils.Ptr("ACME Corp"),
+				Document: testutils.Ptr("12345678000199"),
 				LegalPerson: &mmodel.LegalPerson{
-					TradeName:    ptr("ACME"),
-					Activity:     ptr("Technology"),
-					Type:         ptr("LLC"),
-					FoundingDate: ptr("2020-01-15"),
-					Size:         ptr("Medium"),
-					Status:       ptr("Active"),
+					TradeName:    testutils.Ptr("ACME"),
+					Activity:     testutils.Ptr("Technology"),
+					Type:         testutils.Ptr("LLC"),
+					FoundingDate: testutils.Ptr("2020-01-15"),
+					Size:         testutils.Ptr("Medium"),
+					Status:       testutils.Ptr("Active"),
 					Representative: &mmodel.Representative{
-						Name:     ptr("CEO Name"),
-						Document: ptr("99988877766"),
-						Email:    ptr("ceo@acme.com"),
-						Role:     ptr("CEO"),
+						Name:     testutils.Ptr("CEO Name"),
+						Document: testutils.Ptr("99988877766"),
+						Email:    testutils.Ptr("ceo@acme.com"),
+						Role:     testutils.Ptr("CEO"),
 					},
 				},
 				CreatedAt: now,
@@ -153,9 +126,9 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with metadata",
 			holder: &mmodel.Holder{
 				ID:       &holderID,
-				Type:     ptr("NATURAL_PERSON"),
-				Name:     ptr("Test User"),
-				Document: ptr("44455566677"),
+				Type:     testutils.Ptr("NATURAL_PERSON"),
+				Name:     testutils.Ptr("Test User"),
+				Document: testutils.Ptr("44455566677"),
 				Metadata: map[string]any{
 					"key1": "value1",
 					"key2": 123,
@@ -169,9 +142,9 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with nil metadata initializes empty map",
 			holder: &mmodel.Holder{
 				ID:        &holderID,
-				Type:      ptr("NATURAL_PERSON"),
-				Name:      ptr("No Metadata User"),
-				Document:  ptr("77788899900"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				Name:      testutils.Ptr("No Metadata User"),
+				Document:  testutils.Ptr("77788899900"),
 				Metadata:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -182,10 +155,10 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			name: "holder with all fields",
 			holder: &mmodel.Holder{
 				ID:         &holderID,
-				ExternalID: ptr("EXT-123"),
-				Type:       ptr("NATURAL_PERSON"),
-				Name:       ptr("Complete User"),
-				Document:   ptr("11111111111"),
+				ExternalID: testutils.Ptr("EXT-123"),
+				Type:       testutils.Ptr("NATURAL_PERSON"),
+				Name:       testutils.Ptr("Complete User"),
+				Document:   testutils.Ptr("11111111111"),
 				Addresses: &mmodel.Addresses{
 					Primary: &mmodel.Address{
 						Line1:   "Primary Address",
@@ -210,13 +183,13 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 					},
 				},
 				Contact: &mmodel.Contact{
-					PrimaryEmail: ptr("complete@example.com"),
-					MobilePhone:  ptr("+1234567890"),
+					PrimaryEmail: testutils.Ptr("complete@example.com"),
+					MobilePhone:  testutils.Ptr("+1234567890"),
 				},
 				NaturalPerson: &mmodel.NaturalPerson{
-					FavoriteName: ptr("Complete"),
-					MotherName:   ptr("Mother Name"),
-					FatherName:   ptr("Father Name"),
+					FavoriteName: testutils.Ptr("Complete"),
+					MotherName:   testutils.Ptr("Mother Name"),
+					FatherName:   testutils.Ptr("Father Name"),
 				},
 				Metadata: map[string]any{
 					"complete": true,
@@ -267,21 +240,21 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
 	// First create a model from an entity, then convert back
 	originalHolder := &mmodel.Holder{
 		ID:         &holderID,
-		ExternalID: ptr("EXT-456"),
-		Type:       ptr("NATURAL_PERSON"),
-		Name:       ptr("Round Trip Test"),
-		Document:   ptr("33344455566"),
+		ExternalID: testutils.Ptr("EXT-456"),
+		Type:       testutils.Ptr("NATURAL_PERSON"),
+		Name:       testutils.Ptr("Round Trip Test"),
+		Document:   testutils.Ptr("33344455566"),
 		Addresses: &mmodel.Addresses{
 			Primary: &mmodel.Address{
 				Line1:   "123 Test St",
-				Line2:   ptr("Suite 100"),
+				Line2:   testutils.Ptr("Suite 100"),
 				ZipCode: "54321",
 				City:    "TestCity",
 				State:   "TS",
@@ -289,21 +262,21 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 			},
 		},
 		Contact: &mmodel.Contact{
-			PrimaryEmail:   ptr("roundtrip@test.com"),
-			SecondaryEmail: ptr("secondary@test.com"),
-			MobilePhone:    ptr("+9876543210"),
-			OtherPhone:     ptr("+1234567890"),
+			PrimaryEmail:   testutils.Ptr("roundtrip@test.com"),
+			SecondaryEmail: testutils.Ptr("secondary@test.com"),
+			MobilePhone:    testutils.Ptr("+9876543210"),
+			OtherPhone:     testutils.Ptr("+1234567890"),
 		},
 		NaturalPerson: &mmodel.NaturalPerson{
-			FavoriteName: ptr("RT"),
-			SocialName:   ptr("RoundTrip"),
-			Gender:       ptr("Other"),
-			BirthDate:    ptr("1985-12-25"),
-			CivilStatus:  ptr("Married"),
-			Nationality:  ptr("TestNation"),
-			MotherName:   ptr("Test Mother"),
-			FatherName:   ptr("Test Father"),
-			Status:       ptr("Active"),
+			FavoriteName: testutils.Ptr("RT"),
+			SocialName:   testutils.Ptr("RoundTrip"),
+			Gender:       testutils.Ptr("Other"),
+			BirthDate:    testutils.Ptr("1985-12-25"),
+			CivilStatus:  testutils.Ptr("Married"),
+			Nationality:  testutils.Ptr("TestNation"),
+			MotherName:   testutils.Ptr("Test Mother"),
+			FatherName:   testutils.Ptr("Test Father"),
+			Status:       testutils.Ptr("Active"),
 		},
 		Metadata: map[string]any{
 			"testKey": "testValue",
@@ -347,27 +320,27 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
 	originalHolder := &mmodel.Holder{
 		ID:       &holderID,
-		Type:     ptr("LEGAL_PERSON"),
-		Name:     ptr("Legal Entity Corp"),
-		Document: ptr("12345678000199"),
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("Legal Entity Corp"),
+		Document: testutils.Ptr("12345678000199"),
 		LegalPerson: &mmodel.LegalPerson{
-			TradeName:    ptr("Legal Entity"),
-			Activity:     ptr("Consulting"),
-			Type:         ptr("Corporation"),
-			FoundingDate: ptr("2015-06-01"),
-			Size:         ptr("Large"),
-			Status:       ptr("Active"),
+			TradeName:    testutils.Ptr("Legal Entity"),
+			Activity:     testutils.Ptr("Consulting"),
+			Type:         testutils.Ptr("Corporation"),
+			FoundingDate: testutils.Ptr("2015-06-01"),
+			Size:         testutils.Ptr("Large"),
+			Status:       testutils.Ptr("Active"),
 			Representative: &mmodel.Representative{
-				Name:     ptr("Legal Rep"),
-				Document: ptr("11122233344"),
-				Email:    ptr("rep@legalentity.com"),
-				Role:     ptr("Director"),
+				Name:     testutils.Ptr("Legal Rep"),
+				Document: testutils.Ptr("11122233344"),
+				Email:    testutils.Ptr("rep@legalentity.com"),
+				Role:     testutils.Ptr("Director"),
 			},
 		},
 		CreatedAt: now,
@@ -408,7 +381,7 @@ func TestMapAddressFromEntity(t *testing.T) {
 			name: "complete address",
 			address: &mmodel.Address{
 				Line1:   "123 Main St",
-				Line2:   ptr("Apt 1"),
+				Line2:   testutils.Ptr("Apt 1"),
 				ZipCode: "12345",
 				City:    "TestCity",
 				State:   "TS",
@@ -462,12 +435,12 @@ func TestMapAddressToEntity(t *testing.T) {
 		{
 			name: "complete model",
 			model: &AddressMongoDBModel{
-				Line1:   ptr("456 Test Ave"),
-				Line2:   ptr("Floor 2"),
-				ZipCode: ptr("67890"),
-				City:    ptr("ModelCity"),
-				State:   ptr("MC"),
-				Country: ptr("MD"),
+				Line1:   testutils.Ptr("456 Test Ave"),
+				Line2:   testutils.Ptr("Floor 2"),
+				ZipCode: testutils.Ptr("67890"),
+				City:    testutils.Ptr("ModelCity"),
+				State:   testutils.Ptr("MC"),
+				Country: testutils.Ptr("MD"),
 			},
 			wantNil: false,
 		},
@@ -507,18 +480,18 @@ func TestMapAddressToEntity(t *testing.T) {
 func TestMapAddressesToEntity(t *testing.T) {
 	model := &AddressesMongoDBModel{
 		Primary: &AddressMongoDBModel{
-			Line1:   ptr("Primary St"),
-			ZipCode: ptr("11111"),
-			City:    ptr("PrimaryCity"),
-			State:   ptr("PC"),
-			Country: ptr("PR"),
+			Line1:   testutils.Ptr("Primary St"),
+			ZipCode: testutils.Ptr("11111"),
+			City:    testutils.Ptr("PrimaryCity"),
+			State:   testutils.Ptr("PC"),
+			Country: testutils.Ptr("PR"),
 		},
 		Additional1: &AddressMongoDBModel{
-			Line1:   ptr("Additional1 St"),
-			ZipCode: ptr("22222"),
-			City:    ptr("Add1City"),
-			State:   ptr("A1"),
-			Country: ptr("AD"),
+			Line1:   testutils.Ptr("Additional1 St"),
+			ZipCode: testutils.Ptr("22222"),
+			City:    testutils.Ptr("Add1City"),
+			State:   testutils.Ptr("A1"),
+			Country: testutils.Ptr("AD"),
 		},
 		Additional2: nil,
 	}
@@ -536,13 +509,13 @@ func TestMapAddressesToEntity(t *testing.T) {
 }
 
 func TestMapContactFromEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	contact := &mmodel.Contact{
-		PrimaryEmail:   ptr("primary@test.com"),
-		SecondaryEmail: ptr("secondary@test.com"),
-		MobilePhone:    ptr("+1234567890"),
-		OtherPhone:     ptr("+0987654321"),
+		PrimaryEmail:   testutils.Ptr("primary@test.com"),
+		SecondaryEmail: testutils.Ptr("secondary@test.com"),
+		MobilePhone:    testutils.Ptr("+1234567890"),
+		OtherPhone:     testutils.Ptr("+0987654321"),
 	}
 
 	result, err := mapContactFromEntity(crypto, contact)
@@ -557,14 +530,14 @@ func TestMapContactFromEntity(t *testing.T) {
 }
 
 func TestMapContactToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	// First encrypt contact data
 	originalContact := &mmodel.Contact{
-		PrimaryEmail:   ptr("decrypt@test.com"),
-		SecondaryEmail: ptr("decrypt2@test.com"),
-		MobilePhone:    ptr("+1111111111"),
-		OtherPhone:     ptr("+2222222222"),
+		PrimaryEmail:   testutils.Ptr("decrypt@test.com"),
+		SecondaryEmail: testutils.Ptr("decrypt2@test.com"),
+		MobilePhone:    testutils.Ptr("+1111111111"),
+		OtherPhone:     testutils.Ptr("+2222222222"),
 	}
 
 	encryptedModel, err := mapContactFromEntity(crypto, originalContact)
@@ -582,18 +555,18 @@ func TestMapContactToEntity(t *testing.T) {
 }
 
 func TestMapNaturalPersonFromEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	np := &mmodel.NaturalPerson{
-		FavoriteName: ptr("Favorite"),
-		SocialName:   ptr("Social"),
-		Gender:       ptr("Male"),
-		BirthDate:    ptr("1990-01-01"),
-		CivilStatus:  ptr("Single"),
-		Nationality:  ptr("Brazilian"),
-		MotherName:   ptr("Mother"),
-		FatherName:   ptr("Father"),
-		Status:       ptr("Active"),
+		FavoriteName: testutils.Ptr("Favorite"),
+		SocialName:   testutils.Ptr("Social"),
+		Gender:       testutils.Ptr("Male"),
+		BirthDate:    testutils.Ptr("1990-01-01"),
+		CivilStatus:  testutils.Ptr("Single"),
+		Nationality:  testutils.Ptr("Brazilian"),
+		MotherName:   testutils.Ptr("Mother"),
+		FatherName:   testutils.Ptr("Father"),
+		Status:       testutils.Ptr("Active"),
 	}
 
 	result, err := mapNaturalPersonFromEntity(crypto, np)
@@ -615,13 +588,13 @@ func TestMapNaturalPersonFromEntity(t *testing.T) {
 }
 
 func TestMapNaturalPersonToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	originalNP := &mmodel.NaturalPerson{
-		FavoriteName: ptr("TestFav"),
-		SocialName:   ptr("TestSocial"),
-		MotherName:   ptr("TestMother"),
-		FatherName:   ptr("TestFather"),
+		FavoriteName: testutils.Ptr("TestFav"),
+		SocialName:   testutils.Ptr("TestSocial"),
+		MotherName:   testutils.Ptr("TestMother"),
+		FatherName:   testutils.Ptr("TestFather"),
 	}
 
 	encryptedModel, err := mapNaturalPersonFromEntity(crypto, originalNP)
@@ -636,20 +609,20 @@ func TestMapNaturalPersonToEntity(t *testing.T) {
 }
 
 func TestMapLegalPersonFromEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	lp := &mmodel.LegalPerson{
-		TradeName:    ptr("Trade"),
-		Activity:     ptr("Activity"),
-		Type:         ptr("LLC"),
-		FoundingDate: ptr("2020-06-15"),
-		Size:         ptr("Small"),
-		Status:       ptr("Active"),
+		TradeName:    testutils.Ptr("Trade"),
+		Activity:     testutils.Ptr("Activity"),
+		Type:         testutils.Ptr("LLC"),
+		FoundingDate: testutils.Ptr("2020-06-15"),
+		Size:         testutils.Ptr("Small"),
+		Status:       testutils.Ptr("Active"),
 		Representative: &mmodel.Representative{
-			Name:     ptr("Rep Name"),
-			Document: ptr("12345678900"),
-			Email:    ptr("rep@company.com"),
-			Role:     ptr("CEO"),
+			Name:     testutils.Ptr("Rep Name"),
+			Document: testutils.Ptr("12345678900"),
+			Email:    testutils.Ptr("rep@company.com"),
+			Role:     testutils.Ptr("CEO"),
 		},
 	}
 
@@ -679,11 +652,11 @@ func TestMapLegalPersonFromEntity(t *testing.T) {
 }
 
 func TestMapLegalPersonFromEntity_InvalidFoundingDate(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	lp := &mmodel.LegalPerson{
-		TradeName:    ptr("Trade"),
-		FoundingDate: ptr("invalid-date"),
+		TradeName:    testutils.Ptr("Trade"),
+		FoundingDate: testutils.Ptr("invalid-date"),
 	}
 
 	_, err := mapLegalPersonFromEntity(crypto, lp)
@@ -691,10 +664,10 @@ func TestMapLegalPersonFromEntity_InvalidFoundingDate(t *testing.T) {
 }
 
 func TestMapLegalPersonFromEntity_NilFoundingDate(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	lp := &mmodel.LegalPerson{
-		TradeName:    ptr("Trade"),
+		TradeName:    testutils.Ptr("Trade"),
 		FoundingDate: nil,
 	}
 
@@ -704,20 +677,20 @@ func TestMapLegalPersonFromEntity_NilFoundingDate(t *testing.T) {
 }
 
 func TestMapLegalPersonToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	originalLP := &mmodel.LegalPerson{
-		TradeName:    ptr("Original Trade"),
-		Activity:     ptr("Original Activity"),
-		Type:         ptr("Corporation"),
-		FoundingDate: ptr("2018-03-20"),
-		Size:         ptr("Large"),
-		Status:       ptr("Active"),
+		TradeName:    testutils.Ptr("Original Trade"),
+		Activity:     testutils.Ptr("Original Activity"),
+		Type:         testutils.Ptr("Corporation"),
+		FoundingDate: testutils.Ptr("2018-03-20"),
+		Size:         testutils.Ptr("Large"),
+		Status:       testutils.Ptr("Active"),
 		Representative: &mmodel.Representative{
-			Name:     ptr("Original Rep"),
-			Document: ptr("99988877766"),
-			Email:    ptr("original@company.com"),
-			Role:     ptr("CFO"),
+			Name:     testutils.Ptr("Original Rep"),
+			Document: testutils.Ptr("99988877766"),
+			Email:    testutils.Ptr("original@company.com"),
+			Role:     testutils.Ptr("CFO"),
 		},
 	}
 
@@ -738,21 +711,21 @@ func TestMapLegalPersonToEntity(t *testing.T) {
 }
 
 func TestMapRepresentativeToEntity(t *testing.T) {
-	crypto := setupCrypto(t)
+	crypto := testutils.SetupCrypto(t)
 
 	// Encrypt representative data
-	name, err := crypto.Encrypt(ptr("Rep Name"))
+	name, err := crypto.Encrypt(testutils.Ptr("Rep Name"))
 	require.NoError(t, err)
-	doc, err := crypto.Encrypt(ptr("12345678900"))
+	doc, err := crypto.Encrypt(testutils.Ptr("12345678900"))
 	require.NoError(t, err)
-	email, err := crypto.Encrypt(ptr("rep@test.com"))
+	email, err := crypto.Encrypt(testutils.Ptr("rep@test.com"))
 	require.NoError(t, err)
 
 	model := &RepresentativeMongoDBModel{
 		Name:     name,
 		Document: doc,
 		Email:    email,
-		Role:     ptr("Director"),
+		Role:     testutils.Ptr("Director"),
 	}
 
 	result, err := mapRepresentativeToEntity(crypto, model)

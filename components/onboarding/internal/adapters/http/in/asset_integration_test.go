@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -67,9 +68,21 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 
 	infra := &assetTestInfra{}
 
-	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
+	// Start containers in parallel (they don't depend on each other)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		infra.pgContainer = postgrestestutil.SetupContainer(t)
+	}()
+
+	go func() {
+		defer wg.Done()
+		infra.mongoContainer = mongotestutil.SetupContainer(t)
+	}()
+
+	wg.Wait()
 
 	// Create PostgreSQL connection following lib-commons pattern
 	logger := libZap.InitializeLogger()

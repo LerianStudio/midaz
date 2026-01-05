@@ -16,6 +16,22 @@ TEST_AUTH_PASSWORD ?=
 FUZZ ?=
 FUZZTIME ?= 10s
 
+# Integration test filter
+# RUN: specific test name pattern (e.g., TestIntegration_AliasRepo_Create)
+# PKG: specific package to test (e.g., ./components/transaction/...)
+# Usage: make test-integration RUN=TestIntegration_AliasRepo_Create
+#        make test-integration PKG=./components/transaction/...
+#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/transaction/... CHAOS=1
+RUN ?=
+PKG ?=
+
+# Computed run pattern: uses RUN if set, otherwise defaults to '^TestIntegration'
+ifeq ($(RUN),)
+  RUN_PATTERN := ^TestIntegration
+else
+  RUN_PATTERN := $(RUN)
+endif
+
 # Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race)
 # Usage: make test-integration LOW_RESOURCE=1
 #        make coverage-integration LOW_RESOURCE=1
@@ -251,13 +267,18 @@ test-integration:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	echo "Finding packages with *_integration_test.go files..."; \
-	dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No integration test packages found (files matching *_integration_test.go)"; \
+	if [ -n "$(PKG)" ]; then \
+	  echo "Using specified package: $(PKG)"; \
+	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
-	  echo "Found packages: $$pkgs"; \
+	  echo "Finding packages with *_integration_test.go files..."; \
+	  dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	fi; \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No integration test packages found"; \
+	else \
+	  echo "Packages: $$pkgs"; \
 	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
@@ -272,13 +293,13 @@ test-integration:
 	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' $$pkgs || { \
+	      -run '$(RUN_PATTERN)' $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestIntegration' $$pkgs; \
+	          -run '$(RUN_PATTERN)' $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
@@ -286,7 +307,7 @@ test-integration:
 	  else \
 	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' $$pkgs; \
+	      -run '$(RUN_PATTERN)' $$pkgs; \
 	  fi; \
 	fi
 
@@ -306,13 +327,18 @@ coverage-integration:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	echo "Finding packages with *_integration_test.go files..."; \
-	dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No integration test packages found (files matching *_integration_test.go)"; \
+	if [ -n "$(PKG)" ]; then \
+	  echo "Using specified package: $(PKG)"; \
+	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
 	else \
-	  echo "Found packages: $$pkgs"; \
+	  echo "Finding packages with *_integration_test.go files..."; \
+	  dirs=$$(find ./components ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
+	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
+	fi; \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No integration test packages found"; \
+	else \
+	  echo "Packages: $$pkgs"; \
 	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
@@ -327,14 +353,14 @@ coverage-integration:
 	    CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration.xml -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
 	        CHAOS=$(CHAOS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration-rerun.xml -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	          -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
 	        exit 1; \
@@ -343,7 +369,7 @@ coverage-integration:
 	  else \
 	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '^TestIntegration' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
 	  go tool cover -html=$(TEST_REPORTS_DIR)/integration_coverage.out -o $(TEST_REPORTS_DIR)/integration_coverage.html; \
