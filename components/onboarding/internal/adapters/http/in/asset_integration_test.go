@@ -159,6 +159,22 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 	infra.app = fiber.New()
 	infra.setupRoutes()
 
+	// Register cleanup handlers.
+	// NOTE on resource lifecycle:
+	// - infra.pgContainer: Cleaned up by postgrestestutil.SetupContainer via t.Cleanup
+	//   (closes DB connection and terminates container)
+	// - infra.mongoContainer: Cleaned up by mongotestutil.SetupContainer via t.Cleanup
+	//   (disconnects client and terminates container)
+	// - infra.pgConn: Wrapper struct with connection strings; actual DB connections are
+	//   managed lazily by lib-commons and cleaned when pgContainer terminates
+	// - mongoConn: Wrapper struct; underlying client cleaned by mongoContainer cleanup
+	// - infra.app: Fiber app must be explicitly shut down to release resources
+	t.Cleanup(func() {
+		if err := infra.app.Shutdown(); err != nil {
+			t.Logf("failed to shutdown Fiber app: %v", err)
+		}
+	})
+
 	return infra
 }
 
@@ -723,7 +739,9 @@ func TestIntegration_Property_Structural_LargeMetadata(t *testing.T) {
 }
 
 // TestIntegration_Property_Structural_UnknownFields tests that payloads with unknown fields
-// are handled gracefully (should return 4xx, not 5xx or silently accept).
+// are handled gracefully without causing server errors. The server may either reject unknown
+// fields with 4xx (strict validation) or ignore them and return 2xx (lenient behavior).
+// This test verifies the server never crashes (5xx) regardless of validation strategy.
 func TestIntegration_Property_Structural_UnknownFields(t *testing.T) {
 	// Arrange
 	infra := setupAssetTestInfra(t)

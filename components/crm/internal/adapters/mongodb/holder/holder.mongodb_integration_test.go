@@ -5,6 +5,7 @@ package holder
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -473,7 +474,7 @@ func TestIntegration_HolderRepo_FindAll_Pagination(t *testing.T) {
 
 	// Verify no duplicates
 	allIDs := make(map[uuid.UUID]bool)
-	for _, r := range append(append(page1, page2...), page3...) {
+	for _, r := range slices.Concat(page1, page2, page3) {
 		assert.False(t, allIDs[*r.ID], "should not have duplicates")
 		allIDs[*r.ID] = true
 	}

@@ -385,11 +385,12 @@ func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 	})
 
 	// Verify exists before delete
-	before, _ := repo.FindByEntity(ctx, collection, "delete-1")
+	before, err := repo.FindByEntity(ctx, collection, "delete-1")
+	require.NoError(t, err, "FindByEntity should not error during pre-delete verification")
 	require.NotNil(t, before, "document should exist before delete")
 
 	// Act
-	err := repo.Delete(ctx, collection, "delete-1")
+	err = repo.Delete(ctx, collection, "delete-1")
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")
@@ -548,11 +549,8 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 		Logger:                 logger,
 	}
 
-	// Create repository
-	repo := &MetadataMongoDBRepository{
-		connection: conn,
-		Database:   mongoResult.DBName,
-	}
+	// Create repository (uses constructor to validate connection via GetDB())
+	repo := NewMetadataMongoDBRepository(conn)
 
 	return &networkChaosTestInfra{
 		chaosInfra:  chaosInfra,
