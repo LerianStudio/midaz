@@ -41,7 +41,7 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata indexes on repo", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to get metadata indexes for entity %s: %w", entityName, err)
 		}
 
 		for _, idx := range metadataIndexes {

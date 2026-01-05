@@ -18,13 +18,16 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// hashPrefixLength is the length of hash prefix used for logging.
+const hashPrefixLength = 8
+
 // CreateOrCheckIdempotencyKey attempts to create an idempotency key in Redis using SetNX.
 // If the key already exists, it returns the stored value. Returns nil if the key was created.
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	assert.That(organizationID != uuid.Nil,
 		"organization_id must not be nil UUID for idempotency key",
 		"key", key,
-		"hash_prefix", hash[:min(len(hash), 8)])
+		"hash_prefix", hash[:min(len(hash), hashPrefixLength)])
 	assert.That(ledgerID != uuid.Nil,
 		"ledger_id must not be nil UUID for idempotency key",
 		"organization_id", organizationID,

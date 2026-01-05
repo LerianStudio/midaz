@@ -774,6 +774,8 @@ func totalsMatchAmount(debitTotal, creditTotal, amount decimal.Decimal) bool {
 // validateDoubleEntry enforces the double-entry accounting invariant.
 // Panics if debits != credits or if totals are zero.
 // This is a programming bug assertion - user input errors should be handled before this point.
+//
+//nolint:unused // Used in tests to verify assertion behavior (see transaction_assertions_test.go)
 func validateDoubleEntry(operations []*mmodel.Operation) {
 	debitTotal := decimal.Zero
 	creditTotal := decimal.Zero

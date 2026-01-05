@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -414,7 +415,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection for creating index: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -435,7 +436,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanCreateIndex, "Failed to create index", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create MongoDB index: %w", err)
 	}
 
 	logger.Infof("Created index %s on collection %s", indexName, collection)
@@ -445,7 +446,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	if err := metadataIndex.FromEntity(metadata); err != nil {
 		libOpentelemetry.HandleSpanError(&spanCreateIndex, "Failed to convert metadata index to model", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to convert metadata index to model: %w", err)
 	}
 
 	return metadataIndex.ToEntity(), nil
@@ -462,7 +463,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection for finding indexes: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -476,7 +477,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find indexes", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to list MongoDB indexes: %w", err)
 	}
 
 	var metadataIndexes []*MetadataIndex
@@ -489,7 +490,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 			logger.Errorf("Failed to decode metadata index: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to decode metadata index: %w", err)
 		}
 
 		for _, elem := range record.Key {
@@ -506,7 +507,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 		logger.Errorf("Failed to iterate metadata indexes: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to iterate metadata indexes: %w", err)
 	}
 
 	if err := cur.Close(ctx); err != nil {
@@ -514,7 +515,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 		logger.Errorf("Failed to close cursor: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to close cursor: %w", err)
 	}
 
 	return metadataIndexes, nil
@@ -533,7 +534,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 
 		logger.Errorf("Failed to get database: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection for deleting index: %w", err)
 	}
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -550,7 +551,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
 		}
 
-		return err
+		return fmt.Errorf("failed to delete MongoDB index: %w", err)
 	}
 
 	logger.Infof("Deleted index %s on collection %s", indexName, collection)

@@ -31,6 +31,8 @@ import (
 const (
 	balanceSyncIdleWaitSeconds = 600
 	uuidStringLength           = 36
+	// balanceSyncTimeoutMinutes is the timeout for balance sync processing operations.
+	balanceSyncTimeoutMinutes = 5
 )
 
 // ErrBalanceSyncKeyMissingUUIDs is returned when balance sync key is missing required UUIDs
@@ -203,7 +205,7 @@ func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.
 // WHY: Reduce cognitive complexity of Run by isolating the per-member logic.
 func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redis.UniversalClient, member string) {
 	// Timeout shorter than lock TTL (600s) to ensure operations don't exceed the lock duration
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, balanceSyncTimeoutMinutes*time.Minute)
 	defer cancel()
 
 	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)

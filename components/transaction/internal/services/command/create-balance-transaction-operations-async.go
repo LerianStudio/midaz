@@ -200,6 +200,7 @@ func (uc *UseCase) queueTransactionMetadata(ctx context.Context, tran *transacti
 			if uc.Logger != nil {
 				uc.Logger.Debugf("Outbox duplicate entry; skipping transaction metadata (transaction_id=%v)", tran.ID)
 			}
+
 			return nil
 		}
 

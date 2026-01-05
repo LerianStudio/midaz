@@ -176,7 +176,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 			logger.Infof("Transaction already exists, skipping duplicate insert (idempotent retry)")
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create transaction (duplicate): %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)

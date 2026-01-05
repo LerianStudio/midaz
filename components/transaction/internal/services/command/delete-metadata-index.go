@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -33,7 +34,7 @@ func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexNam
 
 		logger.Errorf("Failed to delete metadata index: %v", err)
 
-		return err
+		return fmt.Errorf("failed to delete metadata index from repository: %w", err)
 	}
 
 	logger.Infof("Metadata index deleted successfully: %v", indexName)

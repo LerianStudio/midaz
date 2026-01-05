@@ -196,7 +196,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *m
 
 			logger.Infof("Operation already exists, skipping duplicate insert (idempotent retry)")
 
-			return nil, err
+			return nil, fmt.Errorf("failed to create operation (duplicate): %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)

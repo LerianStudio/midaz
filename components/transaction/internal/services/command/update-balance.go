@@ -234,7 +234,7 @@ func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organ
 // is greater than the version being persisted. This prevents unnecessary database updates
 // and reduces Lock:tuple contention when multiple workers process the same balance.
 func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, logger libLog.Logger) ([]*mmodel.Balance, int) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only tracer needed here
 
 	ctx, span := tracer.Start(ctx, "command.filter_stale_balances")
 	defer span.End()

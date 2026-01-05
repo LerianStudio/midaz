@@ -41,6 +41,9 @@ const (
 
 	// metadataOutboxProcessingTimeout is the timeout for processing a single metadata outbox entry.
 	metadataOutboxProcessingTimeout = 30 * time.Second
+
+	// maxBitShiftForInt64 is the maximum safe bit shift for int64 (prevents overflow).
+	maxBitShiftForInt64 = 63
 )
 
 // Metric names for observability (for future Prometheus integration)
@@ -366,29 +369,8 @@ func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
 	}
 
 	// Exponential backoff: initial * 2^(attempt-1)
-	backoff := cfg.InitialBackoff
 	shift := attempt - 1
-
-	// Compute multiplier = 1 << (attempt-1) safely.
-	// Shifting by >= 63 would overflow int64/time.Duration, so treat it as overflow and cap early.
-	if shift >= 63 {
-		backoff = cfg.MaxBackoff
-	} else {
-		multiplier := uint64(1) << uint(shift)
-
-		// Avoid intermediate overflow when multiplying durations by doing a capped multiplication.
-		// If initialBackoff > maxBackoff/multiplier, the product would exceed maxBackoff, so cap.
-		if cfg.InitialBackoff > 0 && cfg.MaxBackoff > 0 {
-			initialU := uint64(cfg.InitialBackoff)
-
-			maxU := uint64(cfg.MaxBackoff)
-			if initialU > maxU/multiplier {
-				backoff = cfg.MaxBackoff
-			} else {
-				backoff = time.Duration(initialU * multiplier)
-			}
-		}
-	}
+	backoff := computeExponentialBackoff(cfg.InitialBackoff, cfg.MaxBackoff, shift)
 
 	// Add jitter using config's jitter factor
 	jitter := time.Duration(float64(backoff) * cfg.JitterFactor * outbox.SecureRandomFloat64())
@@ -400,6 +382,34 @@ func (w *MetadataOutboxWorker) calculateBackoff(attempt int) time.Duration {
 	}
 
 	return backoff
+}
+
+// computeExponentialBackoff calculates backoff = initial * 2^shift, capped at maxBackoff.
+// Handles overflow safely by returning maxBackoff when computation would overflow.
+func computeExponentialBackoff(initial, maxBackoff time.Duration, shift int) time.Duration {
+	// Handle overflow cases: negative shift or shift >= 63 would overflow int64
+	if shift < 0 || shift >= maxBitShiftForInt64 {
+		return maxBackoff
+	}
+
+	// If either value is non-positive, return initial as fallback
+	if initial <= 0 || maxBackoff <= 0 {
+		return initial
+	}
+
+	multiplier := uint64(1) << uint(shift)
+	initialU := uint64(initial) //nolint:gosec // initial > 0 verified above
+	maxU := uint64(maxBackoff)  //nolint:gosec // maxBackoff > 0 verified above
+
+	// Check if multiplication would overflow maxBackoff
+	if initialU > maxU/multiplier {
+		return maxBackoff
+	}
+
+	// Safe: product is <= maxU which fits in int64 (time.Duration)
+	product := initialU * multiplier
+
+	return time.Duration(product) //nolint:gosec // product <= maxU <= MaxInt64
 }
 
 // isInfrastructureHealthy checks if PostgreSQL and MongoDB are available.

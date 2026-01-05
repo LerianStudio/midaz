@@ -58,9 +58,10 @@ const (
 	dlqBackoffTier3 = 15 * time.Minute
 
 	// Time calculation constants
-	secondsPerMinute = 60
-	minutesPerHour   = 60
-	hoursPerDay      = 24
+	secondsPerMinute   = 60
+	minutesPerHour     = 60
+	hoursPerDay        = 24
+	millisecondsPerSec = 1000
 
 	// staleMessageThresholdDays is the number of days after which a DLQ message is considered stale.
 	// Set to 24 days to ensure TTL in milliseconds (2,073,600,000) fits within int32 max (2,147,483,647).
@@ -288,7 +289,7 @@ func (d *DLQConsumer) setupDLQChannel(dlqName string, logger libLog.Logger) (*dl
 	// Declare DLQ if it doesn't exist (idempotent)
 	// Set message TTL to automatically expire stale messages after 24 days
 	// Note: 24 days in ms (2,073,600,000) fits within int32 max (2,147,483,647)
-	dlqTTLMs := int64(staleMessageThresholdDays) * int64(hoursPerDay) * int64(minutesPerHour) * int64(secondsPerMinute) * 1000
+	dlqTTLMs := int64(staleMessageThresholdDays) * int64(hoursPerDay) * int64(minutesPerHour) * int64(secondsPerMinute) * millisecondsPerSec
 	dlqArgs := amqp.Table{
 		"x-message-ttl": dlqTTLMs, // 24 days in ms
 	}

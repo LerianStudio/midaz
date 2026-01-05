@@ -36,6 +36,8 @@ const (
 	StaleProcessingThreshold = 5 * time.Minute
 	// MaxErrorMessageLength limits error message size to prevent PII leakage.
 	MaxErrorMessageLength = 500
+	// batchSizeMultiplier is the multiplier to fetch more entries than needed to allow for filtering.
+	batchSizeMultiplier = 3
 )
 
 // Static errors for outbox operations
@@ -296,12 +298,12 @@ func normalizeBatchSize(batchSize int) int {
 	return batchSize
 }
 
-func assertValidOutboxStatus(status OutboxStatus, context string, kv ...any) {
+func assertValidOutboxStatus(status OutboxStatus, contextMsg string, kv ...any) {
 	switch status {
 	case StatusPending, StatusProcessing, StatusPublished, StatusFailed, StatusDLQ:
 		return
 	default:
-		args := append([]any{"status", status, "context", context}, kv...)
+		args := append([]any{"status", status, "context", contextMsg}, kv...)
 		assert.Never("invalid outbox status", args...)
 	}
 }
@@ -341,20 +343,9 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 
 	batchSize = normalizeBatchSize(batchSize)
 
-	db, err := r.connection.GetDB()
+	tx, err := r.beginClaimTransaction(ctx, &span, logger)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		logger.Errorf("Failed to get database connection: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
-		logger.Errorf("Failed to begin transaction: %v", err)
-
-		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+		return nil, err
 	}
 
 	defer func() {
@@ -369,27 +360,63 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 	}
 
 	if len(entries) == 0 {
-		if err := tx.Rollback(); err != nil {
-			logger.Errorf("Failed to rollback empty transaction: %v", err)
-		}
-
+		_ = tx.Rollback()
 		return entries, nil
 	}
 
 	now := time.Now()
-	if err := r.markEntriesAsProcessing(ctx, tx, ids, now, &span, logger); err != nil {
+
+	if err = r.commitClaimedEntries(ctx, tx, ids, now, &span, logger); err != nil {
 		return nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
-		logger.Errorf("Failed to commit transaction: %v", err)
+	r.updateEntriesInMemory(entries, now)
+	r.assertClaimedEntriesValid(entries)
+
+	logger.Infof("Claimed %d outbox entries for processing", len(entries))
+
+	return entries, nil
+}
+
+// beginClaimTransaction starts a new transaction for claiming entries.
+func (r *OutboxPostgreSQLRepository) beginClaimTransaction(ctx context.Context, span *trace.Span, logger libLog.Logger) (dbtx.Tx, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
 	}
 
-	// Update in-memory entries to reflect PROCESSING status
-	// (the database was already updated in the transaction)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", err)
+		logger.Errorf("Failed to begin transaction: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	return tx, nil
+}
+
+// commitClaimedEntries marks entries as processing and commits the transaction.
+func (r *OutboxPostgreSQLRepository) commitClaimedEntries(ctx context.Context, tx dbtx.Tx, ids []string, now time.Time, span *trace.Span, logger libLog.Logger) error {
+	if err := r.markEntriesAsProcessing(ctx, tx, ids, now, span, logger); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", err)
+		logger.Errorf("Failed to commit transaction: %v", err)
+
+		return pkg.ValidateInternalError(err, "MetadataOutbox")
+	}
+
+	return nil
+}
+
+// updateEntriesInMemory updates in-memory entries to reflect PROCESSING status.
+func (r *OutboxPostgreSQLRepository) updateEntriesInMemory(entries []*MetadataOutbox, now time.Time) {
 	for i, entry := range entries {
 		assertValidOutboxStatus(entry.Status, "ClaimPendingBatch", "entry_id", entry.ID.String())
 		assert.That(entry.Status == StatusPending || entry.Status == StatusProcessing || entry.Status == StatusFailed,
@@ -405,8 +432,10 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 		entry.Status = StatusProcessing
 		entry.ProcessingStartedAt = &now
 	}
+}
 
-	// Postcondition: all returned entries must be in PROCESSING status
+// assertClaimedEntriesValid validates that all claimed entries are in PROCESSING status.
+func (r *OutboxPostgreSQLRepository) assertClaimedEntriesValid(entries []*MetadataOutbox) {
 	for i, entry := range entries {
 		assert.That(entry.Status == StatusProcessing,
 			"claimed entry must be in PROCESSING status after claim",
@@ -414,10 +443,6 @@ func (r *OutboxPostgreSQLRepository) ClaimPendingBatch(ctx context.Context, batc
 			"entry_id", entry.ID.String(),
 			"actual_status", entry.Status)
 	}
-
-	logger.Infof("Claimed %d outbox entries for processing", len(entries))
-
-	return entries, nil
 }
 
 // queryAndScanPendingEntries queries and scans pending outbox entries.
@@ -443,7 +468,7 @@ func (r *OutboxPostgreSQLRepository) queryAndScanPendingEntries(
 		FOR UPDATE SKIP LOCKED
 	`
 
-	fetchSize := batchSize * 3
+	fetchSize := batchSize * batchSizeMultiplier
 	if fetchSize < batchSize {
 		fetchSize = batchSize
 	}

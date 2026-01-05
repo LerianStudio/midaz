@@ -29,7 +29,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.Create
 
 		logger.Errorf("Failed to check existing indexes: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to check existing metadata indexes: %w", err)
 	}
 
 	expectedIndexKey := "metadata." + input.MetadataKey
@@ -59,7 +59,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.Create
 
 		logger.Errorf("Failed to create metadata index: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to create metadata index in repository: %w", err)
 	}
 
 	result := &mmodel.MetadataIndex{

@@ -41,6 +41,8 @@ const (
 	// MaxWorkers is the maximum number of concurrent workers processing messages from the Redis queue.
 	MaxWorkers               = 100
 	messageProcessingTimeout = 30
+	// transactionKeyPartsCount is the expected number of parts in a transaction Redis key.
+	transactionKeyPartsCount = 5
 )
 
 // ErrPanicRecovered is returned when a panic is recovered during message processing
@@ -85,7 +87,7 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled,gocognit
+//nolint:dogsled
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -215,7 +217,7 @@ func (r *RedisQueueConsumer) unmarshalAndValidateMessage(message string) (mmodel
 // validateTransactionKey ensures the redis key matches the transaction identifiers.
 func (r *RedisQueueConsumer) validateTransactionKey(key string, transaction mmodel.TransactionRedisQueue) {
 	parts := strings.Split(key, ":")
-	assert.That(len(parts) == 5,
+	assert.That(len(parts) == transactionKeyPartsCount,
 		"transaction redis key has invalid format",
 		"key", key,
 		"parts", len(parts))
