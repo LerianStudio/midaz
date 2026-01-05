@@ -23,6 +23,10 @@ type Service struct {
 	// This is the transaction UseCase which implements BalancePort directly.
 	balancePort mbootstrap.BalancePort
 
+	// metadataIndexPort holds the reference for use in unified ledger mode.
+	// This is the MetadataIndexAdapter which implements MetadataIndexPort.
+	metadataIndexPort mbootstrap.MetadataIndexPort
+
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
 	transactionHandler      *httpin.TransactionHandler
@@ -88,6 +92,12 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 // the interface directly - no intermediate adapters needed.
 func (app *Service) GetBalancePort() mbootstrap.BalancePort {
 	return app.balancePort
+}
+
+// GetMetadataIndexPort returns the metadata index port for use by ledger in unified mode.
+// This allows direct in-process calls for metadata index operations.
+func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
+	return app.metadataIndexPort
 }
 
 // GetRouteRegistrar returns a function that registers transaction routes to an existing Fiber app.

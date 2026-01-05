@@ -10,6 +10,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -586,4 +587,103 @@ func TestValidateDates_SameDay(t *testing.T) {
 	err := validateDates(&startDate, &endDate)
 
 	require.NoError(t, err)
+}
+
+func TestGetUUIDFromLocals_ValidUUID(t *testing.T) {
+	app := fiber.New()
+	testUUID := uuid.New()
+
+	app.Get("/test/:id", func(c *fiber.Ctx) error {
+		c.Locals("id", testUUID)
+		result, err := GetUUIDFromLocals(c, "id")
+		assert.NoError(t, err)
+		assert.Equal(t, testUUID, result)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test/"+testUUID.String(), nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetUUIDFromLocals_NilValue(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		result, err := GetUUIDFromLocals(c, "id")
+		assert.Error(t, err)
+		assert.Equal(t, uuid.Nil, result)
+		return c.SendStatus(fiber.StatusBadRequest)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetUUIDFromLocals_WrongType(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		c.Locals("id", "not-a-uuid-object")
+		result, err := GetUUIDFromLocals(c, "id")
+		assert.Error(t, err)
+		assert.Equal(t, uuid.Nil, result)
+		return c.SendStatus(fiber.StatusBadRequest)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetUUIDFromLocals_WrongTypeInteger(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		c.Locals("id", 12345)
+		result, err := GetUUIDFromLocals(c, "id")
+		assert.Error(t, err)
+		assert.Equal(t, uuid.Nil, result)
+		return c.SendStatus(fiber.StatusBadRequest)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
+	app := fiber.New()
+	holderID := uuid.New()
+	aliasID := uuid.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		c.Locals("holder_id", holderID)
+		c.Locals("alias_id", aliasID)
+
+		resultHolder, err := GetUUIDFromLocals(c, "holder_id")
+		assert.NoError(t, err)
+		assert.Equal(t, holderID, resultHolder)
+
+		resultAlias, err := GetUUIDFromLocals(c, "alias_id")
+		assert.NoError(t, err)
+		assert.Equal(t, aliasID, resultAlias)
+
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }

@@ -1,6 +1,8 @@
 package command
 
 import (
+	"context"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -47,4 +49,9 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+}
+
+// CheckHealth returns nil for unified mode (in-process calls don't need health checks).
+func (uc *UseCase) CheckHealth(ctx context.Context) error {
+	return nil
 }

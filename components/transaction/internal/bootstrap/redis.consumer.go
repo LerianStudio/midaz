@@ -13,15 +13,18 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 const CronTimeToRun = 30 * time.Minute
 const MessageTimeOfLife = 30
 const MaxWorkers = 100
+const ConsumerLockTTL = 1500 // 25 minutes in seconds
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
@@ -56,7 +59,7 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled
+//nolint:dogsled,gocognit
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -107,6 +110,10 @@ Outer:
 
 		go func(key string, m mmodel.TransactionRedisQueue) {
 			defer func() {
+				if rec := recover(); rec != nil {
+					r.Logger.Warnf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec)
+				}
+
 				<-sem
 				wg.Done()
 			}()
@@ -129,12 +136,40 @@ Outer:
 			select {
 			case <-msgCtxWithSpan.Done():
 				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
+
 				return
 			default:
 			}
 
+			// Acquire distributed lock to prevent duplicate processing across pods
+			lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
+
+			success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
+			if err != nil {
+				logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
+
+				return
+			}
+
+			if !success {
+				logger.Infof("Message %s already being processed by another pod, skipping", key)
+
+				return
+			}
+
+			if m.Validate == nil {
+				logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
+
+				return
+			}
+
 			balances := make([]*mmodel.Balance, 0, len(m.Balances))
 			for _, balance := range m.Balances {
+				balanceKey := balance.Key
+				if balanceKey == "" {
+					balanceKey = constant.DefaultBalanceKey
+				}
+
 				balances = append(balances, &mmodel.Balance{
 					Alias:          balance.Alias,
 					ID:             balance.ID,
@@ -146,7 +181,7 @@ Outer:
 					AllowSending:   balance.AllowSending == 1,
 					AllowReceiving: balance.AllowReceiving == 1,
 					AssetCode:      balance.AssetCode,
-					Key:            balance.Key,
+					Key:            balanceKey,
 					OrganizationID: m.OrganizationID.String(),
 					LedgerID:       m.LedgerID.String(),
 				})
@@ -173,7 +208,14 @@ Outer:
 				},
 			}
 
-			fromTo := append(m.ParserDSL.Send.Source.From, m.ParserDSL.Send.Distribute.To...)
+			var fromTo []pkgTransaction.FromTo
+
+			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Source.From, true)...)
+			to := r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Distribute.To, true)
+
+			if m.TransactionStatus != constant.PENDING {
+				fromTo = append(fromTo, to...)
+			}
 
 			operations, _, err := r.TransactionHandler.BuildOperations(
 				msgCtxWithSpan, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
@@ -189,6 +231,8 @@ Outer:
 			tran.Source = m.Validate.Sources
 			tran.Destination = m.Validate.Destinations
 			tran.Operations = operations
+
+			utils.SanitizeAccountAliases(&m.ParserDSL)
 
 			if err := r.TransactionHandler.Command.SendBTOExecuteAsync(
 				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,

@@ -23,6 +23,7 @@ import (
 type Repository interface {
 	CreateBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
 	DeleteAllBalancesByAccountID(ctx context.Context, token string, req *proto.DeleteAllBalancesByAccountIDRequest) error
+	CheckHealth(ctx context.Context) error
 }
 
 // BalanceGRPCRepository is a gRPC implementation for balance.proto
@@ -40,6 +41,11 @@ func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
 	}
 
 	return agrpc
+}
+
+// CheckHealth verifies that the gRPC connection to the balance service is healthy.
+func (b *BalanceGRPCRepository) CheckHealth(ctx context.Context) error {
+	return b.conn.CheckHealth(ctx)
 }
 
 // CreateBalance creates a balance via gRPC using the provided request.
@@ -217,6 +223,11 @@ func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organ
 	token := extractAuthToken(ctx)
 
 	return a.grpcRepo.DeleteAllBalancesByAccountID(ctx, token, req)
+}
+
+// CheckHealth checks the gRPC connection health.
+func (a *BalanceAdapter) CheckHealth(ctx context.Context) error {
+	return a.grpcRepo.CheckHealth(ctx)
 }
 
 // Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time

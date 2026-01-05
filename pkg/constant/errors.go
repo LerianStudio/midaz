@@ -135,7 +135,17 @@ var (
 	ErrInvalidTransactionNonPositiveValue       = errors.New("0125")
 	ErrDefaultBalanceNotFound                   = errors.New("0126")
 	ErrAccountCreationFailed                    = errors.New("0127")
-	ErrInvalidDatetimeFormat                    = errors.New("0128")
+	ErrTransactionBackupCacheFailed             = errors.New("0128")
+	ErrTransactionBackupCacheMarshalFailed      = errors.New("0129")
+	ErrGRPCServiceUnavailable                   = errors.New("0130")
+	ErrInvalidDatetimeFormat                    = errors.New("0131")
+	ErrMetadataIndexAlreadyExists               = errors.New("0132")
+	ErrMetadataIndexNotFound                    = errors.New("0133")
+	ErrMetadataIndexInvalidKey                  = errors.New("0134")
+	ErrMetadataIndexLimitExceeded               = errors.New("0135")
+	ErrMetadataIndexCreationFailed              = errors.New("0136")
+	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
+	ErrInvalidEntityName                        = errors.New("0138")
 
 	//CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")

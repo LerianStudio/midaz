@@ -10,7 +10,6 @@ import (
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -49,11 +48,6 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.organization_id", organizationID),
 	)
 
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
 	out, err := handler.Service.CreateHolder(ctx, organizationID, payload)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder", err)
@@ -89,7 +83,11 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_holder_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	includeDeleted := http.GetBooleanParam(c, "include_deleted")
 
@@ -138,7 +136,11 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_holder")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	payload := p.(*mmodel.UpdateHolderInput)
 
@@ -156,11 +158,6 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.organization_id", organizationID),
 		attribute.String("app.request.holder_id", id.String()),
 	)
-
-	err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
 	if err != nil {
@@ -203,7 +200,11 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.remove_holder_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 	hardDelete := http.GetBooleanParam(c, "hard_delete")
 
@@ -216,7 +217,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating removal of holder with ID: %s", id.String())
 
-	err := handler.Service.DeleteHolderByID(ctx, organizationID, id, hardDelete)
+	err = handler.Service.DeleteHolderByID(ctx, organizationID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder", err)
 

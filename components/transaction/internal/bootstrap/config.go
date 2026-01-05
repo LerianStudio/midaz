@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -256,9 +256,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
 	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
 	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPort := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParameters := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+
+	// Extract port and parameters for MongoDB connection (handles backward compatibility)
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
@@ -406,6 +409,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
+	metadataIndexAdapter := NewMetadataIndexAdapter(useCase, queryUseCase)
+
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -429,6 +434,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
+
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
@@ -461,6 +472,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
 		Logger:                   logger,
 		balancePort:              useCase,
+		metadataIndexPort:        metadataIndexAdapter,
 		auth:                     auth,
 		transactionHandler:       transactionHandler,
 		operationHandler:         operationHandler,

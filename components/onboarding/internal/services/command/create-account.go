@@ -30,6 +30,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create account (sync): %v", cai)
 
+	// Fail-fast: Check balance service health before proceeding
+	if err := uc.BalancePort.CheckHealth(ctx); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
+		logger.Errorf("Balance service is unavailable: %v", err)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting validations failed", err)
 
@@ -93,10 +101,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	blocked := false
-	if cai.Blocked != nil {
-		blocked = *cai.Blocked
-	}
+	blocked := cai.Blocked != nil && *cai.Blocked
 
 	account := &mmodel.Account{
 		ID:              ID,
@@ -151,12 +156,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			logger.Errorf("Failed to delete account during compensation: %v", delErr)
 		}
 
-		var (
-			unauthorized pkg.UnauthorizedError
-			forbidden    pkg.ForbiddenError
-		)
-
-		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+		if isAuthorizationError(err) {
 			return nil, err
 		}
 
@@ -177,6 +177,16 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	logger.Infof("Account created synchronously with default balance")
 
 	return acc, nil
+}
+
+// isAuthorizationError checks if the error is an authorization-related error.
+func isAuthorizationError(err error) bool {
+	var (
+		unauthorized pkg.UnauthorizedError
+		forbidden    pkg.ForbiddenError
+	)
+
+	return errors.As(err, &unauthorized) || errors.As(err, &forbidden)
 }
 
 // resolveAccountAlias resolves and validates the account alias.

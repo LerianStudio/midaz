@@ -12,6 +12,7 @@ MIDAZ_ROOT="$(dirname "$(dirname "$LEDGER_DIR")")"
 
 ONBOARDING_SWAGGER="$MIDAZ_ROOT/components/onboarding/api/Onboarding_swagger.json"
 TRANSACTION_SWAGGER="$MIDAZ_ROOT/components/transaction/api/Transaction_swagger.json"
+LEDGER_SWAGGER="$LEDGER_DIR/api/ledger_swagger.json"
 OUTPUT_DIR="$LEDGER_DIR/api"
 OUTPUT_FILE="$OUTPUT_DIR/swagger.json"
 ENV_FILE="$LEDGER_DIR/.env"
@@ -42,19 +43,38 @@ if [ ! -f "$TRANSACTION_SWAGGER" ]; then
     exit 1
 fi
 
+# Generate ledger-specific swagger (metadata indexes)
+echo "Generating ledger-specific swagger (metadata indexes)..."
+(cd "$LEDGER_DIR" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "ledger" 2>/dev/null) || {
+    echo "Warning: Failed to generate ledger swagger, continuing without it"
+}
+
+if [ ! -f "$LEDGER_SWAGGER" ]; then
+    echo "Warning: Ledger swagger not found at $LEDGER_SWAGGER"
+    echo "Metadata index endpoints will not be included"
+    LEDGER_SWAGGER=""
+fi
+
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
 # Merge using jq
 echo "Merging swagger specs..."
 
+# Build the list of swagger files to merge
+SWAGGER_FILES=("$ONBOARDING_SWAGGER" "$TRANSACTION_SWAGGER")
+if [ -n "$LEDGER_SWAGGER" ] && [ -f "$LEDGER_SWAGGER" ]; then
+    SWAGGER_FILES+=("$LEDGER_SWAGGER")
+    echo "Including ledger swagger (metadata indexes)"
+fi
+
 jq -s --arg version "$VERSION" '
-# Take the first spec as base and merge paths and definitions from both
+# Merge all paths and definitions from all input specs
 {
     "swagger": "2.0",
     "info": {
         "title": "Midaz Ledger API (Unified)",
-        "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates) in a single service.",
+        "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "Discord community",
@@ -68,8 +88,8 @@ jq -s --arg version "$VERSION" '
     },
     "host": "localhost:3002",
     "basePath": "/",
-    "paths": (.[0].paths + .[1].paths),
-    "definitions": (.[0].definitions + .[1].definitions),
+    "paths": (reduce .[] as $item ({}; . + $item.paths)),
+    "definitions": (reduce .[] as $item ({}; . + $item.definitions)),
     "securityDefinitions": {
         "BearerAuth": {
             "type": "apiKey",
@@ -78,9 +98,9 @@ jq -s --arg version "$VERSION" '
             "description": "Bearer token authentication. Format: '\''Bearer {access_token}'\''. Only required when auth plugin is enabled."
         }
     },
-    "tags": (.[0].tags + .[1].tags)
+    "tags": (reduce .[] as $item ([]; . + ($item.tags // [])) | unique_by(.name))
 }
-' "$ONBOARDING_SWAGGER" "$TRANSACTION_SWAGGER" > "$OUTPUT_FILE"
+' "${SWAGGER_FILES[@]}" > "$OUTPUT_FILE"
 
 echo "Merged swagger written to $OUTPUT_FILE"
 
@@ -105,7 +125,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Midaz Ledger API (Unified)",
-	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates) in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates),  and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
