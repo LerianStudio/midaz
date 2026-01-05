@@ -3,20 +3,13 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -222,52 +215,3 @@ func TestCreatePortfolioError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
-func TestUseCase_CreatePortfolio(t *testing.T) {
-	type fields struct {
-		OrganizationRepo organization.Repository
-		LedgerRepo       ledger.Repository
-		SegmentRepo      segment.Repository
-		PortfolioRepo    portfolio.Repository
-		AccountRepo      account.Repository
-		AssetRepo        asset.Repository
-		MetadataRepo     mongodb.Repository
-		RedisRepo        redis.RedisRepository
-	}
-	type args struct {
-		ctx            context.Context
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		cpi            *mmodel.CreatePortfolioInput
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *mmodel.Portfolio
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			uc := &UseCase{
-				OrganizationRepo: tt.fields.OrganizationRepo,
-				LedgerRepo:       tt.fields.LedgerRepo,
-				SegmentRepo:      tt.fields.SegmentRepo,
-				PortfolioRepo:    tt.fields.PortfolioRepo,
-				AccountRepo:      tt.fields.AccountRepo,
-				AssetRepo:        tt.fields.AssetRepo,
-				MetadataRepo:     tt.fields.MetadataRepo,
-				RedisRepo:        tt.fields.RedisRepo,
-			}
-			got, err := uc.CreatePortfolio(tt.args.ctx, tt.args.organizationID, tt.args.ledgerID, tt.args.cpi)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("UseCase.CreatePortfolio() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("UseCase.CreatePortfolio() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}

@@ -5,7 +5,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -196,11 +195,7 @@ func TestValidateParameters_WithToAssetCodes(t *testing.T) {
 }
 
 func TestValidateParameters_LimitExceeded(t *testing.T) {
-	// Save original env and restore after test
-	originalEnv := os.Getenv("MAX_PAGINATION_LIMIT")
-	defer os.Setenv("MAX_PAGINATION_LIMIT", originalEnv)
-
-	os.Setenv("MAX_PAGINATION_LIMIT", "100")
+	t.Setenv("MAX_PAGINATION_LIMIT", "100")
 
 	params := map[string]string{
 		"limit": "150",
@@ -279,11 +274,7 @@ func TestValidateDates_ValidDateRange(t *testing.T) {
 }
 
 func TestValidateDates_WithMaxDateRangeZero(t *testing.T) {
-	// Save original env and restore after test
-	originalEnv := os.Getenv("MAX_PAGINATION_MONTH_DATE_RANGE")
-	defer os.Setenv("MAX_PAGINATION_MONTH_DATE_RANGE", originalEnv)
-
-	os.Setenv("MAX_PAGINATION_MONTH_DATE_RANGE", "0")
+	t.Setenv("MAX_PAGINATION_MONTH_DATE_RANGE", "0")
 
 	startDate := time.Time{}
 	endDate := time.Time{}
@@ -314,11 +305,7 @@ func TestValidatePagination_InvalidSortOrder(t *testing.T) {
 }
 
 func TestValidatePagination_LimitExceeded(t *testing.T) {
-	// Save original env and restore after test
-	originalEnv := os.Getenv("MAX_PAGINATION_LIMIT")
-	defer os.Setenv("MAX_PAGINATION_LIMIT", originalEnv)
-
-	os.Setenv("MAX_PAGINATION_LIMIT", "100")
+	t.Setenv("MAX_PAGINATION_LIMIT", "100")
 
 	err := validatePagination("", "asc", 150)
 

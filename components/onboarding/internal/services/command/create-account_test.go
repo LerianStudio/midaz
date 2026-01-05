@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
@@ -388,15 +387,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
@@ -749,11 +744,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
 
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
@@ -931,15 +922,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
@@ -966,15 +953,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 // TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
 func TestCreateAccountBlockedFlag(t *testing.T) {
+	t.Setenv("ACCOUNT_TYPE_VALIDATION", "")
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-
-	originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
-	os.Setenv("ACCOUNT_TYPE_VALIDATION", "")
-	defer func() {
-		os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-	}()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

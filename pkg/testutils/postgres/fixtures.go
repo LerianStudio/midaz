@@ -556,3 +556,196 @@ func CreateTestAccountType(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, 
 
 	return id
 }
+
+// AssetRateParams holds parameters for creating a test asset rate.
+type AssetRateParams struct {
+	ExternalID *uuid.UUID
+	From       string
+	To         string
+	Rate       float64
+	RateScale  float64
+	Source     *string
+	TTL        int
+}
+
+// DefaultAssetRateParams returns default parameters for creating a test asset rate.
+func DefaultAssetRateParams() AssetRateParams {
+	source := "Test Source"
+	return AssetRateParams{
+		From:      "USD",
+		To:        "BRL",
+		Rate:      5.25,
+		RateScale: 2.0,
+		Source:    &source,
+		TTL:       3600,
+	}
+}
+
+// CreateTestAssetRate inserts an asset rate directly into DB for test setup.
+func CreateTestAssetRate(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AssetRateParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// external_id is NOT NULL in schema, so generate one if not provided
+	externalID := libCommons.GenerateUUIDv7()
+	if params.ExternalID != nil {
+		externalID = *params.ExternalID
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO asset_rate (id, organization_id, ledger_id, external_id, "from", "to", rate, rate_scale, source, ttl, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, id, orgID, ledgerID, externalID, params.From, params.To, params.Rate, params.RateScale, params.Source, params.TTL, now, now)
+	require.NoError(t, err, "failed to create test asset rate")
+
+	return id
+}
+
+// CreateTestAssetRateSimple is a convenience wrapper that creates an asset rate with minimal params.
+// Note: rate is stored as BIGINT in DB, so values like 1.17 get truncated to 1.
+// For proper testing, use integer rates or account for truncation behavior.
+func CreateTestAssetRateSimple(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, from, to string, rate float64) uuid.UUID {
+	t.Helper()
+
+	params := DefaultAssetRateParams()
+	params.From = from
+	params.To = to
+	params.Rate = rate
+
+	return CreateTestAssetRate(t, db, orgID, ledgerID, params)
+}
+
+// GetAssetRateByID retrieves an asset rate by ID for verification.
+func GetAssetRateByID(t *testing.T, db *sql.DB, id uuid.UUID) (from, to string, rate float64) {
+	t.Helper()
+
+	err := db.QueryRow(`
+		SELECT "from", "to", rate FROM asset_rate WHERE id = $1
+	`, id).Scan(&from, &to, &rate)
+	require.NoError(t, err, "failed to get asset rate by ID")
+
+	return from, to, rate
+}
+
+// OperationRouteParams holds parameters for creating a test operation route.
+type OperationRouteParams struct {
+	Title              string
+	Description        string
+	Code               *string
+	OperationType      string // "source" or "destination"
+	AccountRuleType    *string
+	AccountRuleValidIf *string
+	DeletedAt          *time.Time
+}
+
+// DefaultOperationRouteParams returns default parameters for creating a test operation route.
+func DefaultOperationRouteParams() OperationRouteParams {
+	return OperationRouteParams{
+		Title:         "Test Operation Route",
+		Description:   "Test description for operation route",
+		OperationType: "source",
+	}
+}
+
+// CreateTestOperationRoute inserts an operation route directly into DB for test setup.
+func CreateTestOperationRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params OperationRouteParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO operation_route (id, organization_id, ledger_id, title, description, code, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, id, orgID, ledgerID, params.Title, params.Description, params.Code, params.OperationType,
+		params.AccountRuleType, params.AccountRuleValidIf, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test operation route")
+
+	return id
+}
+
+// CreateTestOperationRouteSimple is a convenience wrapper that creates an operation route with minimal params.
+// Note: account_rule_type and account_rule_valid_if are set to empty strings instead of NULL
+// because the repository model uses string (not sql.NullString) for these fields.
+func CreateTestOperationRouteSimple(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, title, operationType string) uuid.UUID {
+	t.Helper()
+
+	// Use empty strings for nullable string columns that the repository scans as plain strings
+	emptyString := ""
+	params := DefaultOperationRouteParams()
+	params.Title = title
+	params.OperationType = operationType
+	params.AccountRuleType = &emptyString
+	params.AccountRuleValidIf = &emptyString
+
+	return CreateTestOperationRoute(t, db, orgID, ledgerID, params)
+}
+
+// TransactionRouteParams holds parameters for creating a test transaction route.
+type TransactionRouteParams struct {
+	Title       string
+	Description string
+	DeletedAt   *time.Time
+}
+
+// DefaultTransactionRouteParams returns default parameters for creating a test transaction route.
+func DefaultTransactionRouteParams() TransactionRouteParams {
+	return TransactionRouteParams{
+		Title:       "Test Transaction Route",
+		Description: "Test description for transaction route",
+	}
+}
+
+// CreateTestTransactionRoute inserts a transaction route directly into DB for test setup.
+func CreateTestTransactionRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params TransactionRouteParams) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO transaction_route (id, organization_id, ledger_id, title, description, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, id, orgID, ledgerID, params.Title, params.Description, now, now, params.DeletedAt)
+	require.NoError(t, err, "failed to create test transaction route")
+
+	return id
+}
+
+// CreateTestTransactionRouteSimple is a convenience wrapper that creates a transaction route with minimal params.
+func CreateTestTransactionRouteSimple(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, title string) uuid.UUID {
+	t.Helper()
+
+	params := DefaultTransactionRouteParams()
+	params.Title = title
+
+	return CreateTestTransactionRoute(t, db, orgID, ledgerID, params)
+}
+
+// CreateTestOperationTransactionRouteLink inserts a link between operation route and transaction route.
+func CreateTestOperationTransactionRouteLink(t *testing.T, db *sql.DB, operationRouteID, transactionRouteID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	id := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := db.Exec(`
+		INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at, deleted_at)
+		VALUES ($1, $2, $3, $4, NULL)
+	`, id, operationRouteID, transactionRouteID, now)
+	require.NoError(t, err, "failed to create test operation transaction route link")
+
+	return id
+}
+
+// SoftDeleteOperationTransactionRouteLink soft-deletes a link by ID.
+func SoftDeleteOperationTransactionRouteLink(t *testing.T, db *sql.DB, linkID uuid.UUID) {
+	t.Helper()
+
+	_, err := db.Exec(`
+		UPDATE operation_transaction_route SET deleted_at = NOW() WHERE id = $1
+	`, linkID)
+	require.NoError(t, err, "failed to soft-delete operation transaction route link")
+}

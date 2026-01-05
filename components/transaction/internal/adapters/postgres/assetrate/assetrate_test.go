@@ -8,6 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// =============================================================================
+// UNIT TESTS - Interface Compliance
+// =============================================================================
+
+func TestAssetRatePostgreSQLRepository_ImplementsRepository(t *testing.T) {
+	t.Parallel()
+
+	// Compile-time check - if AssetRatePostgreSQLRepository doesn't implement
+	// Repository, this won't compile
+	var _ Repository = (*AssetRatePostgreSQLRepository)(nil)
+}
+
+// =============================================================================
+// UNIT TESTS - Model Transformations
+// =============================================================================
+
 func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		source := "Central Bank"
