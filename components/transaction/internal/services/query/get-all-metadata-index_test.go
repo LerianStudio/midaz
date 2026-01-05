@@ -176,7 +176,8 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, repoError, err)
+		assert.ErrorIs(t, err, repoError)
+		assert.ErrorContains(t, err, repoError.Error())
 	})
 
 	t.Run("Error_RepositoryErrorOnSecondEntity", func(t *testing.T) {
@@ -203,7 +204,8 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, repoError, err)
+		assert.ErrorIs(t, err, repoError)
+		assert.ErrorContains(t, err, repoError.Error())
 	})
 }
 

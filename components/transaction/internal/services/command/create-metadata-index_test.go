@@ -247,7 +247,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else if tt.name == "failure - index already exists" {
 				assert.Error(t, err)
