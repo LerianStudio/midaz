@@ -3,7 +3,6 @@ FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
 # v3.3.14
 
-# Set working directory inside the container
 WORKDIR /onboarding-app
 
 # Copy Go module files and download dependencies
