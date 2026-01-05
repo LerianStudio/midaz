@@ -42,6 +42,10 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
+// accountColumns defines the explicit column list for account table queries.
+// This ensures backward compatibility when new columns are added in future versions.
+const accountColumns = "id, name, parent_account_id, entity_id, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, status_description, alias, type, created_at, updated_at, deleted_at"
+
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
@@ -167,7 +171,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var accounts []*mmodel.Account
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
@@ -263,16 +267,27 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
-	args := []any{organizationID, ledgerID, id}
+	findOne := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		query += " AND portfolio_id = $4"
-
-		args = append(args, portfolioID)
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	query += " ORDER BY created_at DESC"
+	query, args, err := findOne.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
 
 	acc := &AccountPostgreSQLModel{}
 
@@ -336,16 +351,26 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = $3"
-	args := []any{organizationID, ledgerID, id}
+	findOne := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		query += " AND portfolio_id = $4"
-
-		args = append(args, portfolioID)
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	query += " ORDER BY created_at DESC"
+	query, args, err := findOne.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
 
 	acc := &AccountPostgreSQLModel{}
 
@@ -409,16 +434,27 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL"
-	args := []any{organizationID, ledgerID, alias}
+	findOne := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ?", alias)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		query += " AND portfolio_id = $4"
-
-		args = append(args, portfolioID)
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	query += " ORDER BY created_at DESC"
+	query, args, err := findOne.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
 
 	acc := &AccountPostgreSQLModel{}
 
@@ -482,10 +518,27 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 		return false, err
 	}
 
+	findAll := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Like{"alias": alias}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return false, err
+	}
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_alias.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, alias)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -528,16 +581,27 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*mmodel.Account
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
-	args := []any{organizationID, ledgerID, ids}
+	findAll := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		query += " AND portfolio_id = $4"
-
-		args = append(args, portfolioID)
+		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	query += " ORDER BY created_at DESC"
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 
@@ -612,10 +676,28 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	var accounts []*mmodel.Account
 
+	findAll := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(alias))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias = ANY($4) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID, pq.Array(alias))
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -843,9 +925,27 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	var accounts []*mmodel.Account
 
+	findAll := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(ids))
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -916,9 +1016,27 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	var accounts []*mmodel.Account
 
+	findAll := squirrel.Select(accountColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(aliases))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(aliases))
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
