@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v2/commons"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	"github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libmetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
@@ -18,6 +19,10 @@ import (
 const (
 	// percentageMultiplier is used to convert percentages to decimal values (divide by 100)
 	percentageMultiplier = 100
+	// maxPercentage is the maximum valid percentage value (100%).
+	maxPercentage = 100
+	// maxDecimalPlaces is the maximum number of decimal places for share calculations.
+	maxDecimalPlaces = 18
 )
 
 var (
@@ -379,68 +384,98 @@ func OperateBalancesWithContext(ctx context.Context, transactionID string, amoun
 	logger, _, reqID, metricFactory := commons.NewTrackingFromContext(ctx)
 
 	if ok, reason := isBalanceIdempotencySkip(amount, balance); ok {
-		if metricFactory != nil {
-			metricFactory.Counter(balanceOperationIdempotencySkipMetric).
-				WithLabels(map[string]string{
-					"transaction_type": amount.TransactionType,
-					"operation":        amount.Operation,
-					"reason":           reason,
-				}).
-				AddOne(ctx)
-
-			if reason == "debit_onhold_zero" {
-				metricFactory.Counter(transactionsIdempotentDebitMetric).
-					AddOne(ctx)
-			}
-		}
-
-		if logger != nil {
-			logger.Debugf(
-				"balance_operation_idempotency_skip: transaction_id=%s account_id=%s txType=%s op=%s reason=%s balanceAlias=%s balanceKey=%s",
-				transactionID, balance.AccountID, amount.TransactionType, amount.Operation, reason, balance.Alias, balance.Key,
-			)
-		}
+		recordIdempotencySkipMetrics(ctx, metricFactory, amount, reason)
+		logIdempotencySkip(logger, transactionID, amount, balance, reason)
 	}
 
 	if ok, reason := isBalanceClamp(amount, balance); ok {
-		if metricFactory != nil {
-			metricFactory.Counter(balanceOperationClampMetric).
-				WithLabels(map[string]string{
-					"transaction_type": amount.TransactionType,
-					"operation":        amount.Operation,
-					"reason":           reason,
-				}).
-				AddOne(ctx)
-		}
-
-		if logger != nil {
-			spanCtx := trace.SpanContextFromContext(ctx)
-			traceID := ""
-			spanID := ""
-			if spanCtx.IsValid() {
-				traceID = spanCtx.TraceID().String()
-				spanID = spanCtx.SpanID().String()
-			}
-
-			logger.Warnf(
-				"balance_operation_clamp: transaction_id=%s account_id=%s txType=%s op=%s reason=%s amount=%s onHold=%s request_id=%s trace_id=%s span_id=%s balanceAlias=%s balanceKey=%s",
-				transactionID,
-				balance.AccountID,
-				amount.TransactionType,
-				amount.Operation,
-				reason,
-				amount.Value.String(),
-				balance.OnHold.String(),
-				reqID,
-				traceID,
-				spanID,
-				balance.Alias,
-				balance.Key,
-			)
-		}
+		recordClampMetrics(ctx, metricFactory, amount, reason)
+		logBalanceClamp(ctx, logger, transactionID, amount, balance, reason, reqID)
 	}
 
 	return OperateBalances(amount, balance)
+}
+
+// recordIdempotencySkipMetrics records metrics for idempotency skip events.
+func recordIdempotencySkipMetrics(ctx context.Context, metricFactory *libmetrics.MetricsFactory, amount Amount, reason string) {
+	if metricFactory == nil {
+		return
+	}
+
+	metricFactory.Counter(balanceOperationIdempotencySkipMetric).
+		WithLabels(map[string]string{
+			"transaction_type": amount.TransactionType,
+			"operation":        amount.Operation,
+			"reason":           reason,
+		}).
+		AddOne(ctx)
+
+	if reason == "debit_onhold_zero" {
+		metricFactory.Counter(transactionsIdempotentDebitMetric).
+			AddOne(ctx)
+	}
+}
+
+// logIdempotencySkip logs debug information for idempotency skip events.
+func logIdempotencySkip(logger log.Logger, transactionID string, amount Amount, balance Balance, reason string) {
+	if logger == nil {
+		return
+	}
+
+	logger.Debugf(
+		"balance_operation_idempotency_skip: transaction_id=%s account_id=%s txType=%s op=%s reason=%s balanceAlias=%s balanceKey=%s",
+		transactionID, balance.AccountID, amount.TransactionType, amount.Operation, reason, balance.Alias, balance.Key,
+	)
+}
+
+// recordClampMetrics records metrics for balance clamp events.
+func recordClampMetrics(ctx context.Context, metricFactory *libmetrics.MetricsFactory, amount Amount, reason string) {
+	if metricFactory == nil {
+		return
+	}
+
+	metricFactory.Counter(balanceOperationClampMetric).
+		WithLabels(map[string]string{
+			"transaction_type": amount.TransactionType,
+			"operation":        amount.Operation,
+			"reason":           reason,
+		}).
+		AddOne(ctx)
+}
+
+// logBalanceClamp logs warning information for balance clamp events.
+func logBalanceClamp(ctx context.Context, logger log.Logger, transactionID string, amount Amount, balance Balance, reason, reqID string) {
+	if logger == nil {
+		return
+	}
+
+	traceID, spanID := extractTraceInfo(ctx)
+
+	logger.Warnf(
+		"balance_operation_clamp: transaction_id=%s account_id=%s txType=%s op=%s reason=%s amount=%s onHold=%s request_id=%s trace_id=%s span_id=%s balanceAlias=%s balanceKey=%s",
+		transactionID,
+		balance.AccountID,
+		amount.TransactionType,
+		amount.Operation,
+		reason,
+		amount.Value.String(),
+		balance.OnHold.String(),
+		reqID,
+		traceID,
+		spanID,
+		balance.Alias,
+		balance.Key,
+	)
+}
+
+// extractTraceInfo extracts trace and span IDs from context.
+func extractTraceInfo(ctx context.Context) (traceID, spanID string) {
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if spanCtx.IsValid() {
+		return spanCtx.TraceID().String(), spanCtx.SpanID().String()
+	}
+
+	return "", ""
 }
 
 // determineOperationForPendingTransaction determines the operation for pending transactions
@@ -486,6 +521,121 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) str
 	return constant.CREDIT
 }
 
+// validateFromToEntry validates constraints on amount, share, and rate for a FromTo entry.
+func validateFromToEntry(ft *FromTo, sendAsset string) {
+	assert.That(ft.Amount == nil || ft.Share == nil,
+		"from/to entry cannot contain both amount and share",
+		"alias", ft.AccountAlias)
+
+	amountAsset := ""
+	if ft.Amount != nil {
+		amountAsset = ft.Amount.Asset
+	}
+
+	assert.That(ft.Amount == nil || amountAsset == sendAsset,
+		"amount asset must match transaction asset",
+		"alias", ft.AccountAlias,
+		"amount_asset", amountAsset,
+		"transaction_asset", sendAsset)
+
+	if ft.Rate != nil {
+		assert.That(ft.Rate.From != "" && ft.Rate.To != "",
+			"rate from/to must be set",
+			"alias", ft.AccountAlias)
+		assert.That(ft.Rate.Value.IsPositive(),
+			"rate value must be positive",
+			"alias", ft.AccountAlias)
+	}
+
+	if ft.Share != nil {
+		assert.That(assert.InRange(ft.Share.Percentage, 0, maxPercentage),
+			"share percentage must be 0-100",
+			"alias", ft.AccountAlias)
+		assert.That(ft.Share.PercentageOfPercentage == 0 || assert.InRange(ft.Share.PercentageOfPercentage, 0, maxPercentage),
+			"percentageOfPercentage must be 0-100",
+			"alias", ft.AccountAlias)
+	}
+}
+
+// calculateShareValue computes the value for a share-based FromTo entry.
+func calculateShareValue(share *Share, sendValue decimal.Decimal) decimal.Decimal {
+	oneHundred := decimal.NewFromInt(percentageMultiplier)
+	percentage := decimal.NewFromInt(share.Percentage)
+	percentageOfPercentage := decimal.NewFromInt(share.PercentageOfPercentage)
+
+	if percentageOfPercentage.IsZero() {
+		percentageOfPercentage = oneHundred
+	}
+
+	firstPart := percentage.Div(oneHundred)
+	secondPart := percentageOfPercentage.Div(oneHundred)
+	// Truncate to 18 decimal places to ensure exponent stays within valid range [-18, 18].
+	return sendValue.Mul(firstPart).Mul(secondPart).Truncate(maxDecimalPlaces)
+}
+
+// processShareEntry processes a FromTo entry with share-based distribution.
+func processShareEntry(
+	ft *FromTo, operation, transactionType, sendAsset string, sendValue decimal.Decimal,
+	amounts map[string]Amount, total *decimal.Decimal, remaining *Amount,
+	totalSharePercentage *int64, idx int,
+) {
+	*totalSharePercentage += ft.Share.Percentage
+	assert.That(*totalSharePercentage <= maxPercentage,
+		"total share percentages cannot exceed 100",
+		"total_percentage", *totalSharePercentage)
+
+	shareValue := calculateShareValue(ft.Share, sendValue)
+
+	amounts[ft.AccountAlias] = Amount{
+		Asset:           sendAsset,
+		Value:           shareValue,
+		Operation:       operation,
+		TransactionType: transactionType,
+	}
+
+	*total = total.Add(shareValue)
+	remaining.Value = remaining.Value.Sub(shareValue)
+
+	assert.That(assert.NonNegativeDecimal(remaining.Value),
+		"remaining value cannot go negative during distribution",
+		"index", idx,
+		"remaining", remaining.Value.String(),
+		"accountAlias", ft.AccountAlias)
+}
+
+// processAmountEntry processes a FromTo entry with explicit amount.
+func processAmountEntry(
+	ft *FromTo, operation, transactionType string,
+	amounts map[string]Amount, total *decimal.Decimal, remaining *Amount,
+) {
+	amount := Amount{
+		Asset:           ft.Amount.Asset,
+		Value:           ft.Amount.Value,
+		Operation:       operation,
+		TransactionType: transactionType,
+	}
+
+	amounts[ft.AccountAlias] = amount
+	*total = total.Add(amount.Value)
+	remaining.Value = remaining.Value.Sub(amount.Value)
+}
+
+// processRemainingEntry processes a FromTo entry that captures remaining value.
+func processRemainingEntry(
+	ft *FromTo, operation string, amounts map[string]Amount,
+	total *decimal.Decimal, remaining *Amount, remainingCount *int,
+) {
+	*remainingCount++
+	assert.That(*remainingCount <= 1,
+		"only one remaining entry allowed",
+		"count", *remainingCount)
+
+	*total = total.Add(remaining.Value)
+	remaining.Operation = operation
+	amounts[ft.AccountAlias] = *remaining
+	ft.Amount = remaining
+}
+
 // CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string) (
 	total decimal.Decimal,
@@ -502,134 +652,44 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 		"transactionType", transactionType)
 
 	total = decimal.NewFromInt(0)
-
 	remaining := Amount{
 		Asset:           transaction.Send.Asset,
 		Value:           transaction.Send.Value,
 		TransactionType: transactionType,
 	}
 
-	// Track total share percentage and remaining count for validation
-	var totalSharePercentage int64 = 0
+	var totalSharePercentage int64
 
 	anyShareUsed := false
 	remainingCount := 0
 
 	for i := range fromTos {
 		operationRoutes[fromTos[i].AccountAlias] = fromTos[i].Route
-
 		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
-
-		assert.That(fromTos[i].Amount == nil || fromTos[i].Share == nil,
-			"from/to entry cannot contain both amount and share",
-			"alias", fromTos[i].AccountAlias)
-
-		amountAsset := ""
-		if fromTos[i].Amount != nil {
-			amountAsset = fromTos[i].Amount.Asset
-		}
-
-		assert.That(fromTos[i].Amount == nil || amountAsset == transaction.Send.Asset,
-			"amount asset must match transaction asset",
-			"alias", fromTos[i].AccountAlias,
-			"amount_asset", amountAsset,
-			"transaction_asset", transaction.Send.Asset)
-
-		if fromTos[i].Rate != nil {
-			assert.That(fromTos[i].Rate.From != "" && fromTos[i].Rate.To != "",
-				"rate from/to must be set",
-				"alias", fromTos[i].AccountAlias)
-			assert.That(fromTos[i].Rate.Value.IsPositive(),
-				"rate value must be positive",
-				"alias", fromTos[i].AccountAlias)
-		}
-
-		if fromTos[i].Share != nil {
-			assert.That(assert.InRange(fromTos[i].Share.Percentage, 0, 100),
-				"share percentage must be 0-100",
-				"alias", fromTos[i].AccountAlias)
-			assert.That(fromTos[i].Share.PercentageOfPercentage == 0 || assert.InRange(fromTos[i].Share.PercentageOfPercentage, 0, 100),
-				"percentageOfPercentage must be 0-100",
-				"alias", fromTos[i].AccountAlias)
-		}
+		validateFromToEntry(&fromTos[i], transaction.Send.Asset)
 
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			anyShareUsed = true
-			// Accumulate share percentages
-			totalSharePercentage += fromTos[i].Share.Percentage
-			assert.That(totalSharePercentage <= 100,
-				"total share percentages cannot exceed 100",
-				"total_percentage", totalSharePercentage)
 
-			oneHundred := decimal.NewFromInt(percentageMultiplier)
-
-			percentage := decimal.NewFromInt(fromTos[i].Share.Percentage)
-
-			percentageOfPercentage := decimal.NewFromInt(fromTos[i].Share.PercentageOfPercentage)
-			if percentageOfPercentage.IsZero() {
-				percentageOfPercentage = oneHundred
-			}
-
-			firstPart := percentage.Div(oneHundred)
-			secondPart := percentageOfPercentage.Div(oneHundred)
-			// Truncate to 18 decimal places to ensure exponent stays within valid range [-18, 18].
-			// Division can produce very high precision exponents (e.g., -32, -34) which would fail ValidAmount.
-			shareValue := transaction.Send.Value.Mul(firstPart).Mul(secondPart).Truncate(18)
-
-			amounts[fromTos[i].AccountAlias] = Amount{
-				Asset:           transaction.Send.Asset,
-				Value:           shareValue,
-				Operation:       operation,
-				TransactionType: transactionType,
-			}
-
-			total = total.Add(shareValue)
-			remaining.Value = remaining.Value.Sub(shareValue)
-
-			// Assert remaining never goes negative during distribution
-			assert.That(assert.NonNegativeDecimal(remaining.Value),
-				"remaining value cannot go negative during distribution",
-				"index", i,
-				"remaining", remaining.Value.String(),
-				"accountAlias", fromTos[i].AccountAlias)
+			processShareEntry(&fromTos[i], operation, transactionType, transaction.Send.Asset,
+				transaction.Send.Value, amounts, &total, &remaining, &totalSharePercentage, i)
 		}
 
 		if fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
-			amount := Amount{
-				Asset:           fromTos[i].Amount.Asset,
-				Value:           fromTos[i].Amount.Value,
-				Operation:       operation,
-				TransactionType: transactionType,
-			}
-
-			amounts[fromTos[i].AccountAlias] = amount
-			total = total.Add(amount.Value)
-
-			remaining.Value = remaining.Value.Sub(amount.Value)
+			processAmountEntry(&fromTos[i], operation, transactionType, amounts, &total, &remaining)
 		}
 
 		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
-			remainingCount++
-			assert.That(remainingCount <= 1,
-				"only one remaining entry allowed",
-				"count", remainingCount)
-
-			total = total.Add(remaining.Value)
-
-			remaining.Operation = operation
-
-			amounts[fromTos[i].AccountAlias] = remaining
-			fromTos[i].Amount = &remaining
+			processRemainingEntry(&fromTos[i], operation, amounts, &total, &remaining, &remainingCount)
 		}
 
 		aliases = append(aliases, AliasKey(fromTos[i].SplitAlias(), fromTos[i].BalanceKey))
 	}
 
-	// Assert total shares don't exceed 100%
-	assert.That(totalSharePercentage <= 100,
+	assert.That(totalSharePercentage <= maxPercentage,
 		"total share percentages cannot exceed 100",
 		"total_percentage", totalSharePercentage)
-	assert.That(!anyShareUsed || totalSharePercentage == 100 || remainingCount == 1,
+	assert.That(!anyShareUsed || totalSharePercentage == maxPercentage || remainingCount == 1,
 		"remaining entry required when share total < 100",
 		"total_share", totalSharePercentage)
 

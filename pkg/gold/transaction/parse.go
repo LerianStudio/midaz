@@ -15,6 +15,10 @@ import (
 
 const (
 	rateToUUIDIndex = 2
+	// maxPercentage is the maximum valid percentage value (100%).
+	maxPercentage = 100
+	// dslPreviewTruncateLen is the length to truncate DSL previews for logging.
+	dslPreviewTruncateLen = 100
 )
 
 // Static error variables for err113 compliance.
@@ -411,7 +415,7 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	}
 
 	// Validate percentage is within valid range [0, 100]
-	assert.That(assert.InRange(percentage, 0, 100),
+	assert.That(assert.InRange(percentage, 0, maxPercentage),
 		"share percentage must be between 0 and 100",
 		"value", percentage)
 
@@ -437,7 +441,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 
 	// Validate percentage is within valid range [0, 100]
-	assert.That(assert.InRange(percentage, 0, 100),
+	assert.That(assert.InRange(percentage, 0, maxPercentage),
 		"share percentage must be between 0 and 100",
 		"value", percentage)
 
@@ -450,7 +454,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 
 	// Validate percentageOfPercentage is within valid range [0, 100]
-	assert.That(assert.InRange(percentageOfPercentage, 0, 100),
+	assert.That(assert.InRange(percentageOfPercentage, 0, maxPercentage),
 		"share percentageOfPercentage must be between 0 and 100",
 		"value", percentageOfPercentage)
 
@@ -644,14 +648,14 @@ func Parse(dsl string) any {
 	if t, ok := transaction.(pkgTransaction.Transaction); ok {
 		assert.That(len(t.Send.Source.From) > 0,
 			"parsed transaction must have at least one source",
-			"dsl_preview", truncateString(dsl, 100))
+			"dsl_preview", truncateString(dsl, dslPreviewTruncateLen))
 		assert.That(len(t.Send.Distribute.To) > 0,
 			"parsed transaction must have at least one destination",
-			"dsl_preview", truncateString(dsl, 100))
+			"dsl_preview", truncateString(dsl, dslPreviewTruncateLen))
 		assert.That(assert.PositiveDecimal(t.Send.Value),
 			"send value must be positive",
 			"value", t.Send.Value.String(),
-			"dsl_preview", truncateString(dsl, 100))
+			"dsl_preview", truncateString(dsl, dslPreviewTruncateLen))
 	}
 
 	return transaction

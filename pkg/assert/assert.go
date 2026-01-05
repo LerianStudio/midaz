@@ -131,6 +131,7 @@ func panicWithContext(msg string, kv ...any) {
 	// Only include stack trace in non-production environments
 	// In production, the panic recovery handler will capture the stack if needed
 	env := strings.TrimSpace(os.Getenv("ENV"))
+
 	goEnv := strings.TrimSpace(os.Getenv("GO_ENV"))
 	if !strings.EqualFold(env, "production") && !strings.EqualFold(goEnv, "production") {
 		sb.WriteString("\nstack trace:\n")

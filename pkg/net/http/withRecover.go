@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
@@ -12,12 +13,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Static errors for panic recovery.
+var (
+	ErrPanicRecovered = errors.New("panic recovered")
+)
+
 type recoverMiddleware struct {
 	Logger libLog.Logger
 }
 
+// RecoverMiddlewareOption configures the recover middleware.
 type RecoverMiddlewareOption func(r *recoverMiddleware)
 
+// WithRecoverLogger sets the logger for the recover middleware.
 func WithRecoverLogger(logger libLog.Logger) RecoverMiddlewareOption {
 	return func(r *recoverMiddleware) {
 		r.Logger = logger
@@ -36,6 +44,9 @@ func buildRecoverOpts(opts ...RecoverMiddlewareOption) *recoverMiddleware {
 	return mid
 }
 
+// WithRecover returns a Fiber middleware that recovers from panics.
+//
+//nolint:panicguard // This is an HTTP boundary middleware that handles panics at the edge
 func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		mid := buildRecoverOpts(opts...)
@@ -51,7 +62,7 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 				}
 
 				stack := debug.Stack()
-				panicErr := fmt.Errorf("panic recovered: %v", r)
+				panicErr := fmt.Errorf("%w: %v", ErrPanicRecovered, r)
 
 				logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(stack))
 

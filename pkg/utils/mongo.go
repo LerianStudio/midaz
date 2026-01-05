@@ -12,7 +12,7 @@ import (
 // This function extracts the actual port and parameters from such configurations.
 // If MONGO_PARAMETERS is already set, it takes precedence over embedded parameters.
 //
-// DEPRECATED: This backward compatibility for embedded parameters in MONGO_PORT will be removed
+// Deprecated: This backward compatibility for embedded parameters in MONGO_PORT will be removed
 // in Midaz 4.0.0. Update environment variables to use the MONGO_PARAMETERS environment variable.
 func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger) (string, string) {
 	// Always sanitize port by stripping any embedded "/..." or "?..." suffix
