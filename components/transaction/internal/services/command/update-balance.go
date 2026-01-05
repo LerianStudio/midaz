@@ -23,6 +23,14 @@ import (
 // ErrCacheMiss indicates a balance was not found in the cache during refresh.
 var ErrCacheMiss = errors.New("cache miss for balance")
 
+const (
+	attrBalanceTotalCount   = "balance.total_count"
+	attrBalanceSkippedCount = "balance.skipped_count"
+	attrBalanceUpdatedCount = "balance.updated_count"
+	attrBalanceOrgID        = "organization_id"
+	attrBalanceLedgerID     = "ledger_id"
+)
+
 // UpdateBalances func that is responsible to update balances without select for update.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, validate pkgTransaction.Responses, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -37,9 +45,9 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		return err
 	}
 
-	// Filter out stale balances by checking Redis cache version
-	// Pass fromTo so transaction amounts can be re-applied when refreshing from cache
-	balancesToUpdate, usedCache, err := uc.prepareBalancesForUpdate(ctxProcessBalances, organizationID, ledgerID, transactionID, newBalances, fromTo, &spanUpdateBalances, logger)
+	// Filter out stale balances by checking Redis cache version.
+	// If stale balances are detected, we refresh from cache to align DB with Redis state (no amount re-application).
+	balancesToUpdate, usedCache, err := uc.prepareBalancesForUpdate(ctxProcessBalances, organizationID, ledgerID, transactionID, newBalances, &spanUpdateBalances, logger)
 	if err != nil {
 		return err
 	}
@@ -65,7 +73,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	updateStart := time.Now()
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
-		return uc.handleBalanceUpdateError(ctxProcessBalances, err, organizationID, ledgerID, transactionID, newBalances, fromTo, usedCache, updateStart, &spanUpdateBalances, logger)
+		return uc.handleBalanceUpdateError(ctxProcessBalances, err, organizationID, ledgerID, transactionID, newBalances, usedCache, updateStart, &spanUpdateBalances, logger)
 	}
 
 	updateDuration := time.Since(updateStart)
@@ -99,16 +107,6 @@ func buildFromToMap(validate pkgTransaction.Responses) map[string]pkgTransaction
 	return fromTo
 }
 
-// getFromToAliases returns the keys from the fromTo map for debugging purposes.
-func getFromToAliases(fromTo map[string]pkgTransaction.Amount) []string {
-	aliases := make([]string, 0, len(fromTo))
-	for alias := range fromTo {
-		aliases = append(aliases, alias)
-	}
-
-	return aliases
-}
-
 // calculateNewBalances computes new balance values after applying transaction amounts.
 func (uc *UseCase) calculateNewBalances(ctx context.Context, tracer trace.Tracer, transactionID string, fromTo map[string]pkgTransaction.Amount, balances []*mmodel.Balance, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, error) {
 	newBalances := make([]*mmodel.Balance, 0, len(balances))
@@ -139,8 +137,9 @@ func (uc *UseCase) calculateNewBalances(ctx context.Context, tracer trace.Tracer
 }
 
 // prepareBalancesForUpdate filters stale balances and refreshes from cache if needed.
-// The fromTo map contains the transaction amounts that must be re-applied when refreshing from cache.
-func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, fromTo map[string]pkgTransaction.Amount, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, bool, error) {
+// During cache refresh we do NOT re-apply transaction amounts because Redis already contains the effects
+// from the Lua script executed during the HTTP request.
+func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, bool, error) {
 	balancesToUpdate, skippedCount := uc.filterStaleBalances(ctx, organizationID, ledgerID, newBalances, logger)
 	usedCache := false
 
@@ -149,7 +148,7 @@ func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID,
 		logger.Debugf("STALE_BALANCE_DETECTED: %d stale balances found, refreshing from cache before DB update (org=%s, ledger=%s)",
 			skippedCount, organizationID, ledgerID)
 
-		refreshedBalances, err := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, fromTo, logger)
+		refreshedBalances, err := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances from cache", err)
 			logger.Errorf("Failed to refresh balances from cache: %v", err)
@@ -165,8 +164,7 @@ func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID,
 }
 
 // handleBalanceUpdateError handles errors from BalancesUpdate, including retry logic for ErrNoBalancesUpdated.
-// The fromTo map contains the transaction amounts that must be re-applied when refreshing from cache.
-func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, fromTo map[string]pkgTransaction.Amount, usedCache bool, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
+func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, usedCache bool, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
 	if !errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
 		updateDuration := time.Since(updateStart)
 		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after %v: %v", updateDuration, err)
@@ -176,23 +174,23 @@ func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, orga
 	}
 
 	if usedCache {
-		// CRITICAL FIX: Cache refresh happened but DB update still failed.
-		// This means THIS transaction's amounts were NOT persisted to the database.
-		// We must return an error to trigger rollback - the transaction cannot be created
-		// without its balance effects being recorded.
-		logger.Errorf("BALANCE_UPDATE_FAILED_AFTER_CACHE: update failed even after cache refresh (org=%s, ledger=%s)", organizationID, ledgerID)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance update failed after cache refresh in prepare phase", err)
+		// ErrNoBalancesUpdated after cache refresh means DB already has a version >= what we tried to persist.
+		// This is expected during concurrent processing: another worker already persisted a newer state.
+		// Treat as success (idempotent) - the balance is already up-to-date.
+		updateDuration := time.Since(updateStart)
+		logger.Infof("DB_UPDATE_IDEMPOTENT: Balance already up-to-date after cache refresh in %v (org=%s, ledger=%s, txn=%s)",
+			updateDuration, organizationID, ledgerID, transactionID)
 
-		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+		return nil
 	}
 
-	return uc.retryBalanceUpdateWithCacheRefresh(ctx, organizationID, ledgerID, transactionID, newBalances, fromTo, updateStart, span, logger)
+	return uc.retryBalanceUpdateWithCacheRefresh(ctx, organizationID, ledgerID, transactionID, newBalances, updateStart, span, logger)
 }
 
-// retryBalanceUpdateWithCacheRefresh refreshes balances from cache, re-applies transaction amounts, and retries the database update.
-// The fromTo map contains the transaction amounts that must be re-applied when refreshing from cache.
-func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, fromTo map[string]pkgTransaction.Amount, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
-	refreshedBalances, refreshErr := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, fromTo, logger)
+// retryBalanceUpdateWithCacheRefresh refreshes balances from cache and retries the database update.
+// Transaction amounts are NOT re-applied during refresh because Redis already contains the effects (Lua script).
+func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
+	refreshedBalances, refreshErr := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
 	if refreshErr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances after no-op update", refreshErr)
 		logger.Errorf("Failed to refresh balances after no-op update: %v", refreshErr)
@@ -209,21 +207,19 @@ func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organ
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctx, organizationID, ledgerID, refreshedBalances); err != nil {
 		if errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
-			// CRITICAL FIX: Do NOT return success when update still fails after cache refresh!
-			// This was causing silent data loss - transaction recorded but balance never updated.
-			// The update failing with ErrNoBalancesUpdated after cache refresh means we have
-			// a persistent version mismatch that requires immediate attention.
-			logger.Errorf("BALANCE_UPDATE_FAILED_AFTER_RETRY: update still failed after cache refresh, data integrity at risk (org=%s, ledger=%s)",
-				organizationID, ledgerID)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance update failed after cache refresh - persistent version mismatch", err)
+			// ErrNoBalancesUpdated after cache refresh means DB already has a version >= what we tried to persist.
+			// This is expected during concurrent processing: another worker already persisted a newer state.
+			// Treat as success (idempotent) - the balance is already up-to-date.
+			updateDuration := time.Since(updateStart)
+			logger.Infof("DB_UPDATE_IDEMPOTENT: Balance already up-to-date after retry refresh in %v (org=%s, ledger=%s, txn=%s)",
+				updateDuration, organizationID, ledgerID, transactionID)
 
-			return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+			return nil
 		}
 
 		updateDuration := time.Since(updateStart)
 		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after refresh in %v: %v", updateDuration, err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balances on database after refresh", err)
-		logger.Errorf("Failed to update balances on database after refresh: %v", err.Error())
 
 		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
@@ -275,11 +271,11 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 
 	// Record metrics via span attributes for observability
 	span.SetAttributes(
-		attribute.Int("balance.total_count", totalCount),
-		attribute.Int("balance.skipped_count", skippedCount),
-		attribute.Int("balance.updated_count", len(result)),
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
+		attribute.Int(attrBalanceTotalCount, totalCount),
+		attribute.Int(attrBalanceSkippedCount, skippedCount),
+		attribute.Int(attrBalanceUpdatedCount, len(result)),
+		attribute.String(attrBalanceOrgID, organizationID.String()),
+		attribute.String(attrBalanceLedgerID, ledgerID.String()),
 	)
 
 	if skippedCount > 0 {
@@ -291,12 +287,28 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 	return result, skippedCount
 }
 
-// refreshBalancesFromCache fetches latest balance values from cache and RE-APPLIES the current
-// transaction amounts before returning. This is critical for correctness - without re-applying
-// the transaction, we would return stale cached values that don't include the current operation.
+// refreshBalancesFromCache fetches latest balance values from cache and returns them as-is.
+// The cached balance already includes this transaction's effects (applied by the Lua script during
+// the HTTP request), so we must NOT re-apply the transaction amounts - doing so would double-count.
 //
-// The fromTo map contains the transaction amounts keyed by balance alias.
-func (uc *UseCase) refreshBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, balances []*mmodel.Balance, fromTo map[string]pkgTransaction.Amount, logger libLog.Logger) ([]*mmodel.Balance, error) {
+// This function is called when filterStaleBalances detects that Redis has a newer version than
+// what the RabbitMQ message contains, indicating concurrent processing already updated Redis.
+func (uc *UseCase) refreshBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, balances []*mmodel.Balance, logger libLog.Logger) ([]*mmodel.Balance, error) {
+	trackingLogger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	if logger == nil {
+		logger = trackingLogger
+	}
+
+	ctx, span := tracer.Start(ctx, "command.refresh_balances_from_cache")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+		attribute.String("transaction_id", transactionID),
+		attribute.Int("balance.refresh_count", len(balances)),
+	)
+
 	refreshed := make([]*mmodel.Balance, 0, len(balances))
 
 	for _, balance := range balances {
@@ -325,43 +337,29 @@ func (uc *UseCase) refreshBalancesFromCache(ctx context.Context, organizationID,
 			refreshAlias = balance.Alias
 		}
 
-		// CRITICAL FIX: Re-apply the current transaction amounts to the cached balance.
-		// Without this, we return cached values that don't include the current operation,
-		// causing balance amounts to be silently lost during concurrent processing.
-		amount, hasAmount := fromTo[balance.Alias]
-		if !hasAmount {
-			// If no amount found for this alias, use the cached values as-is with incremented version.
-			// This shouldn't happen in normal flow but provides a safe fallback.
-			logger.Warnf("No transaction amount found for alias %s during cache refresh (available aliases: %v), using cached values",
-				balance.Alias, getFromToAliases(fromTo))
-			refreshed = append(refreshed, &mmodel.Balance{
-				ID:        balanceID,
-				Alias:     refreshAlias,
-				Available: cachedBalance.Available,
-				OnHold:    cachedBalance.OnHold,
-				// INTENTIONAL: Manual version increment mirrors OperateBalances behavior
-				// but skips balance calculation since no transaction amount exists.
-				Version: cachedBalance.Version + 1,
-			})
+		// Use cached values directly - the Lua script already applied this transaction's effects.
+		// Version is kept as-is (Option A: DB aligns with cache).
+		// If cache version < message version (unexpected), we still use cache to avoid regression.
+		if cachedBalance.Version < balance.Version {
+			delta := balance.Version - cachedBalance.Version
+			logger.Warnf("UNEXPECTED: cache version %d < message version %d for alias %s (delta=%d); using cache anyway to avoid regression (txn=%s)",
+				cachedBalance.Version, balance.Version, balance.Alias, delta, transactionID)
 
-			continue
-		}
-
-		// Apply the transaction operation to the cached balance values
-		calculatedBalance, err := pkgTransaction.OperateBalancesWithContext(ctx, transactionID, amount, *cachedBalance.ToTransactionBalance())
-		if err != nil {
-			logger.Errorf("Failed to apply transaction to cached balance for alias %s: %v", balance.Alias, err)
-
-			return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
+			span.SetAttributes(
+				attribute.Bool("balance.cache_version_regression", true),
+				attribute.String("balance.alias", balance.Alias),
+				attribute.Int64("balance.cache_version", cachedBalance.Version),
+				attribute.Int64("balance.message_version", balance.Version),
+				attribute.Int64("balance.version_regression_delta", delta),
+			)
 		}
 
 		refreshed = append(refreshed, &mmodel.Balance{
 			ID:        balanceID,
 			Alias:     refreshAlias,
-			Available: calculatedBalance.Available,
-			OnHold:    calculatedBalance.OnHold,
-			// Version is already incremented by OperateBalances() - use as-is
-			Version: calculatedBalance.Version,
+			Available: cachedBalance.Available,
+			OnHold:    cachedBalance.OnHold,
+			Version:   cachedBalance.Version,
 		})
 	}
 
