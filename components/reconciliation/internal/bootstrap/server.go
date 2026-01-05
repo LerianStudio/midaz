@@ -496,7 +496,7 @@ func writeDoubleEntrySection(html *strings.Builder, de *domain.DoubleEntryCheckR
 		html.WriteString(`<table><thead><tr><th>Transaction ID</th><th>Status</th><th>Asset</th><th class="num">Credits</th><th class="num">Debits</th><th class="num">Imbalance</th></tr></thead><tbody>`)
 
 		for _, i := range de.Imbalances {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td></tr>",
 				truncateID(i.TransactionID), i.Status, i.AssetCode, i.TotalCredits, i.TotalDebits,
 				ternary(i.Imbalance != 0, "#ef4444", "#22c55e"), i.Imbalance)
 		}
@@ -548,7 +548,7 @@ func writeSyncCheckSection(html *strings.Builder, sc *domain.SyncCheckResult) {
 		html.WriteString(`<table><thead><tr><th>Balance ID</th><th>Asset</th><th class="num">DB Ver</th><th class="num">Op Ver</th><th class="num">Stale (sec)</th></tr></thead><tbody>`)
 
 		for _, i := range sc.Issues {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
 				truncateID(i.BalanceID), i.AssetCode, i.DBVersion, i.MaxOpVersion, i.StalenessSeconds)
 		}
 
@@ -601,7 +601,7 @@ func writeMetadataSection(html *strings.Builder, mc *domain.MetadataCheckResult)
 		html.WriteString(`<table><thead><tr><th>Collection</th><th class="num">Total</th><th class="num">Empty</th><th class="num">Missing ID</th><th class="num">Duplicates</th></tr></thead><tbody>`)
 
 		for _, s := range mc.CollectionSummaries {
-			fmt.Fprintf(html, "<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
+			fmt.Fprintf(html, "<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
 				s.Collection, s.TotalDocuments, s.EmptyMetadata, s.MissingEntityIDs, s.DuplicateEntityIDs)
 		}
 
@@ -690,7 +690,7 @@ func writeRedisSection(html *strings.Builder, rc *domain.RedisCheckResult) {
 		html.WriteString(`<table><thead><tr><th>Account ID</th><th>Asset</th><th class="num">DB Avail</th><th class="num">Redis Avail</th><th class="num">DB Hold</th><th class="num">Redis Hold</th></tr></thead><tbody>`)
 
 		for _, d := range rc.Discrepancies {
-			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td></tr>",
+			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td></tr>",
 				truncateID(d.AccountID), d.AssetCode,
 				formatDecimal(d.DBAvailable), formatDecimal(d.RedisAvailable),
 				formatDecimal(d.DBOnHold), formatDecimal(d.RedisOnHold))
