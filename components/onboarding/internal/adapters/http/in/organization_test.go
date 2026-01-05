@@ -1066,22 +1066,19 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Post("/v1/organizations",
-				func(c *fiber.Ctx) error {
-					return handler.CreateOrganization(payload, c)
-				},
-			)
+			app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
-			req := httptest.NewRequest("POST", "/v1/organizations", nil)
+			body, _ := json.Marshal(payload)
+			req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Property: should never return 5xx for any field length
 			require.NoError(t, err, "request should not error")
 			if resp.StatusCode >= 500 {
-				body, _ := io.ReadAll(resp.Body)
+				respBody, _ := io.ReadAll(resp.Body)
 				t.Fatalf("server returned 5xx for nameLen=%d docLen=%d: status=%d body=%s",
-					tc.nameLen, tc.docLen, resp.StatusCode, string(body))
+					tc.nameLen, tc.docLen, resp.StatusCode, string(respBody))
 			}
 		})
 	}
@@ -1184,13 +1181,10 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Post("/v1/organizations",
-				func(c *fiber.Ctx) error {
-					return handler.CreateOrganization(payload, c)
-				},
-			)
+			app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
-			req := httptest.NewRequest("POST", "/v1/organizations", nil)
+			body, _ := json.Marshal(payload)
+			req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
 			if ct != "" {
 				req.Header.Set("Content-Type", ct)
 			}

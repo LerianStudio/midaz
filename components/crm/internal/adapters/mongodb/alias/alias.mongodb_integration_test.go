@@ -4,6 +4,7 @@ package alias
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -273,7 +274,9 @@ func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 
 	// Create multiple aliases
 	for i := 0; i < 5; i++ {
-		alias := createTestAlias(holderID, "account-findall-"+string(rune('a'+i)), "1111111111"+string(rune('0'+i)))
+		accountID := fmt.Sprintf("account-findall-%d", i)
+		document := fmt.Sprintf("1111111111%d", i)
+		alias := createTestAlias(holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -298,7 +301,9 @@ func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 
 	// Create 5 aliases
 	for i := 0; i < 5; i++ {
-		alias := createTestAlias(holderID, "account-page-"+string(rune('a'+i)), "2222222222"+string(rune('0'+i)))
+		accountID := fmt.Sprintf("account-page-%d", i)
+		document := fmt.Sprintf("2222222222%d", i)
+		alias := createTestAlias(holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -576,7 +581,9 @@ func TestIntegration_AliasRepo_Count(t *testing.T) {
 
 	// Create 3 aliases
 	for i := 0; i < 3; i++ {
-		alias := createTestAlias(holderID, "account-count-"+string(rune('a'+i)), "4444444444"+string(rune('0'+i)))
+		accountID := fmt.Sprintf("account-count-%d", i)
+		document := fmt.Sprintf("4444444444%d", i)
+		alias := createTestAlias(holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 	}
@@ -601,7 +608,9 @@ func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 	// Create 3 aliases
 	aliases := make([]*mmodel.Alias, 3)
 	for i := 0; i < 3; i++ {
-		alias := createTestAlias(holderID, "account-countdel-"+string(rune('a'+i)), "5555555555"+string(rune('0'+i)))
+		accountID := fmt.Sprintf("account-countdel-%d", i)
+		document := fmt.Sprintf("5555555555%d", i)
+		alias := createTestAlias(holderID, accountID, document)
 		_, err := repo.Create(ctx, organizationID, alias)
 		require.NoError(t, err)
 		aliases[i] = alias

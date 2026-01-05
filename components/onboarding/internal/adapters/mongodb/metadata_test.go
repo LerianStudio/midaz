@@ -155,6 +155,7 @@ func TestJSON_RoundTrip(t *testing.T) {
 	assert.Equal(t, original["number"], restored["number"])
 	assert.Equal(t, original["boolean"], restored["boolean"])
 	assert.Nil(t, restored["nullVal"])
+	assert.Equal(t, original["array"], restored["array"])
 }
 
 func TestMetadataMongoDBModel_ToEntity(t *testing.T) {

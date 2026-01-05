@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,7 +98,7 @@ func TestBuildHolderLinkFilter_WithHolderID(t *testing.T) {
 			query: http.QueryHeader{
 				Limit:    10,
 				Page:     1,
-				HolderID: ptr(""),
+				HolderID: testutils.Ptr(""),
 			},
 			wantHolderID: false,
 		},

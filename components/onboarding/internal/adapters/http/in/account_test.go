@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
@@ -660,7 +660,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 						Name:           "External USD Account",
 						AssetCode:      "USD",
 						Type:           "external",
-						Alias:          ptrString("@external/USD"),
+						Alias:          testutils.Ptr("@external/USD"),
 						Status:         mmodel.Status{Code: "ACTIVE"},
 						CreatedAt:      time.Now(),
 						UpdatedAt:      time.Now(),
@@ -797,7 +797,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 						Name:           "Person 1 Account",
 						AssetCode:      "USD",
 						Type:           "deposit",
-						Alias:          ptrString("@person1"),
+						Alias:          testutils.Ptr("@person1"),
 						Status:         mmodel.Status{Code: "ACTIVE"},
 						CreatedAt:      time.Now(),
 						UpdatedAt:      time.Now(),
@@ -1353,10 +1353,3 @@ func TestAccountHandler_CountAccounts(t *testing.T) {
 	}
 }
 
-// Helper function to create string pointers
-func ptrString(s string) *string {
-	return &s
-}
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

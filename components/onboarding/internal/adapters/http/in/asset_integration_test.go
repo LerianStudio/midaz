@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"sync"
@@ -543,8 +544,10 @@ func TestIntegration_Property_Account_AliasAndType(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
+		tc := tc // capture loop variable for subtest closure
+		i := i
 		t.Run(
-			"aliasLen="+string(rune('0'+tc.aliasLen/100))+string(rune('0'+(tc.aliasLen/10)%10))+string(rune('0'+tc.aliasLen%10))+"_type="+tc.accType,
+			fmt.Sprintf("aliasLen=%d_type=%s", tc.aliasLen, tc.accType),
 			func(t *testing.T) {
 				alias := ""
 				if tc.aliasLen > 0 {
@@ -559,7 +562,7 @@ func TestIntegration_Property_Account_AliasAndType(t *testing.T) {
 				}
 
 				accountRequestBody := map[string]any{
-					"name":      "Fuzz Account " + string(rune('A'+i)),
+					"name":      fmt.Sprintf("Fuzz Account %d", i),
 					"assetCode": "USD",
 					"type":      tc.accType,
 				}

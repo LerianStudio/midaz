@@ -5,14 +5,11 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func ptr[T any](v T) *T {
-	return &v
-}
 
 func TestMongoDBModel_FromEntity(t *testing.T) {
 	t.Parallel()
@@ -32,7 +29,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				ID:       &id,
 				HolderID: &holderID,
 				AliasID:  &aliasID,
-				LinkType: ptr("PRIMARY_HOLDER"),
+				LinkType: testutils.Ptr("PRIMARY_HOLDER"),
 				Metadata: map[string]any{
 					"key1": "value1",
 					"key2": 123,
@@ -58,7 +55,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				ID:        &id,
 				HolderID:  &holderID,
 				AliasID:   &aliasID,
-				LinkType:  ptr("LEGAL_REPRESENTATIVE"),
+				LinkType:  testutils.Ptr("LEGAL_REPRESENTATIVE"),
 				Metadata:  nil,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -70,7 +67,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				ID:        &id,
 				HolderID:  &holderID,
 				AliasID:   &aliasID,
-				LinkType:  ptr("RESPONSIBLE_PARTY"),
+				LinkType:  testutils.Ptr("RESPONSIBLE_PARTY"),
 				Metadata:  map[string]any{"source": "api"},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -125,7 +122,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 				ID:       &id,
 				HolderID: &holderID,
 				AliasID:  &aliasID,
-				LinkType: ptr("PRIMARY_HOLDER"),
+				LinkType: testutils.Ptr("PRIMARY_HOLDER"),
 				Metadata: map[string]any{
 					"key1": "value1",
 				},
@@ -140,7 +137,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 				ID:        &id,
 				HolderID:  &holderID,
 				AliasID:   &aliasID,
-				LinkType:  ptr("LEGAL_REPRESENTATIVE"),
+				LinkType:  testutils.Ptr("LEGAL_REPRESENTATIVE"),
 				Metadata:  map[string]any{},
 				CreatedAt: nil,
 				UpdatedAt: nil,
@@ -199,7 +196,7 @@ func TestMongoDBModel_RoundTrip(t *testing.T) {
 		ID:       &id,
 		HolderID: &holderID,
 		AliasID:  &aliasID,
-		LinkType: ptr("PRIMARY_HOLDER"),
+		LinkType: testutils.Ptr("PRIMARY_HOLDER"),
 		Metadata: map[string]any{
 			"round": "trip",
 			"count": 42,

@@ -4,6 +4,7 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -121,7 +122,7 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 	fixtures := make([]mongotestutil.MetadataFixture, 5)
 	for i := 0; i < 5; i++ {
 		fixtures[i] = mongotestutil.MetadataFixture{
-			EntityID:   "acc-page-" + string(rune('a'+i)),
+			EntityID:   fmt.Sprintf("acc-page-%d", i),
 			EntityName: "Account",
 			Data:       map[string]any{"group": "paginated"},
 		}
@@ -613,53 +614,8 @@ func (infra *networkChaosTestInfra) createTestMetadata(t *testing.T, entityID, d
 }
 
 // ============================================================================
-// CHAOS TESTS - CONTAINER LIFECYCLE
+// CHAOS TESTS - DATA INTEGRITY
 // ============================================================================
-
-// TestChaos_Metadata_MongoDBRestart tests that the repository recovers
-// after a MongoDB container restart.
-// SKIPPED: lib-commons MongoDB connection pool does not recover after restart.
-func TestIntegration_Chaos_Metadata_MongoDBRestart(t *testing.T) {
-	t.Skip("skipping: lib-commons connection pool does not recover after MongoDB restart")
-	skipIfNotChaos(t)
-	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
-	}
-
-	infra := setupChaosInfra(t)
-	defer infra.cleanup()
-
-	ctx := context.Background()
-
-	// Create initial metadata
-	metadata := infra.createTestMetadata(t, "restart-test-1", "Pre-restart metadata")
-	t.Logf("Created metadata %s before restart", metadata.EntityID)
-
-	// Inject chaos: restart MongoDB
-	containerID := infra.container.Container.GetContainerID()
-	t.Logf("Chaos: Restarting MongoDB container %s", containerID)
-
-	err := infra.chaosOrch.RestartContainer(ctx, containerID, 10*time.Second)
-	require.NoError(t, err, "container restart should succeed")
-
-	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
-	require.NoError(t, err, "container should be running after restart")
-
-	// Wait for database to be ready again
-	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
-		return err
-	}, 30*time.Second, "repository should recover after MongoDB restart")
-
-	// Verify data integrity
-	recovered, err := infra.repo.FindByEntity(ctx, infra.collection, metadata.EntityID)
-	require.NoError(t, err)
-	require.NotNil(t, recovered, "metadata should exist after restart")
-	assert.Equal(t, metadata.EntityID, recovered.EntityID, "entity ID should be unchanged")
-	assert.Equal(t, metadata.Data["description"], recovered.Data["description"], "description should be unchanged")
-
-	t.Log("Chaos test passed: MongoDB restart recovery verified")
-}
 
 // TestChaos_Metadata_DataIntegrity tests that data remains consistent
 // after chaos events (no data loss, no corruption).
@@ -677,7 +633,7 @@ func TestIntegration_Chaos_Metadata_DataIntegrity(t *testing.T) {
 	// Create multiple metadata documents before chaos
 	var createdMetadata []*Metadata
 	for i := 0; i < 5; i++ {
-		metadata := infra.createTestMetadata(t, "integrity-test-"+string(rune('a'+i)), "Integrity test metadata")
+		metadata := infra.createTestMetadata(t, fmt.Sprintf("integrity-test-%d", i), "Integrity test metadata")
 		createdMetadata = append(createdMetadata, metadata)
 	}
 
@@ -878,12 +834,14 @@ func TestIntegration_Chaos_Metadata_IntermittentFailure(t *testing.T) {
 	for i := 0; i < cycles; i++ {
 		// Disconnect
 		t.Logf("Chaos: Cycle %d - disconnecting", i+1)
-		infra.proxy.Disconnect()
+		err := infra.proxy.Disconnect()
+		require.NoError(t, err, "failed to disconnect proxy on cycle %d", i+1)
 		time.Sleep(500 * time.Millisecond)
 
 		// Reconnect
 		t.Logf("Chaos: Cycle %d - reconnecting", i+1)
-		infra.proxy.Reconnect()
+		err = infra.proxy.Reconnect()
+		require.NoError(t, err, "failed to reconnect proxy on cycle %d", i+1)
 
 		// Wait for recovery and verify
 		chaos.AssertRecoveryWithin(t, func() error {

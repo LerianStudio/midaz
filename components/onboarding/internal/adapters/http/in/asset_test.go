@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
@@ -1054,5 +1053,3 @@ func TestHandler_CountAssets(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
