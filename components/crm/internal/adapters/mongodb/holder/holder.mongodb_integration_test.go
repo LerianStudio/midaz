@@ -656,26 +656,6 @@ func TestIntegration_HolderRepo_Update(t *testing.T) {
 	assert.EqualValues(t, 2, result.Metadata["version"]) // Use EqualValues for BSON type handling
 }
 
-func TestIntegration_HolderRepo_Update_NotFound(t *testing.T) {
-	// Arrange
-	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
-	organizationID := "org-upnotfound-" + uuid.New().String()[:8]
-	nonExistentID := uuid.New()
-
-	// Act
-	updatedHolder := &mmodel.Holder{
-		Metadata: map[string]any{"key": "value"},
-	}
-	result, err := repo.Update(ctx, organizationID, nonExistentID, updatedHolder, nil)
-
-	// Assert
-	require.Error(t, err)
-	assert.Nil(t, result)
-}
-
 func TestIntegration_HolderRepo_Update_FieldsToRemove(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)

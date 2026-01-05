@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -1043,13 +1042,12 @@ func TestHandler_CountAssets(t *testing.T) {
 
 			if tt.expectedStatus == 204 {
 				// Validate X-Total-Count header
-				totalCount := resp.Header.Get(constant.XTotalCount)
+				totalCount := resp.Header.Get(cn.XTotalCount)
 				assert.Equal(t, "42", totalCount, "X-Total-Count header should contain the count")
 
-				contentLength := resp.Header.Get(constant.ContentLength)
+				contentLength := resp.Header.Get(cn.ContentLength)
 				assert.Equal(t, "0", contentLength, "Content-Length should be 0")
 			}
 		})
 	}
 }
-

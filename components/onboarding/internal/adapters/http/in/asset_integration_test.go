@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -510,10 +511,13 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 
 // randString generates a random string of length n using common characters.
 func randString(n int) string {
+	if n <= 0 {
+		return ""
+	}
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-@:/")
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[i%len(letters)]
+		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
 }
