@@ -18,6 +18,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Static errors for config validation.
+var (
+	ErrMetadataIndexPortNil = errors.New("failed to get MetadataIndexPort from transaction module")
+)
+
 // ApplicationName defines the identifier for the unified ledger component
 // used in logging, telemetry, and service discovery.
 const ApplicationName = "ledger"
@@ -122,7 +127,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Get the MetadataIndexPort from transaction for metadata index operations
 	metadataIndexPort := transactionService.GetMetadataIndexPort()
 	if metadataIndexPort == nil {
-		return nil, errors.New("failed to get MetadataIndexPort from transaction module")
+		return nil, ErrMetadataIndexPortNil
 	}
 
 	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")

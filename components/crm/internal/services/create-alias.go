@@ -115,7 +115,7 @@ func (uc *UseCase) createAliasInRepo(ctx context.Context, span *trace.Span, logg
 		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateInternalError(err, "Alias")
 	}
 
 	return createdAccount, nil

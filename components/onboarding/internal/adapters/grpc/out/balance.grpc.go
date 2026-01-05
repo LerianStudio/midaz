@@ -5,6 +5,7 @@ package out
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -48,7 +49,11 @@ func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
 
 // CheckHealth verifies that the gRPC connection to the balance service is healthy.
 func (b *BalanceGRPCRepository) CheckHealth(ctx context.Context) error {
-	return b.conn.CheckHealth(ctx)
+	if err := b.conn.CheckHealth(ctx); err != nil {
+		return fmt.Errorf("failed to check gRPC connection health: %w", err)
+	}
+
+	return nil
 }
 
 // CreateBalance creates a balance via gRPC using the provided request.
