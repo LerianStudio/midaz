@@ -1,3 +1,4 @@
+// Package crm provides CRM alias validation adapters for reconciliation.
 package crm
 
 import (
@@ -12,6 +13,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+// Static errors for alias validation.
+var (
+	ErrEntityNotAllowed = errors.New("entity not allowed")
 )
 
 const (
@@ -55,83 +61,23 @@ func (c *AliasChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		return nil, fmt.Errorf("crm alias collections lookup failed: %w", err)
 	}
 
-	ledgerCache := map[string]bool{}
-	accountCache := map[string]bool{}
-
-	scanned := 0
+	checkCtx := &aliasCheckContext{
+		ledgerCache:  map[string]bool{},
+		accountCache: map[string]bool{},
+		scanned:      0,
+		maxScan:      maxScan,
+		maxResults:   config.MaxResults,
+	}
 
 	for _, collName := range collections {
-		if scanned >= maxScan {
+		if checkCtx.scanned >= maxScan {
 			result.ScanLimited = true
 			break
 		}
 
-		coll := c.crmMongo.Collection(collName)
-		findOptions := options.Find().SetProjection(bson.M{
-			"_id":        1,
-			"ledger_id":  1,
-			"account_id": 1,
-		}).SetLimit(int64(maxScan - scanned))
-
-		cursor, err := coll.Find(ctx, bson.M{"deleted_at": bson.M{"$eq": nil}}, findOptions)
-		if err != nil {
-			return nil, fmt.Errorf("crm alias query failed: %w", err)
+		if err := c.processCollection(ctx, collName, checkCtx, result); err != nil {
+			return nil, err
 		}
-
-		for cursor.Next(ctx) {
-			if scanned >= maxScan {
-				result.ScanLimited = true
-				break
-			}
-
-			var doc struct {
-				ID        any    `bson:"_id"`
-				LedgerID  string `bson:"ledger_id"`
-				AccountID string `bson:"account_id"`
-			}
-
-			if err := cursor.Decode(&doc); err != nil {
-				cursor.Close(ctx)
-				return nil, fmt.Errorf("crm alias decode failed: %w", err)
-			}
-
-			scanned++
-
-			aliasID := fmt.Sprintf("%v", doc.ID)
-
-			if doc.LedgerID != "" {
-				exists, err := c.existsInOnboarding(ctx, "ledger", doc.LedgerID, ledgerCache)
-				if err != nil {
-					cursor.Close(ctx)
-					return nil, err
-				}
-
-				if !exists {
-					result.MissingLedgerIDs++
-					c.appendSample(result, aliasID, doc.LedgerID, "", "missing_ledger", config.MaxResults)
-				}
-			}
-
-			if doc.AccountID != "" {
-				exists, err := c.existsInOnboarding(ctx, "account", doc.AccountID, accountCache)
-				if err != nil {
-					cursor.Close(ctx)
-					return nil, err
-				}
-
-				if !exists {
-					result.MissingAccountIDs++
-					c.appendSample(result, aliasID, "", doc.AccountID, "missing_account", config.MaxResults)
-				}
-			}
-		}
-
-		if err := cursor.Err(); err != nil {
-			cursor.Close(ctx)
-			return nil, fmt.Errorf("crm alias cursor failed: %w", err)
-		}
-
-		cursor.Close(ctx)
 	}
 
 	issueCount := result.MissingLedgerIDs + result.MissingAccountIDs
@@ -141,6 +87,104 @@ func (c *AliasChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 	})
 
 	return result, nil
+}
+
+type aliasCheckContext struct {
+	ledgerCache  map[string]bool
+	accountCache map[string]bool
+	scanned      int
+	maxScan      int
+	maxResults   int
+}
+
+func (c *AliasChecker) processCollection(ctx context.Context, collName string, checkCtx *aliasCheckContext, result *domain.CRMAliasCheckResult) error {
+	coll := c.crmMongo.Collection(collName)
+	findOptions := options.Find().SetProjection(bson.M{
+		"_id":        1,
+		"ledger_id":  1,
+		"account_id": 1,
+	}).SetLimit(int64(checkCtx.maxScan - checkCtx.scanned))
+
+	cursor, err := coll.Find(ctx, bson.M{"deleted_at": bson.M{"$eq": nil}}, findOptions)
+	if err != nil {
+		return fmt.Errorf("crm alias query failed: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		if checkCtx.scanned >= checkCtx.maxScan {
+			result.ScanLimited = true
+			break
+		}
+
+		if err := c.processAliasDocument(ctx, cursor, checkCtx, result); err != nil {
+			return err
+		}
+	}
+
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("crm alias cursor failed: %w", err)
+	}
+
+	return nil
+}
+
+type aliasDocument struct {
+	ID        any    `bson:"_id"`
+	LedgerID  string `bson:"ledger_id"`
+	AccountID string `bson:"account_id"`
+}
+
+func (c *AliasChecker) processAliasDocument(ctx context.Context, cursor *mongo.Cursor, checkCtx *aliasCheckContext, result *domain.CRMAliasCheckResult) error {
+	var doc aliasDocument
+	if err := cursor.Decode(&doc); err != nil {
+		return fmt.Errorf("crm alias decode failed: %w", err)
+	}
+
+	checkCtx.scanned++
+	aliasID := fmt.Sprintf("%v", doc.ID)
+
+	if err := c.validateLedgerReference(ctx, doc, aliasID, checkCtx, result); err != nil {
+		return err
+	}
+
+	return c.validateAccountReference(ctx, doc, aliasID, checkCtx, result)
+}
+
+func (c *AliasChecker) validateLedgerReference(ctx context.Context, doc aliasDocument, aliasID string, checkCtx *aliasCheckContext, result *domain.CRMAliasCheckResult) error {
+	if doc.LedgerID == "" {
+		return nil
+	}
+
+	exists, err := c.existsInOnboarding(ctx, "ledger", doc.LedgerID, checkCtx.ledgerCache)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		result.MissingLedgerIDs++
+		c.appendSample(result, aliasID, doc.LedgerID, "", "missing_ledger", checkCtx.maxResults)
+	}
+
+	return nil
+}
+
+func (c *AliasChecker) validateAccountReference(ctx context.Context, doc aliasDocument, aliasID string, checkCtx *aliasCheckContext, result *domain.CRMAliasCheckResult) error {
+	if doc.AccountID == "" {
+		return nil
+	}
+
+	exists, err := c.existsInOnboarding(ctx, "account", doc.AccountID, checkCtx.accountCache)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		result.MissingAccountIDs++
+		c.appendSample(result, aliasID, "", doc.AccountID, "missing_account", checkCtx.maxResults)
+	}
+
+	return nil
 }
 
 func (c *AliasChecker) existsInOnboarding(ctx context.Context, entity, id string, cache map[string]bool) (bool, error) {
@@ -181,7 +225,7 @@ func onboardingTableForEntity(entity string) (string, error) {
 	case "account":
 		return "account", nil
 	default:
-		return "", fmt.Errorf("entity %q is not allowed", entity)
+		return "", fmt.Errorf("%w: %s", ErrEntityNotAllowed, entity)
 	}
 }
 

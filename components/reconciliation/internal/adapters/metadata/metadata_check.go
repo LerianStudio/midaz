@@ -1,3 +1,4 @@
+// Package metadata provides metadata validation adapters for reconciliation.
 package metadata
 
 import (
@@ -49,6 +50,24 @@ func (c *MetadataChecker) Check(ctx context.Context, config postgres.CheckerConf
 		return &domain.MetadataCheckResult{Status: domain.StatusSkipped}, nil
 	}
 
+	lookbackDays, maxScan := c.normalizeConfig(config)
+	result := &domain.MetadataCheckResult{}
+
+	if err := c.collectSummaries(ctx, result); err != nil {
+		return nil, err
+	}
+
+	if err := c.checkOutboxIfNeeded(ctx, result, lookbackDays, maxScan, config.MaxResults); err != nil {
+		return nil, err
+	}
+
+	c.determineStatus(result)
+
+	return result, nil
+}
+
+// normalizeConfig returns normalized lookback days and max scan values.
+func (c *MetadataChecker) normalizeConfig(config postgres.CheckerConfig) (int, int) {
 	lookbackDays := config.LookbackDays
 	if lookbackDays <= 0 {
 		lookbackDays = defaultLookbackDays
@@ -59,11 +78,14 @@ func (c *MetadataChecker) Check(ctx context.Context, config postgres.CheckerConf
 		maxScan = defaultMaxScan
 	}
 
-	result := &domain.MetadataCheckResult{}
+	return lookbackDays, maxScan
+}
 
+// collectSummaries collects collection summaries and populates the result.
+func (c *MetadataChecker) collectSummaries(ctx context.Context, result *domain.MetadataCheckResult) error {
 	summaries, missingEntityIDs, duplicateEntityIDs, missingRequiredFields, emptyMetadata, err := c.collectCollectionSummaries(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	result.CollectionSummaries = summaries
@@ -72,24 +94,34 @@ func (c *MetadataChecker) Check(ctx context.Context, config postgres.CheckerConf
 	result.MissingRequiredFields = missingRequiredFields
 	result.EmptyMetadata = emptyMetadata
 
-	if c.db != nil && (c.transactionMongo != nil || c.onboardingMongo != nil) {
-		outboxRes, err := c.checkOutboxPublished(ctx, lookbackDays, maxScan, config.MaxResults)
-		if err != nil {
-			return nil, err
-		}
+	return nil
+}
 
-		// Important: these counts are for the subset we can actually validate against MongoDB.
-		// (Entity types that map to a different MongoDB, or unsupported types, are excluded.)
-		result.PostgreSQLCount = int64(outboxRes.ValidatedCount)
-		result.MissingCount = int64(outboxRes.MissingCount)
-		result.MongoDBCount = int64(outboxRes.FoundCount)
-		result.MissingEntities = outboxRes.MissingEntities
-
-		if outboxRes.ScannedCount < outboxRes.TotalCount {
-			result.ScanLimited = true
-		}
+// checkOutboxIfNeeded checks outbox published entries if the database is available.
+func (c *MetadataChecker) checkOutboxIfNeeded(ctx context.Context, result *domain.MetadataCheckResult, lookbackDays, maxScan, maxResults int) error {
+	if c.db == nil || (c.transactionMongo == nil && c.onboardingMongo == nil) {
+		return nil
 	}
 
+	outboxRes, err := c.checkOutboxPublished(ctx, lookbackDays, maxScan, maxResults)
+	if err != nil {
+		return err
+	}
+
+	result.PostgreSQLCount = int64(outboxRes.ValidatedCount)
+	result.MissingCount = int64(outboxRes.MissingCount)
+	result.MongoDBCount = int64(outboxRes.FoundCount)
+	result.MissingEntities = outboxRes.MissingEntities
+
+	if outboxRes.ScannedCount < outboxRes.TotalCount {
+		result.ScanLimited = true
+	}
+
+	return nil
+}
+
+// determineStatus sets the result status based on issue counts.
+func (c *MetadataChecker) determineStatus(result *domain.MetadataCheckResult) {
 	issueCount := result.MissingCount +
 		int64(result.MissingEntityIDs) +
 		int64(result.DuplicateEntityIDs) +
@@ -102,19 +134,9 @@ func (c *MetadataChecker) Check(ctx context.Context, config postgres.CheckerConf
 	if result.MissingCount > 0 {
 		result.Status = domain.StatusCritical
 	}
-
-	return result, nil
 }
 
 func (c *MetadataChecker) collectCollectionSummaries(ctx context.Context) ([]domain.MetadataCollectionSummary, int, int, int, int, error) {
-	var (
-		summaries                  []domain.MetadataCollectionSummary
-		totalMissingEntityIDs      int
-		totalDuplicateEntityIDs    int
-		totalMissingRequiredFields int
-		totalEmptyMetadata         int
-	)
-
 	requiredFields := []string{"entity_id", "entity_name", "created_at", "updated_at"}
 
 	type collectionInfo struct {
@@ -138,6 +160,14 @@ func (c *MetadataChecker) collectCollectionSummaries(ctx context.Context) ([]dom
 		{db: c.transactionMongo, name: "operationroute"},
 		{db: c.transactionMongo, name: "operation_route"},
 	}
+
+	var (
+		summaries                  = make([]domain.MetadataCollectionSummary, 0, len(collections))
+		totalMissingEntityIDs      int
+		totalDuplicateEntityIDs    int
+		totalMissingRequiredFields int
+		totalEmptyMetadata         int
+	)
 
 	for _, coll := range collections {
 		if coll.db == nil {
@@ -249,11 +279,38 @@ type outboxPublishedCheckResult struct {
 	MissingEntities []domain.MetadataMissingEntity
 }
 
+type outboxEntry struct {
+	EntityID   string
+	EntityType string
+	TotalCount int
+}
+
+type mongoTarget struct {
+	db         *mongo.Database
+	collection string
+}
+
 func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays, maxScan, maxResults int) (outboxPublishedCheckResult, error) {
 	if maxResults < 0 {
 		maxResults = 0
 	}
 
+	entries, err := c.fetchOutboxEntries(ctx, lookbackDays, maxScan)
+	if err != nil {
+		return outboxPublishedCheckResult{}, err
+	}
+
+	typeIDs, validatableType := c.groupEntriesByType(entries)
+
+	foundIDsByType, err := c.findIDsInMongo(ctx, typeIDs)
+	if err != nil {
+		return outboxPublishedCheckResult{}, err
+	}
+
+	return c.computeMissingEntities(entries, validatableType, foundIDsByType, maxResults), nil
+}
+
+func (c *MetadataChecker) fetchOutboxEntries(ctx context.Context, lookbackDays, maxScan int) ([]outboxEntry, error) {
 	query := `
 		SELECT entity_id, entity_type,
 		       (SELECT COUNT(*)
@@ -269,100 +326,37 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 
 	rows, err := c.db.QueryContext(ctx, query, lookbackDays, maxScan)
 	if err != nil {
-		return outboxPublishedCheckResult{}, fmt.Errorf("metadata outbox query failed: %w", err)
+		return nil, fmt.Errorf("metadata outbox query failed: %w", err)
 	}
 	defer rows.Close()
 
-	type entry struct {
-		EntityID   string
-		EntityType string
-		TotalCount int
-	}
-
-	var entries []entry
+	var entries []outboxEntry
 
 	for rows.Next() {
-		var e entry
+		var e outboxEntry
 		if err := rows.Scan(&e.EntityID, &e.EntityType, &e.TotalCount); err != nil {
-			return outboxPublishedCheckResult{}, fmt.Errorf("metadata outbox scan failed: %w", err)
+			return nil, fmt.Errorf("metadata outbox scan failed: %w", err)
 		}
 
 		entries = append(entries, e)
 	}
 
 	if err := rows.Err(); err != nil {
-		return outboxPublishedCheckResult{}, fmt.Errorf("metadata outbox iteration failed: %w", err)
+		return nil, fmt.Errorf("metadata outbox iteration failed: %w", err)
 	}
 
-	normalizeType := func(entityType string) string {
-		return strings.ToLower(strings.TrimSpace(entityType))
-	}
+	return entries, nil
+}
 
-	type mongoTarget struct {
-		db         *mongo.Database
-		collection string
-	}
-
-	// Map outbox entity_type -> MongoDB collection(s). Some entity types have legacy/alias
-	// collection names; we check all plausible collections and consider the entity present
-	// if it exists in any.
-	targetsForType := func(entityType string) []mongoTarget {
-		switch normalizeType(entityType) {
-		// Onboarding Mongo
-		case "organization":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "organization"}}
-		case "ledger":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "ledger"}}
-		case "asset":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "asset"}}
-		case "account":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "account"}}
-		case "portfolio":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "portfolio"}}
-		case "segment":
-			return []mongoTarget{{db: c.onboardingMongo, collection: "segment"}}
-		case "accounttype", "account_type":
-			return []mongoTarget{
-				{db: c.onboardingMongo, collection: "accounttype"},
-				{db: c.onboardingMongo, collection: "account_type"},
-			}
-
-		// Transaction Mongo
-		case "transaction":
-			return []mongoTarget{{db: c.transactionMongo, collection: "transaction"}}
-		case "operation":
-			return []mongoTarget{{db: c.transactionMongo, collection: "operation"}}
-		case "transactionroute", "transaction_route":
-			return []mongoTarget{
-				{db: c.transactionMongo, collection: "transactionroute"},
-				{db: c.transactionMongo, collection: "transaction_route"},
-			}
-		case "operationroute", "operation_route":
-			return []mongoTarget{
-				{db: c.transactionMongo, collection: "operationroute"},
-				{db: c.transactionMongo, collection: "operation_route"},
-			}
-		default:
-			return nil
-		}
-	}
-
+func (c *MetadataChecker) groupEntriesByType(entries []outboxEntry) (map[string][]string, map[string]bool) {
 	typeIDs := map[string][]string{}
 	validatableType := map[string]bool{}
 
 	for _, e := range entries {
-		typ := normalizeType(e.EntityType)
-		targets := targetsForType(typ)
-		available := false
+		typ := normalizeEntityType(e.EntityType)
+		targets := c.targetsForType(typ)
 
-		for _, t := range targets {
-			if t.db != nil {
-				available = true
-				break
-			}
-		}
-
-		if !available {
+		if !hasAvailableTarget(targets) {
 			continue
 		}
 
@@ -370,9 +364,25 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 		typeIDs[typ] = append(typeIDs[typ], e.EntityID)
 	}
 
+	return typeIDs, validatableType
+}
+
+func hasAvailableTarget(targets []mongoTarget) bool {
+	for _, t := range targets {
+		if t.db != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *MetadataChecker) findIDsInMongo(ctx context.Context, typeIDs map[string][]string) (map[string]map[string]struct{}, error) {
 	foundIDsByType := make(map[string]map[string]struct{}, len(typeIDs))
+
 	for typ, ids := range typeIDs {
-		targets := targetsForType(typ)
+		targets := c.targetsForType(typ)
+
 		for _, t := range targets {
 			if t.db == nil {
 				continue
@@ -380,7 +390,7 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 
 			found, err := c.findIDs(ctx, t.db, t.collection, ids)
 			if err != nil {
-				return outboxPublishedCheckResult{}, err
+				return nil, err
 			}
 
 			if _, ok := foundIDsByType[typ]; !ok {
@@ -393,14 +403,17 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 		}
 	}
 
+	return foundIDsByType, nil
+}
+
+func (c *MetadataChecker) computeMissingEntities(entries []outboxEntry, validatableType map[string]bool, foundIDsByType map[string]map[string]struct{}, maxResults int) outboxPublishedCheckResult {
 	missingCount := 0
 	missingEntities := make([]domain.MetadataMissingEntity, 0, maxResults)
 	validatedCount := 0
 
 	for _, e := range entries {
-		typ := normalizeType(e.EntityType)
+		typ := normalizeEntityType(e.EntityType)
 		if !validatableType[typ] {
-			// Unsupported entity type, or relevant MongoDB not configured: do not treat as missing.
 			continue
 		}
 
@@ -438,7 +451,68 @@ func (c *MetadataChecker) checkOutboxPublished(ctx context.Context, lookbackDays
 		TotalCount:      totalCount,
 		MissingCount:    missingCount,
 		MissingEntities: missingEntities,
-	}, nil
+	}
+}
+
+func normalizeEntityType(entityType string) string {
+	return strings.ToLower(strings.TrimSpace(entityType))
+}
+
+// targetsForType maps outbox entity_type -> MongoDB collection(s). Some entity types have legacy/alias
+// collection names; we check all plausible collections and consider the entity present if it exists in any.
+func (c *MetadataChecker) targetsForType(entityType string) []mongoTarget {
+	if targets := c.onboardingTargets(entityType); targets != nil {
+		return targets
+	}
+
+	return c.transactionTargets(entityType)
+}
+
+// onboardingTargets returns MongoDB targets for onboarding entity types.
+func (c *MetadataChecker) onboardingTargets(entityType string) []mongoTarget {
+	switch entityType {
+	case "organization":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "organization"}}
+	case "ledger":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "ledger"}}
+	case "asset":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "asset"}}
+	case "account":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "account"}}
+	case "portfolio":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "portfolio"}}
+	case "segment":
+		return []mongoTarget{{db: c.onboardingMongo, collection: "segment"}}
+	case "accounttype", "account_type":
+		return []mongoTarget{
+			{db: c.onboardingMongo, collection: "accounttype"},
+			{db: c.onboardingMongo, collection: "account_type"},
+		}
+	default:
+		return nil
+	}
+}
+
+// transactionTargets returns MongoDB targets for transaction entity types.
+func (c *MetadataChecker) transactionTargets(entityType string) []mongoTarget {
+	switch entityType {
+	case "transaction":
+		return []mongoTarget{{db: c.transactionMongo, collection: "transaction"}}
+	case "operation":
+		return []mongoTarget{{db: c.transactionMongo, collection: "operation"}}
+	case "transactionroute", "transaction_route":
+		return []mongoTarget{
+			{db: c.transactionMongo, collection: "transactionroute"},
+			{db: c.transactionMongo, collection: "transaction_route"},
+		}
+	case "operationroute", "operation_route":
+		return []mongoTarget{
+			{db: c.transactionMongo, collection: "operationroute"},
+			{db: c.transactionMongo, collection: "operation_route"},
+		}
+	default:
+		return nil
+	}
 }
 
 func mongoFindEntityIDs(ctx context.Context, db *mongo.Database, collection string, ids []string) (map[string]struct{}, error) {

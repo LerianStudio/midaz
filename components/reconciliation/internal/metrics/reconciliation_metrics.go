@@ -1,3 +1,4 @@
+// Package reconmetrics provides metrics collection for reconciliation runs.
 package reconmetrics
 
 import (
@@ -111,6 +112,13 @@ func (m *ReconciliationMetrics) RecordRun(ctx context.Context, report *domain.Re
 		return
 	}
 
+	m.recordRunMetrics(ctx, report, durationMs)
+	m.recordCheckDurations(ctx, report)
+	m.recordCheckMetrics(ctx, report)
+}
+
+// recordRunMetrics records the run-level metrics.
+func (m *ReconciliationMetrics) recordRunMetrics(ctx context.Context, report *domain.ReconciliationReport, durationMs int64) {
 	m.factory.Counter(runTotalMetric).
 		WithLabels(map[string]string{"status": string(report.Status)}).
 		AddOne(ctx)
@@ -118,14 +126,24 @@ func (m *ReconciliationMetrics) RecordRun(ctx context.Context, report *domain.Re
 	m.factory.Histogram(runDurationMetric).
 		Record(ctx, durationMs)
 
-	if report.CheckDurations != nil {
-		for name, dur := range report.CheckDurations {
-			m.factory.Histogram(checkDurationMetric).
-				WithLabels(map[string]string{"check": name}).
-				Record(ctx, dur)
-		}
+	m.factory.Gauge(lastRunTimestampMetric).Set(ctx, report.Timestamp.Unix())
+}
+
+// recordCheckDurations records duration metrics for each check.
+func (m *ReconciliationMetrics) recordCheckDurations(ctx context.Context, report *domain.ReconciliationReport) {
+	if report.CheckDurations == nil {
+		return
 	}
 
+	for name, dur := range report.CheckDurations {
+		m.factory.Histogram(checkDurationMetric).
+			WithLabels(map[string]string{"check": name}).
+			Record(ctx, dur)
+	}
+}
+
+// recordCheckMetrics records metrics for individual check results.
+func (m *ReconciliationMetrics) recordCheckMetrics(ctx context.Context, report *domain.ReconciliationReport) {
 	if report.BalanceCheck != nil {
 		m.factory.Gauge(balanceDiscrepanciesMetric).Set(ctx, int64(report.BalanceCheck.BalancesWithDiscrepancy))
 	}
@@ -138,6 +156,11 @@ func (m *ReconciliationMetrics) RecordRun(ctx context.Context, report *domain.Re
 		m.factory.Gauge(orphanTransactionsMetric).Set(ctx, int64(report.OrphanCheck.OrphanTransactions))
 	}
 
+	m.recordOutboxMetrics(ctx, report)
+}
+
+// recordOutboxMetrics records outbox and DLQ related metrics.
+func (m *ReconciliationMetrics) recordOutboxMetrics(ctx context.Context, report *domain.ReconciliationReport) {
 	if report.OutboxCheck != nil {
 		m.factory.Gauge(outboxPendingMetric).Set(ctx, report.OutboxCheck.Pending)
 		m.factory.Gauge(outboxFailedMetric).Set(ctx, report.OutboxCheck.Failed)
@@ -151,6 +174,4 @@ func (m *ReconciliationMetrics) RecordRun(ctx context.Context, report *domain.Re
 		mismatch := int64(report.RedisCheck.MissingRedis + report.RedisCheck.ValueMismatches + report.RedisCheck.VersionMismatches)
 		m.factory.Gauge(redisMismatchMetric).Set(ctx, mismatch)
 	}
-
-	m.factory.Gauge(lastRunTimestampMetric).Set(ctx, report.Timestamp.Unix())
 }

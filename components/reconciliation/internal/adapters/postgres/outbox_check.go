@@ -30,21 +30,41 @@ func (c *OutboxChecker) Name() string {
 
 // Check returns outbox backlog summary and limited entry details.
 func (c *OutboxChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
+	config = c.normalizeConfig(config)
+	result := &domain.OutboxCheckResult{}
+
+	if err := c.fetchSummary(ctx, result, config.OutboxStaleSeconds); err != nil {
+		return nil, err
+	}
+
+	if err := c.fetchEntriesIfNeeded(ctx, result, config.MaxResults); err != nil {
+		return nil, err
+	}
+
+	c.determineStatus(result)
+
+	return result, nil
+}
+
+// normalizeConfig normalizes configuration values.
+func (c *OutboxChecker) normalizeConfig(config CheckerConfig) CheckerConfig {
 	if config.MaxResults < 0 {
 		config.MaxResults = 0
 	}
 
-	staleSeconds := config.OutboxStaleSeconds
-	if staleSeconds <= 0 {
-		staleSeconds = config.StaleThresholdSeconds
+	if config.OutboxStaleSeconds <= 0 {
+		config.OutboxStaleSeconds = config.StaleThresholdSeconds
 	}
 
-	if staleSeconds <= 0 {
-		staleSeconds = 600
+	if config.OutboxStaleSeconds <= 0 {
+		config.OutboxStaleSeconds = 600
 	}
 
-	result := &domain.OutboxCheckResult{}
+	return config
+}
 
+// fetchSummary retrieves outbox summary statistics.
+func (c *OutboxChecker) fetchSummary(ctx context.Context, result *domain.OutboxCheckResult, staleSeconds int) error {
 	summaryQuery := `
 		SELECT
 			COUNT(*) FILTER (WHERE status = 'PENDING') as pending,
@@ -74,9 +94,16 @@ func (c *OutboxChecker) Check(ctx context.Context, config CheckerConfig) (CheckR
 		&oldestPending,
 		&oldestFailed,
 	); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDLQSummaryQuery, err)
+		return fmt.Errorf("%w: %w", ErrDLQSummaryQuery, err)
 	}
 
+	c.setOldestTimestamps(result, oldestPending, oldestFailed)
+
+	return nil
+}
+
+// setOldestTimestamps sets the oldest pending and failed timestamps.
+func (c *OutboxChecker) setOldestTimestamps(result *domain.OutboxCheckResult, oldestPending, oldestFailed sql.NullTime) {
 	if oldestPending.Valid {
 		ts := oldestPending.Time
 		result.OldestPendingAt = &ts
@@ -86,16 +113,24 @@ func (c *OutboxChecker) Check(ctx context.Context, config CheckerConfig) (CheckR
 		ts := oldestFailed.Time
 		result.OldestFailedAt = &ts
 	}
+}
 
-	if result.Pending+result.Failed+result.Processing > 0 && config.MaxResults > 0 {
-		entries, err := c.fetchOutboxEntries(ctx, config.MaxResults)
+// fetchEntriesIfNeeded retrieves outbox entries if there are pending issues.
+func (c *OutboxChecker) fetchEntriesIfNeeded(ctx context.Context, result *domain.OutboxCheckResult, maxResults int) error {
+	if result.Pending+result.Failed+result.Processing > 0 && maxResults > 0 {
+		entries, err := c.fetchOutboxEntries(ctx, maxResults)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		result.Entries = entries
 	}
 
+	return nil
+}
+
+// determineStatus sets the result status based on issue counts.
+func (c *OutboxChecker) determineStatus(result *domain.OutboxCheckResult) {
 	issueCount := int(result.Pending + result.Failed + result.Processing)
 	result.Status = DetermineStatus(issueCount, StatusThresholds{
 		WarningThreshold:          outboxWarningThreshold,
@@ -105,8 +140,6 @@ func (c *OutboxChecker) Check(ctx context.Context, config CheckerConfig) (CheckR
 	if result.StaleProcessing > 0 {
 		result.Status = domain.StatusCritical
 	}
-
-	return result, nil
 }
 
 func (c *OutboxChecker) fetchOutboxEntries(ctx context.Context, limit int) ([]domain.OutboxEntry, error) {

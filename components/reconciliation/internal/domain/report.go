@@ -2,6 +2,7 @@
 package domain
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -466,55 +467,54 @@ func (r *ReconciliationReport) DetermineOverallStatus() {
 	r.Status = calculateWorstStatus(checkStatuses)
 }
 
+// StatusGetter is an interface for types that can provide a reconciliation status.
+type StatusGetter interface {
+	GetStatus() ReconciliationStatus
+}
+
 // collectCheckStatuses gathers all non-nil check statuses into a slice.
 func (r *ReconciliationReport) collectCheckStatuses() []ReconciliationStatus {
+	checks := []StatusGetter{
+		r.BalanceCheck,
+		r.DoubleEntryCheck,
+		r.ReferentialCheck,
+		r.SyncCheck,
+		r.OrphanCheck,
+		r.MetadataCheck,
+		r.DLQCheck,
+		r.OutboxCheck,
+		r.RedisCheck,
+		r.CrossDBCheck,
+		r.CRMAliasCheck,
+	}
+
+	return collectStatusesFromChecks(checks)
+}
+
+// collectStatusesFromChecks extracts statuses from non-nil checks.
+func collectStatusesFromChecks(checks []StatusGetter) []ReconciliationStatus {
 	var statuses []ReconciliationStatus
 
-	if r.BalanceCheck != nil {
-		statuses = append(statuses, r.BalanceCheck.GetStatus())
-	}
-
-	if r.DoubleEntryCheck != nil {
-		statuses = append(statuses, r.DoubleEntryCheck.GetStatus())
-	}
-
-	if r.ReferentialCheck != nil {
-		statuses = append(statuses, r.ReferentialCheck.GetStatus())
-	}
-
-	if r.SyncCheck != nil {
-		statuses = append(statuses, r.SyncCheck.GetStatus())
-	}
-
-	if r.OrphanCheck != nil {
-		statuses = append(statuses, r.OrphanCheck.GetStatus())
-	}
-
-	if r.MetadataCheck != nil {
-		statuses = append(statuses, r.MetadataCheck.GetStatus())
-	}
-
-	if r.DLQCheck != nil {
-		statuses = append(statuses, r.DLQCheck.GetStatus())
-	}
-
-	if r.OutboxCheck != nil {
-		statuses = append(statuses, r.OutboxCheck.GetStatus())
-	}
-
-	if r.RedisCheck != nil {
-		statuses = append(statuses, r.RedisCheck.GetStatus())
-	}
-
-	if r.CrossDBCheck != nil {
-		statuses = append(statuses, r.CrossDBCheck.GetStatus())
-	}
-
-	if r.CRMAliasCheck != nil {
-		statuses = append(statuses, r.CRMAliasCheck.GetStatus())
+	for _, check := range checks {
+		if check != nil && !isNilCheck(check) {
+			statuses = append(statuses, check.GetStatus())
+		}
 	}
 
 	return statuses
+}
+
+// isNilCheck checks if the interface value is nil (handles typed nil interfaces).
+// Uses reflection to check if the underlying value is nil, regardless of type.
+func isNilCheck(check StatusGetter) bool {
+	if check == nil {
+		return true
+	}
+
+	// Use reflection to check for typed nil pointers
+	v := reflect.ValueOf(check)
+
+	return v.Kind() == reflect.Ptr && v.IsNil()
 }
 
 // calculateWorstStatus returns the worst status from a slice of statuses.

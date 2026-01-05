@@ -57,6 +57,19 @@ const (
 	defaultRedisSampleSize           = 250
 )
 
+// Redis configuration defaults.
+const (
+	defaultRedisProtocol        = 3
+	defaultRedisPoolSize        = 10
+	defaultRedisReadTimeout     = 3
+	defaultRedisWriteTimeout    = 3
+	defaultRedisDialTimeout     = 5
+	defaultRedisPoolTimeout     = 2
+	defaultRedisMaxRetries      = 3
+	defaultRedisMinRetryBackoff = 8
+	defaultRedisMaxRetryBackoff = 1
+)
+
 // Default configuration values for reconciliation worker.
 const (
 	defaultSettlementWaitSeconds    = 300 // 5 minutes
@@ -197,52 +210,27 @@ func (c *Config) GetServerAddress() string {
 	return defaultServerPort
 }
 
-// Validate checks configuration values for correctness
-func (c *Config) Validate() error {
-	if c.ReconciliationIntervalSeconds < minReconciliationIntervalSeconds {
-		return fmt.Errorf("%w: got %d", ErrInvalidReconciliationInterval, c.ReconciliationIntervalSeconds)
+// rangeValidation defines a range validation rule for configuration values.
+type rangeValidation struct {
+	value   int
+	min     int
+	max     int
+	errType error
+}
+
+// validateRanges performs table-driven range validation.
+func validateRanges(validations []rangeValidation) error {
+	for _, v := range validations {
+		if v.value < v.min || v.value > v.max {
+			return fmt.Errorf("%w: got %d", v.errType, v.value)
+		}
 	}
 
-	if c.MaxDiscrepanciesToReport < minMaxDiscrepancies || c.MaxDiscrepanciesToReport > maxMaxDiscrepancies {
-		return fmt.Errorf("%w: got %d", ErrInvalidMaxDiscrepancies, c.MaxDiscrepanciesToReport)
-	}
+	return nil
+}
 
-	if c.MaxOpenConnections < minMaxOpenConnections || c.MaxOpenConnections > maxMaxOpenConnections {
-		return fmt.Errorf("%w: got %d", ErrInvalidMaxOpenConnections, c.MaxOpenConnections)
-	}
-
-	if c.ReportMaxFiles < 1 || c.ReportMaxFiles > 10000 {
-		return fmt.Errorf("%w: got %d", ErrInvalidReportMaxFiles, c.ReportMaxFiles)
-	}
-
-	if c.ReportRetentionDays < 1 || c.ReportRetentionDays > 365 {
-		return fmt.Errorf("%w: got %d", ErrInvalidReportRetentionDays, c.ReportRetentionDays)
-	}
-
-	if c.OutboxStaleSeconds < 60 || c.OutboxStaleSeconds > 86400 {
-		return fmt.Errorf("%w: got %d", ErrInvalidOutboxStaleSeconds, c.OutboxStaleSeconds)
-	}
-
-	if c.MetadataLookbackDays < 1 || c.MetadataLookbackDays > 90 {
-		return fmt.Errorf("%w: got %d", ErrInvalidMetadataLookbackDays, c.MetadataLookbackDays)
-	}
-
-	if c.MetadataMaxScan < 1 || c.MetadataMaxScan > 100000 {
-		return fmt.Errorf("%w: got %d", ErrInvalidMetadataMaxScan, c.MetadataMaxScan)
-	}
-
-	if c.CrossDBBatchSize < 1 || c.CrossDBBatchSize > 5000 {
-		return fmt.Errorf("%w: got %d", ErrInvalidCrossDBBatchSize, c.CrossDBBatchSize)
-	}
-
-	if c.CrossDBMaxScan < 1 || c.CrossDBMaxScan > 100000 {
-		return fmt.Errorf("%w: got %d", ErrInvalidCrossDBMaxScan, c.CrossDBMaxScan)
-	}
-
-	if c.RedisSampleSize < 1 || c.RedisSampleSize > 10000 {
-		return fmt.Errorf("%w: got %d", ErrInvalidRedisSampleSize, c.RedisSampleSize)
-	}
-
+// validateSSLModes checks SSL mode configuration for production environments.
+func (c *Config) validateSSLModes() error {
 	if c.OnboardingDBSSLMode == "disable" && c.EnvName == "production" {
 		return ErrOnboardingSSLDisabledInProduction
 	}
@@ -252,6 +240,29 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// Validate checks configuration values for correctness
+func (c *Config) Validate() error {
+	validations := []rangeValidation{
+		{c.ReconciliationIntervalSeconds, minReconciliationIntervalSeconds, 1<<31 - 1, ErrInvalidReconciliationInterval},
+		{c.MaxDiscrepanciesToReport, minMaxDiscrepancies, maxMaxDiscrepancies, ErrInvalidMaxDiscrepancies},
+		{c.MaxOpenConnections, minMaxOpenConnections, maxMaxOpenConnections, ErrInvalidMaxOpenConnections},
+		{c.ReportMaxFiles, 1, 10000, ErrInvalidReportMaxFiles},
+		{c.ReportRetentionDays, 1, 365, ErrInvalidReportRetentionDays},
+		{c.OutboxStaleSeconds, 60, 86400, ErrInvalidOutboxStaleSeconds},
+		{c.MetadataLookbackDays, 1, 90, ErrInvalidMetadataLookbackDays},
+		{c.MetadataMaxScan, 1, 100000, ErrInvalidMetadataMaxScan},
+		{c.CrossDBBatchSize, 1, 5000, ErrInvalidCrossDBBatchSize},
+		{c.CrossDBMaxScan, 1, 100000, ErrInvalidCrossDBMaxScan},
+		{c.RedisSampleSize, 1, 10000, ErrInvalidRedisSampleSize},
+	}
+
+	if err := validateRanges(validations); err != nil {
+		return err
+	}
+
+	return c.validateSSLModes()
 }
 
 // DefaultConfig returns sensible defaults
@@ -275,55 +286,48 @@ func DefaultConfig() *Config {
 		ReportMaxFiles:                defaultReportMaxFiles,
 		ReportRetentionDays:           defaultReportRetentionDays,
 		RedisDB:                       0,
-		RedisProtocol:                 3,
-		RedisPoolSize:                 10,
-		RedisReadTimeout:              3,
-		RedisWriteTimeout:             3,
-		RedisDialTimeout:              5,
-		RedisPoolTimeout:              2,
-		RedisMaxRetries:               3,
-		RedisMinRetryBackoff:          8,
-		RedisMaxRetryBackoff:          1,
+		RedisProtocol:                 defaultRedisProtocol,
+		RedisPoolSize:                 defaultRedisPoolSize,
+		RedisReadTimeout:              defaultRedisReadTimeout,
+		RedisWriteTimeout:             defaultRedisWriteTimeout,
+		RedisDialTimeout:              defaultRedisDialTimeout,
+		RedisPoolTimeout:              defaultRedisPoolTimeout,
+		RedisMaxRetries:               defaultRedisMaxRetries,
+		RedisMinRetryBackoff:          defaultRedisMinRetryBackoff,
+		RedisMaxRetryBackoff:          defaultRedisMaxRetryBackoff,
 	}
 }
 
-// ApplyEnvDefaults restores defaults for config fields without explicit env values.
-func (c *Config) ApplyEnvDefaults() {
+// applyWorkerDefaults applies default values for worker configuration.
+func (c *Config) applyWorkerDefaults() {
 	if envMissingOrEmpty("RECONCILIATION_INTERVAL_SECONDS") {
 		c.ReconciliationIntervalSeconds = int(defaultReconciliationInterval.Seconds())
 	}
+
 	if envMissingOrEmpty("SETTLEMENT_WAIT_SECONDS") {
 		c.SettlementWaitSeconds = defaultSettlementWaitSeconds
 	}
+
 	if envMissingOrEmpty("MAX_DISCREPANCIES_TO_REPORT") {
 		c.MaxDiscrepanciesToReport = defaultMaxDiscrepanciesToReport
-	}
-
-	if envMissingOrEmpty("DB_MAX_OPEN_CONNS") {
-		c.MaxOpenConnections = defaultMaxOpenConnections
-	}
-	if envMissingOrEmpty("DB_MAX_IDLE_CONNS") {
-		c.MaxIdleConnections = defaultMaxIdleConnections
-	}
-	if envMissingOrEmpty("ONBOARDING_DB_SSLMODE") {
-		c.OnboardingDBSSLMode = "require"
-	}
-	if envMissingOrEmpty("TRANSACTION_DB_SSLMODE") {
-		c.TransactionDBSSLMode = "require"
 	}
 
 	if envMissingOrEmpty("OUTBOX_STALE_SECONDS") {
 		c.OutboxStaleSeconds = defaultOutboxStaleSeconds
 	}
+
 	if envMissingOrEmpty("METADATA_LOOKBACK_DAYS") {
 		c.MetadataLookbackDays = defaultMetadataLookbackDays
 	}
+
 	if envMissingOrEmpty("METADATA_MAX_SCAN") {
 		c.MetadataMaxScan = defaultMetadataMaxScan
 	}
+
 	if envMissingOrEmpty("CROSSDB_BATCH_SIZE") {
 		c.CrossDBBatchSize = defaultCrossDBBatchSize
 	}
+
 	if envMissingOrEmpty("CROSSDB_MAX_SCAN") {
 		c.CrossDBMaxScan = defaultCrossDBMaxScan
 	}
@@ -331,44 +335,87 @@ func (c *Config) ApplyEnvDefaults() {
 	if envMissingOrEmpty("REDIS_SAMPLE_SIZE") {
 		c.RedisSampleSize = defaultRedisSampleSize
 	}
+}
 
+// applyDatabaseDefaults applies default values for database configuration.
+func (c *Config) applyDatabaseDefaults() {
+	if envMissingOrEmpty("DB_MAX_OPEN_CONNS") {
+		c.MaxOpenConnections = defaultMaxOpenConnections
+	}
+
+	if envMissingOrEmpty("DB_MAX_IDLE_CONNS") {
+		c.MaxIdleConnections = defaultMaxIdleConnections
+	}
+
+	if envMissingOrEmpty("ONBOARDING_DB_SSLMODE") {
+		c.OnboardingDBSSLMode = "require"
+	}
+
+	if envMissingOrEmpty("TRANSACTION_DB_SSLMODE") {
+		c.TransactionDBSSLMode = "require"
+	}
+}
+
+// applyReportDefaults applies default values for report configuration.
+func (c *Config) applyReportDefaults() {
 	if envMissingOrEmpty("REPORTS_DIR") {
 		c.ReportDir = defaultReportDir
 	}
+
 	if envMissingOrEmpty("REPORTS_MAX_FILES") {
 		c.ReportMaxFiles = defaultReportMaxFiles
 	}
+
 	if envMissingOrEmpty("REPORTS_RETENTION_DAYS") {
 		c.ReportRetentionDays = defaultReportRetentionDays
 	}
+}
 
+// applyRedisDefaults applies default values for Redis configuration.
+func (c *Config) applyRedisDefaults() {
 	if envMissingOrEmpty("REDIS_PROTOCOL") {
 		c.RedisProtocol = 3
 	}
+
 	if envMissingOrEmpty("REDIS_POOL_SIZE") {
 		c.RedisPoolSize = 10
 	}
+
 	if envMissingOrEmpty("REDIS_READ_TIMEOUT") {
 		c.RedisReadTimeout = 3
 	}
+
 	if envMissingOrEmpty("REDIS_WRITE_TIMEOUT") {
 		c.RedisWriteTimeout = 3
 	}
+
 	if envMissingOrEmpty("REDIS_DIAL_TIMEOUT") {
 		c.RedisDialTimeout = 5
 	}
+
 	if envMissingOrEmpty("REDIS_POOL_TIMEOUT") {
 		c.RedisPoolTimeout = 2
 	}
+
 	if envMissingOrEmpty("REDIS_MAX_RETRIES") {
 		c.RedisMaxRetries = 3
 	}
+
 	if envMissingOrEmpty("REDIS_MIN_RETRY_BACKOFF") {
 		c.RedisMinRetryBackoff = 8
 	}
+
 	if envMissingOrEmpty("REDIS_MAX_RETRY_BACKOFF") {
 		c.RedisMaxRetryBackoff = 1
 	}
+}
+
+// ApplyEnvDefaults restores defaults for config fields without explicit env values.
+func (c *Config) ApplyEnvDefaults() {
+	c.applyWorkerDefaults()
+	c.applyDatabaseDefaults()
+	c.applyReportDefaults()
+	c.applyRedisDefaults()
 }
 
 func envMissingOrEmpty(key string) bool {

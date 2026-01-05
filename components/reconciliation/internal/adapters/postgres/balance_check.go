@@ -35,7 +35,22 @@ func (c *BalanceChecker) Name() string {
 func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (CheckResult, error) {
 	result := &domain.BalanceCheckResult{}
 
-	// Summary query - using explicit DECIMAL cast for comparison
+	if err := c.fetchSummary(ctx, result, config.DiscrepancyThreshold); err != nil {
+		return nil, err
+	}
+
+	c.calculatePercentages(result)
+	c.determineInitialStatus(result)
+
+	if err := c.fetchDetailedResults(ctx, result, config); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// fetchSummary executes the summary query and populates the result.
+func (c *BalanceChecker) fetchSummary(ctx context.Context, result *domain.BalanceCheckResult, threshold int64) error {
 	summaryQuery := `
 		WITH balance_calc AS (
 			SELECT
@@ -82,7 +97,7 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 		totalOnHoldDiscrepancy decimal.Decimal
 	)
 
-	err := c.db.QueryRowContext(ctx, summaryQuery, config.DiscrepancyThreshold).Scan(
+	err := c.db.QueryRowContext(ctx, summaryQuery, threshold).Scan(
 		&result.TotalBalances,
 		&result.BalancesWithDiscrepancy,
 		&totalDiscrepancy,
@@ -92,54 +107,90 @@ func (c *BalanceChecker) Check(ctx context.Context, config CheckerConfig) (Check
 		&result.NegativeOnHold,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrBalanceSummaryQuery, err)
+		return fmt.Errorf("%w: %w", ErrBalanceSummaryQuery, err)
 	}
 
 	result.TotalAbsoluteDiscrepancy = totalDiscrepancy
-
 	result.TotalOnHoldDiscrepancy = totalOnHoldDiscrepancy
+
+	return nil
+}
+
+// calculatePercentages computes discrepancy percentages.
+func (c *BalanceChecker) calculatePercentages(result *domain.BalanceCheckResult) {
 	if result.TotalBalances > 0 {
 		result.DiscrepancyPercentage = float64(result.BalancesWithDiscrepancy) / float64(result.TotalBalances) * percentageMultiplier
 		result.OnHoldDiscrepancyPct = float64(result.OnHoldWithDiscrepancy) / float64(result.TotalBalances) * percentageMultiplier
 	}
+}
 
+// determineInitialStatus sets the initial status based on discrepancy counts.
+func (c *BalanceChecker) determineInitialStatus(result *domain.BalanceCheckResult) {
 	result.Status = DetermineStatus(result.BalancesWithDiscrepancy+result.OnHoldWithDiscrepancy, StatusThresholds{
 		WarningThreshold: balanceWarningThreshold,
 	})
+}
 
-	// Get detailed discrepancies
-	if result.BalancesWithDiscrepancy > 0 && config.MaxResults > 0 {
-		discrepancies, err := c.fetchBalanceDiscrepancies(ctx, config.DiscrepancyThreshold, config.MaxResults)
-		if err != nil {
-			return nil, err
-		}
-
-		result.Discrepancies = discrepancies
+// fetchDetailedResults retrieves detailed discrepancy records if needed.
+func (c *BalanceChecker) fetchDetailedResults(ctx context.Context, result *domain.BalanceCheckResult, config CheckerConfig) error {
+	if err := c.fetchBalanceDiscrepanciesIfNeeded(ctx, result, config); err != nil {
+		return err
 	}
 
-	// Get detailed on-hold discrepancies
-	if result.OnHoldWithDiscrepancy > 0 && config.MaxResults > 0 {
-		onHoldDiscrepancies, err := c.fetchOnHoldDiscrepancies(ctx, config.DiscrepancyThreshold, config.MaxResults)
-		if err != nil {
-			return nil, err
-		}
-
-		result.OnHoldDiscrepancies = onHoldDiscrepancies
+	if err := c.fetchOnHoldDiscrepanciesIfNeeded(ctx, result, config); err != nil {
+		return err
 	}
 
-	// Get negative balance details
-	if (result.NegativeAvailable > 0 || result.NegativeOnHold > 0) && config.MaxResults > 0 {
-		negativeBalances, err := c.fetchNegativeBalances(ctx, config.MaxResults)
-		if err != nil {
-			return nil, err
-		}
+	return c.fetchNegativeBalancesIfNeeded(ctx, result, config)
+}
 
-		result.NegativeBalances = negativeBalances
-		// Any negative balance is critical regardless of threshold
-		result.Status = domain.StatusCritical
+// fetchBalanceDiscrepanciesIfNeeded retrieves balance discrepancies if needed.
+func (c *BalanceChecker) fetchBalanceDiscrepanciesIfNeeded(ctx context.Context, result *domain.BalanceCheckResult, config CheckerConfig) error {
+	if result.BalancesWithDiscrepancy == 0 || config.MaxResults <= 0 {
+		return nil
 	}
 
-	return result, nil
+	discrepancies, err := c.fetchBalanceDiscrepancies(ctx, config.DiscrepancyThreshold, config.MaxResults)
+	if err != nil {
+		return err
+	}
+
+	result.Discrepancies = discrepancies
+
+	return nil
+}
+
+// fetchOnHoldDiscrepanciesIfNeeded retrieves on-hold discrepancies if needed.
+func (c *BalanceChecker) fetchOnHoldDiscrepanciesIfNeeded(ctx context.Context, result *domain.BalanceCheckResult, config CheckerConfig) error {
+	if result.OnHoldWithDiscrepancy == 0 || config.MaxResults <= 0 {
+		return nil
+	}
+
+	onHoldDiscrepancies, err := c.fetchOnHoldDiscrepancies(ctx, config.DiscrepancyThreshold, config.MaxResults)
+	if err != nil {
+		return err
+	}
+
+	result.OnHoldDiscrepancies = onHoldDiscrepancies
+
+	return nil
+}
+
+// fetchNegativeBalancesIfNeeded retrieves negative balances if needed.
+func (c *BalanceChecker) fetchNegativeBalancesIfNeeded(ctx context.Context, result *domain.BalanceCheckResult, config CheckerConfig) error {
+	if (result.NegativeAvailable == 0 && result.NegativeOnHold == 0) || config.MaxResults <= 0 {
+		return nil
+	}
+
+	negativeBalances, err := c.fetchNegativeBalances(ctx, config.MaxResults)
+	if err != nil {
+		return err
+	}
+
+	result.NegativeBalances = negativeBalances
+	result.Status = domain.StatusCritical
+
+	return nil
 }
 
 // fetchBalanceDiscrepancies retrieves detailed balance discrepancy records.

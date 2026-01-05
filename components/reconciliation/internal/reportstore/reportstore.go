@@ -1,3 +1,4 @@
+// Package reportstore provides persistence for reconciliation reports.
 package reportstore
 
 import (
@@ -15,7 +16,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/reconciliation/internal/domain"
 )
 
-const reportFilenameTimestampLayout = "20060102_150405"
+// Static errors for report store operations.
+var (
+	ErrReportNil = errors.New("report is nil")
+)
+
+const (
+	reportFilenameTimestampLayout = "20060102_150405"
+	// dirPermissions is the permission mode for the report directory.
+	dirPermissions = 0o750
+)
 
 // Logger provides minimal logging for the report store.
 type Logger interface {
@@ -53,13 +63,13 @@ func NewFileStore(dir string, maxFiles, retentionDays int, logger Logger) *FileS
 // Save persists a report to disk.
 func (s *FileStore) Save(ctx context.Context, report *domain.ReconciliationReport) error {
 	if report == nil {
-		return errors.New("report is nil")
+		return ErrReportNil
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := os.MkdirAll(s.dir, 0o750); err != nil {
+	if err := os.MkdirAll(s.dir, dirPermissions); err != nil {
 		return err
 	}
 
@@ -201,10 +211,10 @@ func (s *FileStore) newReportEffectiveTimeFunc(sizeHint int) func(fi fs.FileInfo
 		}
 
 		var res tsResult
-		if ts, ok := parseReportTimestampFromFilename(name); ok {
-			res = tsResult{ts: ts, ok: true}
-		} else if ts, ok := s.parseReportTimestampFromFile(filepath.Join(s.dir, name)); ok {
-			res = tsResult{ts: ts, ok: true}
+		if parsedTS, ok := parseReportTimestampFromFilename(name); ok {
+			res = tsResult{ts: parsedTS, ok: true}
+		} else if fileTS, ok := s.parseReportTimestampFromFile(filepath.Join(s.dir, name)); ok {
+			res = tsResult{ts: fileTS, ok: true}
 		} else {
 			res = tsResult{ok: false}
 		}
@@ -279,7 +289,7 @@ func (s *FileStore) listReportFiles() ([]fs.FileInfo, error) {
 		return nil, err
 	}
 
-	var files []fs.FileInfo
+	files := make([]fs.FileInfo, 0, len(entries))
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -311,66 +321,93 @@ func (s *FileStore) prune() {
 		return
 	}
 
-	now := time.Now()
 	effectiveTime := s.newReportEffectiveTimeFunc(len(files))
 	s.sortReportFilesNewestFirstWith(files, effectiveTime)
 
 	// Remove by retention days
-	removedByRetention := map[string]struct{}{}
+	removedByRetention := s.pruneByRetention(files, effectiveTime)
 
-	if s.retentionDays > 0 {
-		cutoff := now.Add(-time.Duration(s.retentionDays) * 24 * time.Hour)
-		for _, file := range files {
-			// Use the report timestamp when available; fall back to filesystem mtime if parsing fails.
-			if effectiveTime(file).Before(cutoff) {
-				path := filepath.Join(s.dir, file.Name())
-				if err := os.Remove(path); err != nil {
-					if s.logger != nil && !os.IsNotExist(err) {
-						s.logger.Warnf("reportstore: failed to remove report file (retention): %s: %v", path, err)
-					}
-
-					continue
-				}
-
-				removedByRetention[file.Name()] = struct{}{}
-			}
-		}
-	}
-
-	// Refresh file list (or at least filter in-memory) so maxFiles enforcement uses an updated slice.
-	if len(removedByRetention) > 0 {
-		refreshed, err := s.listReportFiles()
-		if err != nil {
-			if s.logger != nil {
-				s.logger.Errorf("reportstore: failed to re-list report files after retention pruning: %v", err)
-			}
-			// Fall back to filtering the original slice to avoid miscounting already-deleted entries.
-			filtered := make([]fs.FileInfo, 0, len(files))
-			for _, f := range files {
-				if _, removed := removedByRetention[f.Name()]; removed {
-					continue
-				}
-
-				filtered = append(filtered, f)
-			}
-
-			files = filtered
-		} else {
-			files = refreshed
-			// Reuse the same memoized effectiveTime closure; it will lazily fill cache for any new names.
-			s.sortReportFilesNewestFirstWith(files, effectiveTime)
-		}
-	}
+	// Refresh file list after retention pruning
+	files = s.refreshFilesAfterRetention(files, removedByRetention, effectiveTime)
 
 	// Remove by maxFiles
-	if s.maxFiles > 0 && len(files) > s.maxFiles {
-		for _, file := range files[s.maxFiles:] {
-			path := filepath.Join(s.dir, file.Name())
-			if err := os.Remove(path); err != nil {
-				if s.logger != nil && !os.IsNotExist(err) {
-					s.logger.Warnf("reportstore: failed to remove report file (maxFiles): %s: %v", path, err)
-				}
-			}
+	s.pruneByMaxFiles(files)
+}
+
+// pruneByRetention removes files older than retentionDays and returns a set of removed file names.
+func (s *FileStore) pruneByRetention(files []fs.FileInfo, effectiveTime func(fs.FileInfo) time.Time) map[string]struct{} {
+	removed := map[string]struct{}{}
+
+	if s.retentionDays <= 0 {
+		return removed
+	}
+
+	cutoff := time.Now().Add(-time.Duration(s.retentionDays) * 24 * time.Hour)
+
+	for _, file := range files {
+		if !effectiveTime(file).Before(cutoff) {
+			continue
 		}
+
+		path := filepath.Join(s.dir, file.Name())
+
+		if err := os.Remove(path); err != nil {
+			s.logWarnIfNotMissing("reportstore: failed to remove report file (retention): %s: %v", path, err)
+			continue
+		}
+
+		removed[file.Name()] = struct{}{}
+	}
+
+	return removed
+}
+
+// refreshFilesAfterRetention refreshes the file list after retention pruning.
+func (s *FileStore) refreshFilesAfterRetention(files []fs.FileInfo, removedByRetention map[string]struct{}, effectiveTime func(fs.FileInfo) time.Time) []fs.FileInfo {
+	if len(removedByRetention) == 0 {
+		return files
+	}
+
+	refreshed, err := s.listReportFiles()
+	if err == nil {
+		s.sortReportFilesNewestFirstWith(refreshed, effectiveTime)
+		return refreshed
+	}
+
+	if s.logger != nil {
+		s.logger.Errorf("reportstore: failed to re-list report files after retention pruning: %v", err)
+	}
+
+	// Fall back to filtering the original slice to avoid miscounting already-deleted entries.
+	filtered := make([]fs.FileInfo, 0, len(files))
+
+	for _, f := range files {
+		if _, removed := removedByRetention[f.Name()]; !removed {
+			filtered = append(filtered, f)
+		}
+	}
+
+	return filtered
+}
+
+// pruneByMaxFiles removes excess files beyond maxFiles limit.
+func (s *FileStore) pruneByMaxFiles(files []fs.FileInfo) {
+	if s.maxFiles <= 0 || len(files) <= s.maxFiles {
+		return
+	}
+
+	for _, file := range files[s.maxFiles:] {
+		path := filepath.Join(s.dir, file.Name())
+
+		if err := os.Remove(path); err != nil {
+			s.logWarnIfNotMissing("reportstore: failed to remove report file (maxFiles): %s: %v", path, err)
+		}
+	}
+}
+
+// logWarnIfNotMissing logs a warning unless the error is os.IsNotExist.
+func (s *FileStore) logWarnIfNotMissing(format string, path string, err error) {
+	if s.logger != nil && !os.IsNotExist(err) {
+		s.logger.Warnf(format, path, err)
 	}
 }

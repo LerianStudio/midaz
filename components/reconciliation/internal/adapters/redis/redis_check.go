@@ -1,3 +1,4 @@
+// Package redis provides Redis validation adapters for reconciliation.
 package redis
 
 import (
@@ -19,6 +20,8 @@ import (
 const (
 	defaultRedisSampleSize = 250
 	balanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
+	// defaultWarningThreshold is the number of mismatches before status becomes warning.
+	defaultWarningThreshold = 10
 )
 
 type balanceRow struct {
@@ -77,6 +80,48 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		sampleSize = defaultRedisSampleSize
 	}
 
+	balances, err := c.fetchBalances(ctx, sampleSize)
+	if err != nil {
+		return nil, err
+	}
+
+	rds, err := c.redisConn.GetClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("redis check client failed: %w", err)
+	}
+
+	result := &domain.RedisCheckResult{
+		SampledBalances: len(balances),
+	}
+
+	if len(balances) == 0 {
+		result.Status = domain.StatusHealthy
+		return result, nil
+	}
+
+	keys := c.buildRedisKeys(balances)
+
+	values, err := rds.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("redis check mget failed: %w", err)
+	}
+
+	c.compareBalances(ctx, balances, values, keys, result, config.MaxResults)
+
+	result.SyncQueueDepth, result.OldestSyncScore, result.OldestSyncAt = getSyncQueueStats(ctx, rds)
+
+	// Only count actual mismatches (value/version) as issues for status determination.
+	// MissingRedis is informational only - balances not in cache is expected behavior.
+	issueCount := result.ValueMismatches + result.VersionMismatches
+	result.Status = postgres.DetermineStatus(issueCount, postgres.StatusThresholds{
+		WarningThreshold:          defaultWarningThreshold,
+		WarningThresholdExclusive: true,
+	})
+
+	return result, nil
+}
+
+func (c *RedisChecker) fetchBalances(ctx context.Context, sampleSize int) ([]balanceRow, error) {
 	rows, err := c.db.QueryContext(ctx, `
 		SELECT
 			id::text,
@@ -125,20 +170,10 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		return nil, fmt.Errorf("redis check iteration failed: %w", err)
 	}
 
-	rds, err := c.redisConn.GetClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("redis check client failed: %w", err)
-	}
+	return balances, nil
+}
 
-	result := &domain.RedisCheckResult{
-		SampledBalances: len(balances),
-	}
-
-	if len(balances) == 0 {
-		result.Status = domain.StatusHealthy
-		return result, nil
-	}
-
+func (c *RedisChecker) buildRedisKeys(balances []balanceRow) []string {
 	keys := make([]string, 0, len(balances))
 	for _, b := range balances {
 		balanceKey := b.Alias + "#" + b.Key
@@ -146,90 +181,89 @@ func (c *RedisChecker) Check(ctx context.Context, config postgres.CheckerConfig)
 		keys = append(keys, internalKey)
 	}
 
-	values, err := rds.MGet(ctx, keys...).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis check mget failed: %w", err)
-	}
+	return keys
+}
 
+func (c *RedisChecker) compareBalances(ctx context.Context, balances []balanceRow, values []any, keys []string, result *domain.RedisCheckResult, maxResults int) {
 	for i, val := range values {
 		b := balances[i]
 
 		if val == nil {
-			// Balance not in Redis cache - this is expected/normal behavior
-			// (balance never transacted or TTL expired). NOT a discrepancy.
 			result.MissingRedis++
-
 			continue
 		}
 
-		var data []byte
-
-		switch v := val.(type) {
-		case string:
-			data = []byte(v)
-		case []byte:
-			data = v
-		default:
-			result.ValueMismatches++
-			c.appendRedisDiscrepancy(result, b, balanceRedis{}, config.MaxResults)
-			if c.logger != nil {
-				sc := trace.SpanContextFromContext(ctx)
-				traceID := ""
-				if sc.HasTraceID() {
-					traceID = sc.TraceID().String()
-				}
-
-				// Keep log lightweight and avoid dumping potentially sensitive content.
-				c.logger.Debugf(
-					"redis check unexpected MGET value type (trace_id=%s, index=%d, org_id=%s, ledger_id=%s, balance_id=%s, redis_key=%s, value_type=%s)",
-					traceID,
-					i,
-					b.OrganizationID,
-					b.LedgerID,
-					b.ID,
-					redactRedisKey(keys[i]),
-					fmt.Sprintf("%T", val),
-				)
-			}
-
+		data, ok := c.extractRedisData(ctx, val, i, b, keys[i], result, maxResults)
+		if !ok {
 			continue
 		}
 
-		var rb balanceRedis
-		if err := json.Unmarshal(data, &rb); err != nil {
-			result.ValueMismatches++
-			c.appendRedisDiscrepancy(result, b, balanceRedis{}, config.MaxResults)
+		c.processRedisBalance(data, b, result, maxResults)
+	}
+}
 
-			continue
-		}
+func (c *RedisChecker) extractRedisData(ctx context.Context, val any, idx int, b balanceRow, key string, result *domain.RedisCheckResult, maxResults int) ([]byte, bool) {
+	switch v := val.(type) {
+	case string:
+		return []byte(v), true
+	case []byte:
+		return v, true
+	default:
+		result.ValueMismatches++
+		c.appendRedisDiscrepancy(result, b, balanceRedis{}, maxResults)
+		c.logUnexpectedValueType(ctx, idx, b, key, val)
 
-		valueMismatch := b.Available.Cmp(rb.Available) != 0 || b.OnHold.Cmp(rb.OnHold) != 0
-		versionMismatch := b.Version != rb.Version
+		return nil, false
+	}
+}
 
-		if valueMismatch {
-			result.ValueMismatches++
-		}
-
-		if versionMismatch {
-			result.VersionMismatches++
-		}
-
-		if valueMismatch || versionMismatch {
-			c.appendRedisDiscrepancy(result, b, rb, config.MaxResults)
-		}
+func (c *RedisChecker) logUnexpectedValueType(ctx context.Context, idx int, b balanceRow, key string, val any) {
+	if c.logger == nil {
+		return
 	}
 
-	result.SyncQueueDepth, result.OldestSyncScore, result.OldestSyncAt = getSyncQueueStats(ctx, rds)
+	sc := trace.SpanContextFromContext(ctx)
 
-	// Only count actual mismatches (value/version) as issues for status determination.
-	// MissingRedis is informational only - balances not in cache is expected behavior.
-	issueCount := result.ValueMismatches + result.VersionMismatches
-	result.Status = postgres.DetermineStatus(issueCount, postgres.StatusThresholds{
-		WarningThreshold:          10,
-		WarningThresholdExclusive: true,
-	})
+	traceID := ""
+	if sc.HasTraceID() {
+		traceID = sc.TraceID().String()
+	}
 
-	return result, nil
+	c.logger.Debugf(
+		"redis check unexpected MGET value type (trace_id=%s, index=%d, org_id=%s, ledger_id=%s, balance_id=%s, redis_key=%s, value_type=%s)",
+		traceID,
+		idx,
+		b.OrganizationID,
+		b.LedgerID,
+		b.ID,
+		redactRedisKey(key),
+		fmt.Sprintf("%T", val),
+	)
+}
+
+func (c *RedisChecker) processRedisBalance(data []byte, b balanceRow, result *domain.RedisCheckResult, maxResults int) {
+	var rb balanceRedis
+	if err := json.Unmarshal(data, &rb); err != nil {
+		result.ValueMismatches++
+		c.appendRedisDiscrepancy(result, b, balanceRedis{}, maxResults)
+
+		return
+	}
+
+	valueMismatch := b.Available.Cmp(rb.Available) != 0 || b.OnHold.Cmp(rb.OnHold) != 0
+	versionMismatch := b.Version != rb.Version
+
+	if valueMismatch {
+		result.ValueMismatches++
+	}
+
+	if versionMismatch {
+		result.VersionMismatches++
+	}
+
+	if valueMismatch || versionMismatch {
+		c.appendRedisDiscrepancy(result, b, rb, maxResults)
+	}
 }
 
 func (c *RedisChecker) appendRedisDiscrepancy(result *domain.RedisCheckResult, db balanceRow, rb balanceRedis, maxResults int) {
@@ -258,18 +292,25 @@ func balanceInternalKey(organizationID, ledgerID, key string) string {
 
 func redactRedisKey(k string) string {
 	// Keys can contain aliases/account keys. Log only a short prefix+suffix to aid debugging.
-	const max = 40
+	const maxLen = 40
+
 	if k == "" {
 		return ""
 	}
-	if len(k) <= max {
+
+	if len(k) <= maxLen {
 		return k
 	}
-	const prefix = 18
-	const suffix = 10
+
+	const (
+		prefix = 18
+		suffix = 10
+	)
+
 	if len(k) <= prefix+suffix+1 {
-		return k[:max]
+		return k[:maxLen]
 	}
+
 	return k[:prefix] + "…" + k[len(k)-suffix:]
 }
 
