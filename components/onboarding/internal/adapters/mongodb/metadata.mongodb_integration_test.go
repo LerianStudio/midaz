@@ -29,10 +29,8 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 
-	return &MetadataMongoDBRepository{
-		connection: conn,
-		Database:   container.DBName,
-	}
+	// Use constructor to validate connection via GetDB()
+	return NewMetadataMongoDBRepository(conn)
 }
 
 // ============================================================================
@@ -498,12 +496,9 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	// Setup MongoDB container
 	container := mongotestutil.SetupContainer(t)
 
-	// Create repository using the connection wrapper
+	// Create repository using constructor (validates connection via GetDB())
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
-	repo := &MetadataMongoDBRepository{
-		connection: conn,
-		Database:   container.DBName,
-	}
+	repo := NewMetadataMongoDBRepository(conn)
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)

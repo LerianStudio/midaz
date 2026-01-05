@@ -260,7 +260,8 @@ func (infra *assetTestInfra) createOrganization(t *testing.T, name string) uuid.
 			"country": "US",
 		},
 	}
-	body, _ := json.Marshal(requestBody)
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err, "failed to marshal organization request body")
 
 	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -268,13 +269,17 @@ func (infra *assetTestInfra) createOrganization(t *testing.T, name string) uuid.
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "failed to create organization")
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read organization response body")
 	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
 
-	orgID, err := uuid.Parse(result["id"].(string))
+	idValue, ok := result["id"].(string)
+	require.True(t, ok, "response 'id' field is missing or not a string: %v", result)
+
+	orgID, err := uuid.Parse(idValue)
 	require.NoError(t, err, "failed to parse organization ID")
 
 	return orgID
@@ -287,7 +292,8 @@ func (infra *assetTestInfra) createLedger(t *testing.T, orgID uuid.UUID, name st
 	requestBody := map[string]any{
 		"name": name,
 	}
-	body, _ := json.Marshal(requestBody)
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err, "failed to marshal ledger request body")
 
 	req := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers",
@@ -297,13 +303,17 @@ func (infra *assetTestInfra) createLedger(t *testing.T, orgID uuid.UUID, name st
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "failed to create ledger")
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read ledger response body")
 	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
 
-	ledgerID, err := uuid.Parse(result["id"].(string))
+	idValue, ok := result["id"].(string)
+	require.True(t, ok, "response 'id' field is missing or not a string: %v", result)
+
+	ledgerID, err := uuid.Parse(idValue)
 	require.NoError(t, err, "failed to parse ledger ID")
 
 	return ledgerID
@@ -318,7 +328,8 @@ func (infra *assetTestInfra) createAsset(t *testing.T, orgID, ledgerID uuid.UUID
 		"code": code,
 		"type": assetType,
 	}
-	body, _ := json.Marshal(requestBody)
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err, "failed to marshal asset request body")
 
 	req := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets",
@@ -328,13 +339,17 @@ func (infra *assetTestInfra) createAsset(t *testing.T, orgID, ledgerID uuid.UUID
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "failed to create asset")
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read asset response body")
 	require.Equal(t, 201, resp.StatusCode, "expected 201, got %d: %s", resp.StatusCode, string(respBody))
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &result), "failed to parse response")
 
-	assetID, err := uuid.Parse(result["id"].(string))
+	idValue, ok := result["id"].(string)
+	require.True(t, ok, "response 'id' field is missing or not a string: %v", result)
+
+	assetID, err := uuid.Parse(idValue)
 	require.NoError(t, err, "failed to parse asset ID")
 
 	return assetID
