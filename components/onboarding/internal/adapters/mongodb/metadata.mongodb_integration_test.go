@@ -617,12 +617,14 @@ func (infra *networkChaosTestInfra) createTestMetadata(t *testing.T, entityID, d
 // CHAOS TESTS - DATA INTEGRITY
 // ============================================================================
 
-// TestChaos_Metadata_DataIntegrity tests that data remains consistent
-// after chaos events (no data loss, no corruption).
-func TestIntegration_Chaos_Metadata_DataIntegrity(t *testing.T) {
+// TestIntegration_Metadata_DataIntegrity is a baseline test that verifies data
+// remains consistent (no data loss, no corruption) under normal conditions.
+// This serves as a control for chaos tests - it validates the assertions work
+// without fault injection.
+func TestIntegration_Metadata_DataIntegrity(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
+		t.Skip("skipping integrity test in short mode")
 	}
 
 	infra := setupChaosInfra(t)
@@ -630,16 +632,16 @@ func TestIntegration_Chaos_Metadata_DataIntegrity(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create multiple metadata documents before chaos
+	// Create multiple metadata documents
 	var createdMetadata []*Metadata
 	for i := 0; i < 5; i++ {
 		metadata := infra.createTestMetadata(t, fmt.Sprintf("integrity-test-%d", i), "Integrity test metadata")
 		createdMetadata = append(createdMetadata, metadata)
 	}
 
-	t.Logf("Created %d metadata documents before chaos", len(createdMetadata))
+	t.Logf("Created %d metadata documents", len(createdMetadata))
 
-	// Verify all data is intact
+	// Verify all data is intact (baseline - no chaos injected)
 	chaos.AssertDataIntegrity(t, func() error {
 		for _, m := range createdMetadata {
 			_, err := infra.repo.FindByEntity(ctx, infra.collection, m.EntityID)
@@ -659,7 +661,7 @@ func TestIntegration_Chaos_Metadata_DataIntegrity(t *testing.T) {
 		chaos.AssertNoDataLoss(t, expected.Data["description"], actual.Data["description"], "description mismatch")
 	}
 
-	t.Log("Chaos test passed: data integrity verified")
+	t.Log("Baseline integrity test passed: data consistency verified")
 }
 
 // ============================================================================
