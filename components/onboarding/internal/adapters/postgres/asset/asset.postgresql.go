@@ -12,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -79,7 +80,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -150,7 +151,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -211,7 +212,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -289,7 +290,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -365,7 +366,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -421,7 +422,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -513,7 +514,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -565,7 +566,7 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 
 	var count = int64(0)
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

@@ -5,6 +5,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -19,7 +20,7 @@ const midazName = "midaz"
 const routingName = "routing"
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, tenantsMiddleware poolmanager.Middleware, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, adminHandler *AdminHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -33,8 +34,15 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
+	// Add multi-tenant middleware after auth middleware but before routes
+	// The middleware extracts tenant ID from JWT and injects tenant-specific
+	// database connections into the request context
+	if tenantsMiddleware != nil && tenantsMiddleware.IsEnabled() {
+		f.Use(tenantsMiddleware.Handler())
+	}
+
 	// Register all routes
-	RegisterRoutesToApp(f, auth, th, oh, ah, bh, orh, trh)
+	RegisterRoutesToApp(f, auth, th, oh, ah, bh, orh, trh, adminHandler)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
@@ -55,7 +63,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 // RegisterRoutesToApp registers transaction routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
 // The app should already have middleware configured (telemetry, cors, logging).
-func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) {
+func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, adminHandler *AdminHandler) {
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters("transaction"), http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
@@ -105,4 +113,9 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *Transact
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "patch"), http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "delete"), http.ParseUUIDPathParameters("transaction_route"), trh.DeleteTransactionRouteByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)
+
+	// Admin routes (require special authorization)
+	adminGroup := f.Group("/admin")
+	adminGroup.Post("/cache/tenants/:id/invalidate", auth.Authorize(midazName, "admin", "post"), adminHandler.InvalidateTenantCache)
+	adminGroup.Post("/cache/tenants/invalidate", auth.Authorize(midazName, "admin", "post"), adminHandler.InvalidateAllTenantCache)
 }

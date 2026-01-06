@@ -13,6 +13,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -74,7 +75,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	ctx, span := tracer.Start(ctx, "postgres.create_asset_rate")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -141,7 +142,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_external_id")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -218,7 +219,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_currency_pair")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -292,7 +293,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -416,7 +417,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.update_asset_rate")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
