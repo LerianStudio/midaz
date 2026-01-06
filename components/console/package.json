@@ -35,7 +35,7 @@
     "@lerianstudio/console-layout": "^1.6.0-beta.9",
     "@lerianstudio/lib-logs": "^1.1.0",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/api-logs": "^0.201.1",
+    "@opentelemetry/api-logs": "^0.208.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.201.1",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.201.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.201.1",
