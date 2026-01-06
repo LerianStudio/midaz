@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/outbox"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/assert"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -76,6 +78,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		logger.Errorf("Atomic transaction failed: %v", err.Error())
 
 		return err //nolint:wrapcheck // Errors from transaction callback are already typed
+	}
+
+	// Mark transaction as CONFIRMED after successful balance persistence.
+	// CRITICAL: If this fails, return an error so RabbitMQ retries.
+	// Idempotency guarantees (Lua KEYS[4]) ensure a retry won't re-apply balances;
+	// it will primarily converge the status.
+	transactionID := data.QueueData[0].ID
+	if statusErr := uc.updateBalanceStatusConfirmedWithRetry(ctx, logger, data.OrganizationID, data.LedgerID, transactionID); statusErr != nil {
+		return statusErr
 	}
 
 	// Metadata creation is now handled via the outbox pattern inside the transaction.
@@ -458,4 +469,90 @@ func (uc *UseCase) createOperationsWithoutMetadata(ctx context.Context, logger l
 	}
 
 	return nil
+}
+
+const (
+	balanceStatusUpdateMaxAttempts            = 3
+	balanceStatusConfirmedRetryBaseDelay      = 100 * time.Millisecond
+	balanceStatusConfirmedRetryJitterMaxDelay = 50 * time.Millisecond
+	balanceStatusFailedRetryBaseDelay         = 200 * time.Millisecond
+	balanceStatusFailedRetryJitterMaxDelay    = 100 * time.Millisecond
+)
+
+// updateBalanceStatusConfirmedWithRetry updates balance_status to CONFIRMED with retries.
+// Returns error if all retries fail - this causes RabbitMQ to retry the message.
+// Idempotency (Lua KEYS[4]) ensures retries won't re-apply balances.
+func (uc *UseCase) updateBalanceStatusConfirmedWithRetry(ctx context.Context, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID) error {
+	var statusErr error
+
+	for attempts := 0; attempts < balanceStatusUpdateMaxAttempts; attempts++ {
+		statusErr = uc.TransactionRepo.UpdateBalanceStatus(ctx, organizationID, ledgerID, transactionID, constant.BalanceStatusConfirmed)
+		if statusErr == nil {
+			logger.Infof("Updated balance_status to CONFIRMED for transaction %s", transactionID)
+			return nil
+		}
+
+		logger.Warnf(
+			"Attempt %d/%d: Failed to update balance_status to CONFIRMED for transaction %s: %v",
+			attempts+1,
+			balanceStatusUpdateMaxAttempts,
+			transactionID,
+			statusErr,
+		)
+
+		if attempts < balanceStatusUpdateMaxAttempts-1 {
+			// Short backoff + jitter: avoid thundering herd on transient DB blips.
+			//nolint:gosec // G404: rand is acceptable for jitter timing
+			time.Sleep(time.Duration(attempts+1)*balanceStatusConfirmedRetryBaseDelay + time.Duration(rand.Intn(int(balanceStatusConfirmedRetryJitterMaxDelay/time.Millisecond)))*time.Millisecond)
+		}
+	}
+
+	logger.Errorf("Failed to update balance_status to CONFIRMED for transaction %s after %d attempts: %v", transactionID, balanceStatusUpdateMaxAttempts, statusErr)
+	// Emit metric + structured log for alerting.
+	rabbitmq.RecordBalanceStatusUpdateFailure(ctx, constant.BalanceStatusConfirmed.String(), transactionID.String())
+
+	return fmt.Errorf("update balance_status to CONFIRMED for transaction %s: %w", transactionID, statusErr)
+}
+
+// MarkBalanceStatusFailedFromDLQ marks async transactions as FAILED after DLQ routing.
+// Best-effort: failures are logged and do not affect DLQ publishing.
+func (uc *UseCase) MarkBalanceStatusFailedFromDLQ(ctx context.Context, originalQueue string, body []byte) {
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	var msg mmodel.Queue
+	if err := msgpack.Unmarshal(body, &msg); err != nil {
+		logger.Warnf("Failed to unmarshal DLQ body for FAILED status update: %v", err)
+		return
+	}
+
+	if len(msg.QueueData) == 0 {
+		logger.Warn("Empty QueueData in DLQ body for FAILED status update")
+		return
+	}
+
+	for _, item := range msg.QueueData {
+		if item.ID == uuid.Nil {
+			continue
+		}
+
+		// Best-effort with retries: DB might be flapping during outage.
+		var lastErr error
+		for attempts := 0; attempts < balanceStatusUpdateMaxAttempts; attempts++ {
+			lastErr = uc.TransactionRepo.UpdateBalanceStatus(ctx, msg.OrganizationID, msg.LedgerID, item.ID, constant.BalanceStatusFailed)
+			if lastErr == nil {
+				break
+			}
+			//nolint:gosec // G404: rand is acceptable for jitter timing
+			time.Sleep(time.Duration(attempts+1)*balanceStatusFailedRetryBaseDelay + time.Duration(rand.Intn(int(balanceStatusFailedRetryJitterMaxDelay/time.Millisecond)))*time.Millisecond)
+		}
+
+		if lastErr != nil {
+			rabbitmq.RecordBalanceStatusDLQUpdateFailure(ctx, originalQueue, "FAILED", item.ID.String())
+			logger.Warnf("Failed to mark transaction %s as FAILED after DLQ (will be handled by reconciliation if still PENDING after threshold): %v", item.ID, lastErr)
+
+			continue
+		}
+
+		rabbitmq.RecordBalanceStatusFailedWithLogging(ctx, originalQueue, item.ID.String())
+	}
 }

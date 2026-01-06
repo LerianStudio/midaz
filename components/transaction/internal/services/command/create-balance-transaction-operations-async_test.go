@@ -228,6 +228,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+		mockTransactionRepo.EXPECT().
+			UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), midazconstant.BalanceStatusConfirmed).
+			Return(nil).
+			Times(1)
+
 		// Call the method
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -516,6 +522,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+		mockTransactionRepo.EXPECT().
+			UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), midazconstant.BalanceStatusConfirmed).
+			Return(nil).
+			Times(1)
+
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, callErr) // Duplicate key errors are handled gracefully
@@ -751,6 +763,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Create(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
+
+		// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+		mockTransactionRepo.EXPECT().
+			UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), midazconstant.BalanceStatusConfirmed).
+			Return(nil).
+			Times(1)
 
 		// Call the method
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
@@ -1139,6 +1157,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+		mockTransactionRepo.EXPECT().
+			UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), midazconstant.BalanceStatusConfirmed).
+			Return(nil).
+			Times(1)
+
 		// Call the method
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -1312,6 +1336,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Create(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
+
+		// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+		mockTransactionRepo.EXPECT().
+			UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(transactionID), midazconstant.BalanceStatusConfirmed).
+			Return(nil).
+			Times(1)
 
 		// Call the method
 		callErr := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
@@ -1716,6 +1746,12 @@ func TestCreateBTOAsync(t *testing.T) {
 	// Mock OutboxRepo.Create for metadata outbox entries
 	mockOutboxRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock TransactionRepo.UpdateBalanceStatus for async balance status update
+	mockTransactionRepo.EXPECT().
+		UpdateBalanceStatus(gomock.Any(), organizationID, ledgerID, uuid.MustParse(tran.ID), midazconstant.BalanceStatusConfirmed).
 		Return(nil).
 		AnyTimes()
 
