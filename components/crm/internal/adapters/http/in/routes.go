@@ -42,6 +42,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
 	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
 	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(applicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

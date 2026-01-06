@@ -10,20 +10,29 @@ import (
 )
 
 type MongoDBModel struct {
-	ID                  *uuid.UUID           `bson:"_id,omitempty"`
-	Document            *string              `bson:"document,omitempty"`
-	Type                *string              `bson:"type,omitempty"`
-	LedgerID            *string              `bson:"ledger_id,omitempty"`
-	AccountID           *string              `bson:"account_id,omitempty"`
-	HolderID            *uuid.UUID           `bson:"holder_id,omitempty"`
-	Metadata            map[string]any       `bson:"metadata"`
-	Search              map[string]string    `bson:"search,omitempty"`
-	BankingDetails      *BankingMongoDBModel `bson:"banking_details,omitempty"`
-	ParticipantDocument *string              `bson:"participant_document,omitempty"`
-	ClosingDate         *time.Time           `bson:"closing_date,omitempty"`
-	CreatedAt           *time.Time           `bson:"created_at,omitempty"`
-	UpdatedAt           *time.Time           `bson:"updated_at"`
-	DeletedAt           *time.Time           `bson:"deleted_at"`
+	ID               *uuid.UUID                  `bson:"_id,omitempty"`
+	Document         *string                     `bson:"document,omitempty"`
+	Type             *string                     `bson:"type,omitempty"`
+	LedgerID         *string                     `bson:"ledger_id,omitempty"`
+	AccountID        *string                     `bson:"account_id,omitempty"`
+	HolderID         *uuid.UUID                  `bson:"holder_id,omitempty"`
+	Metadata         map[string]any              `bson:"metadata"`
+	Search           *SearchMongoDB              `bson:"search,omitempty"`
+	BankingDetails   *BankingMongoDBModel        `bson:"banking_details,omitempty"`
+	RegulatoryFields *RegulatoryFieldsMongoDBModel `bson:"regulatory_fields,omitempty"`
+	RelatedParties   []*RelatedPartyMongoDBModel `bson:"related_parties,omitempty"`
+	ClosingDate      *time.Time                  `bson:"closing_date,omitempty"`
+	CreatedAt        *time.Time                  `bson:"created_at,omitempty"`
+	UpdatedAt        *time.Time                  `bson:"updated_at"`
+	DeletedAt        *time.Time                  `bson:"deleted_at"`
+}
+
+type SearchMongoDB struct {
+	Document                             *string  `bson:"document,omitempty"`
+	BankingDetailsAccount                *string  `bson:"banking_details_account,omitempty"`
+	BankingDetailsIBAN                   *string  `bson:"banking_details_iban,omitempty"`
+	RegulatoryFieldsParticipantDocument  *string  `bson:"regulatory_fields_participant_document,omitempty"`
+	RelatedPartyDocuments                []string `bson:"related_party_documents,omitempty"`
 }
 
 type BankingMongoDBModel struct {
@@ -36,6 +45,19 @@ type BankingMongoDBModel struct {
 	BankID      *string `bson:"bank_id,omitempty"`
 }
 
+type RegulatoryFieldsMongoDBModel struct {
+	ParticipantDocument *string `bson:"participant_document,omitempty"`
+}
+
+type RelatedPartyMongoDBModel struct {
+	ID        *uuid.UUID `bson:"_id"`
+	Document  *string    `bson:"document"`
+	Name      string     `bson:"name"`
+	Role      string     `bson:"role"`
+	StartDate time.Time  `bson:"start_date"`
+	EndDate   *time.Time `bson:"end_date,omitempty"`
+}
+
 // FromEntity maps an account entity to a MongoDB Alias model
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
@@ -43,29 +65,24 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 		return err
 	}
 
-	participantDocument, err := ds.Encrypt(a.ParticipantDocument)
-	if err != nil {
-		return err
-	}
-
 	*amm = MongoDBModel{
-		ID:                  a.ID,
-		Document:            document,
-		Type:                a.Type,
-		LedgerID:            a.LedgerID,
-		AccountID:           a.AccountID,
-		HolderID:            a.HolderID,
-		ParticipantDocument: participantDocument,
-		ClosingDate:         a.ClosingDate,
-		CreatedAt:           &a.CreatedAt,
-		UpdatedAt:           &a.UpdatedAt,
-		DeletedAt:           a.DeletedAt,
+		ID:          a.ID,
+		Document:    document,
+		Type:        a.Type,
+		LedgerID:    a.LedgerID,
+		AccountID:   a.AccountID,
+		HolderID:    a.HolderID,
+		ClosingDate: a.ClosingDate,
+		CreatedAt:   &a.CreatedAt,
+		UpdatedAt:   &a.UpdatedAt,
+		DeletedAt:   a.DeletedAt,
 	}
 
-	amm.Search = make(map[string]string)
+	amm.Search = &SearchMongoDB{}
 
 	if a.Document != nil && *a.Document != "" {
-		amm.Search["document"] = ds.GenerateHash(a.Document)
+		hash := ds.GenerateHash(a.Document)
+		amm.Search.Document = &hash
 	}
 
 	if a.BankingDetails != nil {
@@ -90,11 +107,53 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 		}
 
 		if a.BankingDetails.Account != nil && *a.BankingDetails.Account != "" {
-			amm.Search["banking_details_account"] = ds.GenerateHash(a.BankingDetails.Account)
+			hash := ds.GenerateHash(a.BankingDetails.Account)
+			amm.Search.BankingDetailsAccount = &hash
 		}
 
 		if a.BankingDetails.IBAN != nil && *a.BankingDetails.IBAN != "" {
-			amm.Search["banking_details_iban"] = ds.GenerateHash(a.BankingDetails.IBAN)
+			hash := ds.GenerateHash(a.BankingDetails.IBAN)
+			amm.Search.BankingDetailsIBAN = &hash
+		}
+	}
+
+	if a.RegulatoryFields != nil {
+		participantDocument, err := ds.Encrypt(a.RegulatoryFields.ParticipantDocument)
+		if err != nil {
+			return err
+		}
+
+		amm.RegulatoryFields = &RegulatoryFieldsMongoDBModel{
+			ParticipantDocument: participantDocument,
+		}
+
+		if a.RegulatoryFields.ParticipantDocument != nil && *a.RegulatoryFields.ParticipantDocument != "" {
+			hash := ds.GenerateHash(a.RegulatoryFields.ParticipantDocument)
+			amm.Search.RegulatoryFieldsParticipantDocument = &hash
+		}
+	}
+
+	if len(a.RelatedParties) > 0 {
+		amm.RelatedParties = make([]*RelatedPartyMongoDBModel, len(a.RelatedParties))
+		amm.Search.RelatedPartyDocuments = make([]string, 0, len(a.RelatedParties))
+
+		for i, rp := range a.RelatedParties {
+			encryptedDoc, err := ds.Encrypt(&rp.Document)
+			if err != nil {
+				return err
+			}
+
+			amm.RelatedParties[i] = &RelatedPartyMongoDBModel{
+				ID:        rp.ID,
+				Document:  encryptedDoc,
+				Name:      rp.Name,
+				Role:      rp.Role,
+				StartDate: rp.StartDate,
+				EndDate:   rp.EndDate,
+			}
+
+			hash := ds.GenerateHash(&rp.Document)
+			amm.Search.RelatedPartyDocuments = append(amm.Search.RelatedPartyDocuments, hash)
 		}
 	}
 
@@ -114,24 +173,18 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 		return nil, err
 	}
 
-	participantDocument, err := ds.Decrypt(amm.ParticipantDocument)
-	if err != nil {
-		return nil, err
-	}
-
-	account := &mmodel.Alias{
-		ID:                  amm.ID,
-		Document:            document,
-		Type:                amm.Type,
-		LedgerID:            amm.LedgerID,
-		AccountID:           amm.AccountID,
-		HolderID:            amm.HolderID,
-		Metadata:            amm.Metadata,
-		ParticipantDocument: participantDocument,
-		ClosingDate:         amm.ClosingDate,
-		CreatedAt:           utils.SafeTimePtr(amm.CreatedAt),
-		UpdatedAt:           utils.SafeTimePtr(amm.UpdatedAt),
-		DeletedAt:           amm.DeletedAt,
+	alias := &mmodel.Alias{
+		ID:          amm.ID,
+		Document:    document,
+		Type:        amm.Type,
+		LedgerID:    amm.LedgerID,
+		AccountID:   amm.AccountID,
+		HolderID:    amm.HolderID,
+		Metadata:    amm.Metadata,
+		ClosingDate: amm.ClosingDate,
+		CreatedAt:   utils.SafeTimePtr(amm.CreatedAt),
+		UpdatedAt:   utils.SafeTimePtr(amm.UpdatedAt),
+		DeletedAt:   amm.DeletedAt,
 	}
 
 	if amm.BankingDetails != nil {
@@ -145,7 +198,7 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 			return nil, err
 		}
 
-		account.BankingDetails = &mmodel.BankingDetails{
+		alias.BankingDetails = &mmodel.BankingDetails{
 			Branch:      amm.BankingDetails.Branch,
 			Account:     accountNumber,
 			Type:        amm.BankingDetails.Type,
@@ -156,5 +209,41 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 		}
 	}
 
-	return account, nil
+	if amm.RegulatoryFields != nil {
+		participantDocument, err := ds.Decrypt(amm.RegulatoryFields.ParticipantDocument)
+		if err != nil {
+			return nil, err
+		}
+
+		alias.RegulatoryFields = &mmodel.RegulatoryFields{
+			ParticipantDocument: participantDocument,
+		}
+	}
+
+	if len(amm.RelatedParties) > 0 {
+		alias.RelatedParties = make([]*mmodel.RelatedParty, len(amm.RelatedParties))
+
+		for i, rp := range amm.RelatedParties {
+			decryptedDoc, err := ds.Decrypt(rp.Document)
+			if err != nil {
+				return nil, err
+			}
+
+			docValue := ""
+			if decryptedDoc != nil {
+				docValue = *decryptedDoc
+			}
+
+			alias.RelatedParties[i] = &mmodel.RelatedParty{
+				ID:        rp.ID,
+				Document:  docValue,
+				Name:      rp.Name,
+				Role:      rp.Role,
+				StartDate: rp.StartDate,
+				EndDate:   rp.EndDate,
+			}
+		}
+	}
+
+	return alias, nil
 }

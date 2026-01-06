@@ -2,15 +2,15 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"testing"
 )
 
 func TestGetAllAliases(t *testing.T) {
@@ -18,7 +18,6 @@ func TestGetAllAliases(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
-	mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
 
 	holderID := libCommons.GenerateUUIDv7()
 
@@ -32,8 +31,7 @@ func TestGetAllAliases(t *testing.T) {
 	branch := "0001"
 
 	uc := &UseCase{
-		AliasRepo:      mockAliasRepo,
-		HolderLinkRepo: mockHolderLinkRepo,
+		AliasRepo: mockAliasRepo,
 	}
 
 	query := http.QueryHeader{Limit: 10, Page: 1}
@@ -63,12 +61,6 @@ func TestGetAllAliases(t *testing.T) {
 						{ID: &id1},
 						{ID: &id2},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id2, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -86,9 +78,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, Document: &document},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -105,9 +94,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, AccountID: &accountId},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -124,9 +110,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, LedgerID: &ledgerId},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -143,9 +126,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Account: &account}},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -162,9 +142,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{IBAN: &iban}},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -181,9 +158,6 @@ func TestGetAllAliases(t *testing.T) {
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Branch: &branch}},
 					}, nil)
-				mockHolderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), gomock.Any(), id1, false).
-					Return([]*mmodel.HolderLink{}, nil)
 			},
 			expectedErr: nil,
 			expectedResult: []*mmodel.Alias{
@@ -198,7 +172,6 @@ func TestGetAllAliases(t *testing.T) {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return([]*mmodel.Alias{}, nil)
-				// No HolderLinkRepo mock needed since no aliases returned
 			},
 			expectedErr:    nil,
 			expectedResult: []*mmodel.Alias{},

@@ -276,10 +276,13 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Param			account_id				query		string	false	"Filter alias by accountID"
 //	@Param			ledger_id				query		string	false	"Filter alias by ledgerID"
 //	@Param			document				query		string	false	"Filter alias by document"
-//	@Param			banking_details_branch	query		string	false	"Filter alias by banking details branch"
-//	@Param			banking_details_account	query		string	false	"Filter alias by banking details account"
-//	@Param			banking_details_iban	query		string	false	"Filter alias by banking details iban"
-//	@Success		200						{object}	libPostgres.Pagination{items=[]mmodel.Alias,page=int,limit=int}
+//	@Param			banking_details_branch					query		string	false	"Filter alias by banking details branch"
+//	@Param			banking_details_account					query		string	false	"Filter alias by banking details account"
+//	@Param			banking_details_iban					query		string	false	"Filter alias by banking details iban"
+//	@Param			regulatory_fields_participant_document	query		string	false	"Filter alias by regulatory fields participant document"
+//	@Param			related_party_document					query		string	false	"Filter alias by related party document"
+//	@Param			related_party_role						query		string	false	"Filter alias by related party role"
+//	@Success		200										{object}	libPostgres.Pagination{items=[]mmodel.Alias,page=int,limit=int}
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError
@@ -351,4 +354,66 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	pagination.SetItems(aliases)
 
 	return http.OK(c, pagination)
+}
+
+// DeleteRelatedParty removes a related party from an alias
+//
+//	@Summary		Delete a Related Party
+//	@Description	Delete a Related Party from an Alias. This operation performs a physical deletion (hard delete) of the related party.
+//	@Tags			Aliases
+//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Param			X-Organization-Id	header	string	true	"The unique identifier of the Organization associated with the Ledger."
+//	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
+//	@Param			alias_id			path	string	true	"The unique identifier of the Alias account."
+//	@Param			related_party_id	path	string	true	"The unique identifier of the Related Party."
+//	@Success		204
+//	@Failure		400	{object}	pkg.HTTPError
+//	@Failure		404	{object}	pkg.HTTPError
+//	@Failure		500	{object}	pkg.HTTPError
+//	@Router			/v1/holders/{holder_id}/aliases/{alias_id}/related-parties/{related_party_id} [delete]
+func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_related_party")
+	defer span.End()
+
+	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	aliasID, err := http.GetUUIDFromLocals(c, "alias_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	relatedPartyID, err := http.GetUUIDFromLocals(c, "related_party_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	organizationID := c.Get("X-Organization-Id")
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.String("app.request.alias_id", aliasID.String()),
+		attribute.String("app.request.related_party_id", relatedPartyID.String()),
+	)
+
+	logger.Infof("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String())
+
+	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID, holderID, aliasID, relatedPartyID)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
+
+		logger.Errorf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
 }
