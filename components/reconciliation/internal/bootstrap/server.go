@@ -497,8 +497,14 @@ func writeDoubleEntrySection(html *strings.Builder, de *domain.DoubleEntryCheckR
 
 		for _, i := range de.Imbalances {
 			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\" style=\"color:%s;\">%+d</td></tr>",
-				truncateID(i.TransactionID), i.Status, i.AssetCode, i.TotalCredits, i.TotalDebits,
-				ternary(i.Imbalance != 0, "#ef4444", "#22c55e"), i.Imbalance)
+				truncateID(i.TransactionID),
+				i.Status,
+				i.AssetCode,
+				i.TotalCredits,
+				i.TotalDebits,
+				ternary(i.Imbalance != 0, "#ef4444", "#22c55e"),
+				i.Imbalance,
+			)
 		}
 
 		html.WriteString(`</tbody></table>`)
@@ -549,7 +555,12 @@ func writeSyncCheckSection(html *strings.Builder, sc *domain.SyncCheckResult) {
 
 		for _, i := range sc.Issues {
 			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
-				truncateID(i.BalanceID), i.AssetCode, i.DBVersion, i.MaxOpVersion, i.StalenessSeconds)
+				truncateID(i.BalanceID),
+				i.AssetCode,
+				i.DBVersion,
+				i.MaxOpVersion,
+				i.StalenessSeconds,
+			)
 		}
 
 		html.WriteString(`</tbody></table>`)
@@ -602,7 +613,12 @@ func writeMetadataSection(html *strings.Builder, mc *domain.MetadataCheckResult)
 
 		for _, s := range mc.CollectionSummaries {
 			fmt.Fprintf(html, "<tr><td>%s</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td><td class=\"num\">%d</td></tr>",
-				s.Collection, s.TotalDocuments, s.EmptyMetadata, s.MissingEntityIDs, s.DuplicateEntityIDs)
+				s.Collection,
+				s.TotalDocuments,
+				s.EmptyMetadata,
+				s.MissingEntityIDs,
+				s.DuplicateEntityIDs,
+			)
 		}
 
 		html.WriteString(`</tbody></table>`)
@@ -691,9 +707,13 @@ func writeRedisSection(html *strings.Builder, rc *domain.RedisCheckResult) {
 
 		for _, d := range rc.Discrepancies {
 			fmt.Fprintf(html, "<tr><td class=\"mono\">%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td></tr>",
-				truncateID(d.AccountID), d.AssetCode,
-				formatDecimal(d.DBAvailable), formatDecimal(d.RedisAvailable),
-				formatDecimal(d.DBOnHold), formatDecimal(d.RedisOnHold))
+				truncateID(d.AccountID),
+				d.AssetCode,
+				formatDecimal(d.DBAvailable),
+				formatDecimal(d.RedisAvailable),
+				formatDecimal(d.DBOnHold),
+				formatDecimal(d.RedisOnHold),
+			)
 		}
 
 		html.WriteString(`</tbody></table>`)
