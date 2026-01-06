@@ -15,6 +15,7 @@ ide/
 .windsurfrules
 .worktrees/
 .ring/
+.opencode/
 
 # =============================================================================
 # Environment Files
