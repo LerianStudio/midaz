@@ -19,10 +19,12 @@ var validRelatedPartyRoles = map[string]bool{
 }
 
 func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.RelatedParty) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.validate_related_party")
+	_, span := tracer.Start(ctx, "service.validate_related_party")
 	defer span.End()
+
+	logger.Infof("Validating related party: role=%s", party.Role)
 
 	if strings.TrimSpace(party.Document) == "" {
 		libOpenTelemetry.HandleSpanError(&span, "Related party document is required", cn.ErrRelatedPartyDocumentRequired)
@@ -53,10 +55,12 @@ func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.Relat
 }
 
 func (uc *UseCase) ValidateRelatedParties(ctx context.Context, parties []*mmodel.RelatedParty) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.validate_related_parties")
 	defer span.End()
+
+	logger.Infof("Validating related parties")
 
 	for _, party := range parties {
 		if err := uc.ValidateRelatedParty(ctx, party); err != nil {

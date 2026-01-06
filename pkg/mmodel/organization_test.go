@@ -8,6 +8,8 @@ import (
 )
 
 func TestAddress_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		address Address
@@ -113,6 +115,8 @@ func TestAddress_IsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.address.IsEmpty()
 			assert.Equal(t, tt.want, got)
 		})

@@ -20,65 +20,19 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataTransactionRoutesSuccess tests successful retrieval with metadata filter
-func TestGetAllMetadataTransactionRoutesSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestGetAllMetadataTransactionRoutes(t *testing.T) {
+	t.Parallel()
 
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionRouteID1 := uuid.New()
 	transactionRouteID2 := uuid.New()
 
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
-	}
-
 	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
 		Metadata:  &bson.M{"key": "value"},
-	}
-
-	expectedMetadata := []*mongodb.Metadata{
-		{
-			ID:       primitive.NewObjectID(),
-			EntityID: transactionRouteID1.String(),
-			Data:     mongodb.JSON{"key": "value"},
-		},
-		{
-			ID:       primitive.NewObjectID(),
-			EntityID: transactionRouteID2.String(),
-			Data:     mongodb.JSON{"key": "value"},
-		},
-	}
-
-	expectedTransactionRoutes := []*mmodel.TransactionRoute{
-		{
-			ID:             transactionRouteID1,
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			Title:          "route1",
-			Description:    "Description 1",
-		},
-		{
-			ID:             transactionRouteID2,
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			Title:          "route2",
-			Description:    "Description 2",
-		},
-		{
-			ID:             uuid.New(), // This one should be filtered out
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			Title:          "route3",
-			Description:    "Description 3",
-		},
 	}
 
 	expectedCursor := libHTTP.CursorPagination{
@@ -86,192 +40,193 @@ func TestGetAllMetadataTransactionRoutesSuccess(t *testing.T) {
 		Prev: "prev_cursor",
 	}
 
-	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(expectedMetadata, nil)
+	t.Run("success_with_metadata_filtering", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(expectedTransactionRoutes, expectedCursor, nil)
+		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			TransactionRouteRepo: mockTransactionRouteRepo,
+			MetadataRepo:         mockMetadataRepo,
+		}
 
-	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+		expectedMetadata := []*mongodb.Metadata{
+			{
+				ID:       primitive.NewObjectID(),
+				EntityID: transactionRouteID1.String(),
+				Data:     mongodb.JSON{"key": "value"},
+			},
+			{
+				ID:       primitive.NewObjectID(),
+				EntityID: transactionRouteID2.String(),
+				Data:     mongodb.JSON{"key": "value"},
+			},
+		}
 
-	assert.NoError(t, err)
-	assert.Equal(t, expectedCursor, cursor)
-	assert.Len(t, result, 2)
-	assert.Equal(t, expectedTransactionRoutes[0].ID, result[0].ID)
-	assert.Equal(t, expectedTransactionRoutes[1].ID, result[1].ID)
-	assert.Equal(t, map[string]any{"key": "value"}, result[0].Metadata)
-	assert.Equal(t, map[string]any{"key": "value"}, result[1].Metadata)
-}
+		// Third route should be filtered out (no matching metadata)
+		expectedTransactionRoutes := []*mmodel.TransactionRoute{
+			{
+				ID:             transactionRouteID1,
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				Title:          "route1",
+				Description:    "Description 1",
+			},
+			{
+				ID:             transactionRouteID2,
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				Title:          "route2",
+				Description:    "Description 2",
+			},
+			{
+				ID:             uuid.New(),
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				Title:          "route3",
+				Description:    "Description 3",
+			},
+		}
 
-// TestGetAllMetadataTransactionRoutesMetadataError tests metadata repository error handling
-func TestGetAllMetadataTransactionRoutesMetadataError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			Return(expectedMetadata, nil)
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+		mockTransactionRouteRepo.EXPECT().
+			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(expectedTransactionRoutes, expectedCursor, nil)
 
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
-	}
+		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	filter := http.QueryHeader{
-		Limit:     10,
-		Page:      1,
-		SortOrder: "asc",
-		Metadata:  &bson.M{"key": "value"},
-	}
+		assert.NoError(t, err)
+		assert.Equal(t, expectedCursor, cursor)
+		assert.Len(t, result, 2)
+		assert.Equal(t, transactionRouteID1, result[0].ID)
+		assert.Equal(t, transactionRouteID2, result[1].ID)
+		assert.Equal(t, map[string]any{"key": "value"}, result[0].Metadata)
+		assert.Equal(t, map[string]any{"key": "value"}, result[1].Metadata)
+	})
 
-	expectedMetadataError := errors.New("metadata repository error")
+	t.Run("metadata_repo_error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(nil, expectedMetadataError)
+		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			TransactionRouteRepo: mockTransactionRouteRepo,
+			MetadataRepo:         mockMetadataRepo,
+		}
 
-	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			Return(nil, errors.New("metadata repository error"))
 
-	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0106", entityNotFoundError.Code)
-}
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
-// TestGetAllMetadataTransactionRoutesNoMetadata tests when no metadata is found
-func TestGetAllMetadataTransactionRoutesNoMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		var entityNotFoundError pkg.EntityNotFoundError
+		assert.True(t, errors.As(err, &entityNotFoundError))
+		assert.Equal(t, "0106", entityNotFoundError.Code)
+	})
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	t.Run("metadata_returns_nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
-	}
+		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			TransactionRouteRepo: mockTransactionRouteRepo,
+			MetadataRepo:         mockMetadataRepo,
+		}
 
-	filter := http.QueryHeader{
-		Limit:     10,
-		Page:      1,
-		SortOrder: "asc",
-		Metadata:  &bson.M{"key": "nonexistent"},
-	}
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			Return(nil, nil)
 
-	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(nil, errors.New("metadata not found"))
+		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
-	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+		var entityNotFoundError pkg.EntityNotFoundError
+		assert.True(t, errors.As(err, &entityNotFoundError))
+		assert.Equal(t, "0106", entityNotFoundError.Code)
+	})
 
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0106", entityNotFoundError.Code)
-}
+	t.Run("transaction_route_repo_error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-// TestGetAllMetadataTransactionRoutesTransactionRouteRepoError tests transaction route repository error
-func TestGetAllMetadataTransactionRoutesTransactionRouteRepoError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			TransactionRouteRepo: mockTransactionRouteRepo,
+			MetadataRepo:         mockMetadataRepo,
+		}
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionRouteID1 := uuid.New()
+		expectedMetadata := []*mongodb.Metadata{
+			{
+				ID:       primitive.NewObjectID(),
+				EntityID: transactionRouteID1.String(),
+				Data:     mongodb.JSON{"key": "value"},
+			},
+		}
 
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
-	}
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			Return(expectedMetadata, nil)
 
-	filter := http.QueryHeader{
-		Limit:     10,
-		Page:      1,
-		SortOrder: "asc",
-		Metadata:  &bson.M{"key": "value"},
-	}
+		mockTransactionRouteRepo.EXPECT().
+			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil, libHTTP.CursorPagination{}, errors.New("database error"))
 
-	expectedMetadata := []*mongodb.Metadata{
-		{
-			ID:       primitive.NewObjectID(),
-			EntityID: transactionRouteID1.String(),
-			Data:     mongodb.JSON{"key": "value"},
-		},
-	}
+		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	expectedRepoError := errors.New("database error")
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+		assert.Error(t, err)
+		assert.Equal(t, "database error", err.Error())
+	})
 
-	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(expectedMetadata, nil)
+	t.Run("transaction_route_not_found", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, libHTTP.CursorPagination{}, expectedRepoError)
+		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			TransactionRouteRepo: mockTransactionRouteRepo,
+			MetadataRepo:         mockMetadataRepo,
+		}
 
-	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+		expectedMetadata := []*mongodb.Metadata{
+			{
+				ID:       primitive.NewObjectID(),
+				EntityID: transactionRouteID1.String(),
+				Data:     mongodb.JSON{"key": "value"},
+			},
+		}
 
-	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-	assert.Equal(t, expectedRepoError, err)
-}
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			Return(expectedMetadata, nil)
 
-// TestGetAllMetadataTransactionRoutesTransactionRouteNotFound tests when transaction routes are not found
-func TestGetAllMetadataTransactionRoutesTransactionRouteNotFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		mockTransactionRouteRepo.EXPECT().
+			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionRouteID1 := uuid.New()
+		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-	uc := &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		MetadataRepo:         mockMetadataRepo,
-	}
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
-	filter := http.QueryHeader{
-		Limit:     10,
-		Page:      1,
-		SortOrder: "asc",
-		Metadata:  &bson.M{"key": "value"},
-	}
-
-	expectedMetadata := []*mongodb.Metadata{
-		{
-			ID:       primitive.NewObjectID(),
-			EntityID: transactionRouteID1.String(),
-			Data:     mongodb.JSON{"key": "value"},
-		},
-	}
-
-	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(expectedMetadata, nil)
-
-	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
-
-	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
-
-	assert.Nil(t, result)
-	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0106", entityNotFoundError.Code)
+		var entityNotFoundError pkg.EntityNotFoundError
+		assert.True(t, errors.As(err, &entityNotFoundError))
+		assert.Equal(t, "0106", entityNotFoundError.Code)
+	})
 }

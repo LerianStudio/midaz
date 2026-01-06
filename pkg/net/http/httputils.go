@@ -57,6 +57,8 @@ type Pagination struct {
 }
 
 // ValidateParameters validate and return struct of default parameters
+//
+//nolint:gocyclo
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
@@ -204,7 +206,7 @@ func validateDates(startDate, endDate *time.Time) error {
 		now := time.Now()
 
 		defaultStartDate := time.Unix(0, 0).UTC()
-		
+
 		if maxDateRangeMonths != 0 {
 			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
 		}
@@ -363,6 +365,7 @@ func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 		if len(v) > 2000 {
 			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
 		}
+
 		return v, nil
 	case float64, int, int64, float32, bool:
 		return v, nil
@@ -377,8 +380,10 @@ func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			validatedArray = append(validatedArray, validItem)
 		}
+
 		return validatedArray, nil
 	default:
 		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")

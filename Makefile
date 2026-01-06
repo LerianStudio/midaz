@@ -13,6 +13,7 @@ LEDGER_DIR := ./components/ledger
 CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
+PKG_DIR := ./pkg
 
 # Define component groups for easier management
 BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
@@ -147,12 +148,6 @@ help:
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo ""
-	@echo "API Testing Commands:"
-	@echo "  make newman                      - Run complete API workflow tests with Newman"
-	@echo "  make newman-install              - Install Newman CLI and reporters globally"
-	@echo "  make newman-env-check            - Verify environment file exists"
-	@echo ""
-	@echo ""
 	@echo "Migration Commands:"
 	@echo "  make migrate-lint                - Lint all migrations for dangerous patterns"
 	@echo "  make migrate-create              - Create new migration files (requires COMPONENT, NAME)"
@@ -160,38 +155,37 @@ help:
 	@echo ""
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
-	@echo "  make test-integration            - Run Go integration tests (requires Docker stack)"
-	@echo "  make test-integ                  - Run integration tests with testcontainers (no stack needed)"
-	@echo "  make test-e2e                    - Run Apidog E2E tests"
-	@echo "  make test-fuzzy                  - Run fuzz/robustness tests"
-	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests"
-	@echo "  make test-chaos                  - Run chaos/resilience tests"
-	@echo "  make test-property               - Run property-based tests"
+	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
+	@echo "  make test-all                    - Run all tests (unit + integration)"
+	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
+	@echo "  make test-fuzz                   - Run native Go fuzz tests (FUZZ=target, FUZZTIME=duration)"
+	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
 	@echo ""
 	@echo "Coverage Commands:"
-	@echo "  make coverage-unit               - Run unit tests and generate coverage report"
-	@echo "  make coverage-integ              - Run testcontainers tests and generate coverage"
-	@echo "  make coverage-combined           - Run unit + integ tests with merged coverage"
+	@echo "  make coverage-unit               - Run unit tests with coverage report"
+	@echo "  make coverage-integration        - Run integration tests with coverage report"
+	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
+	@echo ""
+	@echo "Test Tooling:"
+	@echo "  make tools                       - Install test tools (gotestsum)"
+	@echo "  make wait-for-services           - Wait for backend services to be healthy"
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
-	@echo "  START_LOCAL_DOCKER            - 0|1 (default: $(START_LOCAL_DOCKER))"
 	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
 	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
-	@echo "  TEST_FUZZTIME                 - default: $(TEST_FUZZTIME)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
 	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
 	@sh -c 'if [ -n "$(TEST_AUTH_PASSWORD)" ]; then echo "  TEST_AUTH_PASSWORD            - [set]"; else echo "  TEST_AUTH_PASSWORD            - [unset]"; fi'
-	@echo "  TEST_PARALLEL                 - go test -parallel (default: $(TEST_PARALLEL))"
-	@echo "  TEST_GOMAXPROCS               - env GOMAXPROCS (default: $(TEST_GOMAXPROCS))"
+	@echo "  LOW_RESOURCE                  - 0|1 (default: 0) - reduces parallelism for CI"
 	@echo "  RETRY_ON_FAIL                 - 0|1 (default: $(RETRY_ON_FAIL))"
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
-	@echo "  test-integration: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
-	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-integration:  PKG, RUN, CHAOS=1, LOW_RESOURCE (testcontainers-based, no external services needed)"
+	@echo "  test-chaos-system: TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_* (starts full stack)"
+	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
+	@echo "  test-bench:        BENCH, BENCH_PKG (benchmark pattern and package filter)"
 
  
 
@@ -326,12 +320,29 @@ lint:
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+			(cd $(TESTS_DIR) && golangci-lint run --fix --build-tags=integration ./... --verbose) || exit 1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \
 	else \
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
+	fi
+	@echo "Checking for Go files in $(PKG_DIR)..."
+	@if [ -d "$(PKG_DIR)" ]; then \
+		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
+			echo "Linting in $(PKG_DIR)..."; \
+			if ! command -v golangci-lint >/dev/null 2>&1; then \
+				echo "golangci-lint not found, installing..."; \
+				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			else \
+				echo "golangci-lint already installed ✔️"; \
+			fi; \
+			(cd $(PKG_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+		else \
+			echo "No Go files found in $(PKG_DIR), skipping linting"; \
+		fi; \
+	else \
+		echo "No pkg directory found at $(PKG_DIR), skipping linting"; \
 	fi
 	@echo "[ok] Linting completed successfully"
 
@@ -620,56 +631,6 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
-
-#-------------------------------------------------------
-# Newman / API Testing Commands
-#-------------------------------------------------------
-
-.PHONY: newman newman-install newman-env-check
-
-# Install Newman globally if not already installed
-newman-install:
-	$(call print_title,"Installing Newman CLI")
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo "📦 Newman not found. Installing globally..."; \
-		npm install -g newman newman-reporter-html newman-reporter-htmlextra; \
-		echo "✅ Newman installed successfully"; \
-	else \
-		echo "✅ Newman already installed: $$(newman --version)"; \
-	fi
-
-# Check environment file exists and has required variables
-newman-env-check:
-	@if [ ! -f "./postman/MIDAZ.postman_environment.json" ]; then \
-		echo "❌ Environment file not found: ./postman/MIDAZ.postman_environment.json"; \
-		echo "💡 Run 'make generate-docs' first to create the environment file"; \
-		exit 1; \
-	fi
-	@echo "✅ Environment file found: ./postman/MIDAZ.postman_environment.json"
-
-# Main Newman target - runs the complete API workflow (65 steps)
-newman: newman-install newman-env-check
-	$(call print_title,"Running Complete API Workflow with Newman")
-	@if [ ! -f "./postman/MIDAZ.postman_collection.json" ]; then \
-		echo "❌ Collection file not found. Running documentation generation first..."; \
-		$(MAKE) generate-docs; \
-	fi
-	@echo "🚀 Starting complete API workflow test (65 steps)..."
-	@mkdir -p ./reports/newman
-	newman run "./postman/MIDAZ.postman_collection.json" \
-		--environment "./postman/MIDAZ.postman_environment.json" \
-		--folder "Complete API Workflow" \
-		--reporters cli,json \
-		--reporter-json-export "./reports/newman/workflow-json.json" \
-		--timeout-request 30000 \
-		--timeout-script 10000 \
-		--delay-request 100 \
-		--color on \
-		--verbose
-	@echo ""
-	@echo "📊 Test Reports Generated:"
-	@echo "  - CLI Summary: displayed above"
-	@echo "  - JSON Report: ./reports/newman/workflow-json.json"
 
 #-------------------------------------------------------
 # Developer Helper Commands

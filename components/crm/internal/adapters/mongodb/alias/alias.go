@@ -58,6 +58,91 @@ type RelatedPartyMongoDBModel struct {
 	EndDate   *time.Time `bson:"end_date,omitempty"`
 }
 
+// mapBankingDetailsFromEntity encrypts and maps banking details to MongoDB model.
+func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto) (*BankingMongoDBModel, *string, *string, error) {
+	account, err := ds.Encrypt(bd.Account)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	iban, err := ds.Encrypt(bd.IBAN)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	model := &BankingMongoDBModel{
+		Branch:      bd.Branch,
+		Account:     account,
+		Type:        bd.Type,
+		OpeningDate: bd.OpeningDate,
+		CountryCode: bd.CountryCode,
+		BankID:      bd.BankID,
+		IBAN:        iban,
+	}
+
+	var accountHash, ibanHash *string
+
+	if bd.Account != nil && *bd.Account != "" {
+		hash := ds.GenerateHash(bd.Account)
+		accountHash = &hash
+	}
+
+	if bd.IBAN != nil && *bd.IBAN != "" {
+		hash := ds.GenerateHash(bd.IBAN)
+		ibanHash = &hash
+	}
+
+	return model, accountHash, ibanHash, nil
+}
+
+// mapRegulatoryFieldsFromEntity encrypts and maps regulatory fields to MongoDB model.
+func mapRegulatoryFieldsFromEntity(rf *mmodel.RegulatoryFields, ds *libCrypto.Crypto) (*RegulatoryFieldsMongoDBModel, *string, error) {
+	participantDocument, err := ds.Encrypt(rf.ParticipantDocument)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	model := &RegulatoryFieldsMongoDBModel{
+		ParticipantDocument: participantDocument,
+	}
+
+	var docHash *string
+
+	if rf.ParticipantDocument != nil && *rf.ParticipantDocument != "" {
+		hash := ds.GenerateHash(rf.ParticipantDocument)
+		docHash = &hash
+	}
+
+	return model, docHash, nil
+}
+
+// mapRelatedPartiesFromEntity encrypts and maps related parties to MongoDB models.
+func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.Crypto) ([]*RelatedPartyMongoDBModel, []string, error) {
+	models := make([]*RelatedPartyMongoDBModel, len(parties))
+	hashes := make([]string, 0, len(parties))
+
+	for i, rp := range parties {
+		encryptedDoc, err := ds.Encrypt(&rp.Document)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		models[i] = &RelatedPartyMongoDBModel{
+			ID:        rp.ID,
+			Document:  encryptedDoc,
+			Name:      rp.Name,
+			Role:      rp.Role,
+			StartDate: rp.StartDate,
+			EndDate:   rp.EndDate,
+		}
+
+		hash := ds.GenerateHash(&rp.Document)
+		hashes = append(hashes, hash)
+	}
+
+	return models, hashes, nil
+}
+
 // FromEntity maps an account entity to a MongoDB Alias model
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
@@ -86,75 +171,34 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	}
 
 	if a.BankingDetails != nil {
-		account, err := ds.Encrypt(a.BankingDetails.Account)
+		bankingModel, accountHash, ibanHash, err := mapBankingDetailsFromEntity(a.BankingDetails, ds)
 		if err != nil {
 			return err
 		}
 
-		iban, err := ds.Encrypt(a.BankingDetails.IBAN)
-		if err != nil {
-			return err
-		}
-
-		amm.BankingDetails = &BankingMongoDBModel{
-			Branch:      a.BankingDetails.Branch,
-			Account:     account,
-			Type:        a.BankingDetails.Type,
-			OpeningDate: a.BankingDetails.OpeningDate,
-			CountryCode: a.BankingDetails.CountryCode,
-			BankID:      a.BankingDetails.BankID,
-			IBAN:        iban,
-		}
-
-		if a.BankingDetails.Account != nil && *a.BankingDetails.Account != "" {
-			hash := ds.GenerateHash(a.BankingDetails.Account)
-			amm.Search.BankingDetailsAccount = &hash
-		}
-
-		if a.BankingDetails.IBAN != nil && *a.BankingDetails.IBAN != "" {
-			hash := ds.GenerateHash(a.BankingDetails.IBAN)
-			amm.Search.BankingDetailsIBAN = &hash
-		}
+		amm.BankingDetails = bankingModel
+		amm.Search.BankingDetailsAccount = accountHash
+		amm.Search.BankingDetailsIBAN = ibanHash
 	}
 
 	if a.RegulatoryFields != nil {
-		participantDocument, err := ds.Encrypt(a.RegulatoryFields.ParticipantDocument)
+		regulatoryModel, docHash, err := mapRegulatoryFieldsFromEntity(a.RegulatoryFields, ds)
 		if err != nil {
 			return err
 		}
 
-		amm.RegulatoryFields = &RegulatoryFieldsMongoDBModel{
-			ParticipantDocument: participantDocument,
-		}
-
-		if a.RegulatoryFields.ParticipantDocument != nil && *a.RegulatoryFields.ParticipantDocument != "" {
-			hash := ds.GenerateHash(a.RegulatoryFields.ParticipantDocument)
-			amm.Search.RegulatoryFieldsParticipantDocument = &hash
-		}
+		amm.RegulatoryFields = regulatoryModel
+		amm.Search.RegulatoryFieldsParticipantDocument = docHash
 	}
 
 	if len(a.RelatedParties) > 0 {
-		amm.RelatedParties = make([]*RelatedPartyMongoDBModel, len(a.RelatedParties))
-		amm.Search.RelatedPartyDocuments = make([]string, 0, len(a.RelatedParties))
-
-		for i, rp := range a.RelatedParties {
-			encryptedDoc, err := ds.Encrypt(&rp.Document)
-			if err != nil {
-				return err
-			}
-
-			amm.RelatedParties[i] = &RelatedPartyMongoDBModel{
-				ID:        rp.ID,
-				Document:  encryptedDoc,
-				Name:      rp.Name,
-				Role:      rp.Role,
-				StartDate: rp.StartDate,
-				EndDate:   rp.EndDate,
-			}
-
-			hash := ds.GenerateHash(&rp.Document)
-			amm.Search.RelatedPartyDocuments = append(amm.Search.RelatedPartyDocuments, hash)
+		partiesModels, partiesHashes, err := mapRelatedPartiesFromEntity(a.RelatedParties, ds)
+		if err != nil {
+			return err
 		}
+
+		amm.RelatedParties = partiesModels
+		amm.Search.RelatedPartyDocuments = partiesHashes
 	}
 
 	if a.Metadata == nil {

@@ -9,6 +9,8 @@ import (
 )
 
 func TestTransactionDate_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -79,6 +81,8 @@ func TestTransactionDate_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var td TransactionDate
 			err := json.Unmarshal([]byte(tt.input), &td)
 
@@ -93,6 +97,8 @@ func TestTransactionDate_UnmarshalJSON(t *testing.T) {
 }
 
 func TestTransactionDate_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		date     TransactionDate
@@ -112,6 +118,8 @@ func TestTransactionDate_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := json.Marshal(tt.date)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, string(result))
@@ -120,6 +128,8 @@ func TestTransactionDate_MarshalJSON(t *testing.T) {
 }
 
 func TestTransactionDate_Time(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		date     TransactionDate
@@ -139,6 +149,8 @@ func TestTransactionDate_Time(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.date.Time()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -146,6 +158,8 @@ func TestTransactionDate_Time(t *testing.T) {
 }
 
 func TestTransactionDate_IsZero(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		date TransactionDate
@@ -165,6 +179,8 @@ func TestTransactionDate_IsZero(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.date.IsZero()
 			assert.Equal(t, tt.want, got)
 		})
@@ -172,6 +188,8 @@ func TestTransactionDate_IsZero(t *testing.T) {
 }
 
 func TestTransactionDate_After(t *testing.T) {
+	t.Parallel()
+
 	baseTime := time.Date(2024, 1, 15, 10, 30, 45, 0, time.UTC)
 
 	tests := []struct {
@@ -208,6 +226,8 @@ func TestTransactionDate_After(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.date.After(tt.t)
 			assert.Equal(t, tt.want, got)
 		})
@@ -215,6 +235,8 @@ func TestTransactionDate_After(t *testing.T) {
 }
 
 func TestTransactionDate_UnmarshalJSON_ZeroTime(t *testing.T) {
+	t.Parallel()
+
 	input := `"0001-01-01T00:00:00Z"`
 	var td TransactionDate
 	err := json.Unmarshal([]byte(input), &td)
@@ -224,6 +246,8 @@ func TestTransactionDate_UnmarshalJSON_ZeroTime(t *testing.T) {
 }
 
 func TestTransactionDate_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	originalTime := time.Date(2024, 6, 20, 14, 30, 0, 0, time.UTC)
 	original := TransactionDate(originalTime)
 

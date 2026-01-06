@@ -2,7 +2,9 @@ package transaction
 
 import (
 	"context"
+	"math/rand"
 	"testing"
+	"testing/quick"
 
 	"github.com/LerianStudio/lib-commons/v2/commons"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -13,6 +15,8 @@ import (
 )
 
 func TestValidateBalancesRules(t *testing.T) {
+	t.Parallel()
+
 	// Create a context with logger and tracer
 	ctx := context.Background()
 	logger := &log.GoLogger{Level: log.InfoLevel}
@@ -96,10 +100,135 @@ func TestValidateBalancesRules(t *testing.T) {
 			expectError: true,
 			errorCode:   "0019", // ErrAccountIneligibility
 		},
+		{
+			name:        "invalid - nil balance slice",
+			transaction: Transaction{},
+			validate: Responses{
+				From: map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances:    nil,
+			expectError: true,
+			errorCode:   "0019", // ErrAccountIneligibility
+		},
+		{
+			name: "invalid - sending not allowed on from balance",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{
+							{AccountAlias: "@account1"},
+						},
+					},
+					Distribute: Distribute{
+						To: []FromTo{
+							{AccountAlias: "@account2"},
+						},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					OnHold:         decimal.NewFromInt(0),
+					AllowSending:   false, // Sending not allowed
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					OnHold:         decimal.NewFromInt(0),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0024", // ErrAccountStatusTransactionRestriction
+		},
+		{
+			name: "invalid - asset mismatch in from balance",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{
+							{AccountAlias: "@account1"},
+						},
+					},
+					Distribute: Distribute{
+						To: []FromTo{
+							{AccountAlias: "@account2"},
+						},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "EUR", // Wrong asset
+					Available:      decimal.NewFromInt(200),
+					OnHold:         decimal.NewFromInt(0),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					OnHold:         decimal.NewFromInt(0),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0034", // ErrAssetCodeNotFound
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances)
 
 			if tt.expectError {
@@ -120,6 +249,8 @@ func TestValidateBalancesRules(t *testing.T) {
 }
 
 func TestValidateFromBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		balance     *Balance
@@ -202,6 +333,8 @@ func TestValidateFromBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
 
 			if tt.expectError {
@@ -222,6 +355,8 @@ func TestValidateFromBalances(t *testing.T) {
 }
 
 func TestValidateToBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		balance     *Balance
@@ -305,6 +440,8 @@ func TestValidateToBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateToBalances(tt.balance, tt.to, tt.asset)
 
 			if tt.expectError {
@@ -325,6 +462,8 @@ func TestValidateToBalances(t *testing.T) {
 }
 
 func TestOperateBalances(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		amount      Amount
@@ -334,7 +473,7 @@ func TestOperateBalances(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "debit operation",
+			name: "debit operation - CREATED",
 			amount: Amount{
 				Value:           decimal.NewFromInt(50),
 				Operation:       constant.DEBIT,
@@ -351,7 +490,7 @@ func TestOperateBalances(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "credit operation",
+			name: "credit operation - CREATED",
 			amount: Amount{
 				Value:           decimal.NewFromInt(50),
 				Operation:       constant.CREDIT,
@@ -367,10 +506,99 @@ func TestOperateBalances(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "debit operation - APPROVED (releases hold only)",
+			amount: Amount{
+				Value:           decimal.NewFromInt(50),
+				Operation:       constant.DEBIT,
+				TransactionType: constant.APPROVED,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(50),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(100), // No change to available
+				OnHold:    decimal.NewFromInt(0),   // 50 - 50 = 0 (released from hold)
+			},
+			expectError: false,
+		},
+		{
+			name: "credit operation - APPROVED (adds to available)",
+			amount: Amount{
+				Value:           decimal.NewFromInt(30),
+				Operation:       constant.CREDIT,
+				TransactionType: constant.APPROVED,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(0),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(130), // 100 + 30 = 130
+				OnHold:    decimal.NewFromInt(0),   // No change
+			},
+			expectError: false,
+		},
+		{
+			name: "release operation - CANCELED (restores available, releases hold)",
+			amount: Amount{
+				Value:           decimal.NewFromInt(50),
+				Operation:       constant.RELEASE,
+				TransactionType: constant.CANCELED,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(50),
+				OnHold:    decimal.NewFromInt(50),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(100), // 50 + 50 = 100 (restored)
+				OnHold:    decimal.NewFromInt(0),   // 50 - 50 = 0
+			},
+			expectError: false,
+		},
+		{
+			name: "onhold operation - PENDING (moves to hold)",
+			amount: Amount{
+				Value:           decimal.NewFromInt(30),
+				Operation:       constant.ONHOLD,
+				TransactionType: constant.PENDING,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(0),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(70), // 100 - 30 = 70
+				OnHold:    decimal.NewFromInt(30), // 0 + 30 = 30
+			},
+			expectError: false,
+		},
+		{
+			name: "unknown operation - returns balance unchanged without version increment",
+			amount: Amount{
+				Value:           decimal.NewFromInt(50),
+				Operation:       "UNKNOWN",
+				TransactionType: "UNKNOWN",
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(10),
+				Version:   5,
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(100), // unchanged
+				OnHold:    decimal.NewFromInt(10),  // unchanged
+				Version:   5,                       // unchanged (no increment for unknown ops)
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := OperateBalances(tt.amount, tt.balance)
 
 			if tt.expectError {
@@ -379,12 +607,20 @@ func TestOperateBalances(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected.Available.String(), result.Available.String())
 				assert.Equal(t, tt.expected.OnHold.String(), result.OnHold.String())
+
+				// For unknown operation, verify version is unchanged
+				if tt.expected.Version > 0 {
+					assert.Equal(t, tt.expected.Version, result.Version,
+						"version should match expected value")
+				}
 			}
 		})
 	}
 }
 
 func TestAliasKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		alias      string
@@ -425,6 +661,8 @@ func TestAliasKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := AliasKey(tt.alias, tt.balanceKey)
 			assert.Equal(t, tt.want, got)
 		})
@@ -432,6 +670,8 @@ func TestAliasKey(t *testing.T) {
 }
 
 func TestSplitAlias(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		alias string
@@ -456,6 +696,8 @@ func TestSplitAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := SplitAlias(tt.alias)
 			assert.Equal(t, tt.want, got)
 		})
@@ -463,6 +705,8 @@ func TestSplitAlias(t *testing.T) {
 }
 
 func TestConcatAlias(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		index int
@@ -491,6 +735,8 @@ func TestConcatAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := ConcatAlias(tt.index, tt.alias)
 			assert.Equal(t, tt.want, got)
 		})
@@ -498,6 +744,8 @@ func TestConcatAlias(t *testing.T) {
 }
 
 func TestAppendIfNotExist(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		slice []string
@@ -538,6 +786,8 @@ func TestAppendIfNotExist(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := AppendIfNotExist(tt.slice, tt.s)
 			assert.Equal(t, tt.want, got)
 		})
@@ -545,6 +795,8 @@ func TestAppendIfNotExist(t *testing.T) {
 }
 
 func TestValidateSendSourceAndDistribute(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		transaction Transaction
@@ -764,6 +1016,8 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			got, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
 
@@ -784,6 +1038,26 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 					assert.Equal(t, tt.want.Asset, got.Asset)
 					assert.Equal(t, len(tt.want.From), len(got.From))
 					assert.Equal(t, len(tt.want.To), len(got.To))
+
+					// Assert Amount.Value for each key in From map
+					for key, wantAmount := range tt.want.From {
+						gotAmount, exists := got.From[key]
+						assert.True(t, exists, "From map should contain key %s", key)
+						if exists {
+							assert.True(t, wantAmount.Value.Equal(gotAmount.Value),
+								"From[%s].Value: want=%s got=%s", key, wantAmount.Value, gotAmount.Value)
+						}
+					}
+
+					// Assert Amount.Value for each key in To map
+					for key, wantAmount := range tt.want.To {
+						gotAmount, exists := got.To[key]
+						assert.True(t, exists, "To map should contain key %s", key)
+						if exists {
+							assert.True(t, wantAmount.Value.Equal(gotAmount.Value),
+								"To[%s].Value: want=%s got=%s", key, wantAmount.Value, gotAmount.Value)
+						}
+					}
 				}
 			}
 		})
@@ -791,6 +1065,8 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 }
 
 func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		transaction Transaction
@@ -893,6 +1169,8 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			// Call ValidateSendSourceAndDistribute to get the responses
 			responses, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
@@ -936,5 +1214,67 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 				"Total amount (%s) should equal sum of destination amounts (%s)",
 				responses.Total.String(), total.String())
 		})
+	}
+}
+
+// TestProperty_OperateBalances_SumInvariant validates that applying a sequence of
+// CREDIT/DEBIT operations results in a balance equal to the expected sum.
+// This is a pure property test with no I/O - runs 1000 iterations quickly.
+func TestProperty_OperateBalances_SumInvariant(t *testing.T) {
+	t.Parallel()
+
+	f := func(seed int64, numOps uint8) bool {
+		rng := rand.New(rand.NewSource(seed))
+		ops := int(numOps)%20 + 1
+
+		balance := Balance{
+			Available: decimal.NewFromInt(1000),
+			OnHold:    decimal.Zero,
+			Version:   1,
+		}
+
+		expectedSum := balance.Available
+
+		for i := 0; i < ops; i++ {
+			value := decimal.NewFromInt(int64(rng.Intn(50) + 1))
+			var amount Amount
+
+			// 50% DEBIT (if funds available), 50% CREDIT
+			if rng.Intn(2) == 0 && expectedSum.GreaterThanOrEqual(value) {
+				amount = Amount{
+					Value:           value,
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
+				}
+				expectedSum = expectedSum.Sub(value)
+			} else {
+				amount = Amount{
+					Value:           value,
+					Operation:       constant.CREDIT,
+					TransactionType: constant.CREATED,
+				}
+				expectedSum = expectedSum.Add(value)
+			}
+
+			var err error
+			balance, err = OperateBalances(amount, balance)
+			if err != nil {
+				t.Logf("OperateBalances error: %v", err)
+				return false
+			}
+		}
+
+		if !balance.Available.Equal(expectedSum) {
+			t.Logf("Mismatch: balance.Available=%s expectedSum=%s seed=%d numOps=%d",
+				balance.Available, expectedSum, seed, numOps)
+			return false
+		}
+
+		return true
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+	if err := quick.Check(f, cfg); err != nil {
+		t.Fatalf("OperateBalances sum invariant failed: %v", err)
 	}
 }

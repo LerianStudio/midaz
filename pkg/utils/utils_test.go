@@ -8,6 +8,8 @@ import (
 )
 
 func TestValidateCountryAddress(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		country     string
@@ -91,6 +93,8 @@ func TestValidateCountryAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateCountryAddress(tt.country)
 
 			if tt.expectError {
@@ -104,6 +108,8 @@ func TestValidateCountryAddress(t *testing.T) {
 }
 
 func TestValidateAccountType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		accountType string
@@ -175,6 +181,8 @@ func TestValidateAccountType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateAccountType(tt.accountType)
 
 			if tt.expectError {
@@ -188,6 +196,8 @@ func TestValidateAccountType(t *testing.T) {
 }
 
 func TestValidateType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		assetType   string
@@ -254,6 +264,8 @@ func TestValidateType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateType(tt.assetType)
 
 			if tt.expectError {
@@ -267,6 +279,8 @@ func TestValidateType(t *testing.T) {
 }
 
 func TestValidateCode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		code        string
@@ -361,6 +375,8 @@ func TestValidateCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateCode(tt.code)
 
 			if tt.expectError {
@@ -374,6 +390,8 @@ func TestValidateCode(t *testing.T) {
 }
 
 func TestValidateCurrency(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		currency    string
@@ -483,6 +501,8 @@ func TestValidateCurrency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := ValidateCurrency(tt.currency)
 
 			if tt.expectError {

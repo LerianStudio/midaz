@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -162,18 +161,9 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Returns nil when organization:ledger not in TRANSACTION_ROUTE_VALIDATION env var", func(t *testing.T) {
-		originalEnv := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-		defer func() {
-			if originalEnv != "" {
-				os.Setenv("TRANSACTION_ROUTE_VALIDATION", originalEnv)
-			} else {
-				os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
-			}
-		}()
-
 		differentOrg := libCommons.GenerateUUIDv7()
 		differentLedger := libCommons.GenerateUUIDv7()
-		os.Setenv("TRANSACTION_ROUTE_VALIDATION", differentOrg.String()+":"+differentLedger.String())
+		t.Setenv("TRANSACTION_ROUTE_VALIDATION", differentOrg.String()+":"+differentLedger.String())
 
 		operations := []mmodel.BalanceOperation{
 			{
@@ -194,16 +184,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 	})
 
 	t.Run("Returns error when transaction route is empty", func(t *testing.T) {
-		originalEnv := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-		defer func() {
-			if originalEnv != "" {
-				os.Setenv("TRANSACTION_ROUTE_VALIDATION", originalEnv)
-			} else {
-				os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
-			}
-		}()
-
-		os.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
+		t.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
 
 		operations := []mmodel.BalanceOperation{
 			{
@@ -224,16 +205,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 	})
 
 	t.Run("Returns error when transaction route ID is invalid", func(t *testing.T) {
-		originalEnv := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-		defer func() {
-			if originalEnv != "" {
-				os.Setenv("TRANSACTION_ROUTE_VALIDATION", originalEnv)
-			} else {
-				os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
-			}
-		}()
-
-		os.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
+		t.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
 
 		operations := []mmodel.BalanceOperation{
 			{
@@ -254,16 +226,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 	})
 
 	t.Run("Empty TRANSACTION_ROUTE_VALIDATION environment variable", func(t *testing.T) {
-		originalEnv := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-		defer func() {
-			if originalEnv != "" {
-				os.Setenv("TRANSACTION_ROUTE_VALIDATION", originalEnv)
-			} else {
-				os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
-			}
-		}()
-
-		os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
+		t.Setenv("TRANSACTION_ROUTE_VALIDATION", "")
 
 		operations := []mmodel.BalanceOperation{
 			{

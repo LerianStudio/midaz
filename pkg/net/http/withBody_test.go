@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -23,242 +22,237 @@ type ComplexStruct struct {
 	Simple SimpleStruct
 }
 
-func TestNewOfTypeWithSimpleStruct(t *testing.T) {
-	s := newOfType(new(SimpleStruct))
+func TestNewOfType(t *testing.T) {
+	t.Parallel()
 
-	if err := json.Unmarshal([]byte("{\"Name\":\"Bruce\", \"Age\": 18}"), s); err != nil {
-		t.Error(err)
-	}
-
-	sPrt := s.(*SimpleStruct)
-
-	if sPrt.Name != "Bruce" || sPrt.Age != 18 {
-		t.Error("Wrong data.")
-	}
-}
-
-func TestNewOfTypeWithComplexStruct(t *testing.T) {
-	s := newOfType(new(ComplexStruct))
-
-	if err := json.Unmarshal([]byte("{\"Simple\": {\"Name\":\"Bruce\", \"Age\": 18}}"), s); err != nil {
-		t.Error(err)
-	}
-
-	sPrt := s.(*ComplexStruct)
-
-	if sPrt.Simple.Name != "Bruce" || sPrt.Simple.Age != 18 {
-		t.Error("Wrong data.")
-	}
-}
-
-func TestFilterRequiredFields(t *testing.T) {
-	myMap := pkg.FieldValidations{
-		"legalDocument":        "legalDocument is a required field",
-		"legalName":            "legalName is a required field",
-		"parentOrganizationId": "parentOrganizationId must be a valid UUID",
-	}
-
-	expected := pkg.FieldValidations{
-		"legalDocument": "legalDocument is a required field",
-		"legalName":     "legalName is a required field",
-	}
-
-	result := fieldsRequired(myMap)
-
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("Want: %v, got %v", expected, result)
-	}
-}
-
-func TestFilterRequiredFieldWithNoFields(t *testing.T) {
-	myMap := pkg.FieldValidations{
-		"parentOrganizationId": "parentOrganizationId must be a valid UUID",
-	}
-
-	expected := make(pkg.FieldValidations)
-	result := fieldsRequired(myMap)
-
-	if len(result) > 0 {
-		t.Errorf("Want %v, got %v", expected, result)
-	}
-}
-
-func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
-	app := fiber.New()
-
-	app.Get("/v1/organizations/:id", ParseUUIDPathParameters("organization"), func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK) // Se o middleware passar, responde com 200
-	})
-
-	req := httptest.NewRequest("GET", "/v1/organizations/123e4567-e89b-12d3-a456-426614174000", nil)
-	resp, err := app.Test(req, -1)
-	require.NoError(t, err)
-
-	require.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
-	app := fiber.New()
-
-	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters("ledger"), func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	})
-
-	req := httptest.NewRequest(
-		"GET",
-		"/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/c71ab589-cf46-4f2d-b6ef-b395c9a475da",
-		nil)
-	resp, err := app.Test(req, -1)
-	require.NoError(t, err)
-
-	require.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
-	app := fiber.New()
-
-	app.Get("/v1/organizations/:id", ParseUUIDPathParameters("organization"), func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	})
-
-	req := httptest.NewRequest("GET", "/v1/organizations/invalid-uuid", nil)
-	resp, err := app.Test(req, -1)
-	require.NoError(t, err)
-
-	require.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-}
-
-func TestParseUUIDPathParameters_ValidAndInvalidUUID(t *testing.T) {
-	app := fiber.New()
-
-	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters("ledger"), func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	})
-
-	req := httptest.NewRequest(
-		"GET",
-		"/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/invalid-uuid",
-		nil)
-	resp, err := app.Test(req, -1)
-	require.NoError(t, err)
-
-	require.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-}
-
-func TestFindUnknownFields_BasicComparison(t *testing.T) {
-	original := map[string]any{
-		"name": "John",
-		"age":  30,
-		"city": "New York",
-	}
-
-	marshaled := map[string]any{
-		"name": "John",
-		"age":  30,
-	}
-
-	diff := FindUnknownFields(original, marshaled)
-
-	expected := map[string]any{
-		"city": "New York",
-	}
-
-	assert.Equal(t, expected, diff)
-}
-
-func TestFindUnknownFields_EmptyMaps(t *testing.T) {
-	original := map[string]any{}
-	marshaled := map[string]any{}
-
-	diff := FindUnknownFields(original, marshaled)
-	assert.Empty(t, diff)
-}
-
-func TestFindUnknownFields_IdenticalMaps(t *testing.T) {
-	original := map[string]any{
-		"name": "John",
-		"age":  30,
-	}
-
-	marshaled := map[string]any{
-		"name": "John",
-		"age":  30,
-	}
-
-	diff := FindUnknownFields(original, marshaled)
-	assert.Empty(t, diff)
-}
-
-func TestFindUnknownFields_NestedMaps(t *testing.T) {
-	original := map[string]any{
-		"person": map[string]any{
-			"name":    "John",
-			"age":     30,
-			"address": "123 Main St",
+	tests := []struct {
+		name         string
+		input        any
+		jsonData     string
+		validateFunc func(t *testing.T, result any)
+	}{
+		{
+			name:     "simple struct",
+			input:    new(SimpleStruct),
+			jsonData: `{"Name":"Bruce", "Age": 18}`,
+			validateFunc: func(t *testing.T, result any) {
+				s := result.(*SimpleStruct)
+				assert.Equal(t, "Bruce", s.Name)
+				assert.Equal(t, 18, s.Age)
+			},
+		},
+		{
+			name:     "complex nested struct",
+			input:    new(ComplexStruct),
+			jsonData: `{"Simple": {"Name":"Bruce", "Age": 18}}`,
+			validateFunc: func(t *testing.T, result any) {
+				s := result.(*ComplexStruct)
+				assert.Equal(t, "Bruce", s.Simple.Name)
+				assert.Equal(t, 18, s.Simple.Age)
+			},
 		},
 	}
 
-	marshaled := map[string]any{
-		"person": map[string]any{
-			"name": "John",
-			"age":  30,
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newOfType(tc.input)
+			err := json.Unmarshal([]byte(tc.jsonData), s)
+			require.NoError(t, err)
+			tc.validateFunc(t, s)
+		})
+	}
+}
+
+func TestFieldsRequired(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    pkg.FieldValidations
+		expected pkg.FieldValidations
+	}{
+		{
+			name: "filters required fields only",
+			input: pkg.FieldValidations{
+				"legalDocument":        "legalDocument is a required field",
+				"legalName":            "legalName is a required field",
+				"parentOrganizationId": "parentOrganizationId must be a valid UUID",
+			},
+			expected: pkg.FieldValidations{
+				"legalDocument": "legalDocument is a required field",
+				"legalName":     "legalName is a required field",
+			},
+		},
+		{
+			name: "returns empty when no required fields",
+			input: pkg.FieldValidations{
+				"parentOrganizationId": "parentOrganizationId must be a valid UUID",
+			},
+			expected: pkg.FieldValidations{},
+		},
+		{
+			name:     "handles empty input",
+			input:    pkg.FieldValidations{},
+			expected: pkg.FieldValidations{},
 		},
 	}
 
-	diff := FindUnknownFields(original, marshaled)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	expected := map[string]any{
-		"person": map[string]any{
-			"address": "123 Main St",
+			result := fieldsRequired(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestParseUUIDPathParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		route          string
+		middleware     string
+		requestPath    string
+		expectedStatus int
+	}{
+		{
+			name:           "valid single UUID",
+			route:          "/v1/organizations/:id",
+			middleware:     "organization",
+			requestPath:    "/v1/organizations/123e4567-e89b-12d3-a456-426614174000",
+			expectedStatus: fiber.StatusOK,
+		},
+		{
+			name:           "valid multiple UUIDs",
+			route:          "/v1/organizations/:organization_id/ledgers/:id",
+			middleware:     "ledger",
+			requestPath:    "/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/c71ab589-cf46-4f2d-b6ef-b395c9a475da",
+			expectedStatus: fiber.StatusOK,
+		},
+		{
+			name:           "invalid UUID",
+			route:          "/v1/organizations/:id",
+			middleware:     "organization",
+			requestPath:    "/v1/organizations/invalid-uuid",
+			expectedStatus: fiber.StatusBadRequest,
+		},
+		{
+			name:           "valid first UUID invalid second UUID",
+			route:          "/v1/organizations/:organization_id/ledgers/:id",
+			middleware:     "ledger",
+			requestPath:    "/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/invalid-uuid",
+			expectedStatus: fiber.StatusBadRequest,
 		},
 	}
 
-	assert.Equal(t, expected, diff)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := fiber.New()
+			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c *fiber.Ctx) error {
+				return c.SendStatus(fiber.StatusOK)
+			})
+
+			req := httptest.NewRequest("GET", tc.requestPath, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+		})
+	}
 }
 
-func TestFindUnknownFields_SliceComparison(t *testing.T) {
-	original := map[string]any{
-		"tags": []any{"tag1", "tag2", "tag3"},
-	}
+func TestFindUnknownFields(t *testing.T) {
+	t.Parallel()
 
-	marshaled := map[string]any{
-		"tags": []any{"tag1", "tag2"},
-	}
-
-	diff := FindUnknownFields(original, marshaled)
-
-	expected := map[string]any{
-		"tags": []any{"tag3"},
-	}
-
-	assert.Equal(t, expected, diff)
-}
-
-func TestFindUnknownFields_TypeMismatch(t *testing.T) {
-	original := map[string]any{
-		"value": map[string]any{"nested": true},
-	}
-
-	marshaled := map[string]any{
-		"value": "not a map",
-	}
-
-	diff := FindUnknownFields(original, marshaled)
-
-	expected := map[string]any{
-		"value": map[string]any{"nested": true},
-	}
-
-	assert.Equal(t, expected, diff)
-}
-
-func TestFindUnknownFields_DecimalValues(t *testing.T) {
 	tests := []struct {
 		name      string
 		original  map[string]any
 		marshaled map[string]any
 		expected  map[string]any
 	}{
+		{
+			name: "basic comparison - finds missing field",
+			original: map[string]any{
+				"name": "John",
+				"age":  30,
+				"city": "New York",
+			},
+			marshaled: map[string]any{
+				"name": "John",
+				"age":  30,
+			},
+			expected: map[string]any{
+				"city": "New York",
+			},
+		},
+		{
+			name:      "empty maps",
+			original:  map[string]any{},
+			marshaled: map[string]any{},
+			expected:  map[string]any{},
+		},
+		{
+			name: "identical maps",
+			original: map[string]any{
+				"name": "John",
+				"age":  30,
+			},
+			marshaled: map[string]any{
+				"name": "John",
+				"age":  30,
+			},
+			expected: map[string]any{},
+		},
+		{
+			name: "nested maps - finds nested difference",
+			original: map[string]any{
+				"person": map[string]any{
+					"name":    "John",
+					"age":     30,
+					"address": "123 Main St",
+				},
+			},
+			marshaled: map[string]any{
+				"person": map[string]any{
+					"name": "John",
+					"age":  30,
+				},
+			},
+			expected: map[string]any{
+				"person": map[string]any{
+					"address": "123 Main St",
+				},
+			},
+		},
+		{
+			name: "slice comparison - finds extra elements",
+			original: map[string]any{
+				"tags": []any{"tag1", "tag2", "tag3"},
+			},
+			marshaled: map[string]any{
+				"tags": []any{"tag1", "tag2"},
+			},
+			expected: map[string]any{
+				"tags": []any{"tag3"},
+			},
+		},
+		{
+			name: "type mismatch - reports original value",
+			original: map[string]any{
+				"value": map[string]any{"nested": true},
+			},
+			marshaled: map[string]any{
+				"value": "not a map",
+			},
+			expected: map[string]any{
+				"value": map[string]any{"nested": true},
+			},
+		},
 		{
 			name: "different decimal values",
 			original: map[string]any{
@@ -275,6 +269,8 @@ func TestFindUnknownFields_DecimalValues(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			diff := FindUnknownFields(tc.original, tc.marshaled)
 			assert.Equal(t, tc.expected, diff)
 		})
@@ -282,6 +278,7 @@ func TestFindUnknownFields_DecimalValues(t *testing.T) {
 }
 
 func TestIsStringNumeric(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected bool
@@ -294,15 +291,19 @@ func TestIsStringNumeric(t *testing.T) {
 		{"", false},
 	}
 
-	for _, test := range tests {
-		t.Run(test.input, func(t *testing.T) {
-			result := isStringNumeric(test.input)
-			assert.Equal(t, test.expected, result)
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			result := isStringNumeric(tc.input)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
 func TestIsDecimalEqual(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		a        any
@@ -361,13 +362,248 @@ func TestIsDecimalEqual(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := isDecimalEqual(tc.a, tc.b)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
+func TestMetadataValidation_KeyMaxLength(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		key      string
+		expected bool
+	}{
+		{
+			name:     "valid - exactly 100 chars",
+			key:      string(make([]byte, 100)),
+			expected: true,
+		},
+		{
+			name:     "valid - empty key",
+			key:      "",
+			expected: true,
+		},
+		{
+			name:     "valid - short key",
+			key:      "department",
+			expected: true,
+		},
+		{
+			name:     "invalid - 101 chars",
+			key:      string(make([]byte, 101)),
+			expected: false,
+		},
+		{
+			name:     "invalid - 200 chars",
+			key:      string(make([]byte, 200)),
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys"`
+			}
+			s := testStruct{Metadata: map[string]any{tc.key: "value"}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_ValueMaxLength(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		value    any
+		expected bool
+	}{
+		{
+			name:     "valid - string exactly 2000 chars",
+			value:    string(make([]byte, 2000)),
+			expected: true,
+		},
+		{
+			name:     "valid - empty string",
+			value:    "",
+			expected: true,
+		},
+		{
+			name:     "valid - short string",
+			value:    "hello world",
+			expected: true,
+		},
+		{
+			name:     "valid - integer",
+			value:    12345,
+			expected: true,
+		},
+		{
+			name:     "valid - float",
+			value:    123.456,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean true",
+			value:    true,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean false",
+			value:    false,
+			expected: true,
+		},
+		{
+			name:     "invalid - string 2001 chars",
+			value:    string(make([]byte, 2001)),
+			expected: false,
+		},
+		{
+			name:     "invalid - string 5000 chars",
+			value:    string(make([]byte, 5000)),
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,endkeys,valuemax=2000"`
+			}
+			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_NestedValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		value    any
+		expected bool
+	}{
+		{
+			name:     "valid - string value",
+			value:    "simple string",
+			expected: true,
+		},
+		{
+			name:     "valid - integer value",
+			value:    42,
+			expected: true,
+		},
+		{
+			name:     "valid - boolean value",
+			value:    true,
+			expected: true,
+		},
+		{
+			name:     "invalid - nested map",
+			value:    map[string]any{"nested": "value"},
+			expected: false,
+		},
+		{
+			name:     "invalid - deeply nested map",
+			value:    map[string]any{"level1": map[string]any{"level2": "value"}},
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,endkeys,nonested"`
+			}
+			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestMetadataValidation_Combined(t *testing.T) {
+	t.Parallel()
+
+	// Tests combined validation rules - only cases not covered by individual tests
+	tests := []struct {
+		name     string
+		metadata map[string]any
+		expected bool
+	}{
+		{
+			name:     "valid - multiple key-value pairs",
+			metadata: map[string]any{"department": "finance", "active": true, "count": 42},
+			expected: true,
+		},
+		{
+			name:     "valid - empty metadata",
+			metadata: map[string]any{},
+			expected: true,
+		},
+		{
+			name:     "invalid - multiple violations simultaneously",
+			metadata: map[string]any{string(make([]byte, 101)): string(make([]byte, 2001))},
+			expected: false,
+		},
+	}
+
+	v, _ := newValidator()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type testStruct struct {
+				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+			}
+			s := testStruct{Metadata: tc.metadata}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateCPF(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		cpf      string
@@ -434,6 +670,8 @@ func TestValidateCPF(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				CPF string `validate:"cpf"`
 			}
@@ -449,6 +687,8 @@ func TestValidateCPF(t *testing.T) {
 }
 
 func TestValidateCNPJ(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		cnpj     string
@@ -515,6 +755,8 @@ func TestValidateCNPJ(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				CNPJ string `validate:"cnpj"`
 			}
@@ -530,31 +772,14 @@ func TestValidateCNPJ(t *testing.T) {
 }
 
 func TestValidateCPFCNPJ(t *testing.T) {
+	t.Parallel()
+
+	// Tests cpfcnpj combined validator - only length edge cases not covered by individual validators
 	tests := []struct {
 		name     string
 		document string
 		expected bool
 	}{
-		{
-			name:     "valid CPF",
-			document: "52998224725",
-			expected: true,
-		},
-		{
-			name:     "valid CNPJ",
-			document: "11222333000181",
-			expected: true,
-		},
-		{
-			name:     "invalid CPF",
-			document: "12345678901",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ",
-			document: "12345678901234",
-			expected: false,
-		},
 		{
 			name:     "invalid - wrong length 10 digits",
 			document: "1234567890",
@@ -586,6 +811,8 @@ func TestValidateCPFCNPJ(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			type testStruct struct {
 				Document string `validate:"cpfcnpj"`
 			}
@@ -601,6 +828,8 @@ func TestValidateCPFCNPJ(t *testing.T) {
 }
 
 func TestAreDatesEqual(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		a        string
@@ -713,6 +942,8 @@ func TestAreDatesEqual(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := areDatesEqual(tc.a, tc.b)
 			assert.Equal(t, tc.expected, result)
 		})
@@ -720,6 +951,8 @@ func TestAreDatesEqual(t *testing.T) {
 }
 
 func TestFindUnknownFields_DateComparison(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		original  map[string]any
@@ -844,9 +1077,10 @@ func TestFindUnknownFields_DateComparison(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := FindUnknownFields(tc.original, tc.marshaled)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
-

@@ -599,7 +599,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetTransaction, "Failed to retrieve Operations", err)
 
-		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.ID, err.Error())
+		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error())
 
 		return http.WithError(c, err)
 	}

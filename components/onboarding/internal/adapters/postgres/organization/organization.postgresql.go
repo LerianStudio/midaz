@@ -428,6 +428,10 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
 	defer span.End()
 
+	if len(ids) == 0 {
+		return []*mmodel.Organization{}, nil
+	}
+
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
@@ -443,7 +447,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	listQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
-		Where(squirrel.Eq{"id": pq.Array(ids)}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
