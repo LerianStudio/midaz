@@ -376,8 +376,9 @@ func (rr *RedisConsumerRepository) executeBalanceScript(ctx context.Context, rds
 
 	script := redis.NewScript(addSubLua)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	idempKey := fmt.Sprintf("idemp:{transactions}:%s:%s:%s", organizationID, ledgerID, transactionID)
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey, idempKey}, args).Result()
 	if err != nil {
 		return nil, rr.handleScriptExecutionError(&spanScript, logger, err)
 	}

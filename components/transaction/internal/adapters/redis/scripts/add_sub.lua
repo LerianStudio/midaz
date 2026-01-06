@@ -19,6 +19,7 @@ KEYS (passed via Redis KEYS array):
     KEYS[1] = backup_queue:{transactions}    -- Hash storing transaction snapshots for crash recovery
     KEYS[2] = transaction key                -- Unique key (org:ledger:transaction format)
     KEYS[3] = schedule:{transactions}:balance-sync -- Sorted Set for scheduling DB sync operations
+    KEYS[4] = idemp:{transactions}:{org}:{ledger}:{tx_id} -- Idempotency key (48h TTL)
 
 ARGV (passed via Redis ARGV array):
     ARGV[1]       = scheduleSync flag (1=enabled, 0=disabled)
@@ -58,6 +59,7 @@ TIMING PARAMETERS:
     TTL        = 3600 seconds (1 hour cache lifetime)
     warnBefore = 600 seconds (schedule DB sync 10 min before cache expiry)
     dueAt      = now + 3000 seconds (sync scheduled ~50 min after creation)
+    TTL_IDEMP  = 172800 seconds (48 hours idempotency window)
 
 WHY CUSTOM DECIMAL ARITHMETIC:
     IEEE 754 floating-point cannot exactly represent all decimals (e.g., 0.1 + 0.2 = 0.30000000000000004).
@@ -856,6 +858,42 @@ local function rollback(rollbackBalances, ttl)
 end -- End of rollback function
 
 
+-- Forward declaration for idempKey (set in main)
+local idempKey = nil
+
+
+--[[
+    fail(code, rollbackBalances, ttl)
+
+    PURPOSE: Atomically rolls back balance modifications AND removes the
+             idempotency key when an error occurs, then returns an error.
+
+    INPUT:
+        code            - Error code string to return (e.g., "0018", "0061")
+        rollbackBalances - Table mapping Redis keys to their original JSON values
+        ttl              - Time-to-live for restored balance keys
+
+    WHY: When a failure occurs AFTER acquiring the idempotency key, we must:
+         1. Rollback all balance modifications (atomicity)
+         2. Delete the idempotency key so RabbitMQ retry can re-attempt
+         Without deleting the idempotency key, the retry would skip processing
+         (thinking it already succeeded) and leave the system in an inconsistent state.
+--]]
+local function fail(code, rollbackBalances, ttl)
+    -- Rollback all balance modifications
+    rollback(rollbackBalances, ttl)
+    -- Delete idempotency key so retry can re-attempt
+    -- WHY: The idempotency key was acquired but the operation failed.
+    --      Without deleting it, retries would see the key and skip processing,
+    --      leaving the transaction in a broken state.
+    if idempKey then
+        redis.call("DEL", idempKey)
+    end
+    -- Return error to caller
+    return redis.error_reply(code)
+end -- End of fail function
+
+
 --[[
 ================================================================================
                               MAIN FUNCTION
@@ -910,6 +948,47 @@ local function main()
     -- WHY: This sorted set tracks when each balance needs to be synced
     --      back to PostgreSQL; format is "schedule:{transactions}:balance-sync"
     local scheduleKey = KEYS[3]
+
+    -- Extract idempotency key from KEYS[4]
+    -- WHY: Prevents duplicate balance effects on RabbitMQ redelivery.
+    --      Format: "idemp:{transactions}:{org}:{ledger}:{tx_id}"
+    --      TTL: 48 hours (24h retry window + buffer)
+    idempKey = KEYS[4]
+    local ttlIdemp = 172800 -- 48 hours in seconds
+
+    -- =========================================================================
+    -- IDEMPOTENCY CHECK (MUST BE FIRST)
+    -- =========================================================================
+    -- Atomically acquire idempotency lock before ANY balance modifications.
+    -- If key already exists, this transaction was already processed - return
+    -- cached balances without modifying anything.
+    -- WHY: RabbitMQ can redeliver messages (heartbeat timeout, network partition).
+    --      Without idempotency, two workers could both apply balance updates,
+    --      resulting in double-credit/debit (data corruption).
+    -- =========================================================================
+    local idempAcquired = redis.call("SET", idempKey, "1", "NX", "EX", ttlIdemp)
+    if not idempAcquired then
+        -- Transaction was already processed - return current balances from cache
+        -- without applying any modifications.
+        -- WHY: The balance updates already happened in a previous delivery.
+        --      We return cached balances so the Go code can proceed normally
+        --      (e.g., mark status as CONFIRMED) without special-casing.
+        local cachedBalances = {}
+        for i = 2, #ARGV, groupSize do
+            local redisBalanceKey = ARGV[i]
+            local alias = ARGV[i + 5]
+            local currentBalance = redis.call("GET", redisBalanceKey)
+            if currentBalance then
+                local ok, b = pcall(cjson.decode, currentBalance)
+                if ok and type(b) == "table" then
+                    b.Alias = alias
+                    table.insert(cachedBalances, b)
+                end
+            end
+        end
+        -- Return cached balances (may be empty if cache expired, which is fine)
+        return cjson.encode(cachedBalances)
+    end
 
     -- First argument: whether to schedule balance sync (1 = enabled, 0 = disabled)
     -- WHY: Some operations (like read-only queries) don't need sync scheduling;
@@ -1020,8 +1099,7 @@ local function main()
                 -- Return error code 0061: Balance cache corruption detected
                 -- WHY: This indicates a serious data integrity issue;
                 --      the balance existed (SET NX failed) but GET returned nil
-                rollback(rollbackBalances, ttl)
-                return redis.error_reply("0061")
+                return fail("0061", rollbackBalances, ttl)
             end
             -- Decode the cached balance JSON to Lua table
             -- WHY: We need to extract the volatile fields from cached data
@@ -1053,8 +1131,7 @@ local function main()
         amount = normalize_decimal_str(amount)
 
         if not is_decimal_string(balance.Available) or not is_decimal_string(balance.OnHold) or not is_decimal_string(amount) then
-            rollback(rollbackBalances, ttl)
-            return redis.error_reply("0061")
+            return fail("0061", rollbackBalances, ttl)
         end
 
         -- Store original balance state for rollback (only if not already stored)
@@ -1148,13 +1225,11 @@ local function main()
         --      they don't have a concept of "held" funds - transactions are
         --      either done or not done from their perspective
         if isPending == 1 and isFrom and balance.AccountType == "external" then
-            -- Rollback all changes made so far in this transaction
-            -- WHY: Atomicity requirement - if this rule is violated,
-            --      we must undo all balance modifications
-            rollback(rollbackBalances, ttl)
             -- Return error code 0098: External accounts cannot use ON_HOLD
-            -- WHY: Clear error code for API consumers to handle appropriately
-            return redis.error_reply("0098")
+            -- WHY: Clear error code for API consumers to handle appropriately.
+            --      Atomicity requirement - if this rule is violated,
+            --      we must undo all balance modifications AND delete idempotency key.
+            return fail("0098", rollbackBalances, ttl)
         end
 
         -- BUSINESS RULE: Internal accounts cannot have negative Available balance
@@ -1162,13 +1237,11 @@ local function main()
         --      negative balance would mean "money from nowhere" which
         --      violates double-entry accounting principles
         if startsWithMinus(result) and balance.AccountType ~= "external" then
-            -- Rollback all changes made so far in this transaction
-            -- WHY: Atomicity requirement - insufficient funds means
-            --      the entire transaction must be rejected
-            rollback(rollbackBalances, ttl)
             -- Return error code 0018: Insufficient funds (negative Available balance)
-            -- WHY: Standard error code for insufficient funds condition
-            return redis.error_reply("0018")
+            -- WHY: Standard error code for insufficient funds condition.
+            --      Atomicity requirement - insufficient funds means
+            --      the entire transaction must be rejected AND idempotency key deleted.
+            return fail("0018", rollbackBalances, ttl)
         end
 
         -- BUSINESS RULE: OnHold balance cannot go negative
@@ -1177,13 +1250,11 @@ local function main()
         --      indicating a data integrity issue (e.g., duplicate RELEASE, race condition,
         --      or mismatch between ON_HOLD and RELEASE amounts).
         if startsWithMinus(resultOnHold) then
-            -- Rollback all changes made so far in this transaction
-            -- WHY: Atomicity requirement - OnHold inconsistency indicates
-            --      a serious data integrity problem that must be rejected
-            rollback(rollbackBalances, ttl)
             -- Return error code 0130: OnHold insufficient (negative OnHold)
-            -- WHY: Distinct from 0018 to differentiate between Available vs OnHold issues
-            return redis.error_reply("0130")
+            -- WHY: Distinct from 0018 to differentiate between Available vs OnHold issues.
+            --      Atomicity requirement - OnHold inconsistency indicates
+            --      a serious data integrity problem that must be rejected AND idempotency key deleted.
+            return fail("0130", rollbackBalances, ttl)
         end
 
         -- Clear any lowercase alias field that might exist from cache
