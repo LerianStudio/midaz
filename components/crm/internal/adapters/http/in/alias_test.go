@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
@@ -122,6 +121,42 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					Times(1)
 			},
 			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "missing ledgerId returns 400",
+			jsonBody: `{
+				"accountId": "00000000-0000-0000-0000-000000000002"
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before service layer
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "missing accountId returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001"
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before service layer
+			},
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -764,6 +799,3 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

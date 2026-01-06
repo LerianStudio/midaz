@@ -35,11 +35,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	// Fixed seed for reproducible test runs. Use a constant so failed tests
-	// can be debugged with the same random sequences.
-	rand.Seed(42)
-}
+// testRand is a deterministic random source for reproducible test runs.
+// Using a fixed seed so failed tests can be debugged with the same sequences.
+var testRand = rand.New(rand.NewSource(42))
 
 // assetTestInfra holds all test infrastructure components for asset integration tests.
 type assetTestInfra struct {
@@ -538,7 +536,7 @@ func randString(n int) string {
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-@:/")
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[testRand.Intn(len(letters))]
 	}
 	return string(b)
 }
@@ -732,7 +730,8 @@ func TestIntegration_Property_Structural_LargeMetadata(t *testing.T) {
 			"largeBlob": string(largeValue),
 		},
 	}
-	body, _ := json.Marshal(ledgerRequestBody)
+	body, err := json.Marshal(ledgerRequestBody)
+	require.NoError(t, err, "failed to marshal ledger request body")
 
 	req := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers",
@@ -763,7 +762,8 @@ func TestIntegration_Property_Structural_UnknownFields(t *testing.T) {
 		"unknownField": "should be rejected or ignored",
 		"anotherFake":  123,
 	}
-	body, _ := json.Marshal(ledgerRequestBody)
+	body, err := json.Marshal(ledgerRequestBody)
+	require.NoError(t, err, "failed to marshal ledger request body")
 
 	req := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers",
