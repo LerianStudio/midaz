@@ -6,8 +6,12 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	jwt "github.com/golang-jwt/jwt/v5"
 
 	"github.com/shopspring/decimal"
 
@@ -956,6 +960,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
+	trans.BalanceStatus = nil
 	ensureTransactionDefaults(trans)
 
 	if err := http.OK(c, trans); err != nil {
@@ -976,6 +981,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Param			includeBalanceStatus	query		boolean	false	"Include balance status (requires transactions:read_balance_status)"
 //	@Success		200				{object}	mmodel.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -983,6 +989,8 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Failure		404				{object}	mmodel.Error	"Transaction not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
+//
+//nolint:gocyclo,cyclop // Handler performs parameter parsing + conditional authorization gating.
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -991,6 +999,29 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
+	includeBalanceStatus, err := parseIncludeBalanceStatus(c)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse includeBalanceStatus query parameter", err)
+
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
+	}
+
+	if includeBalanceStatus {
+		if err := requireBalanceStatusScope(c); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Caller lacks required scope for balanceStatus", err)
+
+			if httpErr := http.WithError(c, err); httpErr != nil {
+				return httpErr
+			}
+
+			return nil
+		}
+	}
+
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
 	transactionID := http.LocalUUID(c, "transaction_id")
@@ -998,6 +1029,16 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	// Try to get transaction from idempotency cache first
 	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
 		c.Set("X-Cache-Hit", "true")
+
+		if !includeBalanceStatus {
+			tranCopy := *cachedTran
+			tranCopy.BalanceStatus = nil
+			ensureTransactionDefaults(&tranCopy)
+
+			return http.OK(c, &tranCopy)
+		}
+
+		ensureTransactionDefaults(cachedTran)
 
 		return http.OK(c, cachedTran)
 	}
@@ -1078,6 +1119,10 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
 
+	if !includeBalanceStatus {
+		tran.BalanceStatus = nil
+	}
+
 	ensureTransactionDefaults(tran)
 
 	if err := http.OK(c, tran); err != nil {
@@ -1102,6 +1147,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
+//	@Param			includeBalanceStatus	query		boolean	false	"Include balance status (requires transactions:read_balance_status)"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -1115,6 +1161,29 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transactions")
 	defer span.End()
+
+	includeBalanceStatus, err := parseIncludeBalanceStatus(c)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse includeBalanceStatus query parameter", err)
+
+		if httpErr := http.WithError(c, err); httpErr != nil {
+			return httpErr
+		}
+
+		return nil
+	}
+
+	if includeBalanceStatus {
+		if err := requireBalanceStatusScope(c); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Caller lacks required scope for balanceStatus", err)
+
+			if httpErr := http.WithError(c, err); httpErr != nil {
+				return httpErr
+			}
+
+			return nil
+		}
+	}
 
 	organizationID := http.LocalUUID(c, "organization_id")
 	ledgerID := http.LocalUUID(c, "ledger_id")
@@ -1145,14 +1214,14 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		return handler.getTransactionsWithMetadata(ctx, c, &span, logger, organizationID, ledgerID, headerParams, &pagination)
+		return handler.getTransactionsWithMetadata(ctx, c, &span, logger, organizationID, ledgerID, headerParams, &pagination, includeBalanceStatus)
 	}
 
-	return handler.getTransactionsWithoutMetadata(ctx, c, &span, logger, organizationID, ledgerID, headerParams, &pagination)
+	return handler.getTransactionsWithoutMetadata(ctx, c, &span, logger, organizationID, ledgerID, headerParams, &pagination, includeBalanceStatus)
 }
 
 // getTransactionsWithMetadata retrieves transactions with metadata filtering.
-func (handler *TransactionHandler) getTransactionsWithMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination) error {
+func (handler *TransactionHandler) getTransactionsWithMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination, includeBalanceStatus bool) error {
 	logger.Infof("Initiating retrieval of all Transactions by metadata")
 
 	trans, cur, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
@@ -1181,6 +1250,10 @@ func (handler *TransactionHandler) getTransactionsWithMetadata(ctx context.Conte
 			"transaction_id", tran.ID,
 			"expected_ledger_id", ledgerID.String(),
 			"actual_ledger_id", tran.LedgerID)
+
+		if !includeBalanceStatus {
+			tran.BalanceStatus = nil
+		}
 	}
 
 	logger.Infof("Successfully retrieved all Transactions by metadata")
@@ -1196,7 +1269,7 @@ func (handler *TransactionHandler) getTransactionsWithMetadata(ctx context.Conte
 }
 
 // getTransactionsWithoutMetadata retrieves transactions without metadata filtering.
-func (handler *TransactionHandler) getTransactionsWithoutMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination) error {
+func (handler *TransactionHandler) getTransactionsWithoutMetadata(ctx context.Context, c *fiber.Ctx, span *trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, headerParams *http.QueryHeader, pagination *libPostgres.Pagination, includeBalanceStatus bool) error {
 	logger.Infof("Initiating retrieval of all Transactions ")
 
 	headerParams.Metadata = &bson.M{}
@@ -1227,6 +1300,10 @@ func (handler *TransactionHandler) getTransactionsWithoutMetadata(ctx context.Co
 			"transaction_id", tran.ID,
 			"expected_ledger_id", ledgerID.String(),
 			"actual_ledger_id", tran.LedgerID)
+
+		if !includeBalanceStatus {
+			tran.BalanceStatus = nil
+		}
 	}
 
 	logger.Infof("Successfully retrieved all Transactions")
@@ -1626,6 +1703,7 @@ func (handler *TransactionHandler) handleIdempotencyResult(c *fiber.Ctx, existin
 	}
 
 	if existingTran != nil {
+		existingTran.BalanceStatus = nil
 		ensureTransactionDefaults(existingTran)
 
 		if err := http.Created(c, *existingTran); err != nil {
@@ -1697,6 +1775,7 @@ func (handler *TransactionHandler) executeAndRespondTransaction(ctx context.Cont
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
 
+	tran.BalanceStatus = nil
 	ensureTransactionDefaults(tran)
 
 	if err := http.Created(c, tran); err != nil {
@@ -1714,6 +1793,12 @@ func (handler *TransactionHandler) ensureAsyncTransactionVisibility(ctx context.
 	}
 
 	tranCopy := *tran
+
+	// Set balance_status = PENDING for async transactions (saga-like consistency tracking).
+	// This will be updated to CONFIRMED when balances are successfully persisted,
+	// or FAILED when routed to DLQ after max retries.
+	pendingStatus := constant.BalanceStatusPending
+	tranCopy.BalanceStatus = &pendingStatus
 
 	switch tranCopy.Status.Code {
 	case constant.CREATED:
@@ -1892,6 +1977,7 @@ func (handler *TransactionHandler) executeCommitOrCancel(ctx context.Context, c 
 		handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 	})
 
+	tran.BalanceStatus = nil
 	ensureTransactionDefaults(tran)
 
 	if err := http.Created(c, tran); err != nil {
@@ -2033,4 +2119,86 @@ func ensureTransactionDefaults(tran *mmodel.Transaction) {
 	if tran.Operations == nil {
 		tran.Operations = make([]*mmodel.Operation, 0)
 	}
+}
+
+func parseIncludeBalanceStatus(c *fiber.Ctx) (bool, error) {
+	raw := c.Query("includeBalanceStatus")
+	if raw == "" {
+		return false, nil
+	}
+
+	include, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "includeBalanceStatus")
+	}
+
+	return include, nil
+}
+
+func requireBalanceStatusScope(c *fiber.Ctx) error {
+	accessToken := libHTTP.ExtractTokenFromHeader(c)
+	if libCommons.IsNilOrEmpty(&accessToken) {
+		return pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, reflect.TypeOf(mmodel.Transaction{}).Name())
+	}
+
+	token, _, err := new(jwt.Parser).ParseUnverified(accessToken, jwt.MapClaims{})
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidToken, reflect.TypeOf(mmodel.Transaction{}).Name())
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return pkg.ValidateBusinessError(constant.ErrInvalidToken, reflect.TypeOf(mmodel.Transaction{}).Name())
+	}
+
+	if !hasScope(claims, "transactions:read_balance_status") {
+		return pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, reflect.TypeOf(mmodel.Transaction{}).Name())
+	}
+
+	return nil
+}
+
+//nolint:gocyclo,cyclop // Supports multiple token claim formats (scope/scp as string or list).
+func hasScope(claims jwt.MapClaims, required string) bool {
+	if required == "" {
+		return true
+	}
+
+	if claims == nil {
+		return false
+	}
+
+	if scopeString, ok := claims["scope"].(string); ok {
+		for _, s := range strings.Fields(scopeString) {
+			if s == required {
+				return true
+			}
+		}
+	}
+
+	if scopeString, ok := claims["scp"].(string); ok {
+		for _, s := range strings.Fields(scopeString) {
+			if s == required {
+				return true
+			}
+		}
+	}
+
+	if scopeList, ok := claims["scp"].([]any); ok {
+		for _, raw := range scopeList {
+			if s, ok := raw.(string); ok && s == required {
+				return true
+			}
+		}
+	}
+
+	if scopeList, ok := claims["scope"].([]any); ok {
+		for _, raw := range scopeList {
+			if s, ok := raw.(string); ok && s == required {
+				return true
+			}
+		}
+	}
+
+	return false
 }
