@@ -27,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
@@ -154,6 +155,12 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
+
+	// Multi-Tenant Configuration
+	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
+	PoolManagerURL string `env:"POOL_MANAGER_URL"`
+	TenantCacheTTL     string `env:"TENANT_CACHE_TTL" default:"24h"`
+	TenantClaimKey     string `env:"TENANT_CLAIM_KEY" default:"tenantId"`
 }
 
 // Options contains optional dependencies that can be injected when running
@@ -434,7 +441,66 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
+	// Initialize multi-tenant middleware and resolver (optional, disabled by default)
+	var tenantsMiddleware poolmanager.Middleware
+	var resolver poolmanager.Resolver
+
+	if cfg.MultiTenantEnabled {
+		cacheTTL, err := time.ParseDuration(cfg.TenantCacheTTL)
+		if err != nil || cacheTTL == 0 {
+			cacheTTL = 24 * time.Hour
+		}
+
+		tenantConfig := &poolmanager.Config{
+			Enabled:         true,
+			ApplicationName: ApplicationName,
+			PoolManagerURL:  cfg.PoolManagerURL,
+			CacheTTL:        cacheTTL,
+			TenantClaimKey:  cfg.TenantClaimKey,
+		}
+
+		resolver = poolmanager.NewResolver(cfg.PoolManagerURL, poolmanager.WithCacheTTL(cacheTTL))
+
+		// Create PostgreSQL Pool Manager for multi-tenant connections
+		pgPoolMgr := poolmanager.NewPostgresPoolManager(
+			resolver,
+			poolmanager.WithDefaultConnection(postgresConnection),
+			poolmanager.WithMaxPools(100),
+			poolmanager.WithIdleTimeout(30*time.Minute),
+			poolmanager.WithLogger(logger),
+		)
+
+		// Create MongoDB Pool Manager for multi-tenant connections
+		mongoPoolMgr := poolmanager.NewMongoPoolManager(
+			resolver,
+			poolmanager.WithMongoDefaultConnection(mongoConnection),
+			poolmanager.WithMongoMaxClients(100),
+			poolmanager.WithMongoIdleTimeout(30*time.Minute),
+			poolmanager.WithMongoLogger(logger),
+		)
+
+		// Create middleware WITH pool managers to enable tenant-specific database connections
+		tenantsMiddleware = poolmanager.NewMiddleware(
+			tenantConfig,
+			resolver,
+			poolmanager.WithPostgresPoolManager(pgPoolMgr),
+			poolmanager.WithMongoPoolManager(mongoPoolMgr),
+			poolmanager.WithMiddlewareLogger(logger),
+		)
+
+		if tenantsMiddleware == nil {
+			logger.Fatal("Failed to initialize tenants middleware")
+		}
+
+		logger.Infof("Multi-tenant mode enabled with Pool Manager URL: %s", cfg.PoolManagerURL)
+	}
+
+	// AdminHandler works with or without multi-tenant enabled (nil resolver is handled)
+	adminHandler := &httpin.AdminHandler{
+		Resolver: resolver,
+	}
+
+	httpApp := httpin.NewRouter(logger, telemetry, auth, tenantsMiddleware, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, adminHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

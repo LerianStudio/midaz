@@ -13,6 +13,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -67,7 +68,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction_route")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -205,7 +206,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_by_id")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -369,7 +370,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -499,7 +500,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -568,7 +569,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transaction_routes")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
