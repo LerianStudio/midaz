@@ -79,7 +79,7 @@
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "lottie-react": "^2.4.1",
-    "lucide-react": "^0.511.0",
+    "lucide-react": "^0.561.0",
     "mongoose": "^8.15.1",
     "next": "^15.5.9",
     "next-auth": "^4.24.13",
