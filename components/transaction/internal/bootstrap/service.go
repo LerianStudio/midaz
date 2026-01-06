@@ -21,6 +21,8 @@ type Service struct {
 	DLQConsumerEnabled bool
 	*MetadataOutboxWorker
 	MetadataOutboxWorkerEnabled bool
+	*PendingTransactionsReconciler
+	PendingTransactionsReconcilerEnabled bool
 	libLog.Logger
 
 	// balancePort holds the reference for use in unified ledger mode.
@@ -64,6 +66,10 @@ func (app *Service) Run() {
 		opts = append(opts, libCommons.RunApp("Metadata Outbox Worker", app.MetadataOutboxWorker))
 	}
 
+	if app.PendingTransactionsReconcilerEnabled {
+		opts = append(opts, libCommons.RunApp("Pending Transactions Reconciler", app.PendingTransactionsReconciler))
+	}
+
 	libCommons.NewLauncher(opts...).Run()
 }
 
@@ -92,6 +98,12 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 	if app.MetadataOutboxWorkerEnabled {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Metadata Outbox Worker", Runnable: app.MetadataOutboxWorker,
+		})
+	}
+
+	if app.PendingTransactionsReconcilerEnabled {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Pending Transactions Reconciler", Runnable: app.PendingTransactionsReconciler,
 		})
 	}
 

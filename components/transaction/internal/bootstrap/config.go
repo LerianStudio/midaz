@@ -90,87 +90,89 @@ func (a *dbProviderAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (d
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                                  string `env:"ENV_NAME"`
-	LogLevel                                 string `env:"LOG_LEVEL"`
-	ServerAddress                            string `env:"SERVER_ADDRESS"`
-	PrimaryDBHost                            string `env:"DB_HOST"`
-	PrimaryDBUser                            string `env:"DB_USER"`
-	PrimaryDBPassword                        string `env:"DB_PASSWORD"`
-	PrimaryDBName                            string `env:"DB_NAME"`
-	PrimaryDBPort                            string `env:"DB_PORT"`
-	PrimaryDBSSLMode                         string `env:"DB_SSLMODE"`
-	ReplicaDBHost                            string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser                            string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword                        string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName                            string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort                            string `env:"DB_REPLICA_PORT"`
-	ReplicaDBSSLMode                         string `env:"DB_REPLICA_SSLMODE"`
-	MaxOpenConnections                       int    `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections                       int    `env:"DB_MAX_IDLE_CONNS"`
-	MongoURI                                 string `env:"MONGO_URI"`
-	MongoDBHost                              string `env:"MONGO_HOST"`
-	MongoDBName                              string `env:"MONGO_NAME"`
-	MongoDBUser                              string `env:"MONGO_USER"`
-	MongoDBPassword                          string `env:"MONGO_PASSWORD"`
-	MongoDBPort                              string `env:"MONGO_PORT"`
-	MongoDBParameters                        string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                              int    `env:"MONGO_MAX_POOL_SIZE"`
-	CasdoorAddress                           string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID                          string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret                      string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName                  string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName                   string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName                         string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress                               string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                                string `env:"RABBITMQ_URI"`
-	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQBalanceCreateQueue               string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
-	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	OtelServiceName                          string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName                          string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion                       string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv                        string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint                  string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry                          bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost                                string `env:"REDIS_HOST"`
-	RedisMasterName                          string `env:"REDIS_MASTER_NAME" default:""`
-	RedisPassword                            string `env:"REDIS_PASSWORD"`
-	RedisDB                                  int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                            int    `env:"REDIS_PROTOCOL" default:"3"`
-	RedisTLS                                 bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACert                              string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM                           bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount                      string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials             string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime                       int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration                int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                            int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns                        int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout                         int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout                        int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout                         int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout                         int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries                          int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff                     int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff                     int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                              bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                                 string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                             string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled                 bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
-	BalanceSyncMaxWorkers                    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
-	DLQConsumerEnabled                       bool   `env:"DLQ_CONSUMER_ENABLED"`
-	MetadataOutboxWorkerEnabled              bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
-	MetadataOutboxMaxWorkers                 int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
-	MetadataOutboxRetentionDays              int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
+	EnvName                                   string `env:"ENV_NAME"`
+	LogLevel                                  string `env:"LOG_LEVEL"`
+	ServerAddress                             string `env:"SERVER_ADDRESS"`
+	PrimaryDBHost                             string `env:"DB_HOST"`
+	PrimaryDBUser                             string `env:"DB_USER"`
+	PrimaryDBPassword                         string `env:"DB_PASSWORD"`
+	PrimaryDBName                             string `env:"DB_NAME"`
+	PrimaryDBPort                             string `env:"DB_PORT"`
+	PrimaryDBSSLMode                          string `env:"DB_SSLMODE"`
+	ReplicaDBHost                             string `env:"DB_REPLICA_HOST"`
+	ReplicaDBUser                             string `env:"DB_REPLICA_USER"`
+	ReplicaDBPassword                         string `env:"DB_REPLICA_PASSWORD"`
+	ReplicaDBName                             string `env:"DB_REPLICA_NAME"`
+	ReplicaDBPort                             string `env:"DB_REPLICA_PORT"`
+	ReplicaDBSSLMode                          string `env:"DB_REPLICA_SSLMODE"`
+	MaxOpenConnections                        int    `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections                        int    `env:"DB_MAX_IDLE_CONNS"`
+	MongoURI                                  string `env:"MONGO_URI"`
+	MongoDBHost                               string `env:"MONGO_HOST"`
+	MongoDBName                               string `env:"MONGO_NAME"`
+	MongoDBUser                               string `env:"MONGO_USER"`
+	MongoDBPassword                           string `env:"MONGO_PASSWORD"`
+	MongoDBPort                               string `env:"MONGO_PORT"`
+	MongoDBParameters                         string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                               int    `env:"MONGO_MAX_POOL_SIZE"`
+	CasdoorAddress                            string `env:"CASDOOR_ADDRESS"`
+	CasdoorClientID                           string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientSecret                       string `env:"CASDOOR_CLIENT_SECRET"`
+	CasdoorOrganizationName                   string `env:"CASDOOR_ORGANIZATION_NAME"`
+	CasdoorApplicationName                    string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorModelName                          string `env:"CASDOOR_MODEL_NAME"`
+	JWKAddress                                string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitURI                                 string `env:"RABBITMQ_URI"`
+	RabbitMQHost                              string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                          string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                          string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                              string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                              string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                      string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                      string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQBalanceCreateQueue                string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
+	RabbitMQTransactionBalanceOperationQueue  string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	RabbitMQNumbersOfWorkers                  int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                 int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                    string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	OtelServiceName                           string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                           string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion                        string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv                         string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint                   string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                           bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                                 string `env:"REDIS_HOST"`
+	RedisMasterName                           string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword                             string `env:"REDIS_PASSWORD"`
+	RedisDB                                   int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol                             int    `env:"REDIS_PROTOCOL" default:"3"`
+	RedisTLS                                  bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACert                               string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM                            bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
+	RedisServiceAccount                       string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	GoogleApplicationCredentials              string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
+	RedisTokenLifeTime                        int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration                 int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                             int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns                         int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout                          int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout                         int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout                          int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout                          int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries                           int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff                      int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff                      int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	AuthEnabled                               bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                                  string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                              string `env:"PROTO_ADDRESS"`
+	BalanceSyncWorkerEnabled                  bool   `env:"BALANCE_SYNC_WORKER_ENABLED"`
+	BalanceSyncMaxWorkers                     int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+	DLQConsumerEnabled                        bool   `env:"DLQ_CONSUMER_ENABLED"`
+	MetadataOutboxWorkerEnabled               bool   `env:"METADATA_OUTBOX_WORKER_ENABLED"`
+	MetadataOutboxMaxWorkers                  int    `env:"METADATA_OUTBOX_MAX_WORKERS"`
+	MetadataOutboxRetentionDays               int    `env:"METADATA_OUTBOX_RETENTION_DAYS"`
+	ReconcilePendingTransactionsEnabled       bool   `env:"RECONCILE_PENDING_TRANSACTIONS_ENABLED" default:"false"`
+	ReconcilePendingTransactionsPeriodMinutes int    `env:"RECONCILE_PENDING_TRANSACTIONS_PERIOD_MINUTES" default:"60"`
 	// CreateTransactionRoute operation route lookup retry tuning.
 	// These are optional; invalid/zero values will be normalized to defaults during initialization.
 	OperationRouteLookupMaxAttempts   int `env:"OPERATION_ROUTE_LOOKUP_MAX_ATTEMPTS" default:"5"`
@@ -282,6 +284,24 @@ func initDLQConsumer(cfg *Config, logger libLog.Logger, rabbitConn *libRabbitmq.
 	logger.Info("DLQConsumer enabled - will monitor and replay failed messages")
 
 	return consumer
+}
+
+func initPendingTransactionsReconciler(enabled bool, redisConn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, periodMinutes int) *PendingTransactionsReconciler {
+	if !enabled {
+		logger.Info("PendingTransactionsReconciler disabled (set RECONCILE_PENDING_TRANSACTIONS_ENABLED=true to enable)")
+		return nil
+	}
+
+	period := time.Duration(periodMinutes) * time.Minute
+	if periodMinutes <= 0 {
+		period = reconcileDefaultPeriod
+		logger.Infof("PendingTransactionsReconciler using default: RECONCILE_PENDING_TRANSACTIONS_PERIOD_MINUTES=%d", int(reconcileDefaultPeriod/time.Minute))
+	}
+
+	worker := NewPendingTransactionsReconciler(redisConn, logger, useCase, period)
+	logger.Infof("PendingTransactionsReconciler enabled with period=%s", period)
+
+	return worker
 }
 
 // normalizeMetadataOutboxConfig normalizes metadata outbox configuration values.
@@ -586,6 +606,9 @@ func InitServers() *Service {
 
 	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
 
+	// Wire DLQ hook to update balance_status=FAILED when message moves to DLQ
+	routes.OnDLQPublished = useCase.MarkBalanceStatusFailedFromDLQ
+
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
@@ -622,27 +645,37 @@ func InitServers() *Service {
 		metadataOutboxRetentionDays,
 	)
 
+	pendingTransactionsReconciler := initPendingTransactionsReconciler(
+		cfg.ReconcilePendingTransactionsEnabled,
+		redisConnection,
+		logger,
+		useCase,
+		cfg.ReconcilePendingTransactionsPeriodMinutes,
+	)
+
 	return &Service{
-		Server:                      server,
-		ServerGRPC:                  serverGRPC,
-		MultiQueueConsumer:          multiQueueConsumer,
-		RedisQueueConsumer:          redisConsumer,
-		BalanceSyncWorker:           balanceSyncWorker,
-		BalanceSyncWorkerEnabled:    cfg.BalanceSyncWorkerEnabled,
-		DLQConsumer:                 dlqConsumer,
-		DLQConsumerEnabled:          cfg.DLQConsumerEnabled,
-		MetadataOutboxWorker:        metadataOutboxWorker,
-		MetadataOutboxWorkerEnabled: cfg.MetadataOutboxWorkerEnabled,
-		Logger:                      logger,
-		balancePort:                 useCase,
-		metadataIndexPort:           metadataIndexAdapter,
-		auth:                        auth,
-		transactionHandler:          transactionHandler,
-		operationHandler:            operationHandler,
-		assetRateHandler:            assetRateHandler,
-		balanceHandler:              balanceHandler,
-		operationRouteHandler:       operationRouteHandler,
-		transactionRouteHandler:     transactionRouteHandler,
+		Server:                               server,
+		ServerGRPC:                           serverGRPC,
+		MultiQueueConsumer:                   multiQueueConsumer,
+		RedisQueueConsumer:                   redisConsumer,
+		BalanceSyncWorker:                    balanceSyncWorker,
+		BalanceSyncWorkerEnabled:             cfg.BalanceSyncWorkerEnabled,
+		DLQConsumer:                          dlqConsumer,
+		DLQConsumerEnabled:                   cfg.DLQConsumerEnabled,
+		MetadataOutboxWorker:                 metadataOutboxWorker,
+		MetadataOutboxWorkerEnabled:          cfg.MetadataOutboxWorkerEnabled,
+		PendingTransactionsReconciler:        pendingTransactionsReconciler,
+		PendingTransactionsReconcilerEnabled: cfg.ReconcilePendingTransactionsEnabled,
+		Logger:                               logger,
+		balancePort:                          useCase,
+		metadataIndexPort:                    metadataIndexAdapter,
+		auth:                                 auth,
+		transactionHandler:                   transactionHandler,
+		operationHandler:                     operationHandler,
+		assetRateHandler:                     assetRateHandler,
+		balanceHandler:                       balanceHandler,
+		operationRouteHandler:                operationRouteHandler,
+		transactionRouteHandler:              transactionRouteHandler,
 	}
 }
 
