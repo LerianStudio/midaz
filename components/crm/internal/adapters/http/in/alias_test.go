@@ -221,6 +221,40 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 		},
 		{
+			name:           "success with include_deleted returns 200 with alias",
+			includeDeleted: "true",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				ledgerID := "00000000-0000-0000-0000-000000000001"
+				accountID := "00000000-0000-0000-0000-000000000002"
+				document := "12345678901"
+				holderType := "individual"
+
+				aliasRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, aliasID, true).
+					Return(&mmodel.Alias{
+						ID:        &aliasID,
+						LedgerID:  &ledgerID,
+						AccountID: &accountID,
+						HolderID:  &holderID,
+						Document:  &document,
+						Type:      &holderType,
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "id", "response should contain id")
+				assert.Contains(t, result, "ledgerId", "response should contain ledgerId")
+				assert.Contains(t, result, "accountId", "response should contain accountId")
+			},
+		},
+		{
 			name:           "not found returns 404",
 			includeDeleted: "",
 			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {

@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
@@ -41,7 +41,16 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			}`,
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
 				holderRepo.EXPECT().
-					Create(gomock.Any(), orgID, gomock.Any()).
+					Create(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						h, ok := x.(*mmodel.Holder)
+						if !ok {
+							return false
+						}
+						// Validate required fields
+						return h.Type != nil && *h.Type == "NATURAL_PERSON" &&
+							h.Name != nil && *h.Name == "John Doe" &&
+							h.Document != nil && *h.Document == "91315026015"
+					})).
 					DoAndReturn(func(ctx any, org string, h *mmodel.Holder) (*mmodel.Holder, error) {
 						h.CreatedAt = time.Now()
 						h.UpdatedAt = time.Now()
@@ -75,7 +84,26 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			}`,
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
 				holderRepo.EXPECT().
-					Create(gomock.Any(), orgID, gomock.Any()).
+					Create(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						h, ok := x.(*mmodel.Holder)
+						if !ok {
+							return false
+						}
+						// Validate required fields
+						if h.Type == nil || *h.Type != "NATURAL_PERSON" ||
+							h.Name == nil || *h.Name != "John Doe" ||
+							h.Document == nil || *h.Document != "91315026015" {
+							return false
+						}
+						// Validate optional fields
+						if h.ExternalID == nil || *h.ExternalID != "EXT-123" {
+							return false
+						}
+						if h.Metadata == nil || h.Metadata["key"] != "value" {
+							return false
+						}
+						return true
+					})).
 					DoAndReturn(func(ctx any, org string, h *mmodel.Holder) (*mmodel.Holder, error) {
 						h.CreatedAt = time.Now()
 						h.UpdatedAt = time.Now()
@@ -124,6 +152,165 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 				assert.Contains(t, errResp, "message", "error response should contain message")
 			},
 		},
+		{
+			name: "missing type field returns 400",
+			jsonBody: `{
+				"name": "John Doe",
+				"document": "91315026015"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "missing name field returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"document": "91315026015"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "missing document field returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "invalid document checksum returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe",
+				"document": "12345678901"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "invalid document wrong length returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe",
+				"document": "123"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "invalid document non-numeric returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe",
+				"document": "abc12345678"
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "oversized metadata key returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe",
+				"document": "91315026015",
+				"metadata": {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "value"}
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "oversized metadata value returns 400",
+			jsonBody: `{
+				"type": "NATURAL_PERSON",
+				"name": "John Doe",
+				"document": "91315026015",
+				"metadata": {"key": "` + strings.Repeat("a", 2001) + `"}
+			}`,
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -152,7 +339,6 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 
 			req := httptest.NewRequest("POST", "/v1/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -314,7 +500,6 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
 			req := httptest.NewRequest("GET", url, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -487,7 +672,6 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 
 			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -673,7 +857,6 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 				url += "?hard_delete=" + tt.hardDelete
 			}
 			req := httptest.NewRequest("DELETE", url, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -860,6 +1043,130 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 				assert.Contains(t, errResp, "message", "error response should contain message")
 			},
 		},
+		{
+			name:        "invalid sort_order returns 400",
+			queryParams: "?sort_order=invalid",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name:        "limit exceeds max returns 400",
+			queryParams: "?limit=101",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				// No mock expectations - validation should fail before reaching repository
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name:        "zero limit passes through to repository",
+			queryParams: "?limit=0",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				holderRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						params, ok := x.(http.QueryHeader)
+						return ok && params.Limit == 0
+					}), false).
+					Return([]*mmodel.Holder{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				limit, ok := result["limit"].(float64)
+				require.True(t, ok, "limit should be a number")
+				assert.Equal(t, float64(0), limit)
+			},
+		},
+		{
+			name:        "negative limit passes through to repository",
+			queryParams: "?limit=-5",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				holderRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						params, ok := x.(http.QueryHeader)
+						return ok && params.Limit == -5
+					}), false).
+					Return([]*mmodel.Holder{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				limit, ok := result["limit"].(float64)
+				require.True(t, ok, "limit should be a number")
+				assert.Equal(t, float64(-5), limit)
+			},
+		},
+		{
+			name:        "negative page passes through to repository",
+			queryParams: "?page=-1",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				holderRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						params, ok := x.(http.QueryHeader)
+						return ok && params.Page == -1
+					}), false).
+					Return([]*mmodel.Holder{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				page, ok := result["page"].(float64)
+				require.True(t, ok, "page should be a number")
+				assert.Equal(t, float64(-1), page)
+			},
+		},
+		{
+			name:        "non-numeric limit becomes zero",
+			queryParams: "?limit=abc",
+			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
+				holderRepo.EXPECT().
+					FindAll(gomock.Any(), orgID, gomock.Cond(func(x any) bool {
+						params, ok := x.(http.QueryHeader)
+						return ok && params.Limit == 0
+					}), false).
+					Return([]*mmodel.Holder{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				limit, ok := result["limit"].(float64)
+				require.True(t, ok, "limit should be a number")
+				assert.Equal(t, float64(0), limit)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -887,7 +1194,6 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			)
 
 			req := httptest.NewRequest("GET", "/v1/holders"+tt.queryParams, nil)
-			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
@@ -902,5 +1208,3 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

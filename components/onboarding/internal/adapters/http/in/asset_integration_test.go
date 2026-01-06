@@ -35,6 +35,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// Fixed seed for reproducible test runs. Use a constant so failed tests
+	// can be debugged with the same random sequences.
+	rand.Seed(42)
+}
+
 // assetTestInfra holds all test infrastructure components for asset integration tests.
 type assetTestInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
@@ -378,7 +384,8 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "GET asset by ID request should not fail")
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read asset response body")
 	assert.Equal(t, 200, resp.StatusCode, "expected 200, got %d: %s", resp.StatusCode, string(respBody))
 
 	var assetResult map[string]any
@@ -396,7 +403,8 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 		"type":      "deposit",
 		"alias":     "@test-account",
 	}
-	accountBody, _ := json.Marshal(accountRequestBody)
+	accountBody, err := json.Marshal(accountRequestBody)
+	require.NoError(t, err, "failed to marshal account request body")
 
 	accountReq := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
@@ -406,7 +414,8 @@ func TestIntegration_AssetHandler_CreateAssetThenAccount(t *testing.T) {
 	accountResp, err := infra.app.Test(accountReq, -1)
 	require.NoError(t, err, "create account request should not fail")
 
-	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	accountRespBody, err := io.ReadAll(accountResp.Body)
+	require.NoError(t, err, "failed to read account response body")
 	t.Logf("Account response: %s", string(accountRespBody))
 
 	// The key assertion: Account creation should succeed (201) because the asset exists
@@ -439,7 +448,8 @@ func TestIntegration_AssetHandler_AccountWithNonExistentAsset(t *testing.T) {
 		"type":      "deposit",
 		"alias":     "@fake-asset-account",
 	}
-	accountBody, _ := json.Marshal(accountRequestBody)
+	accountBody, err := json.Marshal(accountRequestBody)
+	require.NoError(t, err, "failed to marshal account request body")
 
 	accountReq := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
@@ -449,7 +459,8 @@ func TestIntegration_AssetHandler_AccountWithNonExistentAsset(t *testing.T) {
 	accountResp, err := infra.app.Test(accountReq, -1)
 	require.NoError(t, err, "create account request should not fail")
 
-	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	accountRespBody, err := io.ReadAll(accountResp.Body)
+	require.NoError(t, err, "failed to read account response body")
 	t.Logf("Account with non-existent asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
 
 	// Assert: Should return 404 Not Found for non-existent asset
@@ -498,7 +509,8 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 		"type":      "deposit",
 		"alias":     "@deleted-asset-account",
 	}
-	accountBody, _ := json.Marshal(accountRequestBody)
+	accountBody, err := json.Marshal(accountRequestBody)
+	require.NoError(t, err, "failed to marshal account request body")
 
 	accountReq := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
@@ -508,7 +520,8 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 	accountResp, err := infra.app.Test(accountReq, -1)
 	require.NoError(t, err, "create account request should not fail")
 
-	accountRespBody, _ := io.ReadAll(accountResp.Body)
+	accountRespBody, err := io.ReadAll(accountResp.Body)
+	require.NoError(t, err, "failed to read account response body")
 	t.Logf("Account with deleted asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
 
 	// Assert: Should return 404 Not Found for deleted asset
@@ -582,7 +595,8 @@ func TestIntegration_Property_Account_AliasAndType(t *testing.T) {
 					accountRequestBody["alias"] = alias
 				}
 
-				accountBody, _ := json.Marshal(accountRequestBody)
+				accountBody, err := json.Marshal(accountRequestBody)
+				require.NoError(t, err, "failed to marshal account request body")
 				accountReq := httptest.NewRequest("POST",
 					"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
 					bytes.NewBuffer(accountBody))
@@ -618,7 +632,8 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 		"type":      "deposit",
 		"alias":     alias,
 	}
-	accountBody, _ := json.Marshal(accountRequestBody)
+	accountBody, err := json.Marshal(accountRequestBody)
+	require.NoError(t, err, "failed to marshal account request body")
 
 	accountReq := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
@@ -631,7 +646,8 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 
 	// Act: Try to create second account with same alias
 	accountRequestBody["name"] = "Second Account"
-	accountBody, _ = json.Marshal(accountRequestBody)
+	accountBody, err = json.Marshal(accountRequestBody)
+	require.NoError(t, err, "failed to marshal account request body")
 
 	duplicateReq := httptest.NewRequest("POST",
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts",
@@ -641,7 +657,8 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 	duplicateResp, err := infra.app.Test(duplicateReq, -1)
 	require.NoError(t, err)
 
-	respBody, _ := io.ReadAll(duplicateResp.Body)
+	respBody, err := io.ReadAll(duplicateResp.Body)
+	require.NoError(t, err, "failed to read duplicate response body")
 
 	// Assert: Should return 409 Conflict for duplicate alias
 	assert.Equal(t, http.StatusConflict, duplicateResp.StatusCode,
