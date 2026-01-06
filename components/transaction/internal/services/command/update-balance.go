@@ -23,6 +23,9 @@ import (
 // ErrCacheMiss indicates a balance was not found in the cache during refresh.
 var ErrCacheMiss = errors.New("cache miss for balance")
 
+// ErrBalanceNotFoundInDB indicates a balance was not found in the database during fallback lookup.
+var ErrBalanceNotFoundInDB = errors.New("balance not found in database")
+
 const (
 	attrBalanceTotalCount   = "balance.total_count"
 	attrBalanceSkippedCount = "balance.skipped_count"
@@ -47,7 +50,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	// Filter out stale balances by checking Redis cache version.
 	// If stale balances are detected, we refresh from cache to align DB with Redis state (no amount re-application).
-	balancesToUpdate, usedCache, err := uc.prepareBalancesForUpdate(ctxProcessBalances, organizationID, ledgerID, transactionID, newBalances, &spanUpdateBalances, logger)
+	balancesToUpdate, usedRefreshedValues, err := uc.prepareBalancesForUpdate(ctxProcessBalances, organizationID, ledgerID, transactionID, newBalances, &spanUpdateBalances, logger)
 	if err != nil {
 		return err
 	}
@@ -73,7 +76,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	updateStart := time.Now()
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
-		return uc.handleBalanceUpdateError(ctxProcessBalances, err, organizationID, ledgerID, transactionID, newBalances, usedCache, updateStart, &spanUpdateBalances, logger)
+		return uc.handleBalanceUpdateError(ctxProcessBalances, err, organizationID, ledgerID, transactionID, newBalances, usedRefreshedValues, updateStart, &spanUpdateBalances, logger)
 	}
 
 	updateDuration := time.Since(updateStart)
@@ -139,9 +142,18 @@ func (uc *UseCase) calculateNewBalances(ctx context.Context, tracer trace.Tracer
 // prepareBalancesForUpdate filters stale balances and refreshes from cache if needed.
 // During cache refresh we do NOT re-apply transaction amounts because Redis already contains the effects
 // from the Lua script executed during the HTTP request.
+//
+// FALLBACK STRATEGY: If cache refresh fails (cache miss or Redis error), we attempt to fetch
+// the balance directly from PostgreSQL. This handles cases where:
+// 1. The balance sync worker already persisted the balance to DB
+// 2. Redis cache expired but DB has the correct state
+// 3. Redis is temporarily unavailable
+//
+// This fallback prevents orphan transactions (transactions with 0 operations) that occur when
+// RabbitMQ retries with long backoff delays while the transaction is already created.
 func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, span *trace.Span, logger libLog.Logger) ([]*mmodel.Balance, bool, error) {
 	balancesToUpdate, skippedCount := uc.filterStaleBalances(ctx, organizationID, ledgerID, newBalances, logger)
-	usedCache := false
+	usedRefreshedValues := false
 
 	if skippedCount > 0 {
 		// Stale balances are expected during concurrent processing - part of normal optimistic locking flow
@@ -150,21 +162,36 @@ func (uc *UseCase) prepareBalancesForUpdate(ctx context.Context, organizationID,
 
 		refreshedBalances, err := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances from cache", err)
-			logger.Errorf("Failed to refresh balances from cache: %v", err)
+			// Cache refresh failed - try fallback to database
+			logger.Warnf("Cache refresh failed, attempting DB fallback: %v", err)
 
-			return nil, false, pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+			dbBalances, dbErr := uc.refreshBalancesFromDatabase(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
+			if dbErr != nil {
+				// Both cache and DB failed - this is a real error
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances from both cache and database", err)
+				logger.Errorf("Failed to refresh balances from cache (%v) and database (%v)", err, dbErr)
+
+				return nil, false, pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+			}
+
+			// DB fallback succeeded
+			logger.Infof("DB_FALLBACK_SUCCESS: Retrieved %d balances from database after cache miss (org=%s, ledger=%s, txn=%s)",
+				len(dbBalances), organizationID, ledgerID, transactionID)
+			balancesToUpdate = dbBalances
+			usedRefreshedValues = true // Mark that we used refreshed values from database fallback
+
+			return balancesToUpdate, usedRefreshedValues, nil
 		}
 
 		balancesToUpdate = refreshedBalances
-		usedCache = true
+		usedRefreshedValues = true
 	}
 
-	return balancesToUpdate, usedCache, nil
+	return balancesToUpdate, usedRefreshedValues, nil
 }
 
 // handleBalanceUpdateError handles errors from BalancesUpdate, including retry logic for ErrNoBalancesUpdated.
-func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, usedCache bool, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
+func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, usedRefreshedValues bool, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
 	if !errors.Is(err, balanceRepo.ErrNoBalancesUpdated) {
 		updateDuration := time.Since(updateStart)
 		logger.Errorf("DB_UPDATE_FAILED: Balance update failed after %v: %v", updateDuration, err)
@@ -173,7 +200,7 @@ func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, orga
 		return pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
 
-	if usedCache {
+	if usedRefreshedValues {
 		// ErrNoBalancesUpdated after cache refresh means DB already has a version >= what we tried to persist.
 		// This is expected during concurrent processing: another worker already persisted a newer state.
 		// Treat as success (idempotent) - the balance is already up-to-date.
@@ -189,18 +216,33 @@ func (uc *UseCase) handleBalanceUpdateError(ctx context.Context, err error, orga
 
 // retryBalanceUpdateWithCacheRefresh refreshes balances from cache and retries the database update.
 // Transaction amounts are NOT re-applied during refresh because Redis already contains the effects (Lua script).
+//
+// FALLBACK STRATEGY: If cache refresh fails, we attempt to fetch from PostgreSQL directly.
+// This prevents orphan transactions when Redis is unavailable or cache has expired.
 func (uc *UseCase) retryBalanceUpdateWithCacheRefresh(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, newBalances []*mmodel.Balance, updateStart time.Time, span *trace.Span, logger libLog.Logger) error {
 	refreshedBalances, refreshErr := uc.refreshBalancesFromCache(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
 	if refreshErr != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances after no-op update", refreshErr)
-		logger.Errorf("Failed to refresh balances after no-op update: %v", refreshErr)
+		// Cache refresh failed - try fallback to database
+		logger.Warnf("Cache refresh failed in retry path, attempting DB fallback: %v", refreshErr)
 
-		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+		dbBalances, dbErr := uc.refreshBalancesFromDatabase(ctx, organizationID, ledgerID, transactionID, newBalances, logger)
+		if dbErr != nil {
+			// Both cache and DB failed - this is a real error
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to refresh balances from both cache and database after no-op update", refreshErr)
+			logger.Errorf("Failed to refresh balances after no-op update from cache (%v) and database (%v)", refreshErr, dbErr)
+
+			return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
+		}
+
+		// DB fallback succeeded
+		logger.Infof("DB_FALLBACK_SUCCESS: Retrieved %d balances from database in retry path (org=%s, ledger=%s, txn=%s)",
+			len(dbBalances), organizationID, ledgerID, transactionID)
+		refreshedBalances = dbBalances
 	}
 
 	if len(refreshedBalances) == 0 {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cache refresh returned empty balances", nil)
-		logger.Errorf("Cache refresh returned empty balances after no-op update, aborting")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance refresh returned empty balances", nil)
+		logger.Errorf("Balance refresh returned empty balances after no-op update, aborting")
 
 		return pkg.ValidateBusinessError(constant.ErrStaleBalanceUpdateSkipped, reflect.TypeOf(mmodel.Balance{}).Name())
 	}
@@ -362,6 +404,107 @@ func (uc *UseCase) refreshBalancesFromCache(ctx context.Context, organizationID,
 			Version:   cachedBalance.Version,
 		})
 	}
+
+	return refreshed, nil
+}
+
+// refreshBalancesFromDatabase fetches balance values directly from PostgreSQL as a fallback
+// when Redis cache is unavailable or has cache misses.
+//
+// This function is called when refreshBalancesFromCache fails, providing a fallback path
+// that prevents orphan transactions. The database may have the correct balance state if:
+// 1. The balance sync worker already persisted the balance
+// 2. A previous async handler successfully updated the balance
+// 3. The balance was created/updated through other flows
+//
+// IMPORTANT: Like refreshBalancesFromCache, we do NOT re-apply transaction amounts here
+// because the Lua script already applied them to Redis during the HTTP request.
+// We're just fetching the current state to persist to the database.
+func (uc *UseCase) refreshBalancesFromDatabase(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, balances []*mmodel.Balance, logger libLog.Logger) ([]*mmodel.Balance, error) {
+	trackingLogger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	if logger == nil {
+		logger = trackingLogger
+	}
+
+	ctx, span := tracer.Start(ctx, "command.refresh_balances_from_database")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+		attribute.String("transaction_id", transactionID),
+		attribute.Int("balance.refresh_count", len(balances)),
+		attribute.Bool("balance.db_fallback", true),
+	)
+
+	// Build list of alias#key pairs for database lookup
+	aliasesWithKeys := make([]string, 0, len(balances))
+	for _, balance := range balances {
+		// The alias format is "index#@alias#key" - we need "@alias#key" for DB lookup
+		balanceKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
+		aliasesWithKeys = append(aliasesWithKeys, balanceKey)
+	}
+
+	// Fetch balances from database
+	dbBalances, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliasesWithKeys)
+	if err != nil {
+		logger.Errorf("Failed to fetch balances from database for keys %v: %v", aliasesWithKeys, err)
+		return nil, pkg.ValidateInternalError(err, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
+	if len(dbBalances) == 0 {
+		logger.Errorf("No balances found in database for keys %v", aliasesWithKeys)
+		return nil, pkg.ValidateBusinessError(ErrBalanceNotFoundInDB, reflect.TypeOf(mmodel.Balance{}).Name())
+	}
+
+	// Build a map for quick lookup by alias#key
+	dbBalanceMap := make(map[string]*mmodel.Balance, len(dbBalances))
+	for _, b := range dbBalances {
+		// Construct the key in the same format as aliasesWithKeys
+		key := b.Alias + "#" + b.Key
+		dbBalanceMap[key] = b
+	}
+
+	refreshed := make([]*mmodel.Balance, 0, len(balances))
+
+	for _, balance := range balances {
+		balanceKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
+
+		dbBalance, found := dbBalanceMap[balanceKey]
+		if !found {
+			logger.Errorf("Balance not found in database for key %s (alias: %s)", balanceKey, balance.Alias)
+			return nil, pkg.ValidateBusinessError(ErrBalanceNotFoundInDB, reflect.TypeOf(mmodel.Balance{}).Name())
+		}
+
+		// Use database values - they represent the current persisted state
+		// The version from DB might be older than what's in Redis (if sync hasn't happened yet)
+		// but it's still valid for our purposes since we're just trying to persist SOMETHING
+		// to prevent orphan transactions
+		if dbBalance.Version < balance.Version {
+			delta := balance.Version - dbBalance.Version
+			logger.Warnf("DB_FALLBACK: database version %d < message version %d for alias %s (delta=%d); using DB values to prevent orphan (txn=%s)",
+				dbBalance.Version, balance.Version, balance.Alias, delta, transactionID)
+
+			span.SetAttributes(
+				attribute.Bool("balance.db_version_behind", true),
+				attribute.String("balance.alias", balance.Alias),
+				attribute.Int64("balance.db_version", dbBalance.Version),
+				attribute.Int64("balance.message_version", balance.Version),
+				attribute.Int64("balance.version_delta", delta),
+			)
+		}
+
+		refreshed = append(refreshed, &mmodel.Balance{
+			ID:        dbBalance.ID,
+			Alias:     dbBalance.Alias,
+			Available: dbBalance.Available,
+			OnHold:    dbBalance.OnHold,
+			Version:   dbBalance.Version,
+		})
+	}
+
+	logger.Infof("DB_FALLBACK_COMPLETE: Refreshed %d balances from database (org=%s, ledger=%s, txn=%s)",
+		len(refreshed), organizationID, ledgerID, transactionID)
 
 	return refreshed, nil
 }

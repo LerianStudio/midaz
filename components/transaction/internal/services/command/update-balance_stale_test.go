@@ -263,12 +263,18 @@ func TestUpdateBalances_StaleRefreshFails_ReturnsError(t *testing.T) {
 	}
 
 	gomock.InOrder(
+		// First call: filterStaleBalances - cache has newer version (stale detected)
 		mockRedis.EXPECT().
 			ListBalanceByKey(gomock.Any(), orgID, ledgerID, "account1").
 			Return(&mmodel.Balance{ID: balanceID, Alias: "account1", Available: decimal.NewFromInt(600), OnHold: decimal.Zero, Version: 5}, nil),
+		// Second call: refreshBalancesFromCache - Redis fails
 		mockRedis.EXPECT().
 			ListBalanceByKey(gomock.Any(), orgID, ledgerID, "account1").
 			Return(nil, errors.New("redis down")),
+		// Third call: refreshBalancesFromDatabase fallback - DB also fails
+		mockBalanceRepo.EXPECT().
+			ListByAliasesWithKeys(gomock.Any(), orgID, ledgerID, []string{"account1"}).
+			Return(nil, errors.New("database down")),
 	)
 
 	err := uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
@@ -278,6 +284,84 @@ func TestUpdateBalances_StaleRefreshFails_ReturnsError(t *testing.T) {
 		"Error should be FailedPreconditionError, got: %T", err)
 	assert.Equal(t, constant.ErrStaleBalanceUpdateSkipped.Error(), failedPreconditionErr.Code,
 		"Error code should match ErrStaleBalanceUpdateSkipped")
+}
+
+// TestUpdateBalances_StaleRefreshFails_DBFallbackSucceeds verifies that when cache refresh fails
+// but DB fallback succeeds, the balance update completes successfully.
+func TestUpdateBalances_StaleRefreshFails_DBFallbackSucceeds(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:   mockRedis,
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	balanceID := uuid.New().String()
+
+	// Use proper format: balance.Alias is "0#@account1#default" (index#@alias#key)
+	// - The key in validate.From MUST match balance.Alias exactly for fromTo map lookup
+	// - SplitAliasWithKey extracts "@account1#default" for Redis/DB lookup
+	balanceAlias := "0#@account1#default"
+	lookupKey := "@account1#default" // What SplitAliasWithKey returns
+
+	validate := pkgTransaction.Responses{
+		Aliases: []string{balanceAlias},
+		From: map[string]pkgTransaction.Amount{
+			balanceAlias: { // Must match balance.Alias exactly
+				Asset:           "USD",
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.DEBIT,
+				TransactionType: libConstants.CREATED,
+			},
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:        balanceID,
+			Alias:     balanceAlias, // Full format with index prefix
+			AssetCode: "USD",
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.Zero,
+			Version:   1,
+		},
+	}
+
+	gomock.InOrder(
+		// First call: filterStaleBalances - cache has newer version (stale detected)
+		mockRedis.EXPECT().
+			ListBalanceByKey(gomock.Any(), orgID, ledgerID, lookupKey).
+			Return(&mmodel.Balance{ID: balanceID, Alias: lookupKey, Available: decimal.NewFromInt(600), OnHold: decimal.Zero, Version: 5}, nil),
+		// Second call: refreshBalancesFromCache - Redis fails
+		mockRedis.EXPECT().
+			ListBalanceByKey(gomock.Any(), orgID, ledgerID, lookupKey).
+			Return(nil, errors.New("redis down")),
+		// Third call: refreshBalancesFromDatabase fallback - DB succeeds
+		// ListByAliasesWithKeys expects "@account1#default" format
+		mockBalanceRepo.EXPECT().
+			ListByAliasesWithKeys(gomock.Any(), orgID, ledgerID, []string{lookupKey}).
+			Return([]*mmodel.Balance{
+				{ID: balanceID, Alias: "@account1", Key: "default", Available: decimal.NewFromInt(600), OnHold: decimal.Zero, Version: 5},
+			}, nil),
+		// Fourth call: BalancesUpdate with DB values
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), orgID, ledgerID, gomock.Any()).
+			Return(nil),
+	)
+
+	err := uc.UpdateBalances(ctx, orgID, ledgerID, uuid.New().String(), validate, balances)
+
+	assert.NoError(t, err, "UpdateBalances should succeed when DB fallback works")
 }
 
 // TestUpdateBalances_EmptyBalances_Panics verifies that when balancesToUpdate is empty,
