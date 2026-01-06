@@ -4,11 +4,11 @@ package in
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -25,36 +25,15 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	nethttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mockBalancePort is a simple mock for the BalancePort interface for integration tests.
-type mockBalancePort struct{}
-
-func (m *mockBalancePort) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
-	// Return a minimal valid balance for integration tests
-	return &mmodel.Balance{
-		ID:             uuid.New().String(),
-		OrganizationID: input.OrganizationID.String(),
-		LedgerID:       input.LedgerID.String(),
-		AccountID:      input.AccountID.String(),
-		AssetCode:      input.AssetCode,
-	}, nil
-}
-
-func (m *mockBalancePort) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
-	return nil
-}
-
-func (m *mockBalancePort) CheckHealth(ctx context.Context) error {
-	return nil
-}
 
 // assetTestInfra holds all test infrastructure components for asset integration tests.
 type assetTestInfra struct {
@@ -125,7 +104,7 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 		PortfolioRepo:    portfolioRepo,
 		SegmentRepo:      segmentRepo,
 		MetadataRepo:     metadataRepo,
-		BalancePort:      &mockBalancePort{},
+		BalancePort:      &stubs.BalancePortStub{},
 	}
 	queryUC := &query.UseCase{
 		OrganizationRepo: orgRepo,
@@ -220,15 +199,15 @@ func (infra *assetTestInfra) setupRoutes() {
 
 	// Organization routes
 	infra.app.Post("/v1/organizations",
-		http.WithBody(new(mmodel.CreateOrganizationInput), infra.orgHandler.CreateOrganization))
+		nethttp.WithBody(new(mmodel.CreateOrganizationInput), infra.orgHandler.CreateOrganization))
 
 	// Ledger routes
 	infra.app.Post("/v1/organizations/:organization_id/ledgers",
-		paramMiddleware, http.WithBody(new(mmodel.CreateLedgerInput), infra.ledgerHandler.CreateLedger))
+		paramMiddleware, nethttp.WithBody(new(mmodel.CreateLedgerInput), infra.ledgerHandler.CreateLedger))
 
 	// Asset routes
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
-		paramMiddleware, http.WithBody(new(mmodel.CreateAssetInput), infra.assetHandler.CreateAsset))
+		paramMiddleware, nethttp.WithBody(new(mmodel.CreateAssetInput), infra.assetHandler.CreateAsset))
 	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
 		paramMiddleware, infra.assetHandler.GetAllAssets)
 	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
@@ -238,7 +217,7 @@ func (infra *assetTestInfra) setupRoutes() {
 
 	// Account routes
 	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
-		paramMiddleware, http.WithBody(new(mmodel.CreateAccountInput), infra.accountHandler.CreateAccount))
+		paramMiddleware, nethttp.WithBody(new(mmodel.CreateAccountInput), infra.accountHandler.CreateAccount))
 
 	// Organization GET (for ID-based lookup)
 	infra.app.Get("/v1/organizations/:id",
@@ -473,10 +452,9 @@ func TestIntegration_AssetHandler_AccountWithNonExistentAsset(t *testing.T) {
 	accountRespBody, _ := io.ReadAll(accountResp.Body)
 	t.Logf("Account with non-existent asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
 
-	// Assert: Should return 4xx error (404 or 400)
-	// The exact status code depends on how the backend validates assets
-	assert.True(t, accountResp.StatusCode >= 400 && accountResp.StatusCode < 500,
-		"account creation with non-existent asset should fail with 4xx, got %d: %s",
+	// Assert: Should return 404 Not Found for non-existent asset
+	assert.Equal(t, http.StatusNotFound, accountResp.StatusCode,
+		"account creation with non-existent asset should return 404, got %d: %s",
 		accountResp.StatusCode, string(accountRespBody))
 }
 
@@ -533,10 +511,9 @@ func TestIntegration_AssetHandler_AccountWithDeletedAsset(t *testing.T) {
 	accountRespBody, _ := io.ReadAll(accountResp.Body)
 	t.Logf("Account with deleted asset response: status=%d, body=%s", accountResp.StatusCode, string(accountRespBody))
 
-	// Assert: Should return 4xx error (404 or 400)
-	// The exact status code depends on how the backend validates assets
-	assert.True(t, accountResp.StatusCode >= 400 && accountResp.StatusCode < 500,
-		"account creation with deleted asset should fail with 4xx, got %d: %s",
+	// Assert: Should return 404 Not Found for deleted asset
+	assert.Equal(t, http.StatusNotFound, accountResp.StatusCode,
+		"account creation with deleted asset should return 404, got %d: %s",
 		accountResp.StatusCode, string(accountRespBody))
 }
 
@@ -666,9 +643,9 @@ func TestIntegration_Property_Account_DuplicateAlias(t *testing.T) {
 
 	respBody, _ := io.ReadAll(duplicateResp.Body)
 
-	// Assert: Should return 4xx (conflict or bad request), never 5xx
-	assert.True(t, duplicateResp.StatusCode >= 400 && duplicateResp.StatusCode < 500,
-		"duplicate alias should return 4xx, got %d: %s", duplicateResp.StatusCode, string(respBody))
+	// Assert: Should return 409 Conflict for duplicate alias
+	assert.Equal(t, http.StatusConflict, duplicateResp.StatusCode,
+		"duplicate alias should return 409 Conflict, got %d: %s", duplicateResp.StatusCode, string(respBody))
 }
 
 // TestIntegration_Property_Structural_InvalidJSON tests that various malformed inputs

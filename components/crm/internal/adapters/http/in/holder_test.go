@@ -12,7 +12,6 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -507,22 +506,17 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		hardDelete     string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID)
+		setupMocks     func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:       "success soft delete returns 204",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByHolderID(gomock.Any(), orgID, holderID, false).
-					Return([]*mmodel.HolderLink{}, nil).
 					Times(1)
 
 				holderRepo.EXPECT().
@@ -536,15 +530,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "success hard delete returns 204",
 			hardDelete: "true",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByHolderID(gomock.Any(), orgID, holderID, false).
-					Return([]*mmodel.HolderLink{}, nil).
 					Times(1)
 
 				holderRepo.EXPECT().
@@ -556,40 +545,9 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			validateBody:   nil,
 		},
 		{
-			name:       "success with holder links deletes links first",
-			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
-				linkID := uuid.New()
-
-				aliasRepo.EXPECT().
-					Count(gomock.Any(), orgID, holderID).
-					Return(int64(0), nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByHolderID(gomock.Any(), orgID, holderID, false).
-					Return([]*mmodel.HolderLink{
-						{ID: &linkID},
-					}, nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					Delete(gomock.Any(), orgID, linkID, false).
-					Return(nil).
-					Times(1)
-
-				holderRepo.EXPECT().
-					Delete(gomock.Any(), orgID, holderID, false).
-					Return(nil).
-					Times(1)
-			},
-			expectedStatus: 204,
-			validateBody:   nil,
-		},
-		{
 			name:       "holder has aliases returns 400",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(1), nil).
@@ -608,15 +566,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "not found returns 404",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByHolderID(gomock.Any(), orgID, holderID, false).
-					Return([]*mmodel.HolderLink{}, nil).
 					Times(1)
 
 				holderRepo.EXPECT().
@@ -637,7 +590,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on count returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), pkg.InternalServerError{
@@ -660,15 +613,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 		{
 			name:       "repository error on delete returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Count(gomock.Any(), orgID, holderID).
 					Return(int64(0), nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByHolderID(gomock.Any(), orgID, holderID, false).
-					Return([]*mmodel.HolderLink{}, nil).
 					Times(1)
 
 				holderRepo.EXPECT().
@@ -702,13 +650,11 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
 			mockHolderRepo := holder.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderRepo, mockHolderLinkRepo, orgID, holderID)
+			tt.setupMocks(mockAliasRepo, mockHolderRepo, orgID, holderID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderRepo:     mockHolderRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo:  mockAliasRepo,
+				HolderRepo: mockHolderRepo,
 			}
 			handler := &HolderHandler{Service: uc}
 

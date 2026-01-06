@@ -103,16 +103,48 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "alias with participant document",
+			name: "alias with regulatory fields",
 			alias: &mmodel.Alias{
-				ID:                  &aliasID,
-				Document:            testutils.Ptr("99900011122"),
-				Type:                testutils.Ptr("NATURAL_PERSON"),
-				LedgerID:            testutils.Ptr("ledger-part"),
-				AccountID:           testutils.Ptr("account-part"),
-				ParticipantDocument: testutils.Ptr("12345678901234"),
-				CreatedAt:           now,
-				UpdatedAt:           now,
+				ID:        &aliasID,
+				Document:  testutils.Ptr("99900011122"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-part"),
+				AccountID: testutils.Ptr("account-part"),
+				RegulatoryFields: &mmodel.RegulatoryFields{
+					ParticipantDocument: testutils.Ptr("12345678901234"),
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			wantErr: false,
+		},
+		{
+			name: "alias with related parties",
+			alias: &mmodel.Alias{
+				ID:        &aliasID,
+				Document:  testutils.Ptr("88877766655"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-rp"),
+				AccountID: testutils.Ptr("account-rp"),
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						ID:        &holderID,
+						Document:  "11122233344",
+						Name:      "Related Person 1",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: now,
+					},
+					{
+						ID:        &aliasID,
+						Document:  "55566677788",
+						Name:      "Related Person 2",
+						Role:      "LEGAL_REPRESENTATIVE",
+						StartDate: now,
+						EndDate:   &now,
+					},
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
 			},
 			wantErr: false,
 		},
@@ -151,11 +183,22 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				Metadata: map[string]any{
 					"complete": true,
 				},
-				ParticipantDocument: testutils.Ptr("98765432109876"),
-				ClosingDate:         &now,
-				CreatedAt:           now,
-				UpdatedAt:           now,
-				DeletedAt:           &now,
+				RegulatoryFields: &mmodel.RegulatoryFields{
+					ParticipantDocument: testutils.Ptr("98765432109876"),
+				},
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						ID:        &holderID,
+						Document:  "99988877766",
+						Name:      "Full Test Party",
+						Role:      "RESPONSIBLE_PARTY",
+						StartDate: now,
+					},
+				},
+				ClosingDate: &now,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+				DeletedAt:   &now,
 			},
 			wantErr: false,
 		},
@@ -185,14 +228,37 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				assert.NotEqual(t, *tt.alias.Document, *model.Document, "Document should be encrypted")
 			}
 
-			if tt.alias.ParticipantDocument != nil {
-				assert.NotNil(t, model.ParticipantDocument)
-				assert.NotEqual(t, *tt.alias.ParticipantDocument, *model.ParticipantDocument, "ParticipantDocument should be encrypted")
+			// Verify regulatory fields encryption
+			if tt.alias.RegulatoryFields != nil && tt.alias.RegulatoryFields.ParticipantDocument != nil {
+				require.NotNil(t, model.RegulatoryFields)
+				assert.NotNil(t, model.RegulatoryFields.ParticipantDocument)
+				assert.NotEqual(t, *tt.alias.RegulatoryFields.ParticipantDocument, *model.RegulatoryFields.ParticipantDocument, "ParticipantDocument should be encrypted")
+
+				// Verify search hash for participant document
+				if *tt.alias.RegulatoryFields.ParticipantDocument != "" {
+					require.NotNil(t, model.Search)
+					assert.NotNil(t, model.Search.RegulatoryFieldsParticipantDocument, "ParticipantDocument hash should be generated")
+				}
+			}
+
+			// Verify related parties encryption
+			if len(tt.alias.RelatedParties) > 0 {
+				require.Len(t, model.RelatedParties, len(tt.alias.RelatedParties))
+				require.NotNil(t, model.Search)
+				assert.Len(t, model.Search.RelatedPartyDocuments, len(tt.alias.RelatedParties), "Should have hash for each related party")
+
+				for i, rp := range tt.alias.RelatedParties {
+					assert.NotNil(t, model.RelatedParties[i].Document)
+					assert.NotEqual(t, rp.Document, *model.RelatedParties[i].Document, "RelatedParty document should be encrypted")
+					assert.Equal(t, rp.Name, model.RelatedParties[i].Name)
+					assert.Equal(t, rp.Role, model.RelatedParties[i].Role)
+				}
 			}
 
 			// Verify search hash is generated for document
 			if tt.alias.Document != nil && *tt.alias.Document != "" {
-				assert.NotEmpty(t, model.Search["document"], "Document hash should be generated")
+				require.NotNil(t, model.Search)
+				assert.NotNil(t, model.Search.Document, "Document hash should be generated")
 			}
 
 			// Verify banking details encryption
@@ -217,11 +283,12 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				assert.Equal(t, tt.alias.BankingDetails.BankID, model.BankingDetails.BankID)
 
 				// Verify search hashes for banking details
+				require.NotNil(t, model.Search)
 				if tt.alias.BankingDetails.Account != nil && *tt.alias.BankingDetails.Account != "" {
-					assert.NotEmpty(t, model.Search["banking_details_account"], "Account hash should be generated")
+					assert.NotNil(t, model.Search.BankingDetailsAccount, "Account hash should be generated")
 				}
 				if tt.alias.BankingDetails.IBAN != nil && *tt.alias.BankingDetails.IBAN != "" {
-					assert.NotEmpty(t, model.Search["banking_details_iban"], "IBAN hash should be generated")
+					assert.NotNil(t, model.Search.BankingDetailsIBAN, "IBAN hash should be generated")
 				}
 			}
 
@@ -236,6 +303,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
 	holderID := uuid.New()
+	relatedPartyID := uuid.New()
 
 	// First create a model from an entity, then convert back
 	originalAlias := &mmodel.Alias{
@@ -257,10 +325,21 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 		Metadata: map[string]any{
 			"testKey": "testValue",
 		},
-		ParticipantDocument: testutils.Ptr("11223344556677"),
-		ClosingDate:         &now,
-		CreatedAt:           now,
-		UpdatedAt:           now,
+		RegulatoryFields: &mmodel.RegulatoryFields{
+			ParticipantDocument: testutils.Ptr("11223344556677"),
+		},
+		RelatedParties: []*mmodel.RelatedParty{
+			{
+				ID:        &relatedPartyID,
+				Document:  "99988877766",
+				Name:      "Related Test Party",
+				Role:      "PRIMARY_HOLDER",
+				StartDate: now,
+			},
+		},
+		ClosingDate: &now,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	var model MongoDBModel
@@ -279,10 +358,21 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	assert.Equal(t, originalAlias.AccountID, resultAlias.AccountID)
 	assert.Equal(t, originalAlias.HolderID, resultAlias.HolderID)
 	assert.Equal(t, originalAlias.Metadata, resultAlias.Metadata)
-	assert.Equal(t, *originalAlias.ParticipantDocument, *resultAlias.ParticipantDocument)
 	assert.Equal(t, originalAlias.ClosingDate, resultAlias.ClosingDate)
 	assert.Equal(t, originalAlias.CreatedAt, resultAlias.CreatedAt)
 	assert.Equal(t, originalAlias.UpdatedAt, resultAlias.UpdatedAt)
+
+	// Verify regulatory fields (decrypted)
+	require.NotNil(t, resultAlias.RegulatoryFields)
+	assert.Equal(t, *originalAlias.RegulatoryFields.ParticipantDocument, *resultAlias.RegulatoryFields.ParticipantDocument)
+
+	// Verify related parties (decrypted)
+	require.Len(t, resultAlias.RelatedParties, 1)
+	assert.Equal(t, originalAlias.RelatedParties[0].ID, resultAlias.RelatedParties[0].ID)
+	assert.Equal(t, originalAlias.RelatedParties[0].Document, resultAlias.RelatedParties[0].Document)
+	assert.Equal(t, originalAlias.RelatedParties[0].Name, resultAlias.RelatedParties[0].Name)
+	assert.Equal(t, originalAlias.RelatedParties[0].Role, resultAlias.RelatedParties[0].Role)
+	assert.Equal(t, originalAlias.RelatedParties[0].StartDate, resultAlias.RelatedParties[0].StartDate)
 
 	// Verify banking details (decrypted)
 	require.NotNil(t, resultAlias.BankingDetails)
@@ -347,4 +437,33 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 
 	require.NotNil(t, resultAlias.DeletedAt)
 	assert.Equal(t, *originalAlias.DeletedAt, *resultAlias.DeletedAt)
+}
+
+func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T) {
+	crypto := testutils.SetupCrypto(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	aliasID := uuid.New()
+
+	originalAlias := &mmodel.Alias{
+		ID:               &aliasID,
+		Document:         testutils.Ptr("55544433322"),
+		Type:             testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:         testutils.Ptr("ledger-no-extras"),
+		AccountID:        testutils.Ptr("account-no-extras"),
+		RegulatoryFields: nil,
+		RelatedParties:   nil,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(originalAlias, crypto)
+	require.NoError(t, err)
+
+	resultAlias, err := model.ToEntity(crypto)
+	require.NoError(t, err)
+
+	assert.Equal(t, *originalAlias.Document, *resultAlias.Document)
+	assert.Nil(t, resultAlias.RegulatoryFields)
+	assert.Empty(t, resultAlias.RelatedParties)
 }

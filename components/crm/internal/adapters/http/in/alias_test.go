@@ -12,7 +12,6 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -29,7 +28,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 	tests := []struct {
 		name           string
 		jsonBody       string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID)
+		setupMocks     func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -39,7 +38,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				document := "12345678901"
 				holderType := "individual"
 
@@ -78,7 +77,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				holderRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, false).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())).
@@ -100,7 +99,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				"ledgerId": "00000000-0000-0000-0000-000000000001",
 				"accountId": "00000000-0000-0000-0000-000000000002"
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				document := "12345678901"
 				holderType := "individual"
 
@@ -144,13 +143,11 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
 			mockHolderRepo := holder.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderRepo, mockHolderLinkRepo, orgID, holderID)
+			tt.setupMocks(mockAliasRepo, mockHolderRepo, orgID, holderID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderRepo:     mockHolderRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo:  mockAliasRepo,
+				HolderRepo: mockHolderRepo,
 			}
 			handler := &AliasHandler{Service: uc}
 
@@ -185,14 +182,14 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		includeDeleted string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:           "success returns 200 with alias",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
@@ -211,11 +208,6 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 						UpdatedAt: time.Now(),
 					}, nil).
 					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil).
-					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -231,7 +223,7 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 		{
 			name:           "not found returns 404",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, aliasID, false).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())).
@@ -250,7 +242,7 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 		{
 			name:           "repository error returns 500",
 			includeDeleted: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, aliasID, false).
 					Return(nil, pkg.InternalServerError{
@@ -282,12 +274,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			aliasID := uuid.New()
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderLinkRepo, orgID, holderID, aliasID)
+			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo: mockAliasRepo,
 			}
 			handler := &AliasHandler{Service: uc}
 
@@ -326,7 +316,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 	tests := []struct {
 		name           string
 		jsonBody       string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -335,7 +325,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				ledgerID := "00000000-0000-0000-0000-000000000001"
 				accountID := "00000000-0000-0000-0000-000000000002"
 				document := "12345678901"
@@ -354,11 +344,6 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					}, nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -379,7 +364,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Update(gomock.Any(), orgID, holderID, aliasID, gomock.Any(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())).
@@ -400,7 +385,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			jsonBody: `{
 				"metadata": {"key": "value"}
 			}`,
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Update(gomock.Any(), orgID, holderID, aliasID, gomock.Any(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
@@ -432,12 +417,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			aliasID := uuid.New()
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderLinkRepo, orgID, holderID, aliasID)
+			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo: mockAliasRepo,
 			}
 			handler := &AliasHandler{Service: uc}
 
@@ -473,19 +456,14 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 	tests := []struct {
 		name           string
 		hardDelete     string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID)
+		setupMocks     func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:       "success returns 204 no content",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil).
-					Times(1)
-
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Delete(gomock.Any(), orgID, holderID, aliasID, false).
 					Return(nil).
@@ -497,12 +475,7 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "success with hard delete returns 204",
 			hardDelete: "true",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return([]*mmodel.HolderLink{}, nil).
-					Times(1)
-
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
 				aliasRepo.EXPECT().
 					Delete(gomock.Any(), orgID, holderID, aliasID, true).
 					Return(nil).
@@ -514,10 +487,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "not found returns 404",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())).
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				aliasRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, aliasID, false).
+					Return(pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -533,10 +506,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 		{
 			name:       "repository error returns 500",
 			hardDelete: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, aliasID, false).
-					Return(nil, pkg.InternalServerError{
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				aliasRepo.EXPECT().
+					Delete(gomock.Any(), orgID, holderID, aliasID, false).
+					Return(pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
 						Message: "Database connection failed",
@@ -565,12 +538,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			aliasID := uuid.New()
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderLinkRepo, orgID, holderID, aliasID)
+			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo: mockAliasRepo,
 			}
 			handler := &AliasHandler{Service: uc}
 
@@ -609,14 +580,14 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		setupMocks     func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string)
+		setupMocks     func(aliasRepo *alias.MockRepository, orgID string)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:        "empty list returns 200 with pagination structure",
 			queryParams: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
 				aliasRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
 					Return([]*mmodel.Alias{}, nil).
@@ -640,7 +611,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "success with items returns aliases",
 			queryParams: "?limit=5&page=1",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
 				alias1ID := uuid.New()
 				alias2ID := uuid.New()
 				holderID := uuid.New()
@@ -674,16 +645,6 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 						},
 					}, nil).
 					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, alias1ID, false).
-					Return([]*mmodel.HolderLink{}, nil).
-					Times(1)
-
-				holderLinkRepo.EXPECT().
-					FindByAliasID(gomock.Any(), orgID, alias2ID, false).
-					Return([]*mmodel.HolderLink{}, nil).
-					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -708,7 +669,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 		{
 			name:        "repository error returns 500",
 			queryParams: "",
-			setupMocks: func(aliasRepo *alias.MockRepository, holderLinkRepo *holderlink.MockRepository, orgID string) {
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string) {
 				aliasRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
 					Return(nil, pkg.InternalServerError{
@@ -738,12 +699,10 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			orgID := uuid.New().String()
 
 			mockAliasRepo := alias.NewMockRepository(ctrl)
-			mockHolderLinkRepo := holderlink.NewMockRepository(ctrl)
-			tt.setupMocks(mockAliasRepo, mockHolderLinkRepo, orgID)
+			tt.setupMocks(mockAliasRepo, orgID)
 
 			uc := &services.UseCase{
-				AliasRepo:      mockAliasRepo,
-				HolderLinkRepo: mockHolderLinkRepo,
+				AliasRepo: mockAliasRepo,
 			}
 			handler := &AliasHandler{Service: uc}
 
