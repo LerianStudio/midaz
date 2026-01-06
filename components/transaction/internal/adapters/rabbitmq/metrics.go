@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 )
 
@@ -39,6 +40,30 @@ var (
 		Name:        "message_retry_total",
 		Unit:        "1",
 		Description: "Total number of message retries before DLQ",
+	}
+
+	balanceStatusFailedMetric = metrics.Metric{
+		Name:        "transaction_balance_status_failed_total",
+		Unit:        "1",
+		Description: "Total number of transactions with balance_status=FAILED (DLQ)",
+	}
+
+	balanceStatusUpdateFailedMetric = metrics.Metric{
+		Name:        "transaction_balance_status_update_failed_total",
+		Unit:        "1",
+		Description: "Total number of balance_status update failures after retries",
+	}
+
+	balanceStatusDLQUpdateFailedMetric = metrics.Metric{
+		Name:        "transaction_balance_status_dlq_update_failed_total",
+		Unit:        "1",
+		Description: "Total number of failures updating balance_status during DLQ hook",
+	}
+
+	messageLossMetric = metrics.Metric{
+		Name:        "message_loss_total",
+		Unit:        "1",
+		Description: "Total number of messages lost after ack (republish failed)",
 	}
 )
 
@@ -139,6 +164,37 @@ func (dm *DLQMetrics) RecordMessageRetry(ctx context.Context, queue string) {
 		AddOne(ctx)
 }
 
+// RecordBalanceStatusFailed increments the transaction_balance_status_failed_total counter.
+// This is called when a transaction's balance update fails after max retries and is marked FAILED.
+func (dm *DLQMetrics) RecordBalanceStatusFailed(ctx context.Context, queue string) {
+	if dm == nil || dm.factory == nil {
+		return
+	}
+
+	// IMPORTANT: Do NOT include transaction_id as a metric label (high cardinality / DoS risk).
+	// Use structured logs for correlation instead.
+	dm.factory.Counter(balanceStatusFailedMetric).
+		WithLabels(map[string]string{
+			"queue": sanitizeLabelValue(queue),
+		}).
+		AddOne(ctx)
+}
+
+// RecordBalanceStatusFailedWithLogging is a package-level helper that records a balance status failure
+// metric and logs the event. Use this instead of DLQMetrics.RecordBalanceStatusFailed when you also
+// need logging with the transaction ID.
+// Keep transactionID only for logs (not metric labels).
+func RecordBalanceStatusFailedWithLogging(ctx context.Context, queue, transactionID string) {
+	dm := GetDLQMetrics()
+	if dm != nil {
+		dm.RecordBalanceStatusFailed(ctx, queue)
+	}
+
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only logger needed here
+
+	logger.Warnf("Transaction marked FAILED (DLQ): queue=%s transaction_id=%s", queue, transactionID)
+}
+
 // recordDLQPublishFailure is a package-level helper that records a DLQ publish failure.
 func recordDLQPublishFailure(ctx context.Context, queue, reason string) {
 	dm := GetDLQMetrics()
@@ -161,4 +217,61 @@ func recordMessageRetry(ctx context.Context, queue string) {
 	if dm != nil {
 		dm.RecordMessageRetry(ctx, queue)
 	}
+}
+
+// RecordBalanceStatusUpdateFailure records when a status update fails after retries.
+// Uses structured logging for alerting systems (Datadog, PagerDuty, etc).
+// Note: transaction_id is logged, not in Prometheus label (avoids high cardinality).
+func RecordBalanceStatusUpdateFailure(ctx context.Context, targetStatus, transactionID string) {
+	dm := GetDLQMetrics()
+	if dm != nil && dm.factory != nil {
+		dm.factory.Counter(balanceStatusUpdateFailedMetric).
+			WithLabels(map[string]string{
+				"target_status": sanitizeLabelValue(targetStatus),
+			}).
+			AddOne(ctx)
+	}
+
+	// Structured log for alerting - transaction_id here (not in metric)
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only logger needed here
+
+	logger.Errorf("Balance status update failed after retries: target_status=%s transaction_id=%s severity=critical", targetStatus, transactionID)
+}
+
+// RecordBalanceStatusDLQUpdateFailure records when a DLQ hook cannot mark a transaction as FAILED.
+// This should be rare; it usually indicates DB outage during DLQ routing.
+// Note: transaction_id is logged, not in Prometheus label.
+func RecordBalanceStatusDLQUpdateFailure(ctx context.Context, queue, targetStatus, transactionID string) {
+	dm := GetDLQMetrics()
+	if dm != nil && dm.factory != nil {
+		dm.factory.Counter(balanceStatusDLQUpdateFailedMetric).
+			WithLabels(map[string]string{
+				"queue":         sanitizeLabelValue(queue),
+				"target_status": targetStatus,
+			}).
+			AddOne(ctx)
+	}
+
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only logger needed here
+
+	logger.Errorf("Balance status update failed during DLQ hook: queue=%s target_status=%s transaction_id=%s severity=critical", queue, targetStatus, transactionID)
+}
+
+// recordMessageLoss records when a message is lost after being acked but before republish succeeds.
+// This happens in the ack-first pattern when republish fails after the original message was already acked.
+// The message cannot be recovered via RabbitMQ redelivery at this point.
+func recordMessageLoss(ctx context.Context, queue, reason string) {
+	dm := GetDLQMetrics()
+	if dm != nil && dm.factory != nil {
+		dm.factory.Counter(messageLossMetric).
+			WithLabels(map[string]string{
+				"queue":  sanitizeLabelValue(queue),
+				"reason": sanitizeLabelValue(reason),
+			}).
+			AddOne(ctx)
+	}
+
+	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // lib-commons API returns 4 values, only logger needed here
+
+	logger.Errorf("MESSAGE_LOSS: Message lost after ack (republish failed): queue=%s reason=%s severity=critical", queue, reason)
 }

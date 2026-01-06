@@ -28,9 +28,11 @@ import (
 )
 
 // maxRetries is the maximum number of delivery attempts (including first delivery)
-// before rejecting as a poison message to prevent infinite retry loops.
-// Set to 5 to allow 4 retries with backoff delays: 0s, 5s, 15s, 30s (50s total).
-const maxRetries = 5
+// before routing to DLQ. Increased from 5 to 288 to span ~24 hours (≈23h 34m) with
+// capped exponential backoff (max 5 minutes between attempts).
+// This supports the "201 promise" - once client gets 201, we keep retrying
+// until infrastructure recovers (typically 1-30 minutes for DB/Redis restarts).
+const maxRetries = 288
 
 // retryCountHeader is the custom header used to track retry attempts.
 // We use a custom header instead of RabbitMQ's x-death because x-death
@@ -75,13 +77,18 @@ func sleepWithContext(ctx context.Context, duration time.Duration) bool {
 	}
 }
 
-// Retry backoff delays - designed to span ~50 seconds total
-// to cover typical PostgreSQL restart times (10-30s)
+// Retry backoff delays - exponential backoff capped at 5 minutes
+// Spans ~24 hours to handle extended infrastructure outages while
+// supporting the "201 promise" for transaction consistency.
+// Pattern: 0s, 5s, 15s, 30s, 1m, 2m, 5m, 5m, 5m... (capped at 5m)
 var retryBackoffDelays = []time.Duration{
 	0,                // Retry 1 (attempt 2): immediate
 	5 * time.Second,  // Retry 2 (attempt 3): 5s delay
 	15 * time.Second, // Retry 3 (attempt 4): 15s delay
 	30 * time.Second, // Retry 4 (attempt 5): 30s delay
+	1 * time.Minute,  // Retry 5 (attempt 6): 1m delay
+	2 * time.Minute,  // Retry 6 (attempt 7): 2m delay
+	5 * time.Minute,  // Retry 7+ (attempt 8+): capped at 5m
 }
 
 // calculateRetryBackoff returns the delay to wait before the given retry attempt.
@@ -365,47 +372,6 @@ func publishToDLQShared(params *dlqPublishParams) error {
 	}
 }
 
-// nackParams holds parameters for nack handling to avoid code duplication.
-type nackParams struct {
-	ctx        context.Context
-	logger     libLog.Logger
-	msg        *amqp.Delivery
-	queue      string
-	workerID   int
-	retryCount int
-}
-
-// performNackWithLogging performs a Nack with retry-aware logic to prevent infinite loops.
-// When channel acquisition fails and we can't republish with retry tracking,
-// we must check retry count to decide: reject (max retries) or nack without requeue.
-func performNackWithLogging(np *nackParams) {
-	// Check if message has exceeded max retries
-	if np.retryCount >= maxRetries-1 {
-		// Record metric for data loss during channel failure
-		recordDLQPublishFailure(np.ctx, np.queue, "channel_acquisition_failed")
-		// Max retries exceeded - reject without requeue to prevent infinite loop
-		// This is data loss, but preferable to infinite redelivery loop
-		np.logger.Errorf("Worker %d: max retries (%d) exceeded during channel failure, REJECTING message (data loss) - queue=%s",
-			np.workerID, np.retryCount+1, np.queue)
-
-		if rejectErr := np.msg.Reject(false); rejectErr != nil {
-			np.logger.Warnf("Worker %d: failed to reject message: %v", np.workerID, rejectErr)
-		}
-
-		return
-	}
-
-	// Still have retries available - NACK without requeue (let RabbitMQ handle DLX if configured)
-	np.logger.Warnf("Worker %d: falling back to NACK without retry increment (channel unavailable) - retry %d/%d",
-		np.workerID, np.retryCount+1, maxRetries)
-
-	// CRITICAL: requeue=false to prevent infinite loop
-	// Message will be lost if no DLX is configured, but that's better than infinite loop
-	if nackErr := np.msg.Nack(false, false); nackErr != nil {
-		np.logger.Warnf("Worker %d: failed to nack message: %v", np.workerID, nackErr)
-	}
-}
-
 // panicRecoveryContext holds context for panic recovery handling
 type panicRecoveryContext struct {
 	ctx        context.Context
@@ -421,15 +387,16 @@ type panicRecoveryContext struct {
 // businessErrorContext holds context for business error handling with retry tracking.
 // Used by processHandler to track retries and route to DLQ after max attempts.
 type businessErrorContext struct {
-	ctx        context.Context
-	logger     libLog.Logger
-	span       trace.Span
-	msg        *amqp.Delivery
-	queue      string
-	workerID   int
-	retryCount int
-	conn       *libRabbitmq.RabbitMQConnection
-	err        error
+	ctx            context.Context
+	logger         libLog.Logger
+	span           trace.Span
+	msg            *amqp.Delivery
+	queue          string
+	workerID       int
+	retryCount     int
+	conn           *libRabbitmq.RabbitMQConnection
+	err            error
+	onDLQPublished OnDLQPublishedFunc // Optional callback after DLQ publish
 }
 
 // handleBusinessError handles a business error with retry tracking.
@@ -471,6 +438,18 @@ func (bec *businessErrorContext) routeToDLQIfMaxRetries() bool {
 		bec.rejectMessage("business error")
 
 		return true
+	}
+
+	// Invoke DLQ hook after successful publish (best-effort, fire-and-forget)
+	if bec.onDLQPublished != nil {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					bec.logger.Errorf("Worker %d: panic in onDLQPublished callback: %v", bec.workerID, r)
+				}
+			}()
+			bec.onDLQPublished(bec.ctx, bec.queue, bec.msg.Body)
+		}()
 	}
 
 	// Ack original message since we successfully published to DLQ
@@ -536,17 +515,24 @@ func (bec *businessErrorContext) publishToDLQ(dlqName string) error {
 // Applies exponential backoff to spread retries over ~50 seconds total,
 // covering typical PostgreSQL restart times.
 //
-// DESIGN DECISION: No Publisher Confirms (Intentional)
-// This method intentionally does NOT use publisher confirms for retry messages.
-// Rationale:
-//   - Performance: Confirms add ~10ms latency per message; retries are time-sensitive
-//   - Risk Acceptance: Message loss during retry is acceptable because:
-//     1. The message will be redelivered by RabbitMQ if Ack fails
-//     2. DLQ path (last chance) DOES use confirms for critical persistence
-//     3. Retry window is short (~50s); broker failures during retry are rare
-//   - Tradeoff: ~0.01% message loss during broker crash vs 10x latency increase
+// DESIGN DECISION: Ack-First, Republish-Later Pattern
+// This method acks the original message BEFORE applying backoff delay to prevent
+// RabbitMQ consumer acknowledgement timeout (default 30 minutes).
 //
-// If stronger guarantees are needed, consider adding confirms with a short timeout.
+// CRITICAL FIX: Previously, the backoff delay was applied BEFORE acking, which caused
+// RabbitMQ to close channels with "precondition_failed" after 30 minutes of no ack.
+// With 288 retries and 5-minute delays, this easily exceeded the timeout.
+//
+// New flow:
+//  1. Ack original message immediately (releases RabbitMQ's ack timer)
+//  2. Apply backoff delay (safe - message already acked)
+//  3. Republish with incremented retry counter
+//
+// Trade-off: If the process crashes during backoff, the message is lost.
+// This is acceptable because:
+//   - The transaction is already in Redis (Lua script applied during HTTP request)
+//   - The balance sync worker will eventually persist the balance
+//   - DLQ path uses publisher confirms for critical last-chance persistence
 func (bec *businessErrorContext) republishWithRetry() {
 	backoffDelay := calculateRetryBackoff(bec.retryCount + 1)
 
@@ -556,9 +542,18 @@ func (bec *businessErrorContext) republishWithRetry() {
 	bec.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering business error message (delivery %d of %d max), delay=%v: %v",
 		bec.workerID, bec.retryCount+1, maxRetries, backoffDelay, bec.err)
 
-	// Apply backoff delay before republishing (context-aware for graceful shutdown)
+	// CRITICAL: Ack the original message FIRST to prevent RabbitMQ ack timeout.
+	// RabbitMQ has a 30-minute consumer_timeout; with 5-minute backoff delays,
+	// we would exceed this timeout and cause channel closure with "precondition_failed".
+	if err := bec.msg.Ack(false); err != nil {
+		bec.logger.Errorf("Worker %d: failed to ack original message before retry: %v", bec.workerID, err)
+		// If ack fails, the message will be redelivered by RabbitMQ - don't republish
+		return
+	}
+
+	// Apply backoff delay AFTER acking (safe - RabbitMQ ack timer already released)
 	if !sleepWithContext(bec.ctx, backoffDelay) {
-		bec.logger.Warnf("Worker %d: context cancelled during backoff, skipping republish", bec.workerID)
+		bec.logger.Warnf("Worker %d: context cancelled during backoff, message already acked - will not be retried", bec.workerID)
 		return
 	}
 
@@ -568,9 +563,9 @@ func (bec *businessErrorContext) republishWithRetry() {
 
 	ch, err := bec.conn.Connection.Channel()
 	if err != nil {
-		bec.logger.Errorf("Worker %d: failed to get channel for business error republish: %v", bec.workerID, err)
-		bec.nackWithLogging()
-
+		bec.logger.Errorf("Worker %d: failed to get channel for business error republish (message already acked, will be lost): %v", bec.workerID, err)
+		// Message already acked - can't nack. Log the loss for alerting.
+		recordMessageLoss(bec.ctx, bec.queue, "channel_acquisition_failed")
 		return
 	}
 	defer ch.Close()
@@ -588,27 +583,13 @@ func (bec *businessErrorContext) republishWithRetry() {
 		},
 	)
 	if err != nil {
-		bec.logger.Errorf("Worker %d: failed to republish business error message: %v", bec.workerID, err)
-		bec.nackWithLogging()
-
+		bec.logger.Errorf("Worker %d: failed to republish business error message (message already acked, will be lost): %v", bec.workerID, err)
+		// Message already acked - can't nack. Log the loss for alerting.
+		recordMessageLoss(bec.ctx, bec.queue, "publish_failed")
 		return
 	}
 
-	if err := bec.msg.Ack(false); err != nil {
-		bec.logger.Warnf("Worker %d: failed to ack original message after business error republish: %v", bec.workerID, err)
-	}
-}
-
-// nackWithLogging delegates to performNackWithLogging with context fields.
-func (bec *businessErrorContext) nackWithLogging() {
-	performNackWithLogging(&nackParams{
-		ctx:        bec.ctx,
-		logger:     bec.logger,
-		msg:        bec.msg,
-		queue:      bec.queue,
-		workerID:   bec.workerID,
-		retryCount: bec.retryCount,
-	})
+	bec.logger.Infof("Worker %d: successfully republished message for retry %d/%d", bec.workerID, bec.retryCount+1, maxRetries)
 }
 
 // handlePoisonMessage routes a message that has exceeded max retry attempts to the DLQ.
@@ -695,13 +676,12 @@ func (prc *panicRecoveryContext) publishToDLQ(dlqName string, panicValue any) er
 }
 
 // republishWithRetry republishes a message with an incremented retry counter.
-// Falls back to Nack if republish fails.
 // Applies exponential backoff to spread retries over ~50 seconds total.
 //
-// DESIGN DECISION: No Publisher Confirms (Intentional)
+// DESIGN DECISION: Ack-First, Republish-Later Pattern
 // See businessErrorContext.republishWithRetry for full rationale.
-// Summary: Performance tradeoff - retry path accepts rare message loss,
-// DLQ path uses confirms for critical last-chance persistence.
+// Summary: Ack first to prevent RabbitMQ consumer_timeout (30 min default),
+// then apply backoff and republish. Accepts rare message loss on crash during backoff.
 func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
 	prc.span.SetAttributes(attribute.String("retry.action", "retry"))
 	backoffDelay := calculateRetryBackoff(prc.retryCount + 1)
@@ -712,9 +692,18 @@ func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
 	prc.logger.Warnf("Worker %d: RETRY_WITH_BACKOFF: redelivering message (delivery %d of %d max), delay=%v: %v",
 		prc.workerID, prc.retryCount+1, maxRetries, backoffDelay, panicValue)
 
-	// Apply backoff delay before republishing (context-aware for graceful shutdown)
+	// CRITICAL: Ack the original message FIRST to prevent RabbitMQ ack timeout.
+	// RabbitMQ has a 30-minute consumer_timeout; with 5-minute backoff delays,
+	// we would exceed this timeout and cause channel closure with "precondition_failed".
+	if err := prc.msg.Ack(false); err != nil {
+		prc.logger.Errorf("Worker %d: failed to ack original message before retry: %v", prc.workerID, err)
+		// If ack fails, the message will be redelivered by RabbitMQ - don't republish
+		return
+	}
+
+	// Apply backoff delay AFTER acking (safe - RabbitMQ ack timer already released)
 	if !sleepWithContext(prc.ctx, backoffDelay) {
-		prc.logger.Warnf("Worker %d: context cancelled during backoff, skipping republish", prc.workerID)
+		prc.logger.Warnf("Worker %d: context cancelled during backoff, message already acked - will not be retried", prc.workerID)
 		return
 	}
 
@@ -724,23 +713,21 @@ func (prc *panicRecoveryContext) republishWithRetry(panicValue any) {
 
 	ch, err := prc.conn.Connection.Channel()
 	if err != nil {
-		prc.handleChannelError(err)
+		prc.logger.Errorf("Worker %d: failed to get channel for republish (message already acked, will be lost): %v", prc.workerID, err)
+		// Message already acked - can't nack. Log the loss for alerting.
+		recordMessageLoss(prc.ctx, prc.queue, "channel_acquisition_failed")
 		return
 	}
 
 	defer ch.Close()
 
-	prc.publishAndAck(ch, headers)
+	prc.publishOnly(ch, headers)
 }
 
-// handleChannelError handles failure to get a channel for republishing
-func (prc *panicRecoveryContext) handleChannelError(err error) {
-	prc.logger.Errorf("Worker %d: failed to get channel for republish: %v", prc.workerID, err)
-	prc.nackWithLogging()
-}
-
-// publishAndAck publishes the message with updated headers and acks the original
-func (prc *panicRecoveryContext) publishAndAck(ch *amqp.Channel, headers amqp.Table) {
+// publishOnly publishes the message with updated headers.
+// NOTE: The original message must already be acked before calling this method.
+// This is part of the ack-first pattern to prevent RabbitMQ consumer_timeout.
+func (prc *panicRecoveryContext) publishOnly(ch *amqp.Channel, headers amqp.Table) {
 	err := ch.Publish(
 		"",        // exchange (use default)
 		prc.queue, // routing key (queue name)
@@ -754,27 +741,14 @@ func (prc *panicRecoveryContext) publishAndAck(ch *amqp.Channel, headers amqp.Ta
 		},
 	)
 	if err != nil {
-		prc.logger.Errorf("Worker %d: failed to republish message: %v", prc.workerID, err)
-		prc.nackWithLogging()
+		prc.logger.Errorf("Worker %d: failed to republish message (message already acked, will be lost): %v", prc.workerID, err)
+		// Message already acked - can't nack. Log the loss for alerting.
+		recordMessageLoss(prc.ctx, prc.queue, "publish_failed")
 
 		return
 	}
 
-	if err := prc.msg.Ack(false); err != nil {
-		prc.logger.Warnf("Worker %d: failed to ack original message after republish: %v", prc.workerID, err)
-	}
-}
-
-// nackWithLogging delegates to performNackWithLogging with context fields.
-func (prc *panicRecoveryContext) nackWithLogging() {
-	performNackWithLogging(&nackParams{
-		ctx:        prc.ctx,
-		logger:     prc.logger,
-		msg:        prc.msg,
-		queue:      prc.queue,
-		workerID:   prc.workerID,
-		retryCount: prc.retryCount,
-	})
+	prc.logger.Infof("Worker %d: successfully republished message for retry %d/%d", prc.workerID, prc.retryCount+1, maxRetries)
 }
 
 // extractMidazID extracts the Midaz ID from message headers.
@@ -797,13 +771,14 @@ func extractMidazID(headers amqp.Table) string {
 
 // messageProcessingContext holds all context needed for processing a single message.
 type messageProcessingContext struct {
-	ctx      context.Context
-	logger   libLog.Logger
-	span     trace.Span
-	msg      *amqp.Delivery
-	queue    string
-	workerID int
-	conn     *libRabbitmq.RabbitMQConnection
+	ctx            context.Context
+	logger         libLog.Logger
+	span           trace.Span
+	msg            *amqp.Delivery
+	queue          string
+	workerID       int
+	conn           *libRabbitmq.RabbitMQConnection
+	onDLQPublished OnDLQPublishedFunc // Optional callback after DLQ publish
 }
 
 // createMessageProcessingContext creates all the context and tracing for message processing.
@@ -826,13 +801,14 @@ func (cr *ConsumerRoutes) createMessageProcessingContext(msg *amqp.Delivery, que
 	ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqID))
 
 	return &messageProcessingContext{
-		ctx:      ctx,
-		logger:   logger,
-		span:     span,
-		msg:      msg,
-		queue:    queue,
-		workerID: workerID,
-		conn:     cr.conn,
+		ctx:            ctx,
+		logger:         logger,
+		span:           span,
+		msg:            msg,
+		queue:          queue,
+		workerID:       workerID,
+		conn:           cr.conn,
+		onDLQPublished: cr.OnDLQPublished,
 	}
 }
 
@@ -891,15 +867,16 @@ func (mpc *messageProcessingContext) processHandler(handlerFunc QueueHandlerFunc
 
 		// Use retry tracking for business errors instead of infinite NACK loop
 		bec := &businessErrorContext{
-			ctx:        mpc.ctx,
-			logger:     mpc.logger,
-			span:       mpc.span,
-			msg:        mpc.msg,
-			queue:      mpc.queue,
-			workerID:   mpc.workerID,
-			retryCount: retryCount,
-			conn:       mpc.conn,
-			err:        err,
+			ctx:            mpc.ctx,
+			logger:         mpc.logger,
+			span:           mpc.span,
+			msg:            mpc.msg,
+			queue:          mpc.queue,
+			workerID:       mpc.workerID,
+			retryCount:     retryCount,
+			conn:           mpc.conn,
+			err:            err,
+			onDLQPublished: mpc.onDLQPublished,
 		}
 		bec.handleBusinessError()
 
@@ -919,12 +896,21 @@ func (mpc *messageProcessingContext) ackMessage() {
 // QueueHandlerFunc is a function that process a specific queue.
 type QueueHandlerFunc func(ctx context.Context, body []byte) error
 
+// OnDLQPublishedFunc is invoked after a message is successfully published to DLQ.
+// Best-effort: implementations must never block DLQ publishing.
+// Parameters:
+//   - ctx: Context for the operation (with tracing)
+//   - originalQueue: The original queue name where the message came from
+//   - body: The original message body
+type OnDLQPublishedFunc func(ctx context.Context, originalQueue string, body []byte)
+
 // ConsumerRoutes struct
 type ConsumerRoutes struct {
 	conn              *libRabbitmq.RabbitMQConnection
 	routes            map[string]QueueHandlerFunc
 	NumbersOfWorkers  int
 	NumbersOfPrefetch int
+	OnDLQPublished    OnDLQPublishedFunc // Optional callback for DLQ publish events
 	libLog.Logger
 	libOpentelemetry.Telemetry
 }

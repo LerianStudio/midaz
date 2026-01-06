@@ -135,20 +135,20 @@ func TestHandleBusinessError_RoutingDecision_MaxRetriesExceeded(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "5th delivery (retryCount=4) routes to DLQ",
-			retryCount:  4, // maxRetries-1 = 4, so this triggers DLQ routing
+			name:        "boundary delivery (retryCount=maxRetries-1) routes to DLQ",
+			retryCount:  maxRetries - 1,
 			shouldRoute: true,
 			description: "When retryCount equals maxRetries-1, message should route to DLQ",
 		},
 		{
-			name:        "6th delivery (retryCount=5) routes to DLQ",
-			retryCount:  5, // Greater than maxRetries-1, definitely DLQ
+			name:        "retryCount beyond boundary routes to DLQ",
+			retryCount:  maxRetries,
 			shouldRoute: true,
 			description: "When retryCount exceeds maxRetries-1, message should route to DLQ",
 		},
 		{
 			name:        "extreme retry count routes to DLQ",
-			retryCount:  100, // Far exceeds maxRetries
+			retryCount:  maxRetries + 100,
 			shouldRoute: true,
 			description: "Extreme retry counts should still route to DLQ",
 		},
@@ -230,37 +230,34 @@ func TestHandleBusinessError_RoutingDecision_RetriesRemaining(t *testing.T) {
 func TestHandleBusinessError_BoundaryCondition(t *testing.T) {
 	t.Parallel()
 
-	// maxRetries = 4 (defined in consumer.rabbitmq.go)
-	// Boundary is at retryCount = maxRetries - 1 = 3
+	// Boundary is at retryCount = maxRetries - 1
 
-	t.Run("retryCount=2 should republish (below boundary)", func(t *testing.T) {
+	t.Run("retryCount=maxRetries-2 should republish (below boundary)", func(t *testing.T) {
 		t.Parallel()
 
-		retryCount := 2
-		shouldRepublish := retryCount < maxRetries-1 // 2 < 3 = true
+		retryCount := maxRetries - 2
+		shouldRepublish := retryCount < maxRetries-1
 
 		assert.True(t, shouldRepublish,
 			"retryCount=%d (delivery %d) should republish because %d < %d (maxRetries-1)",
 			retryCount, retryCount+1, retryCount, maxRetries-1)
 	})
 
-	t.Run("retryCount=4 should route to DLQ (at boundary)", func(t *testing.T) {
+	t.Run("retryCount=maxRetries-1 should route to DLQ (at boundary)", func(t *testing.T) {
 		t.Parallel()
 
-		retryCount := 4
-		shouldRouteToDLQ := retryCount >= maxRetries-1 // 4 >= 4 = true
+		retryCount := maxRetries - 1
+		shouldRouteToDLQ := retryCount >= maxRetries-1
 
 		assert.True(t, shouldRouteToDLQ,
 			"retryCount=%d (delivery %d) should route to DLQ because %d >= %d (maxRetries-1)",
 			retryCount, retryCount+1, retryCount, maxRetries-1)
 	})
 
-	t.Run("maxRetries constant is 5", func(t *testing.T) {
+	t.Run("maxRetries constant is 288", func(t *testing.T) {
 		t.Parallel()
 
-		// Verify the constant value (5 delivery attempts = 4 retries with backoff: 0s, 5s, 15s, 30s)
-		assert.Equal(t, 5, maxRetries,
-			"maxRetries should be 5 (5 delivery attempts to enable all 4 backoff delays)")
+		assert.Equal(t, 288, maxRetries, "maxRetries should be 288 (~24h retry window)")
 	})
 }
 
@@ -584,9 +581,8 @@ func TestRetryLogic_CompleteFlow(t *testing.T) {
 		sequence := []delivery{
 			{retryCount: 0, action: "republish", deliveryNum: 1},
 			{retryCount: 1, action: "republish", deliveryNum: 2},
-			{retryCount: 2, action: "republish", deliveryNum: 3},
-			{retryCount: 3, action: "republish", deliveryNum: 4},
-			{retryCount: 4, action: "dlq", deliveryNum: 5},
+			{retryCount: maxRetries - 2, action: "republish", deliveryNum: maxRetries - 1},
+			{retryCount: maxRetries - 1, action: "dlq", deliveryNum: maxRetries},
 		}
 
 		for _, d := range sequence {
@@ -644,8 +640,8 @@ func TestRetryLogic_PanicVsBusinessError(t *testing.T) {
 		// if bec.retryCount >= maxRetries-1 { /* DLQ */ }
 
 		// Both use the same boundary: maxRetries-1
-		assert.Equal(t, 5, maxRetries, "maxRetries should be 5 (5 deliveries = 4 retries)")
-		assert.Equal(t, 4, maxRetries-1, "DLQ routing boundary should be at retryCount=4")
+		assert.Equal(t, 288, maxRetries, "maxRetries should be 288 (~24h retry window)")
+		assert.Equal(t, 287, maxRetries-1, "DLQ routing boundary should be at retryCount=287")
 	})
 
 	t.Run("both handlers use safeIncrementRetryCount", func(t *testing.T) {
@@ -692,26 +688,14 @@ func TestRetryBackoffCalculation(t *testing.T) {
 		retryCount    int
 		expectedDelay time.Duration
 	}{
-		{
-			name:          "first retry (attempt 2) - immediate",
-			retryCount:    1,
-			expectedDelay: 0,
-		},
-		{
-			name:          "second retry (attempt 3) - 5s delay",
-			retryCount:    2,
-			expectedDelay: 5 * time.Second,
-		},
-		{
-			name:          "third retry (attempt 4) - 15s delay",
-			retryCount:    3,
-			expectedDelay: 15 * time.Second,
-		},
-		{
-			name:          "fourth retry (attempt 5) - 30s delay",
-			retryCount:    4,
-			expectedDelay: 30 * time.Second,
-		},
+		{name: "first retry (attempt 2) - immediate", retryCount: 1, expectedDelay: 0},
+		{name: "second retry (attempt 3) - 5s delay", retryCount: 2, expectedDelay: 5 * time.Second},
+		{name: "third retry (attempt 4) - 15s delay", retryCount: 3, expectedDelay: 15 * time.Second},
+		{name: "fourth retry (attempt 5) - 30s delay", retryCount: 4, expectedDelay: 30 * time.Second},
+		{name: "fifth retry (attempt 6) - 1m delay", retryCount: 5, expectedDelay: 1 * time.Minute},
+		{name: "sixth retry (attempt 7) - 2m delay", retryCount: 6, expectedDelay: 2 * time.Minute},
+		{name: "seventh retry (attempt 8) - capped at 5m", retryCount: 7, expectedDelay: 5 * time.Minute},
+		{name: "hundredth retry still 5m", retryCount: 100, expectedDelay: 5 * time.Minute},
 	}
 
 	for _, tt := range tests {
@@ -738,8 +722,8 @@ func TestRetryBackoffConstants(t *testing.T) {
 			totalDelay += retryBackoffDelays[i]
 		}
 
-		assert.Equal(t, 50*time.Second, totalDelay,
-			"retryBackoffDelays array should sum to 50 seconds")
+		assert.Equal(t, 8*time.Minute+50*time.Second, totalDelay,
+			"retryBackoffDelays array should sum to 8m50s")
 	})
 
 	t.Run("actual retry flow window matches requirements", func(t *testing.T) {
@@ -753,10 +737,18 @@ func TestRetryBackoffConstants(t *testing.T) {
 			totalDelay += calculateRetryBackoff(retryCount + 1)
 		}
 
-		assert.GreaterOrEqual(t, totalDelay, 45*time.Second,
-			"Actual retry window (retryCount 0 to %d) should cover PostgreSQL restart times", maxRetries-2)
-		assert.LessOrEqual(t, totalDelay, 60*time.Second,
-			"Actual retry window should not exceed 60 seconds")
+		expectedTotal := time.Duration(0)
+		for _, d := range retryBackoffDelays {
+			expectedTotal += d
+		}
+		cappedRetries := (maxRetries - 1) - len(retryBackoffDelays)
+		if cappedRetries > 0 {
+			expectedTotal += time.Duration(cappedRetries) * retryBackoffDelays[len(retryBackoffDelays)-1]
+		}
+
+		assert.Equal(t, expectedTotal, totalDelay, "Actual retry window should match calculated total")
+		assert.GreaterOrEqual(t, totalDelay, 23*time.Hour, "Actual retry window should cover long outages")
+		assert.LessOrEqual(t, totalDelay, 24*time.Hour, "Actual retry window should not exceed 24 hours")
 	})
 }
 
@@ -789,15 +781,15 @@ func TestRetryBackoffCalculation_EdgeCases(t *testing.T) {
 		},
 		{
 			name:          "retry count beyond array length caps at max",
-			retryCount:    5,
-			expectedDelay: 30 * time.Second,
-			rationale:     "Beyond array bounds should cap at last element (30s)",
+			retryCount:    8,
+			expectedDelay: 5 * time.Minute,
+			rationale:     "Beyond array bounds should cap at last element (5m)",
 		},
 		{
 			name:          "large retry count caps at max",
 			retryCount:    1000,
-			expectedDelay: 30 * time.Second,
-			rationale:     "Very large values should cap at last element (30s)",
+			expectedDelay: 5 * time.Minute,
+			rationale:     "Very large values should cap at last element (5m)",
 		},
 	}
 
@@ -809,4 +801,86 @@ func TestRetryBackoffCalculation_EdgeCases(t *testing.T) {
 			assert.Equal(t, tt.expectedDelay, delay, tt.rationale)
 		})
 	}
+}
+
+// =============================================================================
+// Ack-First Pattern Tests
+// =============================================================================
+// These tests document and verify the ack-first pattern that prevents
+// RabbitMQ consumer acknowledgement timeout (precondition_failed).
+
+// TestAckFirstPattern_BackoffDoesNotExceedConsumerTimeout verifies that
+// individual backoff delays are shorter than RabbitMQ's consumer_timeout.
+func TestAckFirstPattern_BackoffDoesNotExceedConsumerTimeout(t *testing.T) {
+	t.Parallel()
+
+	// RabbitMQ default consumer_timeout is 30 minutes (1800000ms)
+	// Our max backoff is 5 minutes, which is well under this limit.
+	// The ack-first pattern ensures we ack BEFORE sleeping, so the
+	// consumer_timeout is never triggered.
+	rabbitMQConsumerTimeout := 30 * time.Minute
+	maxBackoff := retryBackoffDelays[len(retryBackoffDelays)-1]
+
+	assert.Less(t, maxBackoff, rabbitMQConsumerTimeout,
+		"Max backoff (%v) should be less than RabbitMQ consumer_timeout (%v)",
+		maxBackoff, rabbitMQConsumerTimeout)
+
+	// Verify all backoff delays are under the timeout
+	for i, delay := range retryBackoffDelays {
+		assert.Less(t, delay, rabbitMQConsumerTimeout,
+			"Backoff delay at index %d (%v) should be less than consumer_timeout", i, delay)
+	}
+}
+
+// TestAckFirstPattern_TotalRetryWindowDocumentation documents the retry window
+// and explains why the ack-first pattern is necessary.
+func TestAckFirstPattern_TotalRetryWindowDocumentation(t *testing.T) {
+	t.Parallel()
+
+	// Calculate total retry window
+	totalWindow := time.Duration(0)
+	for retryCount := 0; retryCount < maxRetries-1; retryCount++ {
+		totalWindow += calculateRetryBackoff(retryCount + 1)
+	}
+
+	// With 288 retries and 5-minute max backoff, total window is ~24 hours
+	// This is intentional to handle extended infrastructure outages.
+	//
+	// PROBLEM (before fix):
+	// - Consumer sleeps for backoff BEFORE acking
+	// - RabbitMQ has 30-minute consumer_timeout
+	// - With 5-minute backoffs, after 6 retries (30 min), RabbitMQ closes channel
+	// - Error: "consumer acknowledgement ... timed out ... precondition_failed"
+	//
+	// SOLUTION (ack-first pattern):
+	// - Ack the message FIRST (releases RabbitMQ's ack timer)
+	// - Then sleep for backoff (safe - message already acked)
+	// - Then republish with incremented retry counter
+	//
+	// TRADE-OFF:
+	// - If process crashes during backoff, message is lost
+	// - Acceptable because: transaction is in Redis, balance sync worker will persist
+
+	assert.GreaterOrEqual(t, totalWindow, 23*time.Hour,
+		"Total retry window should be at least 23 hours for extended outages")
+	assert.LessOrEqual(t, totalWindow, 24*time.Hour,
+		"Total retry window should not exceed 24 hours")
+
+	// Verify the fix is necessary: without ack-first, we'd hit timeout
+	rabbitMQConsumerTimeout := 30 * time.Minute
+	cumulativeBackoff := time.Duration(0)
+	retriesBeforeTimeout := 0
+
+	for retryCount := 0; retryCount < maxRetries-1; retryCount++ {
+		cumulativeBackoff += calculateRetryBackoff(retryCount + 1)
+		if cumulativeBackoff >= rabbitMQConsumerTimeout {
+			retriesBeforeTimeout = retryCount + 1
+			break
+		}
+	}
+
+	assert.Greater(t, retriesBeforeTimeout, 0,
+		"Without ack-first, we would hit consumer_timeout after %d retries", retriesBeforeTimeout)
+	assert.Less(t, retriesBeforeTimeout, maxRetries,
+		"Without ack-first, we would hit consumer_timeout before completing all retries")
 }
