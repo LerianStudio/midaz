@@ -83,6 +83,8 @@ func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 
 			assert.Equal(t, tt.expectedLength, len(cab.Key), tt.description)
 			assert.LessOrEqual(t, len(cab.Key), 100, "Key length should not exceed 100 characters")
+			assert.NotNil(t, cab.AllowSending, "AllowSending should be set")
+			assert.NotNil(t, cab.AllowReceiving, "AllowReceiving should be set")
 		})
 	}
 }
@@ -132,6 +134,20 @@ func TestBalance_KeyField(t *testing.T) {
 				AllowSending:   true,
 				AllowReceiving: true,
 			}
+
+			// Verify all balance fields are properly set
+			assert.Equal(t, "balance-123", balance.ID)
+			assert.Equal(t, "org-123", balance.OrganizationID)
+			assert.Equal(t, "ledger-456", balance.LedgerID)
+			assert.Equal(t, "account-789", balance.AccountID)
+			assert.Equal(t, "test-alias", balance.Alias)
+			assert.Equal(t, "USD", balance.AssetCode)
+			assert.Equal(t, decimal.NewFromInt(1000), balance.Available)
+			assert.Equal(t, decimal.NewFromInt(0), balance.OnHold)
+			assert.Equal(t, int64(1), balance.Version)
+			assert.Equal(t, "deposit", balance.AccountType)
+			assert.True(t, balance.AllowSending)
+			assert.True(t, balance.AllowReceiving)
 
 			if tt.shouldBeSet {
 				assert.NotEmpty(t, balance.Key, "Key should be set")

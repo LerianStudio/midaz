@@ -202,6 +202,11 @@ type Transaction struct {
 
 	// List of operations associated with this transaction
 	Operations []*Operation `json:"operations"`
+
+	// BalanceStatus tracks the state of async balance updates
+	// Values: PENDING, CONFIRMED, FAILED. Nil for sync transactions.
+	// example: CONFIRMED
+	BalanceStatus *constant.BalanceStatus `json:"balanceStatus,omitempty" example:"CONFIRMED" enums:"PENDING,CONFIRMED,FAILED"`
 } // @name Transaction
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
