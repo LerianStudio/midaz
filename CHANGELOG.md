@@ -1,3 +1,12 @@
+## [v3.5.0-beta.33] - 2026-01-06
+
+### 🐛 Bug Fixes
+- update application name from "crm" to "plugin-crm" in routes configuration
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.32] - 2026-01-06
 
 ### ✨ Features
@@ -793,7 +802,7 @@ Contributors: Clara Tersi, lerian-studio
 - **Changelog Update**: The CHANGELOG has been revised to incorporate the latest changes and improvements, providing users with a comprehensive and transparent record of updates. This facilitates easier tracking of project evolution and understanding of new features and fixes.
 
 
-## [v3.4.4] - 2025-11-25
+## [v3.5.0-beta.34] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
 Contributors: Clara Tersi, lerian-studio
