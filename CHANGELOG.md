@@ -1,3 +1,22 @@
+## [v3.5.0-beta.31] - 2026-01-06
+
+### ✨ Features
+- add regulatory_fields_participant_document to SearchMongoDB and update related services
+- add related_party_id to UUIDPathParameters in http.go
+
+### 🔄 Changes
+- remove RelatedParty references from CreateAliasInput and related functions
+- update services and handlers for RelatedParty
+- update MongoDB adapters for RelatedParty embedded documents
+- replace HolderLink with RelatedParty and add RegulatoryFields models
+
+### 📚 Documentation
+- update swagger for RelatedParty and RegulatoryFields
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.30] - 2025-12-30
 
 ### ✨ Features
@@ -418,7 +437,7 @@ Contributors: Clara Tersi
 - **Documentation and Configuration**: Updated version information across documentation and configuration files to reflect the latest release, ensuring clarity and consistency for both users and developers.
 
 
-## [v3.4.6] - 2025-12-04
+## [v3.5.0-beta.32] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
 Contributors: Augusto Alvarenga, lerian-studio
