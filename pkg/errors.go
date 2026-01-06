@@ -542,6 +542,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Corrupted Parent Account UUID",
 			Message:    "Data corruption detected: invalid UUID found in parent account chain. Please contact support.",
 		},
+		constant.ErrInvalidBalanceStatus: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidBalanceStatus.Error(),
+			Title:      "Invalid Balance Status",
+			Message:    "The balanceStatus field must be one of: PENDING, CONFIRMED, FAILED.",
+		},
 		constant.ErrMismatchedAssetCode: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrMismatchedAssetCode.Error(),

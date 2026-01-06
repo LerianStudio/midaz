@@ -155,6 +155,7 @@ var (
 	ErrAccountHierarchyTooDeep                  = errors.New("0145")
 	ErrInvalidRateValue                         = errors.New("0146")
 	ErrCorruptedParentAccountUUID               = errors.New("0147")
+	ErrInvalidBalanceStatus                     = errors.New("0148")
 
 	// CRM errors
 	ErrHolderNotFound                     = errors.New("CRM-0006")
