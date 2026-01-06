@@ -6,7 +6,7 @@
 
 **SLA:** The "201 promise" has a **24-hour SLA**. After 288 retries (~24h), transactions are marked `FAILED` and routed to DLQ for manual intervention. This is a pragmatic balance between guaranteed persistence and operational reality.
 
-**Architecture:** Add a `balance_status` field to transactions that tracks whether balance updates completed. Increase retry tolerance from 5 attempts (~50s) to time-based (24h) with exponential backoff capped at 5 minutes. Update balance_status on success/failure. Expose status via existing transaction GET endpoint.
+**Architecture:** Add a `balance_status` field to transactions that tracks whether async balance updates completed (distinct from the existing transaction lifecycle `status`). Increase retry tolerance from 5 attempts (~50s) to time-based (~24h) with exponential backoff capped at 5 minutes. Update balance_status on success/failure. Expose status via existing transaction GET endpoint only when explicitly requested and authorized (Task 3a).
 
 **Tech Stack:** Go 1.22+, PostgreSQL 14+, RabbitMQ 3.x, Redis/Valkey
 
@@ -69,23 +69,32 @@ BEGIN;
 --   PENDING   - Balance update queued but not yet confirmed
 --   CONFIRMED - Balance update completed successfully
 --   FAILED    - Balance update failed after max retries (in DLQ)
--- Default PENDING for new transactions created in async mode
 -- NULL for sync transactions (balance updated synchronously)
 ALTER TABLE "transaction"
     ADD COLUMN balance_status TEXT
     CHECK (balance_status IS NULL OR balance_status IN ('PENDING', 'CONFIRMED', 'FAILED'));
 
--- Index for efficient status queries (partial index excludes NULLs and CONFIRMED)
+-- Durable proof that balances were persisted successfully.
+-- This prevents reconciliation from guessing based on secondary signals.
+ALTER TABLE "transaction"
+    ADD COLUMN balance_persisted_at TIMESTAMPTZ NULL;
+
+-- Index for efficient status queries.
+-- NOTE: Put created_at first to match queries like:
+--   WHERE balance_status='PENDING' AND created_at < $1 ORDER BY created_at ASC
 CREATE INDEX idx_transaction_balance_status_pending
-    ON "transaction" (balance_status, created_at)
+    ON "transaction" (created_at, balance_status)
     WHERE balance_status = 'PENDING';
 
 -- Index for failed transactions requiring attention
 CREATE INDEX idx_transaction_balance_status_failed
-    ON "transaction" (balance_status, updated_at)
+    ON "transaction" (updated_at, balance_status)
     WHERE balance_status = 'FAILED';
 
 COMMENT ON COLUMN "transaction".balance_status IS 'Tracks async balance update state: PENDING=queued, CONFIRMED=completed, FAILED=DLQ. NULL for sync transactions.';
+COMMENT ON COLUMN "transaction".balance_persisted_at IS 'Timestamp set only when balances are durably persisted; used as proof for reconciliation.';
+
+-- IMPORTANT: balance_persisted_at is internal-only and must NOT be exposed via public APIs.
 
 COMMIT;
 ```
@@ -99,6 +108,7 @@ BEGIN;
 
 DROP INDEX IF EXISTS idx_transaction_balance_status_failed;
 DROP INDEX IF EXISTS idx_transaction_balance_status_pending;
+ALTER TABLE "transaction" DROP COLUMN IF EXISTS balance_persisted_at;
 ALTER TABLE "transaction" DROP COLUMN IF EXISTS balance_status;
 
 COMMIT;
@@ -161,6 +171,8 @@ const (
 
 // BalanceStatus represents the state of async balance updates for a transaction.
 // Used for saga-like consistency tracking.
+// NOTE: These values intentionally overlap with other status strings (e.g., transaction lifecycle PENDING).
+// Always reference them via the BalanceStatus* constants to avoid confusion.
 const (
 	// BalanceStatusPending indicates balance update is queued but not yet confirmed.
 	BalanceStatusPending = "PENDING"
@@ -244,6 +256,32 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./pkg/mmodel/...
 
 ---
 
+### Task 3a: Gate `balanceStatus` exposure (security)
+
+**Goal:** Avoid leaking operational health signals to unprivileged clients.
+
+**Files:**
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/http/in/transaction.go`
+
+**Approach:**
+- Default behavior: omit `balanceStatus` (set to `nil` so `omitempty` removes it)
+- Opt-in: `GET .../transactions/{transaction_id}?includeBalanceStatus=true`
+- Authorization: require explicit scope `transactions:read_balance_status`
+
+**Step 1: Add query param handling**
+- Parse `includeBalanceStatus` from query params
+
+**Step 2: Authorization gate (explicit 403)**
+- If `includeBalanceStatus=true` and caller lacks `transactions:read_balance_status`, return **HTTP 403**
+- If `includeBalanceStatus` is not set, always omit `balanceStatus`
+
+**Step 3: Verify swagger/docs reflect param**
+- Add swagger annotation example:
+  - `@Param includeBalanceStatus query boolean false "Include balance status (requires transactions:read_balance_status)"`
+- Regenerate API docs if the project uses generated swagger artifacts
+
+---
+
 ### Task 4: Update PostgreSQL model for BalanceStatus
 
 **Files:**
@@ -266,6 +304,7 @@ Replace with:
 ```go
 	Metadata                 map[string]any              // Additional custom attributes
 	BalanceStatus            *string                     // Async balance update status: PENDING, CONFIRMED, FAILED
+	BalancePersistedAt       *time.Time                  // INTERNAL ONLY: proof timestamp (do not expose in public API)
 }
 ```
 
@@ -288,6 +327,8 @@ After it, add:
 ```
 
 **Step 3: Update FromEntity method to map BalanceStatus**
+
+Note: `BalancePersistedAt` should NOT be set from the entity on create; it is written by the repository when setting `CONFIRMED`.
 
 Find the FromEntity method (around line 101). After line 120 (the Route mapping), add:
 
@@ -333,6 +374,8 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 
 **Prerequisites:**
 - Task 4 completed
+
+**Important:** Do NOT add `balance_persisted_at` to `transactionColumnList` because scan targets are the public `Transaction` model. `balance_persisted_at` is internal-only and should be handled via a dedicated reconciliation query (see Phase 5).
 
 **Step 1: Add balance_status to transactionColumnList**
 
@@ -477,7 +520,26 @@ Find:
 
 Replace with:
 ```go
-	result, err := executor.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) ON CONFLICT (id) DO NOTHING`,
+	result, err := executor.ExecContext(ctx, `INSERT INTO transaction (
+	id,
+	parent_transaction_id,
+	description,
+	status,
+	status_description,
+	amount,
+	asset_code,
+	chart_of_accounts_group_name,
+	ledger_id,
+	organization_id,
+	body,
+	created_at,
+	updated_at,
+	deleted_at,
+	route,
+	balance_status,
+	balance_persisted_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+ON CONFLICT (id) DO NOTHING`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -494,6 +556,7 @@ Replace with:
 		record.DeletedAt,
 		record.Route,
 		record.BalanceStatus,
+		record.BalancePersistedAt,
 	)
 ```
 
@@ -674,14 +737,16 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 **Prerequisites:**
 - Task 7 completed
 
-**Step 1: Add interface method to Repository**
+**Step 1: Add interface methods to Repository**
 
-Find the Repository interface (around line 78). Add UpdateBalanceStatus method:
+Find the `Repository` interface in `transaction.postgresql.go` (near the other CRUD methods and `FindOrListAllWithOperations`). Add BOTH methods so the concrete repository satisfies all call sites:
 
-After line 85 (`Delete` method), add:
 ```go
 	UpdateBalanceStatus(ctx context.Context, organizationID, ledgerID, id uuid.UUID, status string) error
+	FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error)
 ```
+
+Note: `FindPendingForReconciliation` is intentionally a narrow internal query because `balance_persisted_at` must not be added to the public scan paths.
 
 **Step 2: Add ValidateBalanceStatus helper function**
 
@@ -706,12 +771,10 @@ After the Delete method (around line 887), add the new method:
 
 ```go
 // UpdateBalanceStatus updates the balance_status column for a transaction.
-// Used by async processing to mark transactions as CONFIRMED or FAILED.
-//
-// State machine transitions enforced:
-//   - NULL/PENDING -> CONFIRMED (success)
-//   - NULL/PENDING -> FAILED (DLQ after max retries)
-//   - FAILED -> PENDING (manual retry - future feature)
+// Valid transitions:
+// - NULL/PENDING -> CONFIRMED (balance persisted; set balance_persisted_at)
+// - NULL/PENDING -> FAILED (max retries exceeded, message routed to DLQ)
+// - FAILED -> PENDING (manual retry via admin action)
 // Invalid transitions (CONFIRMED -> anything) are silently ignored (idempotent).
 func (r *TransactionPostgreSQLRepository) UpdateBalanceStatus(ctx context.Context, organizationID, ledgerID, id uuid.UUID, status string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -740,7 +803,13 @@ func (r *TransactionPostgreSQLRepository) UpdateBalanceStatus(ctx context.Contex
 	// Valid: NULL->CONFIRMED, NULL->FAILED, PENDING->CONFIRMED, PENDING->FAILED, FAILED->PENDING
 	// Invalid (idempotent): CONFIRMED->anything (already terminal)
 	result, err := db.ExecContext(ctx,
-		`UPDATE transaction SET balance_status = $1, updated_at = now()
+		`UPDATE transaction
+		 SET balance_status = $1,
+		     balance_persisted_at = CASE
+		       WHEN $1 = 'CONFIRMED' THEN now()
+		       ELSE balance_persisted_at
+		     END,
+		     updated_at = now()
 		 WHERE organization_id = $2 AND ledger_id = $3 AND id = $4
 		 AND deleted_at IS NULL
 		 AND (
@@ -873,7 +942,7 @@ const maxRetries = 5
 Replace with:
 ```go
 // maxRetries is the maximum number of delivery attempts (including first delivery)
-// before routing to DLQ. Increased from 5 to 288 to span ~24 hours with
+// before routing to DLQ. Increased from 5 to 288 to span ~24 hours (≈23h 34m) with
 // capped exponential backoff (max 5 minutes between attempts).
 // This supports the "201 promise" - once client gets 201, we keep trying
 // until infrastructure recovers (typically 1-30 minutes for DB/Redis restarts).
@@ -927,6 +996,48 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 
 ---
 
+### Task 10a: Add retry-storm guardrails (anti-DoS)
+
+**Goal:** Preserve the 24h retry window for genuine outages while preventing unbounded resource consumption during poison-message storms or abuse.
+
+**Files:**
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/rabbitmq/consumer.rabbitmq.go`
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/rabbitmq/metrics.go`
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-balance-transaction-operations-async.go` (extract key for budgeting)
+
+**Step 1: Add hybrid retry budgets (Redis/Valkey with TTL + time buckets)**
+
+Design goals:
+- Protect the system from poison-message storms on hot balance keys
+- Avoid punishing legitimate traffic forever (use time buckets)
+- Keep correctness independent from budgets (budgets are guardrails, not idempotency)
+
+Keys:
+- Per-transaction cap (prevents churn): `retry_budget:tx:{org}:{ledger}:{tx_id}`
+- Per-balance-key cap (prevents hot-key storms): `retry_budget:key:{org}:{ledger}:{balance_key}:{bucket_10m}`
+  - `bucket_10m = unix_timestamp / 600`
+
+Behavior:
+- Per-tx budget TTL: **48h** (match Lua idempotency TTL)
+- Per-balance-key bucket TTL: **10m + jitter** (e.g., 10m + [0..60s])
+- On each retryable business error, increment both counters
+- If either counter exceeds threshold:
+  - Prefer **cooldown** first (delay republish longer)
+  - Escalate to DLQ if budget remains exhausted across multiple cooldowns
+- If Redis/Valkey is unavailable: **fail open** (skip budget enforcement) and emit a metric
+
+**Step 2: Emit low-cardinality metrics**
+- `transaction_retry_budget_exhausted_total{queue="...", budget="tx|balance_key"}`
+- `transaction_retry_budget_check_failed_total{queue="..."}`
+- `transaction_retry_routed_to_dlq_total{queue="...", reason="budget_exhausted|max_retries"}`
+
+**Step 3: Add operational alerting thresholds**
+- Alert on sustained `retry_budget_exhausted_total` growth
+- Alert on `retry_budget_check_failed_total` spikes (Redis issues)
+- Alert on DLQ growth and DLQ publish failures
+
+---
+
 ### Task 11: Add DLQ alerting metric for balance_status
 
 **Files:**
@@ -949,30 +1060,39 @@ After the messageRetryMetric (around line 42), add:
 
 **Step 2: Add RecordBalanceStatusFailed method**
 
-After RecordMessageRetry method (around line 140), add:
+After RecordMessageRetry method (around line 140), add (requires `github.com/LerianStudio/midaz/v3/pkg/mlog` import for structured logging):
 
 ```go
 // RecordBalanceStatusFailed increments the transaction_balance_status_failed_total counter.
 // This is called when a transaction's balance update fails after max retries and is marked FAILED.
-func (dm *DLQMetrics) RecordBalanceStatusFailed(ctx context.Context, queue, transactionID string) {
+func (dm *DLQMetrics) RecordBalanceStatusFailed(ctx context.Context, queue string) {
 	if dm == nil || dm.factory == nil {
 		return
 	}
 
+	// IMPORTANT: Do NOT include transaction_id as a metric label (high cardinality / DoS risk).
+	// Use structured logs for correlation instead.
 	dm.factory.Counter(balanceStatusFailedMetric).
 		WithLabels(map[string]string{
-			"queue":          sanitizeLabelValue(queue),
-			"transaction_id": sanitizeLabelValue(transactionID),
+			"queue": sanitizeLabelValue(queue),
 		}).
 		AddOne(ctx)
 }
 
 // recordBalanceStatusFailed is a package-level helper that records a balance status failure.
+// Keep transactionID only for logs (not metric labels).
 func recordBalanceStatusFailed(ctx context.Context, queue, transactionID string) {
 	dm := GetDLQMetrics()
 	if dm != nil {
-		dm.RecordBalanceStatusFailed(ctx, queue, transactionID)
+		dm.RecordBalanceStatusFailed(ctx, queue)
 	}
+
+	logger := mlog.NewLoggerFromContext(ctx)
+	logger.WithFields(map[string]interface{}{
+		"event":          "balance_status_failed",
+		"queue":          queue,
+		"transaction_id": transactionID,
+	}).Warn("Transaction marked FAILED (DLQ)")
 }
 ```
 
@@ -998,7 +1118,8 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && git add -A && git commit -m "fe
 
 - Increase maxRetries from 5 to 288 (~24 hours)
 - Update backoff delays: 0s, 5s, 15s, 30s, 1m, 2m, 5m (capped)
-- Add balance_status_failed metric for observability
+- Add retry-storm guardrails (per-key retry budget)
+- Add balance_status_failed metric for observability (no high-cardinality labels)
 - Supports 201 promise: keep retrying until infrastructure recovers
 
 Part of hybrid transaction consistency implementation."
@@ -1033,46 +1154,113 @@ import (
 
 At the beginning of `CreateBalanceTransactionOperationsAsync`, after extracting the transaction ID, add:
 
-**CRITICAL:** Balance updates and transaction creation happen in the **same database transaction**. If a transaction exists (regardless of status), the balance was already applied. We must skip ALL processing if transaction exists.
+**CRITICAL (exactly-once):** A Postgres `Find()` check alone is not sufficient because the flow can mutate Redis before Postgres is durable. To prevent the crash window (Redis applied → worker dies → redelivery applies again), we must make the **Redis Lua script idempotent by `transaction_id`**.
+
+Idempotency rules:
+- The Lua script must atomically acquire an idempotency key before applying any balance deltas.
+- If the idempotency key already exists, the script must do **nothing** and return a normal balances JSON response built from current Redis cache (so Go can proceed without special-casing).
+- Set TTL to **48h** (24h retry window + buffer).
+
+**Concrete implementation steps (Redis Lua + Go call path):**
+
+**A) Lua script location and contract**
+- File: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/redis/scripts/add_sub.lua`
+- Loaded via: `//go:embed scripts/add_sub.lua` in `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/redis/consumer.redis.go`
+- Called by: `(*RedisConsumerRepository).executeBalanceScript` in `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/redis/consumer.redis.go`
+- Return type requirement (existing invariant): script MUST return `string`/`[]byte` containing JSON array of `[]mmodel.BalanceRedis`
+
+**B) Extend KEYS contract**
+- Existing:
+  - `KEYS[1]` = `backup_queue:{transactions}`
+  - `KEYS[2]` = `transaction:{transactions}:<org>:<ledger>:<tx_id>`
+  - `KEYS[3]` = `schedule:{transactions}:balance-sync`
+- Add:
+  - `KEYS[4]` = `idemp:{transactions}:<org>:<ledger>:<tx_id>` (48h TTL)
+
+**C) Lua idempotency behavior**
+- At the start of `main()` (after reading KEYS/ARGV), attempt:
+  - `SET idempKey "1" NX EX 172800`
+- If SETNX fails (already applied):
+  - DO NOT modify any balance keys
+  - Return balances from current Redis cache, preserving alias from ARGV
+
+**Pseudo-code snippet to add near the start of `main()` in `add_sub.lua`:**
+```lua
+local idempKey = KEYS[4]
+local ttlIdemp = 172800 -- 48h
+
+local function returnBalancesFromCache()
+  local groupSize = 16
+  local returnBalances = {}
+  for i = 2, #ARGV, groupSize do
+    local redisBalanceKey = ARGV[i]
+    local alias = ARGV[i + 5]
+    local currentBalance = redis.call("GET", redisBalanceKey)
+    if not currentBalance then
+      -- If cache is missing, fall back to normal path (or treat as corruption)
+      return nil
+    end
+    local b = cjson.decode(currentBalance)
+    b.Alias = alias
+    table.insert(returnBalances, b)
+  end
+  return cjson.encode(returnBalances)
+end
+
+local ok = redis.call("SET", idempKey, "1", "NX", "EX", ttlIdemp)
+if not ok then
+  local cached = returnBalancesFromCache()
+  if cached then
+    return cached
+  end
+end
+```
+
+**D) Failure semantics (avoid "poisoning" idempotency key)**
+- If the script returns an error after acquiring the idempotency key, the idempotency key must be deleted so the message can be retried safely.
+- Recommended pattern:
+  - introduce a local helper `fail(code)` that:
+    - calls `rollback(rollbackBalances, ttl)` (existing)
+    - `DEL idempKey`
+    - returns `redis.error_reply(code)`
+  - replace existing `rollback(...); return redis.error_reply("...")` sites inside `main()` with `return fail("...")`
+
+**E) Update Go invocation to pass KEYS[4]**
+- File: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/redis/consumer.redis.go`
+- In `executeBalanceScript`, compute:
+  - `idempKey := fmt.Sprintf("idemp:{transactions}:%s:%s:%s", organizationID, ledgerID, transactionID)`
+- Update `script.Run` keys list to include it:
+  - `[]string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey, idempKey}`
+
+**F) Keep Postgres `Find()` check**
+- Keep the Postgres `Find()` check as an optimization + to converge `balance_status`, but it is not the correctness gate.
 
 ```go
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 	// ... existing setup code ...
 
-	// Extract transaction ID from queue data
 	transactionID := data.QueueData[0].ID // Adjust based on actual structure
 
-	// IDEMPOTENCY CHECK: If transaction EXISTS, balance was already applied (atomic DB txn)
-	// We only need to ensure status is CONFIRMED if it was left as PENDING
+	// Optional optimization: if an async tx already exists, do not re-apply balances.
 	existing, err := uc.TransactionRepo.Find(ctx, data.OrganizationID, data.LedgerID, transactionID)
-	if err == nil {
-		// Transaction exists = balance already applied in same DB transaction
-		// Just ensure status is updated to CONFIRMED (may have failed on prior attempt)
-		currentStatus := ""
-		if existing.BalanceStatus != nil {
-			currentStatus = *existing.BalanceStatus
-		}
-
-		if currentStatus == "" || currentStatus == constant.BalanceStatusPending {
-			// Status needs to be updated to CONFIRMED
+	if err == nil && existing.BalanceStatus != nil {
+		if *existing.BalanceStatus == constant.BalanceStatusPending {
+			// IMPORTANT: If this convergence fails, return error so RabbitMQ retries.
 			if statusErr := uc.TransactionRepo.UpdateBalanceStatus(
 				ctx, data.OrganizationID, data.LedgerID, transactionID,
 				constant.BalanceStatusConfirmed,
 			); statusErr != nil {
-				logger.Warnf("Failed to update balance_status to CONFIRMED on retry for %s: %v", transactionID, statusErr)
-			} else {
-				logger.Infof("Updated balance_status to CONFIRMED on retry for %s", transactionID)
+				return statusErr
 			}
 		}
 
-		logger.Infof("Transaction %s already exists (status=%s), skipping duplicate message (idempotent)",
-			transactionID, currentStatus)
-		return nil // SKIP ALL PROCESSING - balance was already applied
+		logger.Infof("Async transaction %s already exists (balanceStatus=%s), skipping duplicate message", transactionID, *existing.BalanceStatus)
+		return nil
 	}
-	// Transaction not found - this is first-time processing, continue
 
 	// ... rest of existing logic ...
+	// Balance update step MUST pass transactionID into Lua script for dedup.
 }
 ```
 
@@ -1106,15 +1294,28 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 **Prerequisites:**
 - Task 13 completed
 
-**Why retry matters:** If balance is updated but CONFIRMED status fails, clients see PENDING. They might retry, causing **duplicate balance effects** (double-credit/debit). This is NOT acceptable in a financial ledger.
+**Why retry matters:** If balances are persisted but CONFIRMED status update fails, clients see PENDING and may retry.
+
+With Lua-level idempotency (Task 13), retries must not create duplicate balance effects, but status convergence is still required to satisfy the visibility promise and reduce client retry pressure.
 
 **Step 1: Update balance_status after successful balance update with retry**
 
-After the balance update succeeds (after `UpdateBalances` returns nil), add a call to update the status with retry logic:
+After the balance update succeeds (after `UpdateBalances` returns nil), add a call to update the status with retry logic.
+
+Also ensure these imports exist in the file:
+```go
+import (
+	"math/rand"
+	"time"
+
+	rabbitmq "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+)
+```
 
 ```go
 // Mark transaction as CONFIRMED after successful balance update
-// CRITICAL: Must succeed to prevent client confusion and duplicate transactions
+// CRITICAL: If this fails, return an error so RabbitMQ retries.
+// Idempotency guarantees ensure a retry won't re-apply balances; it will primarily converge the status.
 var statusErr error
 for attempts := 0; attempts < 3; attempts++ {
 	statusErr = uc.TransactionRepo.UpdateBalanceStatus(ctx, message.OrganizationID, message.LedgerID, transactionID, constant.BalanceStatusConfirmed)
@@ -1123,16 +1324,16 @@ for attempts := 0; attempts < 3; attempts++ {
 	}
 	logger.Warnf("Attempt %d/3: Failed to update balance_status to CONFIRMED for transaction %s: %v", attempts+1, transactionID, statusErr)
 	if attempts < 2 {
-		time.Sleep(time.Duration(attempts+1) * 100 * time.Millisecond) // 100ms, 200ms backoff
+		// short backoff + jitter: avoid thundering herd on transient DB blips
+		time.Sleep(time.Duration(attempts+1)*100*time.Millisecond + time.Duration(rand.Intn(50))*time.Millisecond)
 	}
 }
 
 if statusErr != nil {
-	// After 3 attempts, log critical error but don't fail the transaction
-	// The balance IS updated, status is cosmetic but important for client visibility
-	logger.Errorf("CRITICAL: Failed to update balance_status to CONFIRMED for transaction %s after 3 attempts: %v", transactionID, statusErr)
-	// Emit metric for alerting
-	metrics.RecordBalanceStatusUpdateFailure(ctx, "CONFIRMED", transactionID.String())
+	logger.Errorf("Failed to update balance_status to CONFIRMED for transaction %s after 3 attempts: %v", transactionID, statusErr)
+	// Emit metric + structured log for alerting
+	rabbitmq.RecordBalanceStatusUpdateFailure(ctx, "CONFIRMED", transactionID.String())
+	return statusErr
 }
 ```
 
@@ -1147,6 +1348,12 @@ Add this metric definition after `balanceStatusFailedMetric` (around line 45):
 		Name:        "transaction_balance_status_update_failed_total",
 		Unit:        "1",
 		Description: "Total number of balance_status update failures after retries",
+	}
+
+	balanceStatusDLQUpdateFailedMetric = metrics.Metric{
+		Name:        "transaction_balance_status_dlq_update_failed_total",
+		Unit:        "1",
+		Description: "Total number of failures updating balance_status during DLQ hook",
 	}
 ```
 
@@ -1175,13 +1382,37 @@ func RecordBalanceStatusUpdateFailure(ctx context.Context, targetStatus, transac
 		"severity":       "critical",
 	}).Error("Balance status update failed after retries")
 }
+
+// RecordBalanceStatusDLQUpdateFailure records when a DLQ hook cannot mark a transaction as FAILED.
+// This should be rare; it usually indicates DB outage during DLQ routing.
+// Note: transaction_id is logged, not in Prometheus label.
+func RecordBalanceStatusDLQUpdateFailure(ctx context.Context, queue, targetStatus, transactionID string) {
+	dm := GetDLQMetrics()
+	if dm != nil && dm.factory != nil {
+		dm.factory.Counter(balanceStatusDLQUpdateFailedMetric).
+			WithLabels(map[string]string{
+				"queue":         sanitizeLabelValue(queue),
+				"target_status": targetStatus,
+			}).
+			AddOne(ctx)
+	}
+
+	logger := mlog.NewLoggerFromContext(ctx)
+	logger.WithFields(map[string]interface{}{
+		"event":          "balance_status_dlq_update_failure",
+		"queue":          queue,
+		"target_status":  targetStatus,
+		"transaction_id": transactionID,
+		"severity":       "critical",
+	}).Error("Balance status update failed during DLQ hook")
+}
 ```
 
-**Why these specific values for retry backoff (100ms, 200ms)?**
-- First retry (100ms): Allows DB connection pool to recover from transient issues
-- Second retry (200ms): Slightly longer to handle brief network hiccups
-- Total max wait: 300ms - fast enough to not significantly delay message processing
-- These values are intentionally short because the balance IS already updated; status is visibility-only
+**Why these retry values (short backoff + jitter)?**
+- Primary goal: converge `balance_status=CONFIRMED` quickly without thundering-herd effects
+- Backoff stays small to avoid blocking worker throughput
+- Jitter reduces synchronized retries when DB briefly flaps
+- If the status update still fails after retries, we return an error to trigger RabbitMQ retry (idempotent)
 
 **Step 3: Verify service compiles**
 
@@ -1202,139 +1433,98 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 **Files:**
 - Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/rabbitmq/consumer.rabbitmq.go`
 - Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/bootstrap/rabbitmq.server.go`
+- Modify: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/create-balance-transaction-operations-async.go` (new helper method)
 
 **Prerequisites:**
 - Task 14 completed
 
-**Why this matters:** Without updating status to FAILED, transactions stay PENDING forever after DLQ routing. Clients cannot distinguish "still processing" from "permanently failed". This breaks the visibility promise.
+**Why this matters:** Without updating status to FAILED, transactions stay PENDING forever after DLQ routing. Clients cannot distinguish "still processing" from "permanently failed".
 
-**Step 1: Add TransactionRepo to Consumer struct**
+**Design goal:** Avoid coupling RabbitMQ adapter to Postgres repository types. Use an explicit DLQ callback (hook) wired in bootstrap.
 
-In `consumer.rabbitmq.go`, add the repository to the Consumer struct:
+**Step 1: Add an optional DLQ hook to the RabbitMQ consumer layer**
 
-Find the Consumer struct definition and add:
+In `consumer.rabbitmq.go`, add a callback type and field to `ConsumerRoutes`:
+
 ```go
-type Consumer struct {
+// OnDLQPublishedFunc is invoked after a message is successfully published to DLQ.
+// Best-effort: must never block DLQ publishing.
+type OnDLQPublishedFunc func(ctx context.Context, originalQueue string, body []byte)
+
+type ConsumerRoutes struct {
 	// ... existing fields ...
-	TransactionRepo transaction.Repository // Add this field
+	OnDLQPublished OnDLQPublishedFunc
 }
 ```
 
-**Step 2: Update NewConsumer constructor**
+**Step 2: Invoke the hook after successful DLQ publish**
 
-Add the repository parameter to the NewConsumer function:
+In `businessErrorContext.routeToDLQIfMaxRetries` (after DLQ publish succeeds, before/after Ack), add:
 
 ```go
-func NewConsumer(
-	conn *amqp.Connection,
-	logger mlog.Logger,
-	txRepo transaction.Repository, // Add this parameter
-	// ... other params ...
-) *Consumer {
-	return &Consumer{
-		// ... existing fields ...
-		TransactionRepo: txRepo,
-	}
+if bec.onDLQPublished != nil {
+	bec.onDLQPublished(bec.ctx, bec.queue, bec.msg.Body)
 }
 ```
 
-**Step 3: Update bootstrap to pass repository**
+Implementation note:
+- Add `onDLQPublished OnDLQPublishedFunc` to `messageProcessingContext` and `businessErrorContext`
+- Set it from `ConsumerRoutes.OnDLQPublished` when building the message processing context
 
-In `rabbitmq.server.go`, where Consumer is created, pass the TransactionRepo:
+**Step 3: Implement the hook handler in the transaction UseCase**
 
-```go
-consumer := rabbitmq.NewConsumer(
-	conn,
-	logger,
-	transactionRepo, // Add this
-	// ... other params ...
-)
-```
-
-**Step 4: Implement FAILED status update in DLQ routing**
-
-Find the `routeToDLQIfMaxRetries` method (around line 449). After the decision to route to DLQ, add:
+In `create-balance-transaction-operations-async.go` (or a nearby file in the same package), add:
 
 ```go
-func (c *Consumer) routeToDLQIfMaxRetries(ctx context.Context, delivery amqp.Delivery, queueName string, retryCount int) bool {
-	if retryCount < maxRetries {
-		return false // Not yet at max retries
-	}
+// MarkBalanceStatusFailedFromDLQ marks async transactions as FAILED after DLQ routing.
+// Best-effort: failures are logged and do not affect DLQ publishing.
+func (uc *UseCase) MarkBalanceStatusFailedFromDLQ(ctx context.Context, originalQueue string, body []byte) {
+	logger := mlog.NewLoggerFromContext(ctx)
 
-	logger := c.logger.WithFields(map[string]interface{}{
-		"queue":       queueName,
-		"retry_count": retryCount,
-	})
-
-	// Extract transaction info from message body and update status to FAILED
-	c.markTransactionsAsFailed(ctx, delivery.Body, queueName)
-
-	// ... existing DLQ routing logic ...
-	return true
-}
-
-// markTransactionsAsFailed extracts transaction IDs from message and marks them as FAILED.
-// Best-effort: failures are logged but don't block DLQ routing.
-func (c *Consumer) markTransactionsAsFailed(ctx context.Context, body []byte, queueName string) {
-	if c.TransactionRepo == nil {
-		c.logger.Warn("TransactionRepo not configured, cannot mark transactions as FAILED")
-		return
-	}
-
-	// Deserialize the message to extract transaction info
 	var msg mmodel.Queue
 	if err := msgpack.Unmarshal(body, &msg); err != nil {
-		c.logger.Warnf("Failed to unmarshal message for FAILED status update: %v", err)
+		logger.Warnf("Failed to unmarshal DLQ body for FAILED status update: %v", err)
+		return
+	}
+	if len(msg.QueueData) == 0 {
+		logger.Warn("Empty QueueData in DLQ body for FAILED status update")
 		return
 	}
 
-	// Update each transaction in the queue data
 	for _, item := range msg.QueueData {
 		if item.ID == uuid.Nil {
 			continue
 		}
 
-		if err := c.TransactionRepo.UpdateBalanceStatus(ctx, msg.OrganizationID, msg.LedgerID, item.ID, constant.BalanceStatusFailed); err != nil {
-			c.logger.Warnf("Failed to mark transaction %s as FAILED: %v (best-effort)", item.ID, err)
-		} else {
-			c.logger.Infof("Marked transaction %s as FAILED (routed to DLQ)", item.ID)
+		// Best-effort with retries: DB might be flapping during outage.
+		var lastErr error
+		for attempts := 0; attempts < 3; attempts++ {
+			lastErr = uc.TransactionRepo.UpdateBalanceStatus(ctx, msg.OrganizationID, msg.LedgerID, item.ID, constant.BalanceStatusFailed)
+			if lastErr == nil {
+				break
+			}
+			time.Sleep(time.Duration(attempts+1)*200*time.Millisecond + time.Duration(rand.Intn(100))*time.Millisecond)
+		}
+		if lastErr != nil {
+			rabbitmq.RecordBalanceStatusDLQUpdateFailure(ctx, originalQueue, "FAILED", item.ID.String())
+			logger.Warnf("Failed to mark transaction %s as FAILED after DLQ (will be handled by reconciliation if still PENDING after threshold): %v", item.ID, lastErr)
+			continue
 		}
 
-		// Record metric for alerting
-		recordBalanceStatusFailed(ctx, queueName, item.ID.String())
+		recordBalanceStatusFailed(ctx, originalQueue, item.ID.String())
 	}
 }
 ```
 
-**Step 5: Add required imports**
+**Step 4: Wire the hook in bootstrap**
 
-Ensure these imports are present in `consumer.rabbitmq.go`:
+In `rabbitmq.server.go`, after creating `consumerRoutes`, set:
+
 ```go
-import (
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/vmihailenco/msgpack/v5"
-)
+consumerRoutes.OnDLQPublished = useCase.MarkBalanceStatusFailedFromDLQ
 ```
 
-**Step 6: Verify all bootstrap paths wire TransactionRepo correctly**
-
-Before compiling, verify all Consumer instantiation points:
-
-```bash
-# Find all places where Consumer is created
-rg "NewConsumer\(" components/transaction/ --type go -C 3
-```
-
-**Expected:** All usages pass `transactionRepo` as parameter. If any are missing, update them.
-
-**Common bootstrap locations:**
-- `components/transaction/internal/bootstrap/rabbitmq.server.go`
-- Any test files that mock the consumer
-
-**Step 7: Verify consumer compiles**
+**Step 5: Verify compilation**
 
 Run:
 ```bash
@@ -1346,9 +1536,6 @@ cd /Users/fredamaral/repos/lerianstudio/midaz && go build ./components/transacti
 ```
 (no output - success)
 ```
-
-**If compilation fails due to constructor signature change:**
-Update all usages found in Step 6 to pass the TransactionRepo.
 
 ---
 
@@ -1366,11 +1553,11 @@ Run:
 ```bash
 cd /Users/fredamaral/repos/lerianstudio/midaz && git add -A && git commit -m "feat(transaction): integrate balance_status into async flow
 
-- Add idempotency check to prevent duplicate balance effects
+- Add Lua-level idempotency (transaction_id dedup)
 - Set balance_status=PENDING when creating async transaction
-- Update to CONFIRMED on successful balance update (with retry)
-- Mark as FAILED when routing to DLQ after max retries
-- Add TransactionRepo dependency to RabbitMQ consumer
+- Update to CONFIRMED on successful balance persistence (sets balance_persisted_at)
+- Mark as FAILED when routing to DLQ after max retries (best-effort + metrics)
+- Add DLQ hook to mark FAILED without tight coupling
 
 Part of hybrid transaction consistency implementation."
 ```
@@ -1421,48 +1608,38 @@ func TestValidateBalanceStatus(t *testing.T) {
 }
 ```
 
-**Step 2: Add integration test stubs for UpdateBalanceStatus**
+**Step 2: Add integration tests for UpdateBalanceStatus (real Postgres)**
 
-```go
-func TestUpdateBalanceStatus_Success(t *testing.T) {
-	// Setup: Create a transaction with PENDING status
-	// Act: Update to CONFIRMED
-	// Assert: Status is updated, updated_at is changed
-	t.Skip("Test requires database integration setup - implement in integration test suite")
-}
+Create a new file with an integration build tag:
+- Create: `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/adapters/postgres/transaction/transaction.postgresql_integ_test.go`
+- Add: `//go:build integration`
 
-func TestUpdateBalanceStatus_NotFound(t *testing.T) {
-	// Setup: Use non-existent transaction ID
-	// Act: Attempt to update status
-	// Assert: Returns ErrEntityNotFound
-	t.Skip("Test requires database integration setup - implement in integration test suite")
-}
+Use `testcontainers-go` to start a PostgreSQL container and run real SQL against it.
+- Follow the existing pattern used in `components/transaction/internal/adapters/redis/balance_sync_integ_test.go`
+- Ensure migrations are applied before exercising `UpdateBalanceStatus`
 
-func TestUpdateBalanceStatus_InvalidTransition(t *testing.T) {
-	// Setup: Create a transaction with CONFIRMED status
-	// Act: Attempt to update to FAILED
-	// Assert: No rows affected (idempotent, no error)
-	t.Skip("Test requires database integration setup - implement in integration test suite")
-}
-```
+Integration cases to implement (no `t.Skip`):
+- `TestUpdateBalanceStatus_Success`: create async transaction with `PENDING`, update to `CONFIRMED`, verify persisted value, `balance_persisted_at` is set, and `updated_at` changes
+- `TestUpdateBalanceStatus_NotFound`: update a random UUID and assert `ErrEntityNotFound`
+- `TestUpdateBalanceStatus_InvalidTransition`: create `CONFIRMED`, attempt update to `FAILED`, verify no change and no error (idempotent)
 
 **Step 3: Run tests**
 
 Run:
 ```bash
-cd /Users/fredamaral/repos/lerianstudio/midaz && go test ./components/transaction/internal/adapters/postgres/transaction/... -v -run "ValidateBalanceStatus|UpdateBalanceStatus" -count=1
+cd /Users/fredamaral/repos/lerianstudio/midaz && go test -tags=integration ./components/transaction/internal/adapters/postgres/transaction/... -v -run "ValidateBalanceStatus|UpdateBalanceStatus" -count=1
 ```
 
 **Expected output:**
 ```
 === RUN   TestValidateBalanceStatus
-=== RUN   TestValidateBalanceStatus/valid_PENDING
-=== RUN   TestValidateBalanceStatus/valid_CONFIRMED
-...
 --- PASS: TestValidateBalanceStatus (0.00s)
---- SKIP: TestUpdateBalanceStatus_Success
---- SKIP: TestUpdateBalanceStatus_NotFound
---- SKIP: TestUpdateBalanceStatus_InvalidTransition
+=== RUN   TestUpdateBalanceStatus_Success
+--- PASS: TestUpdateBalanceStatus_Success
+=== RUN   TestUpdateBalanceStatus_NotFound
+--- PASS: TestUpdateBalanceStatus_NotFound
+=== RUN   TestUpdateBalanceStatus_InvalidTransition
+--- PASS: TestUpdateBalanceStatus_InvalidTransition
 PASS
 ```
 
@@ -1602,17 +1779,25 @@ XXXXXXX feat(transaction): add balance_status column for saga-like consistency
 
 **Why this matters:** If CONFIRMED status updates fail repeatedly (DB down during status update window), transactions stay PENDING forever despite balances being updated. This job provides a safety net.
 
-**Step 1: Add FindOrphanedPending method to Repository**
+**Step 1: Add reconciliation query method (proof-based) to Repository**
 
-In `transaction.postgresql.go`, add:
+In `transaction.postgresql.go`, add a dedicated query that returns only what reconciliation needs, including the internal proof field `balance_persisted_at`.
 
 ```go
-// FindOrphanedPending returns transactions with balance_status=PENDING that are older than the threshold.
-// These are candidates for reconciliation (either mark CONFIRMED if balance exists, or FAILED if not).
-func (r *TransactionPostgreSQLRepository) FindOrphanedPending(ctx context.Context, olderThan time.Duration, limit int) ([]*Transaction, error) {
+type PendingBalanceStatusCandidate struct {
+	ID               uuid.UUID
+	OrganizationID   uuid.UUID
+	LedgerID         uuid.UUID
+	CreatedAt        time.Time
+	BalancePersistedAt *time.Time
+}
+
+// FindPendingForReconciliation returns async transactions stuck in PENDING beyond the threshold.
+// This query is the ONLY place we read balance_persisted_at; it must not be exposed via public APIs.
+func (r *TransactionPostgreSQLRepository) FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_orphaned_pending")
+	ctx, span := tracer.Start(ctx, "postgres.find_pending_for_reconciliation")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -1623,7 +1808,7 @@ func (r *TransactionPostgreSQLRepository) FindOrphanedPending(ctx context.Contex
 	threshold := time.Now().Add(-olderThan)
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT `+strings.Join(transactionColumnList, ", ")+`
+		SELECT id, organization_id, ledger_id, created_at, balance_persisted_at
 		FROM transaction
 		WHERE balance_status = 'PENDING'
 		  AND created_at < $1
@@ -1636,11 +1821,20 @@ func (r *TransactionPostgreSQLRepository) FindOrphanedPending(ctx context.Contex
 	}
 	defer rows.Close()
 
-	return scanTransactionRows(rows, logger)
+	candidates := make([]PendingBalanceStatusCandidate, 0)
+	for rows.Next() {
+		var c PendingBalanceStatusCandidate
+		if scanErr := rows.Scan(&c.ID, &c.OrganizationID, &c.LedgerID, &c.CreatedAt, &c.BalancePersistedAt); scanErr != nil {
+			logger.Errorf("Failed to scan reconciliation candidate: %v", scanErr)
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	return candidates, nil
 }
 ```
 
-**Step 2: Create reconciliation service**
+**Step 2: Create reconciliation service (proof-based + guardrails)**
 
 Create `/Users/fredamaral/repos/lerianstudio/midaz/components/transaction/internal/services/command/reconcile-pending-transactions.go`:
 
@@ -1649,6 +1843,7 @@ package command
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -1657,72 +1852,94 @@ import (
 
 // ReconcilePendingTransactionsConfig configures the reconciliation job.
 type ReconcilePendingTransactionsConfig struct {
-	// ThresholdAge is how old a PENDING transaction must be to be considered orphaned.
-	// Should be > 24h (the retry window) + buffer.
 	ThresholdAge time.Duration
-	// BatchSize limits how many transactions to process per run.
-	BatchSize int
+	BatchSize    int
+
+	// Guardrails
+	MaxTotalPerRun     int
+	MaxPerOrgPerRun    int
+	MaxErrorRate       float64
+	SleepBetweenMin    time.Duration
+	SleepBetweenJitter time.Duration
 }
 
-// DefaultReconcileConfig returns sensible defaults for reconciliation.
 func DefaultReconcileConfig() ReconcilePendingTransactionsConfig {
 	return ReconcilePendingTransactionsConfig{
 		ThresholdAge: 25 * time.Hour, // 24h retry window + 1h buffer
 		BatchSize:    100,
+
+		MaxTotalPerRun:     500,
+		MaxPerOrgPerRun:    200,
+		MaxErrorRate:       0.3,
+		SleepBetweenMin:    50 * time.Millisecond,
+		SleepBetweenJitter: 50 * time.Millisecond,
 	}
 }
 
-// ReconcilePendingTransactions finds and fixes orphaned PENDING transactions.
-// This should be run periodically (e.g., every hour via cron/scheduler).
+// ReconcilePendingTransactions fixes transactions stuck in PENDING beyond the retry window.
+// Rule (no guessing):
+// - If balance_persisted_at IS NOT NULL => mark CONFIRMED
+// - If balance_persisted_at IS NULL     => mark FAILED (terminal)
 func (uc *UseCase) ReconcilePendingTransactions(ctx context.Context, config ReconcilePendingTransactionsConfig) error {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	orphaned, err := uc.TransactionRepo.FindOrphanedPending(ctx, config.ThresholdAge, config.BatchSize)
+	candidates, err := uc.TransactionRepo.FindPendingForReconciliation(ctx, config.ThresholdAge, config.BatchSize)
 	if err != nil {
-		logger.Errorf("Failed to find orphaned PENDING transactions: %v", err)
+		logger.Errorf("Failed to find PENDING reconciliation candidates: %v", err)
 		return err
 	}
-
-	if len(orphaned) == 0 {
-		logger.Debug("No orphaned PENDING transactions found")
+	if len(candidates) == 0 {
+		logger.Debug("No PENDING reconciliation candidates found")
 		return nil
 	}
 
-	logger.Infof("Found %d orphaned PENDING transactions to reconcile", len(orphaned))
+	seenPerOrg := map[string]int{}
+	var reconciled, failed, errors int
+	processed := 0
 
-	var reconciled, failed int
-	for _, tx := range orphaned {
-		// For each orphaned transaction, check if operations exist
-		// If operations exist -> balance was applied -> mark CONFIRMED
-		// If no operations -> something went wrong -> mark FAILED
-		ops, err := uc.OperationRepo.FindAllByTransactionID(ctx, tx.OrganizationID, tx.LedgerID, tx.ID)
-		if err != nil {
-			logger.Warnf("Failed to check operations for orphaned tx %s: %v", tx.ID, err)
+	for _, c := range candidates {
+		if processed >= config.MaxTotalPerRun {
+			break
+		}
+		orgKey := c.OrganizationID.String()
+		if seenPerOrg[orgKey] >= config.MaxPerOrgPerRun {
 			continue
 		}
 
-		var targetStatus string
-		if len(ops) > 0 {
-			// Operations exist = balance was applied = should be CONFIRMED
+		time.Sleep(config.SleepBetweenMin + time.Duration(rand.Int63n(int64(config.SleepBetweenJitter))))
+
+		targetStatus := constant.BalanceStatusFailed
+		if c.BalancePersistedAt != nil {
 			targetStatus = constant.BalanceStatusConfirmed
-		} else {
-			// No operations = transaction never completed = FAILED
-			targetStatus = constant.BalanceStatusFailed
 		}
 
-		if err := uc.TransactionRepo.UpdateBalanceStatus(ctx, tx.OrganizationID, tx.LedgerID, tx.ID, targetStatus); err != nil {
-			logger.Warnf("Failed to reconcile orphaned tx %s to %s: %v", tx.ID, targetStatus, err)
-			failed++
+		if err := uc.TransactionRepo.UpdateBalanceStatus(ctx, c.OrganizationID, c.LedgerID, c.ID, targetStatus); err != nil {
+			errors++
+			logger.Warnf("Failed to reconcile tx %s to %s: %v", c.ID, targetStatus, err)
 		} else {
-			logger.Infof("Reconciled orphaned tx %s: PENDING -> %s", tx.ID, targetStatus)
-			reconciled++
+			if targetStatus == constant.BalanceStatusConfirmed {
+				reconciled++
+			} else {
+				failed++
+			}
+		}
+
+		processed++
+		seenPerOrg[orgKey]++
+
+		// Avoid aborting too early on small samples.
+		if processed > 10 && float64(errors)/float64(processed) > config.MaxErrorRate {
+			logger.Errorf("Reconciliation aborting due to error rate: errors=%d processed=%d", errors, processed)
+			break
 		}
 	}
 
 	logger.WithFields(map[string]interface{}{
-		"total_found": len(orphaned),
-		"reconciled":  reconciled,
+		"total_found": len(candidates),
+		"processed":   processed,
+		"confirmed":   reconciled,
 		"failed":      failed,
+		"errors":      errors,
 	}).Info("Reconciliation job completed")
 
 	return nil
@@ -1733,10 +1950,12 @@ func (uc *UseCase) ReconcilePendingTransactions(ctx context.Context, config Reco
 
 In the Repository interface, add:
 ```go
-FindOrphanedPending(ctx context.Context, olderThan time.Duration, limit int) ([]*Transaction, error)
+FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error)
 ```
 
 **Step 4: Wire up as scheduled job (implementation depends on your scheduler)**
+
+Important (multi-instance deployments): acquire a distributed lock before running reconciliation so only one instance processes candidates at a time (e.g., Redis `SETNX lock:{transactions}:reconcile_balance_status EX 3600`).
 
 Example using a simple ticker (add to bootstrap or separate worker):
 
@@ -1769,9 +1988,9 @@ Run:
 ```bash
 cd /Users/fredamaral/repos/lerianstudio/midaz && git add -A && git commit -m "feat(transaction): add reconciliation job for stuck PENDING transactions
 
-- Add FindOrphanedPending repository method
+- Add FindPendingForReconciliation repository method (includes balance_persisted_at)
 - Add ReconcilePendingTransactions service method
-- Run hourly to fix transactions where CONFIRMED status update failed
+- Run hourly to reconcile transactions beyond retry window using balance_persisted_at proof
 - Uses 25h threshold (24h retry window + 1h buffer)
 
 Part of hybrid transaction consistency implementation."
@@ -1785,32 +2004,42 @@ Part of hybrid transaction consistency implementation."
 
 | File | Changes |
 |------|---------|
-| `components/transaction/migrations/000020_add_balance_status_to_transaction.up.sql` | NEW: Migration adding balance_status column |
+| `components/transaction/migrations/000020_add_balance_status_to_transaction.up.sql` | NEW: Migration adding balance_status + balance_persisted_at columns |
 | `components/transaction/migrations/000020_add_balance_status_to_transaction.down.sql` | NEW: Rollback migration |
 | `pkg/constant/transaction.go` | ADD: BalanceStatus constants (PENDING/CONFIRMED/FAILED) |
-| `pkg/mmodel/transaction.go` | ADD: BalanceStatus field to Transaction struct |
-| `components/transaction/internal/adapters/postgres/transaction/transaction.go` | ADD: BalanceStatus to PostgreSQL model, ToEntity/FromEntity mappings |
-| `components/transaction/internal/adapters/postgres/transaction/transaction.postgresql.go` | ADD: Column lists, Scan updates, ValidateBalanceStatus helper, UpdateBalanceStatus method with state machine |
-| `components/transaction/internal/adapters/rabbitmq/consumer.rabbitmq.go` | MOD: Increase maxRetries to 288, extend backoff delays, ADD: TransactionRepo field, markTransactionsAsFailed method for DLQ routing |
-| `components/transaction/internal/adapters/rabbitmq/metrics.go` | ADD: balance_status_failed metric, balance_status_update_failed metric, RecordBalanceStatusUpdateFailure function |
-| `components/transaction/internal/bootstrap/rabbitmq.server.go` | MOD: Wire TransactionRepo into Consumer constructor |
-| `components/transaction/internal/services/command/create-balance-transaction-operations-async.go` | MOD: Add idempotency check, set PENDING on create, CONFIRMED on success with retry |
+| `pkg/mmodel/transaction.go` | ADD: BalanceStatus field to Transaction struct (gated exposure in handler) |
+| `components/transaction/internal/adapters/http/in/transaction.go` | MOD: Gate balanceStatus behind `includeBalanceStatus=true` + scope `transactions:read_balance_status` (403 if unauthorized) | 
+| `components/transaction/internal/adapters/postgres/transaction/transaction.go` | ADD: BalanceStatus mapping; ADD: BalancePersistedAt internal field (not exposed) |
+| `components/transaction/internal/adapters/postgres/transaction/transaction.postgresql.go` | MOD: safer INSERT with explicit columns; ADD: ValidateBalanceStatus; ADD: UpdateBalanceStatus sets balance_persisted_at on CONFIRMED; ADD: reconciliation query for balance_persisted_at |
+| `components/transaction/internal/adapters/rabbitmq/consumer.rabbitmq.go` | MOD: Increase maxRetries to 288, extend backoff delays, add retry-storm guardrails, invoke DLQ hook after successful DLQ publish |
+| `components/transaction/internal/adapters/rabbitmq/metrics.go` | ADD: balance_status_failed metric (no high-cardinality labels), balance_status_update_failed metric, balance_status_dlq_update_failed metric, retry-budget metrics, structured logs for correlation |
+| `components/transaction/internal/bootstrap/rabbitmq.server.go` | MOD: Wire DLQ hook (`OnDLQPublished`) to UseCase handler |
+| `components/transaction/internal/services/command/create-balance-transaction-operations-async.go` | MOD: Add Lua-level idempotency (transaction_id dedup), set PENDING on create, set CONFIRMED with retry and error-on-failure, add DLQ FAILED hook handler |
 
 ### API Changes
 
-The existing GET `/v1/organizations/{org}/ledgers/{ledger}/transactions/{id}` endpoint now includes:
+The existing GET `/v1/organizations/{org}/ledgers/{ledger}/transactions/{id}` endpoint can include `balanceStatus` when explicitly requested and authorized:
 
+- Request: `?includeBalanceStatus=true`
+- Authorization: scope `transactions:read_balance_status` (see Task 3a)
+
+Example (authorized response):
 ```json
 {
   "id": "...",
-  "balanceStatus": "CONFIRMED"  // NEW: PENDING | CONFIRMED | FAILED | null
+  "balanceStatus": "CONFIRMED"  // NEW: PENDING | CONFIRMED | FAILED
 }
 ```
 
+If `includeBalanceStatus` is not set, `balanceStatus` is omitted.
+
+If `includeBalanceStatus=true` but caller is not authorized, return **HTTP 403** (do not silently omit).
+
+Semantics:
 - `PENDING` - Balance update queued but not yet confirmed
 - `CONFIRMED` - Balance update completed successfully
 - `FAILED` - Balance update failed after max retries (in DLQ)
-- `null` - Sync transaction (balance updated synchronously)
+- Omitted - Sync transaction
 
 ### Metrics Added
 
@@ -1819,8 +2048,8 @@ The existing GET `/v1/organizations/{org}/ledgers/{ledger}/transactions/{id}` en
 
 ### Outstanding Work (Post-Implementation)
 
-1. ~~**DLQ Integration**~~: ✅ DONE - Consumer now marks transactions FAILED when routing to DLQ
-2. **Admin API**: Optional endpoint to manually retry FAILED transactions (future feature)
+1. ~~**DLQ Integration**~~: ✅ DONE - DLQ publish hook marks async transactions FAILED (best-effort)
+2. **Admin API**: Add audited operator action to transition `FAILED -> PENDING` for manual retries (future feature)
 3. **Reconciliation Job**: See Task 21 below - Background job to clean up stuck PENDING transactions
 
 ---
