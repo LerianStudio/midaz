@@ -4,13 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	midazConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +41,168 @@ var (
 	_ Repository = (*TransactionPostgreSQLRepository)(nil)
 	_ Repository = (*mockRepository)(nil)
 )
+
+func newTestTransactionRepository(t *testing.T) (*TransactionPostgreSQLRepository, sqlmock.Sqlmock, func()) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+
+	resolver := dbresolver.New(
+		dbresolver.WithPrimaryDBs(db),
+		dbresolver.WithReplicaDBs(db),
+		dbresolver.WithLoadBalancer(dbresolver.RoundRobinLB),
+	)
+
+	conn := &libPostgres.PostgresConnection{ConnectionDB: &resolver}
+	repo := &TransactionPostgreSQLRepository{connection: conn, tableName: "transaction"}
+
+	cleanup := func() {
+		mock.ExpectClose()
+		require.NoError(t, db.Close())
+	}
+
+	return repo, mock, cleanup
+}
+
+func TestValidateBalanceStatus(t *testing.T) {
+	cases := []struct {
+		name    string
+		status  midazConstant.BalanceStatus
+		wantErr bool
+	}{
+		// Valid statuses
+		{name: "valid PENDING", status: midazConstant.BalanceStatusPending, wantErr: false},
+		{name: "valid CONFIRMED", status: midazConstant.BalanceStatusConfirmed, wantErr: false},
+		{name: "valid FAILED", status: midazConstant.BalanceStatusFailed, wantErr: false},
+
+		// Invalid statuses (case sensitive and strict)
+		{name: "lowercase pending", status: midazConstant.BalanceStatus("pending"), wantErr: true},
+		{name: "lowercase confirmed", status: midazConstant.BalanceStatus("confirmed"), wantErr: true},
+		{name: "empty string", status: midazConstant.BalanceStatus(""), wantErr: true},
+		{name: "random string", status: midazConstant.BalanceStatus("INVALID"), wantErr: true},
+		{name: "partial match", status: midazConstant.BalanceStatus("PEND"), wantErr: true},
+		{name: "with leading space", status: midazConstant.BalanceStatus(" PENDING"), wantErr: true},
+		{name: "with trailing space", status: midazConstant.BalanceStatus("PENDING "), wantErr: true},
+		{name: "sql injection attempt", status: midazConstant.BalanceStatus("PENDING'; DROP TABLE--"), wantErr: true},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateBalanceStatus(tt.status)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestUpdateBalanceStatus_Confirmed_Success(t *testing.T) {
+	repo, mock, cleanup := newTestTransactionRepository(t)
+	defer cleanup()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	mock.
+		ExpectExec(regexp.QuoteMeta("UPDATE transaction")).
+		WithArgs(
+			midazConstant.BalanceStatusConfirmed,
+			midazConstant.BalanceStatusConfirmed,
+			orgID,
+			ledgerID,
+			txID,
+			midazConstant.BalanceStatusPending,
+			midazConstant.BalanceStatusFailed,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.UpdateBalanceStatus(context.Background(), orgID, ledgerID, txID, midazConstant.BalanceStatusConfirmed)
+	require.NoError(t, err)
+}
+
+func TestUpdateBalanceStatus_NotFound_ReturnsError(t *testing.T) {
+	repo, mock, cleanup := newTestTransactionRepository(t)
+	defer cleanup()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	mock.
+		ExpectExec(regexp.QuoteMeta("UPDATE transaction")).
+		WithArgs(
+			midazConstant.BalanceStatusConfirmed,
+			midazConstant.BalanceStatusConfirmed,
+			orgID,
+			ledgerID,
+			txID,
+			midazConstant.BalanceStatusPending,
+			midazConstant.BalanceStatusFailed,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	mock.
+		ExpectQuery(regexp.QuoteMeta("SELECT EXISTS(")).
+		WithArgs(orgID, ledgerID, txID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+	err := repo.UpdateBalanceStatus(context.Background(), orgID, ledgerID, txID, midazConstant.BalanceStatusConfirmed)
+	require.Error(t, err)
+}
+
+func TestFindPendingForReconciliation_ReturnsCandidates(t *testing.T) {
+	repo, mock, cleanup := newTestTransactionRepository(t)
+	defer cleanup()
+
+	candidateID := uuid.New()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	createdAt := time.Now().Add(-48 * time.Hour)
+
+	mock.
+		ExpectQuery(regexp.QuoteMeta("SELECT id, organization_id, ledger_id, created_at, balance_persisted_at")).
+		WithArgs(midazConstant.BalanceStatusPending, sqlmock.AnyArg(), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "ledger_id", "created_at", "balance_persisted_at"}).
+			AddRow(candidateID, orgID, ledgerID, createdAt, nil),
+		)
+
+	candidates, err := repo.FindPendingForReconciliation(context.Background(), 24*time.Hour, 10)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, candidateID, candidates[0].ID)
+	assert.Equal(t, orgID, candidates[0].OrganizationID)
+	assert.Equal(t, ledgerID, candidates[0].LedgerID)
+}
+
+func TestFindPendingForReconciliation_EmptyResult(t *testing.T) {
+	repo, mock, cleanup := newTestTransactionRepository(t)
+	defer cleanup()
+
+	mock.
+		ExpectQuery(regexp.QuoteMeta("SELECT id, organization_id, ledger_id, created_at, balance_persisted_at")).
+		WithArgs(midazConstant.BalanceStatusPending, sqlmock.AnyArg(), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "ledger_id", "created_at", "balance_persisted_at"}))
+
+	candidates, err := repo.FindPendingForReconciliation(context.Background(), 24*time.Hour, 10)
+	require.NoError(t, err)
+	require.Len(t, candidates, 0)
+}
+
+func TestFindPendingForReconciliation_DatabaseError(t *testing.T) {
+	repo, mock, cleanup := newTestTransactionRepository(t)
+	defer cleanup()
+
+	mock.
+		ExpectQuery(regexp.QuoteMeta("SELECT id, organization_id, ledger_id, created_at, balance_persisted_at")).
+		WithArgs(midazConstant.BalanceStatusPending, sqlmock.AnyArg(), 10).
+		WillReturnError(errors.New("database connection failed"))
+
+	candidates, err := repo.FindPendingForReconciliation(context.Background(), 24*time.Hour, 10)
+	require.Error(t, err)
+	require.Nil(t, candidates)
+}
 
 // Create a mock for the real repository to test
 type mockRepository struct {
@@ -263,6 +429,14 @@ func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, led
 }
 
 func (r *mockRepository) ListByIDs(_ context.Context, _, _ uuid.UUID, _ []uuid.UUID) ([]*Transaction, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *mockRepository) UpdateBalanceStatus(_ context.Context, _, _, _ uuid.UUID, _ midazConstant.BalanceStatus) error {
+	return errors.New("not implemented")
+}
+
+func (r *mockRepository) FindPendingForReconciliation(_ context.Context, _ time.Duration, _ int) ([]PendingBalanceStatusCandidate, error) {
 	return nil, errors.New("not implemented")
 }
 

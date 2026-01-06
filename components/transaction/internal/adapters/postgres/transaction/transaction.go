@@ -8,6 +8,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
@@ -58,6 +59,8 @@ type TransactionPostgreSQLModel struct {
 	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
 	Route                    *string                     // Route
 	Metadata                 map[string]any              // Additional custom attributes
+	BalanceStatus            *constant.BalanceStatus     // Async balance update status: PENDING, CONFIRMED, FAILED
+	BalancePersistedAt       *time.Time                  // INTERNAL ONLY: proof timestamp (do not expose in public API)
 }
 
 // ToEntity converts an TransactionPostgreSQLModel to entity mmodel.Transaction
@@ -87,6 +90,10 @@ func (t *TransactionPostgreSQLModel) ToEntity() *mmodel.Transaction {
 
 	if t.Route != nil {
 		transaction.Route = *t.Route
+	}
+
+	if t.BalanceStatus != nil {
+		transaction.BalanceStatus = t.BalanceStatus
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -125,6 +132,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *mmodel.Transaction)
 
 	if !libCommons.IsNilOrEmpty(&transaction.Route) {
 		t.Route = &transaction.Route
+	}
+
+	if transaction.BalanceStatus != nil {
+		t.BalanceStatus = transaction.BalanceStatus
 	}
 
 	if transaction.DeletedAt != nil {

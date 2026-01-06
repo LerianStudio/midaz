@@ -49,6 +49,7 @@ var transactionColumnList = []string{
 	"updated_at",
 	"deleted_at",
 	"route",
+	"balance_status",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -67,6 +68,7 @@ var transactionColumnListPrefixed = []string{
 	"t.updated_at",
 	"t.deleted_at",
 	"t.route",
+	"t.balance_status",
 }
 
 const (
@@ -83,8 +85,20 @@ type Repository interface {
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	UpdateBalanceStatus(ctx context.Context, organizationID, ledgerID, id uuid.UUID, status constant.BalanceStatus) error
+	FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error)
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
+}
+
+// PendingBalanceStatusCandidate is the minimal set of fields required to reconcile
+// transactions stuck in balance_status=PENDING without exposing balance_persisted_at via APIs.
+type PendingBalanceStatusCandidate struct {
+	ID                 uuid.UUID
+	OrganizationID     uuid.UUID
+	LedgerID           uuid.UUID
+	CreatedAt          time.Time
+	BalancePersistedAt *time.Time
 }
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
@@ -152,7 +166,26 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	result, err := executor.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) ON CONFLICT (id) DO NOTHING`,
+	result, err := executor.ExecContext(ctx, `INSERT INTO transaction (
+	id,
+	parent_transaction_id,
+	description,
+	status,
+	status_description,
+	amount,
+	asset_code,
+	chart_of_accounts_group_name,
+	ledger_id,
+	organization_id,
+	body,
+	created_at,
+	updated_at,
+	deleted_at,
+	route,
+	balance_status,
+	balance_persisted_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+ON CONFLICT (id) DO NOTHING`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -168,6 +201,8 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.UpdatedAt,
 		record.DeletedAt,
 		record.Route,
+		record.BalanceStatus,
+		record.BalancePersistedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -246,6 +281,7 @@ func (r *TransactionPostgreSQLRepository) fetchExistingTransaction(ctx context.C
 		&existing.UpdatedAt,
 		&existing.DeletedAt,
 		&existing.Route,
+		&existing.BalanceStatus,
 	); scanErr != nil {
 		if errors.Is(scanErr, sql.ErrNoRows) {
 			// Unexpected: conflict detected but row not found, fall back to attempted record
@@ -318,6 +354,7 @@ func scanTransactionRows(rows *sql.Rows) ([]*Transaction, error) {
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 			&transaction.Route,
+			&transaction.BalanceStatus,
 		); err != nil {
 			return nil, pkg.ValidateInternalError(err, "Transaction")
 		}
@@ -467,17 +504,16 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	return transactions, cur, nil
 }
 
-// ListByIDs retrieves Transaction entities from the database using the provided IDs.
+// ListByIDs retrieves multiple transactions by their IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
+	ctx, span := tracer.Start(ctx, "postgres.list_by_ids")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
 		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, pkg.ValidateInternalError(err, "Transaction")
@@ -537,6 +573,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 			&transaction.Route,
+			&transaction.BalanceStatus,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -628,6 +665,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.UpdatedAt,
 		&transaction.DeletedAt,
 		&transaction.Route,
+		&transaction.BalanceStatus,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
@@ -718,6 +756,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.UpdatedAt,
 		&transaction.DeletedAt,
 		&transaction.Route,
+		&transaction.BalanceStatus,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No transaction found", err)
@@ -969,6 +1008,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.UpdatedAt,
 			&tran.DeletedAt,
 			&tran.Route,
+			&tran.BalanceStatus,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1163,6 +1203,7 @@ func scanTransactionWithOperationRow(rows *sql.Rows) (*TransactionPostgreSQLMode
 		&tran.UpdatedAt,
 		&tran.DeletedAt,
 		&tran.Route,
+		&tran.BalanceStatus,
 		&opRow.ID,
 		&opRow.TransactionID,
 		&opRow.Description,
@@ -1379,4 +1420,199 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	return transactions, cur, nil
+}
+
+// ValidateBalanceStatus validates that the status is a valid BalanceStatus value.
+// Returns error if status is not PENDING, CONFIRMED, or FAILED.
+func ValidateBalanceStatus(status constant.BalanceStatus) error {
+	switch status {
+	case constant.BalanceStatusPending, constant.BalanceStatusConfirmed, constant.BalanceStatusFailed:
+		return nil
+	default:
+		return constant.ErrInvalidBalanceStatus
+	}
+}
+
+// UpdateBalanceStatus updates the balance_status column for a transaction.
+// Valid transitions:
+// - NULL/PENDING -> CONFIRMED (balance persisted; set balance_persisted_at)
+// - NULL/PENDING -> FAILED (max retries exceeded, message routed to DLQ)
+// - FAILED -> PENDING (manual retry via admin action)
+// Invalid transitions (CONFIRMED -> anything) are silently ignored (idempotent).
+func (r *TransactionPostgreSQLRepository) UpdateBalanceStatus(ctx context.Context, organizationID, ledgerID, id uuid.UUID, status constant.BalanceStatus) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction_balance_status")
+	defer span.End()
+
+	if err := ValidateBalanceStatus(status); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Invalid balance status", err)
+		logger.Errorf("Invalid balance status %q", status)
+
+		return pkg.ValidateBusinessError(err, reflect.TypeOf(Transaction{}).Name(), "balanceStatus")
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.update_balance_status.exec")
+	defer spanExec.End()
+
+	// SQL parameter mapping:
+	//   $1 = status (target balance_status to set)
+	//   $2 = BalanceStatusConfirmed
+	//   $3 = organizationID, $4 = ledgerID, $5 = id (transaction identifiers)
+	//   $6 = BalanceStatusPending
+	//   $7 = BalanceStatusFailed
+	//
+	// State-machine transitions enforced by the WHERE clause:
+	//   - From NULL/PENDING → CONFIRMED or FAILED (normal flow)
+	//   - From FAILED → PENDING (retry/recovery flow)
+	//
+	// The CASE expression ensures balance_persisted_at is only set to now()
+	// when transitioning to CONFIRMED, preserving existing value otherwise.
+	result, err := db.ExecContext(ctx,
+		`UPDATE transaction
+		 SET balance_status = $1,
+		     balance_persisted_at = CASE
+		       WHEN $1 = $2 THEN now()
+		       ELSE balance_persisted_at
+		     END,
+		     updated_at = now()
+		 WHERE organization_id = $3 AND ledger_id = $4 AND id = $5
+		 AND deleted_at IS NULL
+		 AND (
+		   ((balance_status IS NULL OR balance_status = $6) AND ($1 = $2 OR $1 = $7))
+		   OR (balance_status = $7 AND $1 = $6)
+		 )`,
+		status,
+		constant.BalanceStatusConfirmed,
+		organizationID,
+		ledgerID,
+		id,
+		constant.BalanceStatusPending,
+		constant.BalanceStatusFailed,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update balance_status", err)
+		logger.Errorf("Failed to update balance_status: %v", err)
+
+		return pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		logger.Errorf("Failed to get rows affected: %v", err)
+
+		return pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	if rowsAffected == 0 {
+		ctxExists, spanExists := tracer.Start(ctx, "postgres.update_balance_status.exists")
+		defer spanExists.End()
+
+		var exists bool
+
+		err := db.QueryRowContext(ctxExists,
+			`SELECT EXISTS(
+				SELECT 1
+				FROM transaction
+				WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL
+			)`,
+			organizationID, ledgerID, id,
+		).Scan(&exists)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanExists, "Failed to check transaction existence", err)
+			logger.Errorf("Failed to check transaction existence: %v", err)
+
+			return pkg.ValidateInternalError(err, "Transaction")
+		}
+
+		if !exists {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction not found for balance_status update", err)
+			logger.Warnf("Transaction not found for balance_status update: %v", err)
+
+			return err
+		}
+
+		logger.Infof("No balance_status update needed for transaction %s", id)
+
+		return nil
+	}
+
+	logger.WithFields(map[string]any{
+		"transaction_id":  id,
+		"organization_id": organizationID,
+		"ledger_id":       ledgerID,
+		"new_status":      status,
+		"rows_affected":   rowsAffected,
+	}).Info("balance_status_transition")
+
+	return nil
+}
+
+// FindPendingForReconciliation returns async transactions stuck in PENDING beyond the threshold.
+// This query is the ONLY place we read balance_persisted_at; it must not be exposed via public APIs.
+func (r *TransactionPostgreSQLRepository) FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_pending_for_reconciliation")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	threshold := time.Now().Add(-olderThan)
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, organization_id, ledger_id, created_at, balance_persisted_at
+		FROM transaction
+		WHERE balance_status = $1
+		  AND created_at < $2
+		  AND deleted_at IS NULL
+		ORDER BY created_at ASC
+		LIMIT $3
+	`, constant.BalanceStatusPending, threshold, limit)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to query pending reconciliation candidates", err)
+		logger.Errorf("Failed to query pending reconciliation candidates: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Transaction")
+	}
+	defer rows.Close()
+
+	candidates := make([]PendingBalanceStatusCandidate, 0)
+
+	for rows.Next() {
+		var c PendingBalanceStatusCandidate
+		if err := rows.Scan(&c.ID, &c.OrganizationID, &c.LedgerID, &c.CreatedAt, &c.BalancePersistedAt); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan pending reconciliation candidate", err)
+			logger.Errorf("Failed to scan pending reconciliation candidate: %v", err)
+
+			return nil, pkg.ValidateInternalError(err, "Transaction")
+		}
+
+		candidates = append(candidates, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate reconciliation candidates", err)
+		logger.Errorf("Failed to iterate reconciliation candidates: %v", err)
+
+		return nil, pkg.ValidateInternalError(err, "Transaction")
+	}
+
+	return candidates, nil
 }

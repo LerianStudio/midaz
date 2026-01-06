@@ -12,8 +12,10 @@ package transaction
 import (
 	context "context"
 	reflect "reflect"
+	"time"
 
 	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -177,4 +179,33 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, id, transaction any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, id, transaction)
+}
+
+// UpdateBalanceStatus mocks base method.
+func (m *MockRepository) UpdateBalanceStatus(ctx context.Context, organizationID, ledgerID, id uuid.UUID, status constant.BalanceStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceStatus", ctx, organizationID, ledgerID, id, status)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceStatus indicates an expected call of UpdateBalanceStatus.
+func (mr *MockRepositoryMockRecorder) UpdateBalanceStatus(ctx, organizationID, ledgerID, id, status any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceStatus", reflect.TypeOf((*MockRepository)(nil).UpdateBalanceStatus), ctx, organizationID, ledgerID, id, status)
+}
+
+// FindPendingForReconciliation mocks base method.
+func (m *MockRepository) FindPendingForReconciliation(ctx context.Context, olderThan time.Duration, limit int) ([]PendingBalanceStatusCandidate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindPendingForReconciliation", ctx, olderThan, limit)
+	ret0, _ := ret[0].([]PendingBalanceStatusCandidate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindPendingForReconciliation indicates an expected call of FindPendingForReconciliation.
+func (mr *MockRepositoryMockRecorder) FindPendingForReconciliation(ctx, olderThan, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPendingForReconciliation", reflect.TypeOf((*MockRepository)(nil).FindPendingForReconciliation), ctx, olderThan, limit)
 }
