@@ -1,3 +1,127 @@
+## [v3.5.0-beta.32] - 2026-01-06
+
+### ✨ Features
+- add RabbitMQ container setup and utility functions for integration testing
+- add logging for stale balance updates in UpdateBalances method
+
+### 🐛 Bug Fixes
+- update error logging to use correct transaction ID format in GetTransaction method
+- add early return for empty ID slices in ListByIDs methods for Ledger and Organization repositories
+
+### 🔄 Changes
+- add validation checks for missing fields in alias creation tests and improve random string generation in asset integration tests
+- enhance alias and holder tests with additional scenarios and validation checks
+- remove holder-link adapter and related tests, update alias and holder tests to eliminate holder-link dependencies
+- update test cases to use utility pointer function and improve request handling in account type tests
+- improve error handling in asset integration tests
+- enhance integration tests by improving error handling and resource cleanup
+- rename chaos data integrity test
+- remove unused test function and update constant imports
+- improve test readability and consistency by using fmt.Sprintf for string formatting in integration tests
+- update test utility imports
+- test utilities and enhance integration test setup for MongoDB and PostgreSQL
+- enhance container setup by adding port listening checks for MongoDB, PostgreSQL, and Redis
+- remove redundant cleanup calls from integration tests
+- cleanup processes in integration tests
+- enhance Toxiproxy container setup for Linux compatibility by adding host mapping
+- unify chaos testing infrastructure for RabbitMQ and Redis, enhancing proxy management and cleanup processes
+- remove deprecated assertions and chaos result logging from test utilities
+- consolidate chaos testing infrastructure and enhance Redis chaos tests
+- mongodb mock file name
+- ledger config and consumer redis integration tests
+
+### 📚 Documentation
+- update Makefile and tests.mk to include new test commands and benchmarks
+
+### 🧪 Testing
+- add integration tests for MongoDB and PostgreSQL repositories, enhancing coverage for holder and holder link functionalities
+- add integration tests for balance synchronization and TTL behavior
+- rename test functions for consistency in naming convention
+- rename chaos test functions to follow new naming convention with TestIntegration_Chaos_ prefix
+- add benchmarks for transaction operations and validations
+- enable parallel execution for all test cases to improve performance
+- implement integration tests
+- implement chaos testing for MongoDB and enhance integration tests with new infrastructure
+- add integration tests for PostgreSQL transaction repository
+- add waitForOperations function to enhance transaction integration tests
+- add integration tests for Asset, Portfolio, and Segment repositories
+- add integration tests for AccountType repository
+- add fuzz tests
+- enhance and refactor integration tests for transactions
+- add integration tests for asset and account creation, including validation for existing and deleted assets
+- add comprehensive unit tests for PostgreSQL transaction model, covering entity conversion, status checks, and transaction handling scenarios
+- refactor and enhance unit tests for SendBTOExecuteAsync and TransactionExecute with improved data setup and fallback scenarios
+- refactor and expand unit tests for CreateBalance with improved setup and additional scenarios
+- refactor and enhance unit tests for UpdateOperation with comprehensive scenarios and error handling
+- refactor and expand unit tests for GetAllMetadataTransactionRoutes with improved error handling and metadata filtering
+- add unit tests for MongoDBModel entity conversion and round-trip validation
+- add unit tests
+- add unit tests for MongoDB model alias handling with various scenarios
+- add integration tests for transaction handler's commit and revert behavior on pending and non-pending transactions
+- add integration test for pending transaction lifecycle with creation and commit phases
+- add integration tests for transaction handler with synchronous and asynchronous transaction creation
+- add integration test for N:N transactions rollback behavior in Redis
+- add unit tests for mongodb models
+- enhance unit tests for GetAllAssetRatesByAssetCode with metadata handling and error scenarios
+- add unit tests for update transaction fields
+- add unit tests for balance model
+- add unit tests for TransactionRoute PostgreSQL model with various scenarios
+- add unit tests for PostgreSQL models
+- add unit tests for organization model
+- remove redundant metadata validation integration tests
+- improve unit tests for CreateTransaction with comprehensive scenarios and mock setups
+- enhance unit tests for portfolio and segment handlers with additional field validations
+- expand unit tests for GetAllOperationsByAccount with metadata handling and error scenarios
+- enhance unit tests for operation and balance
+- add integration tests for account and ledger counting, pagination, and consistency
+- implement unit tests for CreateOrUpdateAssetRate
+- add unit tests for AddHolderLinkToAlias
+- add integration tests for filtering stale balances in UpdateBalance functionality
+- enhance unit tests for get transaction by id
+- add unit tests for filtering stale balances in UpdateBalance functionality
+- add unit test for unknown operation handling in OperateBalances function
+- refactor balance integration tests to use shared helper for large precision balances and add optimistic locking tests
+- add unit tests for GetAccountTypeByID method
+- add unit tests for GetOperationByID method, covering success, error scenarios, and metadata handling
+- add tests for handlers
+- add unit tests for TransactionHandler's GetTransaction method, covering success and error scenarios
+- add tests for organization handler
+- add tests for balance handler methods
+- add unit tests for oversized field validation in HTTP requests
+- add unit tests for error handling in HTTP responses
+- add comprehensive integration tests for organization repo
+- refactor and enhance unit tests for JSON unmarshalling and field validation, consolidating multiple test cases into structured table-driven tests
+- add unit tests for metadata validation including key length, value length, nested values, and combined scenarios
+- add PostgreSQL integration tests for Ledger and Organization repositories with ListByIDs functionality
+- add integration test for AccountRepository pagination to ensure no duplicate accounts across pages
+- add MongoDB integration tests for MetadataMongoDBRepository with create, find, update, and delete operations
+- update import paths for test utilities and add MongoDB, PostgreSQL, and Redis integration test utilities
+- moved integration test for accounts alias filtering
+- add integration tests for BalanceRepository to validate date range filtering and pagination functionality
+- add integration tests for BalanceRepository to validate large precision handling and empty alias scenarios
+- enhance PostgreSQL integration tests for BalanceRepository with additional scenarios and validations
+- add PostgreSQL integration tests for BalanceRepository functionality
+- refactor GetBalanceByID tests to use table-driven approach
+- remove deprecated integration test for GetByID functionality in organization ledger accounts
+- add PostgreSQL integration tests for AccountRepository functionality
+- refactor Redis integration tests to utilize new test utilities
+- add PostgreSQL and Redis integration test utilities
+- remove tests/property dir - tests moved closer to code
+- remove duplicate TestProperty_BalanceConsistency_API
+- add property test for balance operations sum invariant and enhance existing tests
+- remove tautological nonnegative_test.go
+- enhance Redis consumer integration tests for balance operations
+- remove tautological conservation_test.go
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update dependencies in go.mod
+- add chaos testing framework
+- remove deprecated API testing commands and update integration tests for transaction handling
+- add resource limit configuration for test containers
+- enhance test suite for Go unit and integration tests with coverage reporting
+
+
 ## [v3.5.0-beta.31] - 2026-01-06
 
 ### ✨ Features
@@ -654,7 +778,7 @@ Contributors: Ygohr Medeiros, lerian-studio
 - **Configuration and Workflow Updates**: Updated workflow configurations to exclude generated files from security scans, streamlining the development process and reducing false positives in security assessments.
 - **Testing Enhancements**: Improved test coverage for balance operations by introducing mocks for `BalanceGRPCRepo`, ensuring more reliable and comprehensive test scenarios.
 
-## [v3.4.5] - 2025-11-28
+## [v3.5.0-beta.33] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4...v3.4.5)
 Contributors: Clara Tersi, lerian-studio
