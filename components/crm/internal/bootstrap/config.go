@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
-	holderlink "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder-link"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 )
 
@@ -92,12 +91,10 @@ func InitServers() *Service {
 
 	holderMongoDBRepository := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
 	aliasMongoDBRepository := alias.NewMongoDBRepository(mongoConnection, dataSecurity)
-	holderLinkMongoDBRepository := holderlink.NewMongoDBRepository(mongoConnection)
 
 	useCases := &services.UseCase{
-		HolderRepo:     holderMongoDBRepository,
-		AliasRepo:      aliasMongoDBRepository,
-		HolderLinkRepo: holderLinkMongoDBRepository,
+		HolderRepo: holderMongoDBRepository,
+		AliasRepo:  aliasMongoDBRepository,
 	}
 
 	holderHandler := &in.HolderHandler{

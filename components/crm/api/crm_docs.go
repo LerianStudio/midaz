@@ -116,6 +116,24 @@ const docTemplatecrm = `{
                         "description": "Filter alias by banking details iban",
                         "name": "banking_details_iban",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter alias by regulatory fields participant document",
+                        "name": "regulatory_fields_participant_document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter alias by related party document",
+                        "name": "related_party_document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter alias by related party role",
+                        "name": "related_party_role",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -639,6 +657,74 @@ const docTemplatecrm = `{
                 }
             }
         },
+        "/v1/holders/{holder_id}/aliases/{alias_id}/related-parties/{related_party_id}": {
+            "delete": {
+                "description": "Delete a Related Party from an Alias. This operation performs a physical deletion (hard delete) of the related party.",
+                "tags": [
+                    "Aliases"
+                ],
+                "summary": "Delete a Related Party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization associated with the Ledger.",
+                        "name": "X-Organization-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Holder.",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Alias account.",
+                        "name": "alias_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Related Party.",
+                        "name": "related_party_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/holders/{id}": {
             "get": {
                 "description": "Retrieves detailed information about a specific holder using its unique identifier.",
@@ -835,31 +921,6 @@ const docTemplatecrm = `{
         }
     },
     "definitions": {
-        "AddHolderLinkInput": {
-            "description": "AddHolderLinkInput payload",
-            "type": "object",
-            "required": [
-                "holderId",
-                "linkType"
-            ],
-            "properties": {
-                "holderId": {
-                    "description": "Unique identifier of the holder to be linked.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "linkType": {
-                    "description": "Type of relationship between the holder and the alias (TpVinc).",
-                    "type": "string",
-                    "enum": [
-                        "PRIMARY_HOLDER",
-                        "LEGAL_REPRESENTATIVE",
-                        "RESPONSIBLE_PARTY"
-                    ],
-                    "example": "LEGAL_REPRESENTATIVE"
-                }
-            }
-        },
         "Address": {
             "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",
@@ -949,12 +1010,6 @@ const docTemplatecrm = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "holderLinks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/HolderLinkResponse"
-                    }
-                },
                 "id": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
@@ -967,9 +1022,14 @@ const docTemplatecrm = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "participantDocument": {
-                    "type": "string",
-                    "example": "12345678901234"
+                "regulatoryFields": {
+                    "$ref": "#/definitions/RegulatoryFields"
+                },
+                "relatedParties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
                 },
                 "type": {
                     "type": "string",
@@ -1053,8 +1113,7 @@ const docTemplatecrm = `{
             "type": "object",
             "required": [
                 "accountId",
-                "ledgerId",
-                "participantDocument"
+                "ledgerId"
             ],
             "properties": {
                 "accountId": {
@@ -1075,25 +1134,18 @@ const docTemplatecrm = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "linkType": {
-                    "description": "Type of relationship between the holder and the alias (TpVinc). Optional - if not provided, no HolderLink will be created.",
-                    "type": "string",
-                    "enum": [
-                        "PRIMARY_HOLDER",
-                        "LEGAL_REPRESENTATIVE",
-                        "RESPONSIBLE_PARTY"
-                    ],
-                    "example": "PRIMARY_HOLDER"
-                },
                 "metadata": {
                     "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "participantDocument": {
-                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
-                    "type": "string",
-                    "example": "12345678912345"
+                "regulatoryFields": {
+                    "description": "Object with regulatory fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
                 }
             }
         },
@@ -1166,49 +1218,6 @@ const docTemplatecrm = `{
                         "LEGAL_PERSON"
                     ],
                     "example": "NATURAL_PERSON"
-                }
-            }
-        },
-        "HolderLinkResponse": {
-            "description": "HolderLinkResponse payload - represents the relationship (TpVinc) between a Holder and an Alias",
-            "type": "object",
-            "properties": {
-                "aliasId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "createdAt": {
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
-                "holderId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "id": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "linkType": {
-                    "type": "string",
-                    "enum": [
-                        "PRIMARY_HOLDER",
-                        "LEGAL_REPRESENTATIVE",
-                        "RESPONSIBLE_PARTY"
-                    ],
-                    "example": "PRIMARY_HOLDER"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -1390,6 +1399,64 @@ const docTemplatecrm = `{
                 }
             }
         },
+        "RegulatoryFields": {
+            "description": "RegulatoryFields object",
+            "type": "object",
+            "properties": {
+                "participantDocument": {
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
+                    "type": "string",
+                    "example": "12345678912345"
+                }
+            }
+        },
+        "RelatedParty": {
+            "description": "RelatedParty object",
+            "type": "object",
+            "required": [
+                "document",
+                "name",
+                "role",
+                "startDate"
+            ],
+            "properties": {
+                "document": {
+                    "description": "Document of the related party.",
+                    "type": "string",
+                    "example": "12345678900"
+                },
+                "endDate": {
+                    "description": "End date of the relationship (optional).",
+                    "type": "string",
+                    "example": "2026-01-01T00:00:00Z"
+                },
+                "id": {
+                    "description": "Unique identifier of the related party.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "name": {
+                    "description": "Name of the related party.",
+                    "type": "string",
+                    "example": "Maria de Jesus"
+                },
+                "role": {
+                    "description": "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).",
+                    "type": "string",
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "PRIMARY_HOLDER"
+                },
+                "startDate": {
+                    "description": "Start date of the relationship.",
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
         "Representative": {
             "description": "Representative object from LegalPerson",
             "type": "object",
@@ -1420,14 +1487,6 @@ const docTemplatecrm = `{
             "description": "UpdateAliasRequest payload",
             "type": "object",
             "properties": {
-                "addHolderLink": {
-                    "description": "Add a new holder link to the alias (optional).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/AddHolderLinkInput"
-                        }
-                    ]
-                },
                 "bankingDetails": {
                     "description": "Object with banking information of the related account.",
                     "allOf": [
@@ -1446,10 +1505,20 @@ const docTemplatecrm = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "participantDocument": {
-                    "description": "Document of the participant (identifies which financial-group entity owns the relationship)",
-                    "type": "string",
-                    "example": "12345678912345"
+                "regulatoryFields": {
+                    "description": "Object with regulatory fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "List of related parties to add (appends to existing).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
                 }
             }
         },

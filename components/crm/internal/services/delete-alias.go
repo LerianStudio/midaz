@@ -25,32 +25,9 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 
 	logger.Infof("Delete alias by id %v", id)
 
-	holderLinks, err := uc.HolderLinkRepo.FindByAliasID(ctx, organizationID, id, false)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder links by alias id: %v", err)
-
-		logger.Errorf("Failed to find holder links by alias id: %v", err)
-
-		return err
-	}
-
-	if len(holderLinks) > 0 {
-		for _, holderLink := range holderLinks {
-			err = uc.HolderLinkRepo.Delete(ctx, organizationID, *holderLink.ID, hardDelete)
-			if err != nil {
-				libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder link by id: %v", err)
-
-				logger.Errorf("Failed to delete holder link by id: %v", err)
-
-				return err
-			}
-		}
-	}
-
-	err = uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
+	err := uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias by id: %v", err)
-
 		logger.Errorf("Failed to delete alias by id: %v", err)
 
 		return err
