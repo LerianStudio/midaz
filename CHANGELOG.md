@@ -1,3 +1,31 @@
+## [v3.5.0-beta.36] - 2026-01-07
+
+### ✨ Features
+- implement unified metadata index handling with dedicated repositories for onboarding and transaction modules
+- enhance metadata index API with entity-specific routes and validation
+
+### 🐛 Bug Fixes
+- simplify error message for invalid entity name in ValidateBusinessError function
+
+### 🔄 Changes
+- clarify method documentation for GetMetadataIndexPort in TransactionService interface
+- improve cursor closing logic in FindAllIndexes method for MongoDB repositories
+
+### 📚 Documentation
+- expand metadata index API with additional entity types and enhance index statistics documentation
+- update metadata index API to include entity-specific routes
+
+### 🧪 Testing
+- enhance error validation in CreateMetadataIndex unit tests
+- add integration tests for CreateIndex and DeleteIndex functionality in MetadataRepository
+- update metadata index
+- add comprehensive unit tests for metadata index handler and adapter functionality
+
+### 🔧 Maintenance
+- update preact to version 10.28.2
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.35] - 2026-01-07
 
 ### 🐛 Bug Fixes
@@ -957,7 +985,7 @@ Contributors: Ygohr Medeiros, lerian-studio
 - **Code Stability**: Reverted recent lint changes in `withBody.go`. This rollback ensures code reliability, preventing potential issues that could affect user experience.
 
 
-## [v3.4.1] - 2025-11-14
+## [v3.5.0-beta.37] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1)
 Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
