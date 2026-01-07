@@ -1,3 +1,20 @@
+## [v3.5.0-beta.34] - 2026-01-07
+
+### ✨ Features
+- add MongoDBParameters to configuration and update connection string handling
+
+### 🔄 Changes
+- removes deprecated variables
+
+### 🧪 Testing
+- add unit tests for mongo parameters extraction
+
+### 🔧 Maintenance
+- add MONGO_PARAMETERS to .env.example for configuration clarity
+- update crm version
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.33] - 2026-01-06
 
 ### 🐛 Bug Fixes
@@ -843,7 +860,7 @@ Contributors: Clara Tersi, Fabricio Carneiro, Guilherme Moreira Rodrigues, leria
 - **Documentation Updates**: Updated CHANGELOG to accurately reflect recent changes, ensuring users have a clear understanding of the project's evolution.
 
 
-## [v3.4.3] - 2025-11-20
+## [v3.5.0-beta.35] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
 Contributors: Fabricio Carneiro, lerian-studio
