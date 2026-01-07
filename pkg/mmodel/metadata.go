@@ -30,10 +30,6 @@ func GetValidMetadataIndexEntities() []string {
 // swagger:model CreateMetadataIndexInput
 // @Description CreateMetadataIndexInput payload
 type CreateMetadataIndexInput struct {
-	// The entity/collection name to create the index on
-	// required: true
-	// enum: transaction,operation,operation_route,transaction_route
-	EntityName string `json:"entityName" validate:"required,oneof=transaction operation operation_route transaction_route" example:"transaction"`
 	// The metadata key to index (without "metadata." prefix)
 	// required: true
 	// maxLength: 100

@@ -30,8 +30,8 @@ func NewMetadataIndexAdapter(cmd *command.UseCase, qry *query.UseCase) *Metadata
 }
 
 // CreateMetadataIndex creates a new metadata index on a MongoDB collection.
-func (a *MetadataIndexAdapter) CreateMetadataIndex(ctx context.Context, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
-	return a.Command.CreateMetadataIndex(ctx, input)
+func (a *MetadataIndexAdapter) CreateMetadataIndex(ctx context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+	return a.Command.CreateMetadataIndex(ctx, entityName, input)
 }
 
 // GetAllMetadataIndexes retrieves all metadata indexes, optionally filtered by entity name.

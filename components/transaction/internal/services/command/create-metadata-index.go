@@ -15,15 +15,15 @@ import (
 )
 
 // CreateMetadataIndex creates a new metadata index.
-func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_index")
 	defer span.End()
 
-	logger.Infof("Initializing the create metadata index operation: %v", input)
+	logger.Infof("Initializing the create metadata index operation: entityName=%s, input=%v", entityName, input)
 
-	existingIndexes, err := uc.MetadataRepo.FindAllIndexes(ctx, input.EntityName)
+	existingIndexes, err := uc.MetadataRepo.FindAllIndexes(ctx, entityName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check existing indexes", err)
 
@@ -48,8 +48,8 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, input *mmodel.Create
 		sparse = *input.Sparse
 	}
 
-	metadataIndex, err := uc.MetadataRepo.CreateIndex(ctx, input.EntityName, &mongodb.MetadataIndex{
-		EntityName:  input.EntityName,
+	metadataIndex, err := uc.MetadataRepo.CreateIndex(ctx, entityName, &mongodb.MetadataIndex{
+		EntityName:  entityName,
 		MetadataKey: input.MetadataKey,
 		Unique:      input.Unique,
 		Sparse:      sparse,

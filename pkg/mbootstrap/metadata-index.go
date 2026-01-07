@@ -20,7 +20,7 @@ import (
 // with the transaction module's implementation without knowing the underlying details.
 type MetadataIndexPort interface {
 	// CreateMetadataIndex creates a new metadata index on a MongoDB collection.
-	CreateMetadataIndex(ctx context.Context, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
+	CreateMetadataIndex(ctx context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 
 	// GetAllMetadataIndexes retrieves all metadata indexes, optionally filtered by entity name.
 	GetAllMetadataIndexes(ctx context.Context, filter http.QueryHeader) ([]*mmodel.MetadataIndex, error)
