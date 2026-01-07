@@ -24,23 +24,23 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 		name           string
 		entityName     string
 		payload        *mmodel.CreateMetadataIndexInput
-		setupMock      func(*mbootstrap.MockMetadataIndexPort)
+		setupMocks     func(*mbootstrap.MockMetadataIndexRepository, *mbootstrap.MockMetadataIndexRepository)
 		expectedStatus int
 	}{
 		{
-			name:       "success",
+			name:       "success - transaction entity",
 			entityName: "transaction",
 			payload: &mmodel.CreateMetadataIndexInput{
 				MetadataKey: "tier",
 				Unique:      false,
 			},
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					CreateMetadataIndex(gomock.Any(), "transaction", gomock.Any()).
-					DoAndReturn(func(_ context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 						return &mmodel.MetadataIndex{
 							IndexName:   "metadata.tier_1",
-							EntityName:  entityName,
+							EntityName:  collection,
 							MetadataKey: input.MetadataKey,
 							Unique:      input.Unique,
 							Sparse:      true,
@@ -50,19 +50,41 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			expectedStatus: fiber.StatusCreated,
 		},
 		{
-			name:       "success - operation entity",
-			entityName: "operation",
+			name:       "success - onboarding entity (account)",
+			entityName: "account",
 			payload: &mmodel.CreateMetadataIndexInput{
 				MetadataKey: "category",
 				Unique:      true,
 			},
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					CreateMetadataIndex(gomock.Any(), "operation", gomock.Any()).
-					DoAndReturn(func(_ context.Context, entityName string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					CreateIndex(gomock.Any(), "account", gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 						return &mmodel.MetadataIndex{
 							IndexName:   "metadata.category_1",
-							EntityName:  entityName,
+							EntityName:  collection,
+							MetadataKey: input.MetadataKey,
+							Unique:      input.Unique,
+							Sparse:      true,
+						}, nil
+					})
+			},
+			expectedStatus: fiber.StatusCreated,
+		},
+		{
+			name:       "success - onboarding entity (organization)",
+			entityName: "organization",
+			payload: &mmodel.CreateMetadataIndexInput{
+				MetadataKey: "region",
+				Unique:      false,
+			},
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					CreateIndex(gomock.Any(), "organization", gomock.Any()).
+					DoAndReturn(func(_ context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+						return &mmodel.MetadataIndex{
+							IndexName:   "metadata.region_1",
+							EntityName:  collection,
 							MetadataKey: input.MetadataKey,
 							Unique:      input.Unique,
 							Sparse:      true,
@@ -77,19 +99,19 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			payload: &mmodel.CreateMetadataIndexInput{
 				MetadataKey: "tier",
 			},
-			setupMock:      func(m *mbootstrap.MockMetadataIndexPort) {},
+			setupMocks:     func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {},
 			expectedStatus: fiber.StatusBadRequest,
 		},
 		{
-			name:       "error - port failure",
+			name:       "error - repo failure",
 			entityName: "transaction",
 			payload: &mmodel.CreateMetadataIndexInput{
 				MetadataKey: "tier",
 				Unique:      false,
 			},
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					CreateMetadataIndex(gomock.Any(), "transaction", gomock.Any()).
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
 					Return(nil, errors.New("index already exists"))
 			},
 			expectedStatus: fiber.StatusInternalServerError,
@@ -104,16 +126,17 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			mockPort := mbootstrap.NewMockMetadataIndexPort(ctrl)
-			tt.setupMock(mockPort)
+			mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			tt.setupMocks(mockOnboardingRepo, mockTransactionRepo)
 
 			handler := &MetadataIndexHandler{
-				MetadataIndexPort: mockPort,
+				OnboardingMetadataRepo:  mockOnboardingRepo,
+				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
 			app := fiber.New()
 
-			// Route matches the new pattern: /v1/settings/metadata-indexes/entities/:entity_name
 			app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
 				c.SetUserContext(context.Background())
 				return handler.CreateMetadataIndex(tt.payload, c)
@@ -131,7 +154,6 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
-			// Validate response body for success case
 			if tt.expectedStatus == fiber.StatusCreated {
 				respBody, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -176,10 +198,12 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			mockPort := mbootstrap.NewMockMetadataIndexPort(ctrl)
+			mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
 
 			handler := &MetadataIndexHandler{
-				MetadataIndexPort: mockPort,
+				OnboardingMetadataRepo:  mockOnboardingRepo,
+				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
 			app := fiber.New()
@@ -206,20 +230,19 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		setupMock      func(*mbootstrap.MockMetadataIndexPort)
+		setupMocks     func(*mbootstrap.MockMetadataIndexRepository, *mbootstrap.MockMetadataIndexRepository)
 		expectedStatus int
 		validateBody   func(*testing.T, []*mmodel.MetadataIndex)
 	}{
 		{
-			name:        "success - no filter",
-			queryParams: "",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
+			name:        "success - filter by transaction entity",
+			queryParams: "?entity_name=transaction",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					FindAllIndexes(gomock.Any(), "transaction").
 					Return([]*mmodel.MetadataIndex{
 						{
 							IndexName:   "metadata.tier_1",
-							EntityName:  "transaction",
 							MetadataKey: "tier",
 							Unique:      false,
 							Sparse:      true,
@@ -234,31 +257,30 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 		},
 		{
-			name:        "success - with entity filter",
-			queryParams: "?entity_name=operation",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
+			name:        "success - filter by onboarding entity (account)",
+			queryParams: "?entity_name=account",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					FindAllIndexes(gomock.Any(), "account").
 					Return([]*mmodel.MetadataIndex{
 						{
-							IndexName:   "metadata.tier_1",
-							EntityName:  "operation",
-							MetadataKey: "tier",
+							IndexName:   "metadata.category_1",
+							MetadataKey: "category",
 						},
 					}, nil)
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
 				require.Len(t, result, 1)
-				assert.Equal(t, "operation", result[0].EntityName)
+				assert.Equal(t, "account", result[0].EntityName)
 			},
 		},
 		{
 			name:        "success - empty result",
-			queryParams: "",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
+			queryParams: "?entity_name=ledger",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					FindAllIndexes(gomock.Any(), "ledger").
 					Return([]*mmodel.MetadataIndex{}, nil)
 			},
 			expectedStatus: fiber.StatusOK,
@@ -269,17 +291,17 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 		{
 			name:        "error - invalid entity_name filter",
 			queryParams: "?entity_name=invalid_entity",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				// No mock call expected - validation fails before port call
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				// No mock call expected - validation fails before repo call
 			},
 			expectedStatus: fiber.StatusBadRequest,
 		},
 		{
-			name:        "error - port failure",
-			queryParams: "",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					GetAllMetadataIndexes(gomock.Any(), gomock.Any()).
+			name:        "error - repo failure",
+			queryParams: "?entity_name=operation",
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					FindAllIndexes(gomock.Any(), "operation").
 					Return(nil, errors.New("database error"))
 			},
 			expectedStatus: fiber.StatusInternalServerError,
@@ -294,11 +316,13 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			mockPort := mbootstrap.NewMockMetadataIndexPort(ctrl)
-			tt.setupMock(mockPort)
+			mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			tt.setupMocks(mockOnboardingRepo, mockTransactionRepo)
 
 			handler := &MetadataIndexHandler{
-				MetadataIndexPort: mockPort,
+				OnboardingMetadataRepo:  mockOnboardingRepo,
+				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
 			app := fiber.New()
@@ -336,28 +360,27 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 		name           string
 		entityName     string
 		indexKey       string
-		setupMock      func(*mbootstrap.MockMetadataIndexPort)
+		setupMocks     func(*mbootstrap.MockMetadataIndexRepository, *mbootstrap.MockMetadataIndexRepository)
 		expectedStatus int
 	}{
 		{
-			name:       "success",
+			name:       "success - transaction entity",
 			entityName: "transaction",
 			indexKey:   "tier",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				// Handler builds index name as: metadata.{key}_1
-				m.EXPECT().
-					DeleteMetadataIndex(gomock.Any(), "transaction", "metadata.tier_1").
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					DeleteIndex(gomock.Any(), "transaction", "metadata.tier_1").
 					Return(nil)
 			},
 			expectedStatus: fiber.StatusNoContent,
 		},
 		{
-			name:       "success - operation entity",
-			entityName: "operation",
+			name:       "success - onboarding entity (account)",
+			entityName: "account",
 			indexKey:   "category",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					DeleteMetadataIndex(gomock.Any(), "operation", "metadata.category_1").
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				onboarding.EXPECT().
+					DeleteIndex(gomock.Any(), "account", "metadata.category_1").
 					Return(nil)
 			},
 			expectedStatus: fiber.StatusNoContent,
@@ -366,9 +389,9 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			name:       "success - operation_route entity",
 			entityName: "operation_route",
 			indexKey:   "region",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					DeleteMetadataIndex(gomock.Any(), "operation_route", "metadata.region_1").
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					DeleteIndex(gomock.Any(), "operation_route", "metadata.region_1").
 					Return(nil)
 			},
 			expectedStatus: fiber.StatusNoContent,
@@ -377,16 +400,16 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			name:           "error - invalid entity_name",
 			entityName:     "invalid_entity",
 			indexKey:       "tier",
-			setupMock:      func(m *mbootstrap.MockMetadataIndexPort) {},
+			setupMocks:     func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {},
 			expectedStatus: fiber.StatusBadRequest,
 		},
 		{
-			name:       "error - port failure (not found)",
+			name:       "error - repo failure (not found)",
 			entityName: "transaction",
 			indexKey:   "tier",
-			setupMock: func(m *mbootstrap.MockMetadataIndexPort) {
-				m.EXPECT().
-					DeleteMetadataIndex(gomock.Any(), "transaction", "metadata.tier_1").
+			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
+				transaction.EXPECT().
+					DeleteIndex(gomock.Any(), "transaction", "metadata.tier_1").
 					Return(errors.New("index not found"))
 			},
 			expectedStatus: fiber.StatusInternalServerError,
@@ -401,16 +424,17 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			mockPort := mbootstrap.NewMockMetadataIndexPort(ctrl)
-			tt.setupMock(mockPort)
+			mockOnboardingRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			mockTransactionRepo := mbootstrap.NewMockMetadataIndexRepository(ctrl)
+			tt.setupMocks(mockOnboardingRepo, mockTransactionRepo)
 
 			handler := &MetadataIndexHandler{
-				MetadataIndexPort: mockPort,
+				OnboardingMetadataRepo:  mockOnboardingRepo,
+				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
 			app := fiber.New()
 
-			// Route matches the new pattern: /v1/settings/metadata-indexes/entities/:entity_name/key/:index_key
 			app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
 				c.SetUserContext(context.Background())
 				return handler.DeleteMetadataIndex(c)

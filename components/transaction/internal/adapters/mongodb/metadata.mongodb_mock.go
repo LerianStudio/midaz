@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -21,7 +22,6 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -42,132 +42,132 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
+func (m *MockRepository) Create(arg0 context.Context, arg1 string, arg2 *Metadata) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, collection, metadata)
+	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(ctx, collection, metadata any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, collection, metadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1, arg2)
 }
 
 // CreateIndex mocks base method.
-func (m *MockRepository) CreateIndex(ctx context.Context, collection string, metadata *MetadataIndex) (*MetadataIndex, error) {
+func (m *MockRepository) CreateIndex(arg0 context.Context, arg1 string, arg2 *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateIndex", ctx, collection, metadata)
-	ret0, _ := ret[0].(*MetadataIndex)
+	ret := m.ctrl.Call(m, "CreateIndex", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*mmodel.MetadataIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateIndex indicates an expected call of CreateIndex.
-func (mr *MockRepositoryMockRecorder) CreateIndex(ctx, collection, metadata any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateIndex(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIndex", reflect.TypeOf((*MockRepository)(nil).CreateIndex), ctx, collection, metadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIndex", reflect.TypeOf((*MockRepository)(nil).CreateIndex), arg0, arg1, arg2)
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(ctx context.Context, collection, id string) error {
+func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, collection, id)
+	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockRepositoryMockRecorder) Delete(ctx, collection, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, collection, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2)
 }
 
 // DeleteIndex mocks base method.
-func (m *MockRepository) DeleteIndex(ctx context.Context, collection, indexName string) error {
+func (m *MockRepository) DeleteIndex(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteIndex", ctx, collection, indexName)
+	ret := m.ctrl.Call(m, "DeleteIndex", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteIndex indicates an expected call of DeleteIndex.
-func (mr *MockRepositoryMockRecorder) DeleteIndex(ctx, collection, indexName any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteIndex(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIndex", reflect.TypeOf((*MockRepository)(nil).DeleteIndex), ctx, collection, indexName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIndex", reflect.TypeOf((*MockRepository)(nil).DeleteIndex), arg0, arg1, arg2)
 }
 
 // FindAllIndexes mocks base method.
-func (m *MockRepository) FindAllIndexes(ctx context.Context, collection string) ([]*MetadataIndex, error) {
+func (m *MockRepository) FindAllIndexes(arg0 context.Context, arg1 string) ([]*mmodel.MetadataIndex, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllIndexes", ctx, collection)
-	ret0, _ := ret[0].([]*MetadataIndex)
+	ret := m.ctrl.Call(m, "FindAllIndexes", arg0, arg1)
+	ret0, _ := ret[0].([]*mmodel.MetadataIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAllIndexes indicates an expected call of FindAllIndexes.
-func (mr *MockRepositoryMockRecorder) FindAllIndexes(ctx, collection any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllIndexes(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllIndexes", reflect.TypeOf((*MockRepository)(nil).FindAllIndexes), ctx, collection)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllIndexes", reflect.TypeOf((*MockRepository)(nil).FindAllIndexes), arg0, arg1)
 }
 
 // FindByEntity mocks base method.
-func (m *MockRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
+func (m *MockRepository) FindByEntity(arg0 context.Context, arg1, arg2 string) (*Metadata, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByEntity", ctx, collection, id)
+	ret := m.ctrl.Call(m, "FindByEntity", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByEntity indicates an expected call of FindByEntity.
-func (mr *MockRepositoryMockRecorder) FindByEntity(ctx, collection, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByEntity(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntity", reflect.TypeOf((*MockRepository)(nil).FindByEntity), ctx, collection, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntity", reflect.TypeOf((*MockRepository)(nil).FindByEntity), arg0, arg1, arg2)
 }
 
 // FindByEntityIDs mocks base method.
-func (m *MockRepository) FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error) {
+func (m *MockRepository) FindByEntityIDs(arg0 context.Context, arg1 string, arg2 []string) ([]*Metadata, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByEntityIDs", ctx, collection, entityIDs)
+	ret := m.ctrl.Call(m, "FindByEntityIDs", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByEntityIDs indicates an expected call of FindByEntityIDs.
-func (mr *MockRepositoryMockRecorder) FindByEntityIDs(ctx, collection, entityIDs any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByEntityIDs(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindByEntityIDs), ctx, collection, entityIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindByEntityIDs), arg0, arg1, arg2)
 }
 
 // FindList mocks base method.
-func (m *MockRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
+func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 http.QueryHeader) ([]*Metadata, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindList", ctx, collection, filter)
+	ret := m.ctrl.Call(m, "FindList", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*Metadata)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindList indicates an expected call of FindList.
-func (mr *MockRepositoryMockRecorder) FindList(ctx, collection, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindList(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, collection, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), arg0, arg1, arg2)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 string, arg3 map[string]any) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, collection, id, metadata)
+	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, collection, id, metadata any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, collection, id, metadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3)
 }
