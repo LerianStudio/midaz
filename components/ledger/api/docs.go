@@ -7428,7 +7428,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes": {
+    "/v1/settings/metadata-indexes": {
       "get": {
         "description": "Get all metadata indexes, optionally filtered by entity name",
         "produces": [
@@ -7451,20 +7451,6 @@ const docTemplate = `
             "description": "Request ID",
             "name": "X-Request-Id",
             "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
           },
           {
             "enum": [
@@ -7507,12 +7493,6 @@ const docTemplate = `
               "$ref": "#/definitions/Error"
             }
           },
-          "404": {
-            "description": "Organization or ledger not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
           "500": {
             "description": "Internal server error",
             "schema": {
@@ -7546,20 +7526,6 @@ const docTemplate = `
             "description": "Request ID",
             "name": "X-Request-Id",
             "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
           },
           {
             "description": "Metadata Index Input",
@@ -7596,12 +7562,6 @@ const docTemplate = `
               "$ref": "#/definitions/Error"
             }
           },
-          "404": {
-            "description": "Organization or ledger not found",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          },
           "409": {
             "description": "Conflict: Metadata index already exists",
             "schema": {
@@ -7617,7 +7577,7 @@ const docTemplate = `
         }
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}": {
+    "/v1/settings/metadata-indexes/{index_name}": {
       "delete": {
         "description": "Delete a metadata index by its name",
         "produces": [
@@ -7640,20 +7600,6 @@ const docTemplate = `
             "description": "Request ID",
             "name": "X-Request-Id",
             "in": "header"
-          },
-          {
-            "type": "string",
-            "description": "Organization ID",
-            "name": "organization_id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Ledger ID",
-            "name": "ledger_id",
-            "in": "path",
-            "required": true
           },
           {
             "type": "string",

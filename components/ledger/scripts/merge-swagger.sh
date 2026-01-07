@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LEDGER_DIR="$(dirname "$SCRIPT_DIR")"
 MIDAZ_ROOT="$(dirname "$(dirname "$LEDGER_DIR")")"
 
-ONBOARDING_SWAGGER="$MIDAZ_ROOT/components/onboarding/api/Onboarding_swagger.json"
-TRANSACTION_SWAGGER="$MIDAZ_ROOT/components/transaction/api/Transaction_swagger.json"
+ONBOARDING_SWAGGER="$MIDAZ_ROOT/components/onboarding/api/onboarding_swagger.json"
+TRANSACTION_SWAGGER="$MIDAZ_ROOT/components/transaction/api/transaction_swagger.json"
 LEDGER_SWAGGER="$LEDGER_DIR/api/ledger_swagger.json"
 OUTPUT_DIR="$LEDGER_DIR/api"
 OUTPUT_FILE="$OUTPUT_DIR/swagger.json"
@@ -155,5 +155,10 @@ elif command -v python3 &> /dev/null; then
 else
     echo "Neither yq nor python3 found, skipping YAML generation"
 fi
+
+# Clean up intermediate ledger-specific files
+echo "Cleaning up intermediate files..."
+rm -f "$LEDGER_SWAGGER" "$OUTPUT_DIR/ledger_docs.go" "$OUTPUT_DIR/ledger_swagger.yaml"
+echo "Removed: ledger_swagger.json, ledger_docs.go, ledger_swagger.yaml"
 
 echo "Done!"

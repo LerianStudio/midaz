@@ -47,15 +47,15 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *MetadataIndexHandler) {
 	// Metadata Indexes
 	f.Post("/v1/settings/metadata-indexes",
-		auth.Authorize(midazName, "metadata-indexes", "post"),
+		auth.Authorize(midazName, "settings", "post"),
 		http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex))
 
 	f.Get("/v1/settings/metadata-indexes",
-		auth.Authorize(midazName, "metadata-indexes", "get"),
+		auth.Authorize(midazName, "settings", "get"),
 		mdi.GetAllMetadataIndexes)
 
 	f.Delete("/v1/settings/metadata-indexes/:index_name",
-		auth.Authorize(midazName, "metadata-indexes", "delete"),
+		auth.Authorize(midazName, "settings", "delete"),
 		mdi.DeleteMetadataIndex)
 }
 

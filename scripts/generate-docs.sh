@@ -153,7 +153,28 @@ main() {
             break
         fi
     done
-    
+
+    # Generate ledger unified swagger (merges onboarding + transaction + ledger settings)
+    if [ "$overall_success" = true ]; then
+        if [ -f "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" ]; then
+            print_step "Generating ledger unified swagger" "PROCESSING"
+            local ledger_out="${LOG_DIR}/ledger_merge.out"
+            local ledger_err="${LOG_DIR}/ledger_merge.err"
+            local start_time=$(date +%s.%N)
+
+            if "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" > "${ledger_out}" 2> "${ledger_err}"; then
+                local end_time=$(date +%s.%N)
+                local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+                print_step "Generated ledger unified swagger" "SUCCESS" "${elapsed}"
+            else
+                print_step "Generate ledger unified swagger" "FAILED"
+                echo -e "      ${RED}Error details:${NC}"
+                head -5 "${ledger_err}" | sed 's/^/        /'
+                overall_success=false
+            fi
+        fi
+    fi
+
     # If OpenAPI generation succeeded, install dependencies and convert to Postman
     if [ "$overall_success" = true ]; then
         if ! install_npm_dependencies; then
