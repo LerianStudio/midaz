@@ -7454,6 +7454,13 @@ const docTemplate = `
           },
           {
             "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
               "transaction",
               "operation",
               "operation_route",
@@ -7531,6 +7538,13 @@ const docTemplate = `
           },
           {
             "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
               "transaction",
               "operation",
               "operation_route",
@@ -7618,6 +7632,13 @@ const docTemplate = `
           },
           {
             "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
               "transaction",
               "operation",
               "operation_route",
@@ -10006,16 +10027,27 @@ const docTemplate = `
         }
       }
     },
+    "IndexStats": {
+      "description": "Usage statistics collected by MongoDB for an index",
+      "type": "object",
+      "properties": {
+        "accesses": {
+          "description": "Number of operations that have used this index\nexample: 1523",
+          "type": "integer",
+          "example": 1523
+        },
+        "statsSince": {
+          "description": "Timestamp since when the statistics are being collected\nexample: 2024-12-01T10:30:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2024-12-01T10:30:00Z"
+        }
+      }
+    },
     "MetadataIndex": {
       "description": "Represents a custom MongoDB index on a metadata field",
       "type": "object",
       "properties": {
-        "createdAt": {
-          "description": "When the index was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
         "entityName": {
           "description": "The entity/collection name where the index exists",
           "type": "string",
@@ -10035,6 +10067,14 @@ const docTemplate = `
           "description": "Whether the index is sparse",
           "type": "boolean",
           "example": true
+        },
+        "stats": {
+          "description": "Usage statistics for this index (only available on GET, not on CREATE)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/IndexStats"
+            }
+          ]
         },
         "unique": {
           "description": "Whether the index enforces uniqueness",

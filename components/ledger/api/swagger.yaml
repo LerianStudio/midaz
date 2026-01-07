@@ -5037,6 +5037,13 @@ paths:
         name: X-Request-Id
         in: header
       - enum:
+        - organization
+        - ledger
+        - segment
+        - account
+        - portfolio
+        - asset
+        - account_type
         - transaction
         - operation
         - operation_route
@@ -5089,6 +5096,13 @@ paths:
         name: X-Request-Id
         in: header
       - enum:
+        - organization
+        - ledger
+        - segment
+        - account
+        - portfolio
+        - asset
+        - account_type
         - transaction
         - operation
         - operation_route
@@ -5148,6 +5162,13 @@ paths:
         name: X-Request-Id
         in: header
       - enum:
+        - organization
+        - ledger
+        - segment
+        - account
+        - portfolio
+        - asset
+        - account_type
         - transaction
         - operation
         - operation_route
@@ -7946,19 +7967,29 @@ definitions:
           default: false'
         type: boolean
         example: false
-  MetadataIndex:
-    description: Represents a custom MongoDB index on a metadata field
+  IndexStats:
+    description: Usage statistics collected by MongoDB for an index
     type: object
     properties:
-      createdAt:
-        description: 'When the index was created
+      accesses:
+        description: 'Number of operations that have used this index
 
-          example: 2021-01-01T00:00:00Z
+          example: 1523'
+        type: integer
+        example: 1523
+      statsSince:
+        description: 'Timestamp since when the statistics are being collected
+
+          example: 2024-12-01T10:30:00Z
 
           format: date-time'
         type: string
         format: date-time
-        example: '2021-01-01T00:00:00Z'
+        example: '2024-12-01T10:30:00Z'
+  MetadataIndex:
+    description: Represents a custom MongoDB index on a metadata field
+    type: object
+    properties:
       entityName:
         description: The entity/collection name where the index exists
         type: string
@@ -7975,6 +8006,11 @@ definitions:
         description: Whether the index is sparse
         type: boolean
         example: true
+      stats:
+        description: Usage statistics for this index (only available on GET, not on
+          CREATE)
+        allOf:
+        - $ref: '#/definitions/IndexStats'
       unique:
         description: Whether the index enforces uniqueness
         type: boolean
