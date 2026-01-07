@@ -38,8 +38,6 @@ type Config struct {
 	EncryptSecretKey        string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress             string `env:"PLUGIN_AUTH_ADDRESS"`
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
-	LicenseKey              string `env:"LICENSE_KEY"`
-	OrganizationIDs         string `env:"ORGANIZATION_IDS"`
 }
 
 // InitServers initiate http and grpc servers.
