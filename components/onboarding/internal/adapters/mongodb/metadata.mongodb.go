@@ -467,6 +467,13 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 		return nil, err
 	}
 
+	defer func() {
+		if closeErr := statsCur.Close(ctx); closeErr != nil {
+			libOpentelemetry.HandleSpanError(&spanStats, "Failed to close stats cursor", closeErr)
+			logger.Errorf("Failed to close stats cursor: %v", closeErr)
+		}
+	}()
+
 	// Build a map of index name -> stats
 	indexStatsMap := make(map[string]*mmodel.IndexStats)
 
@@ -487,14 +494,6 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 		}
 	}
 
-	if err := statsCur.Close(ctx); err != nil {
-		libOpentelemetry.HandleSpanError(&spanStats, "Failed to close stats cursor", err)
-
-		logger.Errorf("Failed to close stats cursor: %v", err)
-
-		return nil, err
-	}
-
 	spanStats.End()
 
 	// Now get index definitions
@@ -509,6 +508,13 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 		return nil, err
 	}
+
+	defer func() {
+		if closeErr := cur.Close(ctx); closeErr != nil {
+			libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", closeErr)
+			logger.Errorf("Failed to close cursor: %v", closeErr)
+		}
+	}()
 
 	var metadataIndexes []*mmodel.MetadataIndex
 
@@ -549,14 +555,6 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to iterate metadata indexes", err)
 
 		logger.Errorf("Failed to iterate metadata indexes: %v", err)
-
-		return nil, err
-	}
-
-	if err := cur.Close(ctx); err != nil {
-		libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", err)
-
-		logger.Errorf("Failed to close cursor: %v", err)
 
 		return nil, err
 	}
