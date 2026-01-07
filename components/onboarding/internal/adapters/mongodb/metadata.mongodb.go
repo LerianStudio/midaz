@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -28,6 +30,9 @@ type Repository interface {
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	Delete(ctx context.Context, collection, id string) error
+	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
+	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
+	DeleteIndex(ctx context.Context, collection, indexName string) error
 }
 
 // MetadataMongoDBRepository is a MongoDD-specific implementation of the MetadataRepository.
@@ -368,6 +373,229 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	if deleted.DeletedCount > 0 {
 		logger.Infoln("deleted a document with entity_id: ", id)
 	}
+
+	return nil
+}
+
+// CreateIndex creates an index on the mongodb.
+func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.create_index")
+	defer span.End()
+
+	db, err := mmr.connection.GetDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+
+	indexName := fmt.Sprintf("metadata.%s", input.MetadataKey)
+
+	sparse := true
+	if input.Sparse != nil {
+		sparse = *input.Sparse
+	}
+
+	opts := options.Index().
+		SetUnique(input.Unique).
+		SetSparse(sparse)
+
+	ctx, spanCreateIndex := tracer.Start(ctx, "mongodb.create_index.create_one")
+	defer spanCreateIndex.End()
+
+	_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: indexName, Value: 1}},
+		Options: opts,
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanCreateIndex, "Failed to create index", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Created index %s on collection %s", indexName, collection)
+
+	return &mmodel.MetadataIndex{
+		IndexName:   fmt.Sprintf("%s_1", indexName),
+		EntityName:  collection,
+		MetadataKey: input.MetadataKey,
+		Unique:      input.Unique,
+		Sparse:      sparse,
+	}, nil
+}
+
+// MongoDBIndexStats represents the structure returned by $indexStats aggregation.
+type MongoDBIndexStats struct {
+	Name     string `bson:"name"`
+	Accesses struct {
+		Ops   int64     `bson:"ops"`
+		Since time.Time `bson:"since"`
+	} `bson:"accesses"`
+}
+
+// FindAllIndexes retrieves all indexes from the mongodb with usage statistics.
+func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_all_indexes")
+	defer span.End()
+
+	db, err := mmr.connection.GetDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+
+	// First, get index stats via aggregation
+	ctx, spanStats := tracer.Start(ctx, "mongodb.find_all_indexes.stats")
+
+	statsCur, err := coll.Aggregate(ctx, mongo.Pipeline{
+		{{Key: "$indexStats", Value: bson.D{}}},
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanStats, "Failed to get index stats", err)
+
+		logger.Errorf("Failed to get index stats: %v", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := statsCur.Close(ctx); closeErr != nil {
+			libOpentelemetry.HandleSpanError(&spanStats, "Failed to close stats cursor", closeErr)
+			logger.Errorf("Failed to close stats cursor: %v", closeErr)
+		}
+	}()
+
+	// Build a map of index name -> stats
+	indexStatsMap := make(map[string]*mmodel.IndexStats)
+
+	for statsCur.Next(ctx) {
+		var stats MongoDBIndexStats
+		if err := statsCur.Decode(&stats); err != nil {
+			libOpentelemetry.HandleSpanError(&spanStats, "Failed to decode index stats", err)
+
+			logger.Errorf("Failed to decode index stats: %v", err)
+
+			return nil, err
+		}
+
+		statsSince := stats.Accesses.Since
+		indexStatsMap[stats.Name] = &mmodel.IndexStats{
+			Accesses:   stats.Accesses.Ops,
+			StatsSince: &statsSince,
+		}
+	}
+
+	spanStats.End()
+
+	// Now get index definitions
+	opts := options.ListIndexes()
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_indexes.list")
+	defer spanFind.End()
+
+	cur, err := coll.Indexes().List(ctx, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find indexes", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := cur.Close(ctx); closeErr != nil {
+			libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", closeErr)
+			logger.Errorf("Failed to close cursor: %v", closeErr)
+		}
+	}()
+
+	var metadataIndexes []*mmodel.MetadataIndex
+
+	const metadataPrefix = "metadata."
+
+	for cur.Next(ctx) {
+		var record MongoDBIndexInfo
+
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata index", err)
+
+			logger.Errorf("Failed to decode metadata index: %v", err)
+
+			return nil, err
+		}
+
+		for _, elem := range record.Key {
+			// Only include indexes on nested metadata fields
+			if !strings.HasPrefix(elem.Key, metadataPrefix) {
+				continue
+			}
+
+			// Strip the "metadata." prefix from the key for user-friendly display
+			metadataKey := strings.TrimPrefix(elem.Key, metadataPrefix)
+
+			metadataIndexes = append(metadataIndexes, &mmodel.MetadataIndex{
+				IndexName:   record.Name,
+				EntityName:  collection,
+				MetadataKey: metadataKey,
+				Unique:      record.Unique,
+				Sparse:      record.Sparse,
+				Stats:       indexStatsMap[record.Name],
+			})
+		}
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to iterate metadata indexes", err)
+
+		logger.Errorf("Failed to iterate metadata indexes: %v", err)
+
+		return nil, err
+	}
+
+	return metadataIndexes, nil
+}
+
+// DeleteIndex deletes an index from the mongodb.
+func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collection, indexName string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.delete_index")
+	defer span.End()
+
+	db, err := mmr.connection.GetDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
+		logger.Errorf("Failed to get database: %v", err)
+
+		return err
+	}
+
+	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+
+	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
+	defer spanDelete.End()
+
+	_, err = coll.Indexes().DropOne(ctx, indexName)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanDelete, "Failed to delete index", err)
+
+		var cmdErr mongo.CommandError
+		if errors.As(err, &cmdErr) && cmdErr.Name == "IndexNotFound" {
+			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+		}
+
+		return err
+	}
+
+	logger.Infof("Deleted index %s on collection %s", indexName, collection)
 
 	return nil
 }

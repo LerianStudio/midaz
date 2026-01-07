@@ -46,7 +46,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 // This is used by the unified ledger server to consolidate all routes in a single port.
 func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *MetadataIndexHandler) {
 	// Metadata Indexes
-	f.Post("/v1/settings/metadata-indexes",
+	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
 		auth.Authorize(midazName, "settings", "post"),
 		http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex))
 
@@ -54,7 +54,7 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *Metadat
 		auth.Authorize(midazName, "settings", "get"),
 		mdi.GetAllMetadataIndexes)
 
-	f.Delete("/v1/settings/metadata-indexes/:index_name",
+	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
 		auth.Authorize(midazName, "settings", "delete"),
 		mdi.DeleteMetadataIndex)
 }

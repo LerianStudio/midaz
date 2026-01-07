@@ -7454,6 +7454,13 @@ const docTemplate = `
           },
           {
             "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
               "transaction",
               "operation",
               "operation_route",
@@ -7500,9 +7507,11 @@ const docTemplate = `
             }
           }
         }
-      },
+      }
+    },
+    "/v1/settings/metadata-indexes/entities/{entity_name}": {
       "post": {
-        "description": "Create a metadata index with the input payload",
+        "description": "Create a metadata index for the specified entity",
         "consumes": [
           "application/json"
         ],
@@ -7526,6 +7535,26 @@ const docTemplate = `
             "description": "Request ID",
             "name": "X-Request-Id",
             "in": "header"
+          },
+          {
+            "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
+              "transaction",
+              "operation",
+              "operation_route",
+              "transaction_route"
+            ],
+            "type": "string",
+            "description": "Entity Name",
+            "name": "entity_name",
+            "in": "path",
+            "required": true
           },
           {
             "description": "Metadata Index Input",
@@ -7577,9 +7606,9 @@ const docTemplate = `
         }
       }
     },
-    "/v1/settings/metadata-indexes/{index_name}": {
+    "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
       "delete": {
-        "description": "Delete a metadata index by its name",
+        "description": "Delete a metadata index by entity name and index key",
         "produces": [
           "application/json"
         ],
@@ -7602,14 +7631,14 @@ const docTemplate = `
             "in": "header"
           },
           {
-            "type": "string",
-            "description": "Index Name",
-            "name": "index_name",
-            "in": "path",
-            "required": true
-          },
-          {
             "enum": [
+              "organization",
+              "ledger",
+              "segment",
+              "account",
+              "portfolio",
+              "asset",
+              "account_type",
               "transaction",
               "operation",
               "operation_route",
@@ -7618,7 +7647,14 @@ const docTemplate = `
             "type": "string",
             "description": "Entity Name",
             "name": "entity_name",
-            "in": "query",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Index Key (metadata key, e.g., 'tier')",
+            "name": "index_key",
+            "in": "path",
             "required": true
           }
         ],
@@ -9970,21 +10006,9 @@ const docTemplate = `
       "description": "CreateMetadataIndexInput payload",
       "type": "object",
       "required": [
-        "entityName",
         "metadataKey"
       ],
       "properties": {
-        "entityName": {
-          "description": "The entity/collection name to create the index on\nrequired: true\nenum: transaction,operation,operation_route,transaction_route",
-          "type": "string",
-          "enum": [
-            "transaction",
-            "operation",
-            "operation_route",
-            "transaction_route"
-          ],
-          "example": "transaction"
-        },
         "metadataKey": {
           "description": "The metadata key to index (without \"metadata.\" prefix)\nrequired: true\nmaxLength: 100",
           "type": "string",
@@ -10003,16 +10027,27 @@ const docTemplate = `
         }
       }
     },
+    "IndexStats": {
+      "description": "Usage statistics collected by MongoDB for an index",
+      "type": "object",
+      "properties": {
+        "accesses": {
+          "description": "Number of operations that have used this index\nexample: 1523",
+          "type": "integer",
+          "example": 1523
+        },
+        "statsSince": {
+          "description": "Timestamp since when the statistics are being collected\nexample: 2024-12-01T10:30:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2024-12-01T10:30:00Z"
+        }
+      }
+    },
     "MetadataIndex": {
       "description": "Represents a custom MongoDB index on a metadata field",
       "type": "object",
       "properties": {
-        "createdAt": {
-          "description": "When the index was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
         "entityName": {
           "description": "The entity/collection name where the index exists",
           "type": "string",
@@ -10032,6 +10067,14 @@ const docTemplate = `
           "description": "Whether the index is sparse",
           "type": "boolean",
           "example": true
+        },
+        "stats": {
+          "description": "Usage statistics for this index (only available on GET, not on CREATE)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/IndexStats"
+            }
+          ]
         },
         "unique": {
           "description": "Whether the index enforces uniqueness",

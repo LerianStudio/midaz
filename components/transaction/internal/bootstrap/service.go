@@ -9,6 +9,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// Ports groups all external interface dependencies for the transaction service.
+// These are the "ports" in hexagonal architecture that connect to external systems
+// or are exposed to other modules (like unified ledger mode).
+type Ports struct {
+	// BalancePort is exposed for use by onboarding module in unified ledger mode.
+	// This is the transaction UseCase which implements BalancePort directly.
+	BalancePort mbootstrap.BalancePort
+
+	// MetadataPort is the MongoDB metadata repository for direct access in unified ledger mode.
+	MetadataPort mbootstrap.MetadataIndexRepository
+}
+
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
@@ -19,13 +31,8 @@ type Service struct {
 	BalanceSyncWorkerEnabled bool
 	libLog.Logger
 
-	// balancePort holds the reference for use in unified ledger mode.
-	// This is the transaction UseCase which implements BalancePort directly.
-	balancePort mbootstrap.BalancePort
-
-	// metadataIndexPort holds the reference for use in unified ledger mode.
-	// This is the MetadataIndexAdapter which implements MetadataIndexPort.
-	metadataIndexPort mbootstrap.MetadataIndexPort
+	// Ports groups all external interface dependencies.
+	Ports Ports
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
@@ -91,13 +98,13 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 // The returned BalancePort is the transaction UseCase itself, which implements
 // the interface directly - no intermediate adapters needed.
 func (app *Service) GetBalancePort() mbootstrap.BalancePort {
-	return app.balancePort
+	return app.Ports.BalancePort
 }
 
 // GetMetadataIndexPort returns the metadata index port for use by ledger in unified mode.
 // This allows direct in-process calls for metadata index operations.
-func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
-	return app.metadataIndexPort
+func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
+	return app.Ports.MetadataPort
 }
 
 // GetRouteRegistrar returns a function that registers transaction routes to an existing Fiber app.

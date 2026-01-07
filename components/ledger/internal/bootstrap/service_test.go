@@ -27,7 +27,8 @@ func (s *StubRunnable) Run(l *libCommons.Launcher) error {
 // StubService is a stub implementation of onboarding.OnboardingService for testing.
 // It returns pre-configured values without verifying interactions.
 type StubService struct {
-	runnables []mbootstrap.RunnableConfig
+	runnables         []mbootstrap.RunnableConfig
+	metadataIndexRepo mbootstrap.MetadataIndexRepository
 }
 
 func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -36,6 +37,10 @@ func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
 
 func (s *StubService) GetRouteRegistrar() func(*fiber.App) {
 	return func(app *fiber.App) {}
+}
+
+func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
+	return s.metadataIndexRepo
 }
 
 // Ensure StubService implements onboarding.OnboardingService
@@ -47,7 +52,7 @@ type StubTransactionService struct {
 	mbootstrap.Service
 	runnables         []mbootstrap.RunnableConfig
 	balancePort       mbootstrap.BalancePort
-	metadataIndexPort mbootstrap.MetadataIndexPort
+	metadataIndexRepo mbootstrap.MetadataIndexRepository
 }
 
 func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -58,8 +63,8 @@ func (s *StubTransactionService) GetBalancePort() mbootstrap.BalancePort {
 	return s.balancePort
 }
 
-func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndexPort {
-	return s.metadataIndexPort
+func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
+	return s.metadataIndexRepo
 }
 
 func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
@@ -146,31 +151,31 @@ func TestInitServers_UnifiedMode_BalancePortWiring(t *testing.T) {
 	// 3. No intermediate adapter needed - direct reference passing
 }
 
-// TestInitServers_UnifiedMode_MetadataIndexPortWiring verifies that in unified mode,
-// the MetadataIndexPort from Transaction is correctly passed to Ledger.
+// TestInitServers_UnifiedMode_MetadataIndexRepoWiring verifies that in unified mode,
+// the MetadataIndexRepo from Transaction is correctly passed to Ledger.
 // This test focuses on verifying the wiring contract, not actual initialization.
-func TestInitServers_UnifiedMode_MetadataIndexPortWiring(t *testing.T) {
+func TestInitServers_UnifiedMode_MetadataIndexRepoWiring(t *testing.T) {
 	// Arrange
-	mockMetadataIndexPort := mbootstrap.NewMockMetadataIndexPort(nil)
+	mockMetadataIndexRepo := mbootstrap.NewMockMetadataIndexRepository(nil)
 
 	stubTransactionService := &StubTransactionService{
-		metadataIndexPort: mockMetadataIndexPort,
+		metadataIndexRepo: mockMetadataIndexRepo,
 		runnables: []mbootstrap.RunnableConfig{
 			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
 		},
 	}
 
-	// Act - verify GetMetadataIndexPort returns the expected port
-	retrievedPort := stubTransactionService.GetMetadataIndexPort()
+	// Act - verify GetMetadataIndexPort returns the expected repo
+	retrievedRepo := stubTransactionService.GetMetadataIndexPort()
 
 	// Assert
-	require.NotNil(t, retrievedPort, "GetMetadataIndexPort should return a non-nil MetadataIndexPort")
-	assert.Equal(t, mockMetadataIndexPort, retrievedPort, "GetMetadataIndexPort should return the same MetadataIndexPort that was set")
+	require.NotNil(t, retrievedRepo, "GetMetadataIndexPort should return a non-nil MetadataIndexRepository")
+	assert.Equal(t, mockMetadataIndexRepo, retrievedRepo, "GetMetadataIndexPort should return the same MetadataIndexRepository that was set")
 
 	// This verifies the wiring contract:
 	// 1. Transaction service exposes GetMetadataIndexPort()
-	// 2. The port can be passed to Ledger for in-process calls
-	// 3. No intermediate adapter needed - direct reference passing
+	// 2. The repo can be passed to Ledger for in-process calls
+	// 3. Direct repository access - no intermediate adapter needed
 }
 
 // TestService_CompositionContract verifies the composition contract

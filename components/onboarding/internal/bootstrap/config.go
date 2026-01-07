@@ -434,8 +434,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
 	return &Service{
-		Server:              serverAPI,
-		Logger:              logger,
+		Server: serverAPI,
+		Logger: logger,
+		Ports: Ports{
+			MetadataPort: metadataMongoDBRepository,
+		},
 		auth:                auth,
 		accountHandler:      accountHandler,
 		portfolioHandler:    portfolioHandler,

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -30,28 +31,29 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 			Page:  1,
 		}
 
+		// Repository now returns processed data (without metadata. prefix in MetadataKey)
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), "transaction").
-			Return([]*mongodb.MetadataIndex{
-				{MetadataKey: "metadata.tier", Unique: false, Sparse: true},
+			Return([]*mmodel.MetadataIndex{
+				{IndexName: "metadata.tier_1", EntityName: "transaction", MetadataKey: "tier", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), "operation").
-			Return([]*mongodb.MetadataIndex{
-				{MetadataKey: "metadata.category", Unique: true, Sparse: false},
+			Return([]*mmodel.MetadataIndex{
+				{IndexName: "metadata.category_1", EntityName: "operation", MetadataKey: "category", Unique: true, Sparse: false},
 			}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), "operation_route").
-			Return([]*mongodb.MetadataIndex{}, nil).
+			Return([]*mmodel.MetadataIndex{}, nil).
 			Times(1)
 
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), "transaction_route").
-			Return([]*mongodb.MetadataIndex{}, nil).
+			Return([]*mmodel.MetadataIndex{}, nil).
 			Times(1)
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
@@ -69,11 +71,12 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 			EntityName: &entityName,
 		}
 
+		// Repository now returns processed data
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), entityName).
-			Return([]*mongodb.MetadataIndex{
-				{MetadataKey: "metadata.tier", Unique: false, Sparse: true},
-				{MetadataKey: "metadata.priority", Unique: false, Sparse: true},
+			Return([]*mmodel.MetadataIndex{
+				{IndexName: "metadata.tier_1", EntityName: "transaction", MetadataKey: "tier", Unique: false, Sparse: true},
+				{IndexName: "metadata.priority_1", EntityName: "transaction", MetadataKey: "priority", Unique: false, Sparse: true},
 			}, nil).
 			Times(1)
 
@@ -99,7 +102,7 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), entityName).
-			Return([]*mongodb.MetadataIndex{}, nil).
+			Return([]*mmodel.MetadataIndex{}, nil).
 			Times(1)
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
@@ -107,54 +110,6 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Empty(t, result)
-	})
-
-	t.Run("Success_SkipsSystemIndexes", func(t *testing.T) {
-		entityName := "transaction"
-		filter := http.QueryHeader{
-			Limit:      10,
-			Page:       1,
-			EntityName: &entityName,
-		}
-
-		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName).
-			Return([]*mongodb.MetadataIndex{
-				{MetadataKey: "_id", Unique: true, Sparse: false},
-				{MetadataKey: "metadata.tier", Unique: false, Sparse: true},
-			}, nil).
-			Times(1)
-
-		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "tier", result[0].MetadataKey)
-	})
-
-	t.Run("Success_SkipsEmptyMetadataKey", func(t *testing.T) {
-		entityName := "transaction"
-		filter := http.QueryHeader{
-			Limit:      10,
-			Page:       1,
-			EntityName: &entityName,
-		}
-
-		mockMetadataRepo.EXPECT().
-			FindAllIndexes(gomock.Any(), entityName).
-			Return([]*mongodb.MetadataIndex{
-				{MetadataKey: "", Unique: false, Sparse: true},
-				{MetadataKey: "metadata.tier", Unique: false, Sparse: true},
-			}, nil).
-			Times(1)
-
-		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "tier", result[0].MetadataKey)
 	})
 
 	t.Run("Error_RepositoryError", func(t *testing.T) {
@@ -190,7 +145,7 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 		// First call succeeds
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), gomock.Any()).
-			Return([]*mongodb.MetadataIndex{}, nil).
+			Return([]*mmodel.MetadataIndex{}, nil).
 			Times(1)
 
 		// Second call fails
@@ -207,7 +162,7 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 	})
 }
 
-// TestGetAllMetadataIndexesIndexNameFormat tests that the index name is formatted correctly
+// TestGetAllMetadataIndexesIndexNameFormat tests that the index name is preserved from repository
 func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -225,10 +180,11 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 		EntityName: &entityName,
 	}
 
+	// Repository now returns fully processed data
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), entityName).
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.custom_field", Unique: true, Sparse: false},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.custom_field_1", EntityName: "transaction", MetadataKey: "custom_field", Unique: true, Sparse: false},
 		}, nil).
 		Times(1)
 
@@ -244,7 +200,7 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 	assert.False(t, result[0].Sparse)
 }
 
-// TestGetAllMetadataIndexesPreservesIndexProperties tests that index properties are preserved
+// TestGetAllMetadataIndexesPreservesIndexProperties tests that index properties are preserved from repository
 func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -262,11 +218,12 @@ func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 		EntityName: &entityName,
 	}
 
+	// Repository now returns fully processed data
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), entityName).
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.unique_key", Unique: true, Sparse: true},
-			{MetadataKey: "metadata.non_unique_key", Unique: false, Sparse: false},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.unique_key_1", EntityName: "operation", MetadataKey: "unique_key", Unique: true, Sparse: true},
+			{IndexName: "metadata.non_unique_key_1", EntityName: "operation", MetadataKey: "non_unique_key", Unique: false, Sparse: false},
 		}, nil).
 		Times(1)
 
@@ -305,7 +262,7 @@ func TestGetAllMetadataIndexesWithEmptyEntityName(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), gomock.Any()).
-		Return([]*mongodb.MetadataIndex{}, nil).
+		Return([]*mmodel.MetadataIndex{}, nil).
 		Times(4)
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
@@ -331,31 +288,32 @@ func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
 		Page:  1,
 	}
 
+	// Repository now returns fully processed data with EntityName set
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), "transaction").
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.tx_field", Unique: false, Sparse: true},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.tx_field_1", EntityName: "transaction", MetadataKey: "tx_field", Unique: false, Sparse: true},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), "operation").
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.op_field", Unique: true, Sparse: false},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.op_field_1", EntityName: "operation", MetadataKey: "op_field", Unique: true, Sparse: false},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), "operation_route").
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.or_field", Unique: false, Sparse: true},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.or_field_1", EntityName: "operation_route", MetadataKey: "or_field", Unique: false, Sparse: true},
 		}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
 		FindAllIndexes(gomock.Any(), "transaction_route").
-		Return([]*mongodb.MetadataIndex{
-			{MetadataKey: "metadata.tr_field", Unique: true, Sparse: true},
+		Return([]*mmodel.MetadataIndex{
+			{IndexName: "metadata.tr_field_1", EntityName: "transaction_route", MetadataKey: "tr_field", Unique: true, Sparse: true},
 		}, nil).
 		Times(1)
 
@@ -374,4 +332,48 @@ func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
 	assert.True(t, entityNames["operation"])
 	assert.True(t, entityNames["operation_route"])
 	assert.True(t, entityNames["transaction_route"])
+}
+
+// TestGetAllMetadataIndexesWithStats tests that index stats are preserved from repository
+func TestGetAllMetadataIndexesWithStats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		MetadataRepo: mockMetadataRepo,
+	}
+
+	entityName := "transaction"
+	filter := http.QueryHeader{
+		Limit:      10,
+		Page:       1,
+		EntityName: &entityName,
+	}
+
+	// Repository now returns data with Stats
+	mockMetadataRepo.EXPECT().
+		FindAllIndexes(gomock.Any(), entityName).
+		Return([]*mmodel.MetadataIndex{
+			{
+				IndexName:   "metadata.tier_1",
+				EntityName:  "transaction",
+				MetadataKey: "tier",
+				Unique:      false,
+				Sparse:      true,
+				Stats: &mmodel.IndexStats{
+					Accesses: 1523,
+				},
+			},
+		}, nil).
+		Times(1)
+
+	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 1)
+	assert.NotNil(t, result[0].Stats)
+	assert.Equal(t, int64(1523), result[0].Stats.Accesses)
 }

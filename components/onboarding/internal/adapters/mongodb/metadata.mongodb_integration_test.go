@@ -12,6 +12,7 @@ import (
 
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
@@ -452,6 +453,310 @@ func TestIntegration_MetadataRepository_CollectionIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fromLedger)
 	assert.Equal(t, "ledger", fromLedger.Data["type"])
+}
+
+// ============================================================================
+// CreateIndex Tests
+// ============================================================================
+
+func TestIntegration_MetadataRepository_CreateIndex(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	input := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "tier",
+		Unique:      false,
+		Sparse:      nil, // default to true
+	}
+
+	// Act
+	result, err := repo.CreateIndex(ctx, collection, input)
+
+	// Assert
+	require.NoError(t, err, "CreateIndex should not return error")
+	require.NotNil(t, result)
+	assert.Equal(t, "metadata.tier_1", result.IndexName)
+	assert.Equal(t, collection, result.EntityName)
+	assert.Equal(t, "tier", result.MetadataKey)
+	assert.False(t, result.Unique)
+	assert.True(t, result.Sparse, "sparse should default to true")
+
+	// Verify index exists via FindAllIndexes
+	indexes, err := repo.FindAllIndexes(ctx, collection)
+	require.NoError(t, err)
+
+	found := false
+	for _, idx := range indexes {
+		if idx.IndexName == "metadata.tier_1" {
+			found = true
+			assert.Equal(t, "tier", idx.MetadataKey)
+			break
+		}
+	}
+	assert.True(t, found, "created index should be found in FindAllIndexes")
+}
+
+func TestIntegration_MetadataRepository_CreateIndex_Unique(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	sparse := false
+	input := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "uniqueKey",
+		Unique:      true,
+		Sparse:      &sparse,
+	}
+
+	// Act
+	result, err := repo.CreateIndex(ctx, collection, input)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Unique, "index should be unique")
+	assert.False(t, result.Sparse, "sparse should be false as specified")
+
+	// Verify unique constraint works - insert duplicate metadata
+	meta1 := &Metadata{
+		EntityID:   "acc-1",
+		EntityName: "Account",
+		Data:       map[string]any{"uniqueKey": "duplicate-value"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	meta2 := &Metadata{
+		EntityID:   "acc-2",
+		EntityName: "Account",
+		Data:       map[string]any{"uniqueKey": "duplicate-value"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	err = repo.Create(ctx, collection, meta1)
+	require.NoError(t, err, "first insert should succeed")
+
+	err = repo.Create(ctx, collection, meta2)
+	require.Error(t, err, "second insert with duplicate unique key should fail")
+	assert.Contains(t, err.Error(), "duplicate key", "error should indicate duplicate key violation")
+}
+
+func TestIntegration_MetadataRepository_CreateIndex_DuplicateIndex(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	input := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "duplicateTest",
+		Unique:      false,
+	}
+
+	// Act - Create first time
+	result1, err := repo.CreateIndex(ctx, collection, input)
+	require.NoError(t, err)
+	require.NotNil(t, result1)
+
+	// Act - Create same index again (MongoDB is idempotent for identical indexes)
+	result2, err := repo.CreateIndex(ctx, collection, input)
+
+	// Assert - MongoDB allows creating the same index again (idempotent)
+	require.NoError(t, err, "creating identical index should be idempotent")
+	require.NotNil(t, result2)
+	assert.Equal(t, result1.IndexName, result2.IndexName)
+}
+
+// ============================================================================
+// FindAllIndexes Tests
+// ============================================================================
+
+func TestIntegration_MetadataRepository_FindAllIndexes(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	// Create multiple indexes
+	_, err := repo.CreateIndex(ctx, collection, &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "group",
+		Unique:      false,
+	})
+	require.NoError(t, err)
+
+	_, err = repo.CreateIndex(ctx, collection, &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "priority",
+		Unique:      true,
+	})
+	require.NoError(t, err)
+
+	// Insert some data to generate index usage stats
+	for i := 0; i < 3; i++ {
+		meta := &Metadata{
+			EntityID:   fmt.Sprintf("acc-%d", i),
+			EntityName: "Account",
+			Data:       map[string]any{"group": "test", "priority": fmt.Sprintf("p%d", i)},
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		require.NoError(t, repo.Create(ctx, collection, meta))
+	}
+
+	// Act
+	indexes, err := repo.FindAllIndexes(ctx, collection)
+
+	// Assert
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(indexes), 2, "should have at least 2 metadata indexes")
+
+	// Verify we get the expected indexes
+	indexNames := make(map[string]bool)
+	for _, idx := range indexes {
+		indexNames[idx.MetadataKey] = true
+		// All indexes should have stats
+		assert.NotNil(t, idx.Stats, "index %s should have stats", idx.IndexName)
+		assert.NotNil(t, idx.Stats.StatsSince, "index %s should have StatsSince", idx.IndexName)
+	}
+
+	assert.True(t, indexNames["group"], "should find 'group' index")
+	assert.True(t, indexNames["priority"], "should find 'priority' index")
+}
+
+func TestIntegration_MetadataRepository_FindAllIndexes_Empty(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "emptyCollection"
+
+	// Act - Query collection with no custom metadata indexes
+	indexes, err := repo.FindAllIndexes(ctx, collection)
+
+	// Assert
+	require.NoError(t, err, "FindAllIndexes should not error on collection with no metadata indexes")
+	assert.Empty(t, indexes, "should return empty slice when no metadata indexes exist")
+}
+
+func TestIntegration_MetadataRepository_FindAllIndexes_FiltersMetadataOnly(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	// Create a metadata index
+	_, err := repo.CreateIndex(ctx, collection, &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "filterTest",
+		Unique:      false,
+	})
+	require.NoError(t, err)
+
+	// Note: MongoDB automatically creates _id index, which should NOT appear in results
+
+	// Act
+	indexes, err := repo.FindAllIndexes(ctx, collection)
+
+	// Assert
+	require.NoError(t, err)
+
+	for _, idx := range indexes {
+		// All returned indexes should have metadata key (not _id or other system indexes)
+		assert.NotEmpty(t, idx.MetadataKey, "all indexes should have MetadataKey set")
+		assert.True(t, strings.HasPrefix(idx.IndexName, "metadata."),
+			"index name %s should start with 'metadata.'", idx.IndexName)
+	}
+}
+
+// ============================================================================
+// DeleteIndex Tests
+// ============================================================================
+
+func TestIntegration_MetadataRepository_DeleteIndex(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	// Create an index first
+	result, err := repo.CreateIndex(ctx, collection, &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "toDelete",
+		Unique:      false,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify it exists
+	indexes, err := repo.FindAllIndexes(ctx, collection)
+	require.NoError(t, err)
+
+	found := false
+	for _, idx := range indexes {
+		if idx.IndexName == result.IndexName {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "index should exist before deletion")
+
+	// Act
+	err = repo.DeleteIndex(ctx, collection, result.IndexName)
+
+	// Assert
+	require.NoError(t, err, "DeleteIndex should not return error")
+
+	// Verify it no longer exists
+	indexes, err = repo.FindAllIndexes(ctx, collection)
+	require.NoError(t, err)
+
+	found = false
+	for _, idx := range indexes {
+		if idx.IndexName == result.IndexName {
+			found = true
+			break
+		}
+	}
+	assert.False(t, found, "index should not exist after deletion")
+}
+
+func TestIntegration_MetadataRepository_DeleteIndex_NotFound(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	// First, ensure collection exists by creating a document (MongoDB returns NamespaceNotFound
+	// if collection doesn't exist, but we want to test IndexNotFound specifically)
+	meta := &Metadata{
+		EntityID:   "setup-doc",
+		EntityName: "Account",
+		Data:       map[string]any{"setup": true},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	require.NoError(t, repo.Create(ctx, collection, meta))
+
+	// Act - Delete non-existent index on existing collection
+	err := repo.DeleteIndex(ctx, collection, "metadata.nonexistent_1")
+
+	// Assert - Should return EntityNotFoundError mapped from IndexNotFound
+	require.Error(t, err, "DeleteIndex should error for non-existent index")
+	assert.Contains(t, err.Error(), "metadata index does not exist", "error should indicate index not found")
 }
 
 // ============================================================================

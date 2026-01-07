@@ -20,6 +20,10 @@ type OnboardingService interface {
 	// GetRouteRegistrar returns a function that registers onboarding routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
 	GetRouteRegistrar() func(*fiber.App)
+
+	// GetMetadataIndexPort returns the metadata index port for use by other modules.
+	// This allows direct in-process calls for metadata index operations when running in unified mode.
+	GetMetadataIndexPort() mbootstrap.MetadataIndexRepository
 }
 
 // Options configures the onboarding service initialization behavior.
