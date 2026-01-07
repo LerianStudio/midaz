@@ -2,8 +2,6 @@ package query
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -44,28 +42,8 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 			return nil, err
 		}
 
-		for _, idx := range metadataIndexes {
-			metadataKey := idx.MetadataKey
-
-			if metadataKey == "" || metadataKey == "_id" {
-				continue
-			}
-
-			if !strings.HasPrefix(metadataKey, "metadata.") {
-				continue
-			}
-
-			metadataKey = strings.TrimPrefix(metadataKey, "metadata.")
-
-			metadataIndexesResponse = append(metadataIndexesResponse, &mmodel.MetadataIndex{
-				IndexName:   fmt.Sprintf("metadata.%s_1", metadataKey),
-				EntityName:  entityName,
-				MetadataKey: metadataKey,
-				Unique:      idx.Unique,
-				Sparse:      idx.Sparse,
-				CreatedAt:   idx.CreatedAt,
-			})
-		}
+		// Repository already filters for metadata.* indexes, strips prefix, and includes stats
+		metadataIndexesResponse = append(metadataIndexesResponse, metadataIndexes...)
 	}
 
 	return metadataIndexesResponse, nil

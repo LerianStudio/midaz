@@ -13,9 +13,52 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// onboardingEntities maps onboarding entity names to their MongoDB collection names.
+var onboardingEntities = map[string]string{
+	"organization": "organization",
+	"ledger":       "ledger",
+	"segment":      "segment",
+	"account":      "account",
+	"portfolio":    "portfolio",
+	"asset":        "asset",
+	"account_type": "account_type",
+}
+
+// transactionEntities maps transaction entity names to their MongoDB collection names.
+var transactionEntities = map[string]string{
+	"transaction":       "transaction",
+	"operation":         "operation",
+	"operation_route":   "operation_route",
+	"transaction_route": "transaction_route",
+}
+
 // MetadataIndexHandler handles HTTP requests for metadata index operations.
+// It routes requests to the appropriate repository based on the entity type.
 type MetadataIndexHandler struct {
-	MetadataIndexPort mbootstrap.MetadataIndexPort
+	OnboardingMetadataRepo  mbootstrap.MetadataIndexRepository
+	TransactionMetadataRepo mbootstrap.MetadataIndexRepository
+}
+
+// getRepoAndCollection returns the appropriate repository and collection name for an entity.
+// Returns nil repository if entity is not valid.
+func (handler *MetadataIndexHandler) getRepoAndCollection(entityName string) (mbootstrap.MetadataIndexRepository, string) {
+	if collection, ok := onboardingEntities[entityName]; ok {
+		return handler.OnboardingMetadataRepo, collection
+	}
+
+	if collection, ok := transactionEntities[entityName]; ok {
+		return handler.TransactionMetadataRepo, collection
+	}
+
+	return nil, ""
+}
+
+// isValidEntity checks if the entity name is valid for metadata index operations.
+func isValidEntity(entityName string) bool {
+	_, onboarding := onboardingEntities[entityName]
+	_, transaction := transactionEntities[entityName]
+
+	return onboarding || transaction
 }
 
 // CreateMetadataIndex creates a new metadata index.
@@ -27,7 +70,7 @@ type MetadataIndexHandler struct {
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			entity_name		path		string							true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
+//	@Param			entity_name		path		string							true	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
 //	@Param			metadata-index	body		mmodel.CreateMetadataIndexInput	true	"Metadata Index Input"
 //	@Success		201				{object}	mmodel.MetadataIndex			"Successfully created metadata index"
 //	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
@@ -56,7 +99,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	if !mmodel.IsValidMetadataIndexEntity(entityName) {
+	if !isValidEntity(entityName) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
@@ -97,7 +140,9 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 	logger.Infof("Request to create a metadata index: entityName=%s, metadataKey=%s", entityName, payload.MetadataKey)
 
-	metadataIndex, err := handler.MetadataIndexPort.CreateMetadataIndex(ctx, entityName, payload)
+	repo, collection := handler.getRepoAndCollection(entityName)
+
+	metadataIndex, err := repo.CreateIndex(ctx, collection, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
 
@@ -105,6 +150,9 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 		return http.WithError(c, err)
 	}
+
+	// Set the entity name in the response (repo returns collection name)
+	metadataIndex.EntityName = entityName
 
 	logger.Infof("Successfully created metadata index: entityName=%s, metadataKey=%s", entityName, payload.MetadataKey)
 
@@ -119,7 +167,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			entity_name		query		string	false	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
+//	@Param			entity_name		query		string	false	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
 //	@Success		200				{object}	[]mmodel.MetadataIndex			"Successfully retrieved metadata indexes"
 //	@Failure		400				{object}	mmodel.Error					"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
@@ -152,8 +200,9 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	// Check if filtering by entity name
 	if headerParams.EntityName != nil && *headerParams.EntityName != "" {
-		if !mmodel.IsValidMetadataIndexEntity(*headerParams.EntityName) {
+		if !isValidEntity(*headerParams.EntityName) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
@@ -162,20 +211,65 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 			return http.WithError(c, err)
 		}
+
+		// Return indexes for specific entity
+		repo, collection := handler.getRepoAndCollection(*headerParams.EntityName)
+
+		indexes, err := repo.FindAllIndexes(ctx, collection)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata indexes", err)
+
+			logger.Errorf("Failed to get metadata indexes, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
+
+		// Set entity name in response
+		for _, idx := range indexes {
+			idx.EntityName = *headerParams.EntityName
+		}
+
+		logger.Infof("Successfully retrieved metadata indexes for entity: %s", *headerParams.EntityName)
+
+		return http.OK(c, indexes)
 	}
 
-	metadataIndexes, err := handler.MetadataIndexPort.GetAllMetadataIndexes(ctx, *headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all metadata indexes", err)
+	// Return indexes from all entities
+	var allIndexes []*mmodel.MetadataIndex
 
-		logger.Errorf("Failed to get all metadata indexes, Error: %s", err.Error())
+	// Fetch from onboarding entities
+	for entityName, collection := range onboardingEntities {
+		indexes, err := handler.OnboardingMetadataRepo.FindAllIndexes(ctx, collection)
+		if err != nil {
+			logger.Warnf("Failed to get indexes for %s: %v", entityName, err)
 
-		return http.WithError(c, err)
+			continue
+		}
+
+		for _, idx := range indexes {
+			idx.EntityName = entityName
+			allIndexes = append(allIndexes, idx)
+		}
+	}
+
+	// Fetch from transaction entities
+	for entityName, collection := range transactionEntities {
+		indexes, err := handler.TransactionMetadataRepo.FindAllIndexes(ctx, collection)
+		if err != nil {
+			logger.Warnf("Failed to get indexes for %s: %v", entityName, err)
+
+			continue
+		}
+
+		for _, idx := range indexes {
+			idx.EntityName = entityName
+			allIndexes = append(allIndexes, idx)
+		}
 	}
 
 	logger.Infof("Successfully retrieved all metadata indexes")
 
-	return http.OK(c, metadataIndexes)
+	return http.OK(c, allIndexes)
 }
 
 // DeleteMetadataIndex deletes a metadata index.
@@ -186,7 +280,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Produce		json
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header	string	false	"Request ID"
-//	@Param			entity_name		path	string	true	"Entity Name"	Enums(transaction, operation, operation_route, transaction_route)
+//	@Param			entity_name		path	string	true	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
 //	@Param			index_key		path	string	true	"Index Key (metadata key, e.g., 'tier')"
 //	@Success		204				"Metadata index successfully deleted"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -214,7 +308,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if !mmodel.IsValidMetadataIndexEntity(entityName) {
+	if !isValidEntity(entityName) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
@@ -240,7 +334,9 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 	logger.Infof("Request to delete metadata index: entityName=%s, indexKey=%s, indexName=%s", entityName, indexKey, indexName)
 
-	err := handler.MetadataIndexPort.DeleteMetadataIndex(ctx, entityName, indexName)
+	repo, collection := handler.getRepoAndCollection(entityName)
+
+	err := repo.DeleteIndex(ctx, collection, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete metadata index", err)
 

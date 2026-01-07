@@ -2,13 +2,10 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"strings"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -32,9 +29,9 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 		return nil, err
 	}
 
-	expectedIndexKey := fmt.Sprintf("metadata.%s", input.MetadataKey)
+	// FindAllIndexes returns MetadataKey without the "metadata." prefix
 	for _, idx := range existingIndexes {
-		if idx.MetadataKey == expectedIndexKey {
+		if idx.MetadataKey == input.MetadataKey {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Metadata index already exists", nil)
 
 			logger.Errorf("Metadata index already exists for key: %s", input.MetadataKey)
@@ -43,17 +40,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 		}
 	}
 
-	sparse := true
-	if input.Sparse != nil {
-		sparse = *input.Sparse
-	}
-
-	metadataIndex, err := uc.MetadataRepo.CreateIndex(ctx, entityName, &mongodb.MetadataIndex{
-		EntityName:  entityName,
-		MetadataKey: input.MetadataKey,
-		Unique:      input.Unique,
-		Sparse:      sparse,
-	})
+	metadataIndex, err := uc.MetadataRepo.CreateIndex(ctx, entityName, input)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
 
@@ -62,14 +49,8 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 		return nil, err
 	}
 
-	result := &mmodel.MetadataIndex{
-		IndexName:   fmt.Sprintf("metadata.%s_1", metadataIndex.MetadataKey),
-		EntityName:  metadataIndex.EntityName,
-		MetadataKey: metadataIndex.MetadataKey,
-		Unique:      metadataIndex.Unique,
-		Sparse:      metadataIndex.Sparse,
-		CreatedAt:   time.Now(),
-	}
+	// Set the entity name since the repo returns with collection name
+	metadataIndex.EntityName = entityName
 
-	return result, nil
+	return metadataIndex, nil
 }

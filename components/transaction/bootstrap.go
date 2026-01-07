@@ -24,7 +24,7 @@ type TransactionService interface {
 
 	// GetMetadataIndexPort returns the metadata index port for use by other modules.
 	// This allows direct in-process calls for metadata index operations when running in unified mode.
-	GetMetadataIndexPort() mbootstrap.MetadataIndexPort
+	GetMetadataIndexPort() mbootstrap.MetadataIndexRepository
 
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.

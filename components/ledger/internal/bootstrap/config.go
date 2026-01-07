@@ -113,9 +113,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// This is the transaction.UseCase itself which implements BalancePort directly
 	balancePort := transactionService.GetBalancePort()
 
-	// Get the MetadataIndexPort from transaction for metadata index operations
-	metadataIndexPort := transactionService.GetMetadataIndexPort()
-	if metadataIndexPort == nil {
+	// Get the metadata port from transaction for metadata index operations
+	transactionMetadataRepo := transactionService.GetMetadataIndexPort()
+	if transactionMetadataRepo == nil {
 		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
 	}
 
@@ -136,12 +136,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Onboarding module initialized")
 
+	// Get the metadata port from onboarding for metadata index operations
+	onboardingMetadataRepo := onboardingService.GetMetadataIndexPort()
+	if onboardingMetadataRepo == nil {
+		return nil, fmt.Errorf("failed to get MetadataIndexPort from onboarding module")
+	}
+
+	ledgerLogger.Info("Both metadata index repositories available for settings routes")
+
 	// Create auth client for metadata index routes
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
 
-	// Create metadata index handler
+	// Create metadata index handler with both repositories
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
-		MetadataIndexPort: metadataIndexPort,
+		OnboardingMetadataRepo:  onboardingMetadataRepo,
+		TransactionMetadataRepo: transactionMetadataRepo,
 	}
 
 	// Create route registrar for ledger-specific routes (metadata indexes)

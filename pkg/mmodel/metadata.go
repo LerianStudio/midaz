@@ -44,6 +44,18 @@ type CreateMetadataIndexInput struct {
 	Sparse *bool `json:"sparse" example:"true"`
 } // @name CreateMetadataIndexInput
 
+// IndexStats represents usage statistics for a MongoDB index
+// @Description Usage statistics collected by MongoDB for an index
+type IndexStats struct {
+	// Number of operations that have used this index
+	// example: 1523
+	Accesses int64 `json:"accesses" example:"1523"`
+	// Timestamp since when the statistics are being collected
+	// example: 2024-12-01T10:30:00Z
+	// format: date-time
+	StatsSince *time.Time `json:"statsSince,omitempty" format:"date-time" example:"2024-12-01T10:30:00Z"`
+} // @name IndexStats
+
 // MetadataIndex represents a metadata index entity
 // @Description Represents a custom MongoDB index on a metadata field
 type MetadataIndex struct {
@@ -57,10 +69,8 @@ type MetadataIndex struct {
 	Unique bool `json:"unique" example:"false"`
 	// Whether the index is sparse
 	Sparse bool `json:"sparse" example:"true"`
-	// When the index was created
-	// example: 2021-01-01T00:00:00Z
-	// format: date-time
-	CreatedAt time.Time `json:"createdAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
+	// Usage statistics for this index (only available on GET, not on CREATE)
+	Stats *IndexStats `json:"stats,omitempty"`
 } // @name MetadataIndex
 
 // MetadataIndexes represents a paginated list of metadata indexes
