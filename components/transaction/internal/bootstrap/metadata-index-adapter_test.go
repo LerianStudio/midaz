@@ -34,7 +34,6 @@ func TestMetadataIndexAdapter_CreateMetadataIndex(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctx := context.Background()
 		input := &mmodel.CreateMetadataIndexInput{
-			EntityName:  "transaction",
 			MetadataKey: "tier",
 			Unique:      false,
 			Sparse:      nil,
@@ -53,7 +52,7 @@ func TestMetadataIndexAdapter_CreateMetadataIndex(t *testing.T) {
 				Sparse:      true,
 			}, nil)
 
-		result, err := adapter.CreateMetadataIndex(ctx, input)
+		result, err := adapter.CreateMetadataIndex(ctx, "transaction", input)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -64,7 +63,6 @@ func TestMetadataIndexAdapter_CreateMetadataIndex(t *testing.T) {
 	t.Run("error - index already exists", func(t *testing.T) {
 		ctx := context.Background()
 		input := &mmodel.CreateMetadataIndexInput{
-			EntityName:  "transaction",
 			MetadataKey: "tier",
 			Unique:      false,
 		}
@@ -77,7 +75,7 @@ func TestMetadataIndexAdapter_CreateMetadataIndex(t *testing.T) {
 				},
 			}, nil)
 
-		result, err := adapter.CreateMetadataIndex(ctx, input)
+		result, err := adapter.CreateMetadataIndex(ctx, "transaction", input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)

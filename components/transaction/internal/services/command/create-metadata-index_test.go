@@ -26,15 +26,16 @@ func TestCreateMetadataIndex(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		entityName     string
 		input          *mmodel.CreateMetadataIndexInput
 		setupMocks     func()
 		expectedErr    error
 		validateResult func(t *testing.T, result *mmodel.MetadataIndex)
 	}{
 		{
-			name: "success - create index with default sparse value",
+			name:       "success - create index with default sparse value",
+			entityName: "transaction",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "transaction",
 				MetadataKey: "tier",
 				Unique:      false,
 				Sparse:      nil,
@@ -70,9 +71,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "success - create index with sparse explicitly set to true",
+			name:       "success - create index with sparse explicitly set to true",
+			entityName: "operation",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "operation",
 				MetadataKey: "category",
 				Unique:      true,
 				Sparse:      utils.BoolPtr(true),
@@ -107,9 +108,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "success - create index with sparse explicitly set to false",
+			name:       "success - create index with sparse explicitly set to false",
+			entityName: "transaction_route",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "transaction_route",
 				MetadataKey: "priority",
 				Unique:      false,
 				Sparse:      utils.BoolPtr(false),
@@ -144,9 +145,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "success - create unique index",
+			name:       "success - create unique index",
+			entityName: "operation_route",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "operation_route",
 				MetadataKey: "external_id",
 				Unique:      true,
 				Sparse:      utils.BoolPtr(true),
@@ -181,9 +182,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "failure - repository error on create",
+			name:       "failure - repository error on create",
+			entityName: "transaction",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "transaction",
 				MetadataKey: "tier",
 				Unique:      false,
 				Sparse:      nil,
@@ -202,9 +203,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			validateResult: nil,
 		},
 		{
-			name: "failure - index already exists",
+			name:       "failure - index already exists",
+			entityName: "transaction",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "transaction",
 				MetadataKey: "existing_key",
 				Unique:      false,
 				Sparse:      nil,
@@ -221,9 +222,9 @@ func TestCreateMetadataIndex(t *testing.T) {
 			validateResult: nil,
 		},
 		{
-			name: "failure - error checking existing indexes",
+			name:       "failure - error checking existing indexes",
+			entityName: "operation",
 			input: &mmodel.CreateMetadataIndexInput{
-				EntityName:  "operation",
 				MetadataKey: "field",
 				Unique:      false,
 				Sparse:      utils.BoolPtr(true),
@@ -243,7 +244,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.CreateMetadataIndex(ctx, tt.input)
+			result, err := uc.CreateMetadataIndex(ctx, tt.entityName, tt.input)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
@@ -290,7 +291,6 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.metadataKey, func(t *testing.T) {
 			input := &mmodel.CreateMetadataIndexInput{
-				EntityName:  "transaction",
 				MetadataKey: tc.metadataKey,
 				Unique:      false,
 				Sparse:      nil,
@@ -310,7 +310,7 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 				}, nil).
 				Times(1)
 
-			result, err := uc.CreateMetadataIndex(ctx, input)
+			result, err := uc.CreateMetadataIndex(ctx, "transaction", input)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -333,7 +333,6 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 	ctx := context.Background()
 
 	input := &mmodel.CreateMetadataIndexInput{
-		EntityName:  "transaction",
 		MetadataKey: "test_key",
 		Unique:      false,
 		Sparse:      nil,
@@ -358,7 +357,7 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	result, err := uc.CreateMetadataIndex(ctx, input)
+	result, err := uc.CreateMetadataIndex(ctx, "transaction", input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -379,7 +378,6 @@ func TestCreateMetadataIndexCreatedAtIsSet(t *testing.T) {
 	ctx := context.Background()
 
 	input := &mmodel.CreateMetadataIndexInput{
-		EntityName:  "transaction",
 		MetadataKey: "tier",
 		Unique:      false,
 		Sparse:      nil,
@@ -399,7 +397,7 @@ func TestCreateMetadataIndexCreatedAtIsSet(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	result, err := uc.CreateMetadataIndex(ctx, input)
+	result, err := uc.CreateMetadataIndex(ctx, "transaction", input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

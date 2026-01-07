@@ -22,7 +22,6 @@ import (
 type MockMetadataIndexPort struct {
 	ctrl     *gomock.Controller
 	recorder *MockMetadataIndexPortMockRecorder
-	isgomock struct{}
 }
 
 // MockMetadataIndexPortMockRecorder is the mock recorder for MockMetadataIndexPort.
@@ -43,45 +42,45 @@ func (m *MockMetadataIndexPort) EXPECT() *MockMetadataIndexPortMockRecorder {
 }
 
 // CreateMetadataIndex mocks base method.
-func (m *MockMetadataIndexPort) CreateMetadataIndex(ctx context.Context, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+func (m *MockMetadataIndexPort) CreateMetadataIndex(arg0 context.Context, arg1 string, arg2 *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateMetadataIndex", ctx, input)
+	ret := m.ctrl.Call(m, "CreateMetadataIndex", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*mmodel.MetadataIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateMetadataIndex indicates an expected call of CreateMetadataIndex.
-func (mr *MockMetadataIndexPortMockRecorder) CreateMetadataIndex(ctx, input any) *gomock.Call {
+func (mr *MockMetadataIndexPortMockRecorder) CreateMetadataIndex(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMetadataIndex", reflect.TypeOf((*MockMetadataIndexPort)(nil).CreateMetadataIndex), ctx, input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMetadataIndex", reflect.TypeOf((*MockMetadataIndexPort)(nil).CreateMetadataIndex), arg0, arg1, arg2)
 }
 
 // DeleteMetadataIndex mocks base method.
-func (m *MockMetadataIndexPort) DeleteMetadataIndex(ctx context.Context, entityName, indexName string) error {
+func (m *MockMetadataIndexPort) DeleteMetadataIndex(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteMetadataIndex", ctx, entityName, indexName)
+	ret := m.ctrl.Call(m, "DeleteMetadataIndex", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteMetadataIndex indicates an expected call of DeleteMetadataIndex.
-func (mr *MockMetadataIndexPortMockRecorder) DeleteMetadataIndex(ctx, entityName, indexName any) *gomock.Call {
+func (mr *MockMetadataIndexPortMockRecorder) DeleteMetadataIndex(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMetadataIndex", reflect.TypeOf((*MockMetadataIndexPort)(nil).DeleteMetadataIndex), ctx, entityName, indexName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMetadataIndex", reflect.TypeOf((*MockMetadataIndexPort)(nil).DeleteMetadataIndex), arg0, arg1, arg2)
 }
 
 // GetAllMetadataIndexes mocks base method.
-func (m *MockMetadataIndexPort) GetAllMetadataIndexes(ctx context.Context, filter http.QueryHeader) ([]*mmodel.MetadataIndex, error) {
+func (m *MockMetadataIndexPort) GetAllMetadataIndexes(arg0 context.Context, arg1 http.QueryHeader) ([]*mmodel.MetadataIndex, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllMetadataIndexes", ctx, filter)
+	ret := m.ctrl.Call(m, "GetAllMetadataIndexes", arg0, arg1)
 	ret0, _ := ret[0].([]*mmodel.MetadataIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllMetadataIndexes indicates an expected call of GetAllMetadataIndexes.
-func (mr *MockMetadataIndexPortMockRecorder) GetAllMetadataIndexes(ctx, filter any) *gomock.Call {
+func (mr *MockMetadataIndexPortMockRecorder) GetAllMetadataIndexes(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMetadataIndexes", reflect.TypeOf((*MockMetadataIndexPort)(nil).GetAllMetadataIndexes), ctx, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMetadataIndexes", reflect.TypeOf((*MockMetadataIndexPort)(nil).GetAllMetadataIndexes), arg0, arg1)
 }
