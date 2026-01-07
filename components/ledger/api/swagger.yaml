@@ -5018,43 +5018,33 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes:
+  /v1/settings/metadata-indexes:
     get:
       description: Get all metadata indexes, optionally filtered by entity name
       produces:
-        - application/json
+      - application/json
       tags:
-        - Metadata Indexes
+      - Metadata Indexes
       summary: Get all Metadata Indexes
       parameters:
-        - type: string
-          description: Authorization Bearer Token
-          name: Authorization
-          in: header
-          required: true
-        - type: string
-          description: Request ID
-          name: X-Request-Id
-          in: header
-        - type: string
-          description: Organization ID
-          name: organization_id
-          in: path
-          required: true
-        - type: string
-          description: Ledger ID
-          name: ledger_id
-          in: path
-          required: true
-        - enum:
-            - transaction
-            - operation
-            - operation_route
-            - transaction_route
-          type: string
-          description: Entity Name
-          name: entity_name
-          in: query
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        type: string
+        description: Entity Name
+        name: entity_name
+        in: query
       responses:
         '200':
           description: Successfully retrieved metadata indexes
@@ -5074,10 +5064,6 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
-        '404':
-          description: Organization or ledger not found
-          schema:
-            $ref: '#/definitions/Error'
         '500':
           description: Internal server error
           schema:
@@ -5085,38 +5071,28 @@ paths:
     post:
       description: Create a metadata index with the input payload
       consumes:
-        - application/json
+      - application/json
       produces:
-        - application/json
+      - application/json
       tags:
-        - Metadata Indexes
+      - Metadata Indexes
       summary: Create Metadata Index
       parameters:
-        - type: string
-          description: Authorization Bearer Token
-          name: Authorization
-          in: header
-          required: true
-        - type: string
-          description: Request ID
-          name: X-Request-Id
-          in: header
-        - type: string
-          description: Organization ID
-          name: organization_id
-          in: path
-          required: true
-        - type: string
-          description: Ledger ID
-          name: ledger_id
-          in: path
-          required: true
-        - description: Metadata Index Input
-          name: metadata-index
-          in: body
-          required: true
-          schema:
-            $ref: '#/definitions/CreateMetadataIndexInput'
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - description: Metadata Index Input
+        name: metadata-index
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateMetadataIndexInput'
       responses:
         '201':
           description: Successfully created metadata index
@@ -5134,10 +5110,6 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
-        '404':
-          description: Organization or ledger not found
-          schema:
-            $ref: '#/definitions/Error'
         '409':
           description: 'Conflict: Metadata index already exists'
           schema:
@@ -5146,49 +5118,39 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/metadata-indexes/{index_name}:
+  /v1/settings/metadata-indexes/{index_name}:
     delete:
-      description: Delete a metadata index for the given entity_name and index_name combination. The entity_name query parameter is required and must be one of transaction, operation, operation_route, or transaction_route.
+      description: Delete a metadata index by its name
       produces:
-        - application/json
+      - application/json
       tags:
-        - Metadata Indexes
-      summary: Delete Metadata Index (requires entity_name query param)
+      - Metadata Indexes
+      summary: Delete Metadata Index
       parameters:
-        - type: string
-          description: Authorization Bearer Token
-          name: Authorization
-          in: header
-          required: true
-        - type: string
-          description: Request ID
-          name: X-Request-Id
-          in: header
-        - type: string
-          description: Organization ID
-          name: organization_id
-          in: path
-          required: true
-        - type: string
-          description: Ledger ID
-          name: ledger_id
-          in: path
-          required: true
-        - type: string
-          description: Index Name
-          name: index_name
-          in: path
-          required: true
-        - enum:
-            - transaction
-            - operation
-            - operation_route
-            - transaction_route
-          type: string
-          description: Entity Name
-          name: entity_name
-          in: query
-          required: true
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Index Name
+        name: index_name
+        in: path
+        required: true
+      - enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        type: string
+        description: Entity Name
+        name: entity_name
+        in: query
+        required: true
       responses:
         '204':
           description: Metadata index successfully deleted
@@ -5742,35 +5704,6 @@ definitions:
           required: false'
         allOf:
         - $ref: '#/definitions/Status'
-  CreateMetadataIndexInput:
-    description: CreateMetadataIndexInput payload
-    type: object
-    required:
-    - entityName
-    - metadataKey
-    properties:
-      entityName:
-        description: The entity/collection name to create the index on
-        type: string
-        enum:
-        - transaction
-        - operation
-        - operation_route
-        - transaction_route
-        example: transaction
-      metadataKey:
-        description: The metadata key to index (without "metadata." prefix)
-        type: string
-        maxLength: 100
-        example: tier
-      sparse:
-        description: Whether the index should be sparse (only include documents with the field)
-        type: boolean
-        example: true
-      unique:
-        description: Whether the index should enforce uniqueness
-        type: boolean
-        example: false
   CreateOrganizationInput:
     description: Request payload for creating a new organization. Contains all the
       necessary fields for organization creation, with required fields marked as such.
@@ -6019,40 +5952,6 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
-  MetadataIndex:
-    description: Represents a custom MongoDB index on a metadata field
-    type: object
-    properties:
-      createdAt:
-        description: When the index was created
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      entityName:
-        description: The entity/collection name where the index exists
-        type: string
-        enum:
-        - transaction
-        - operation
-        - operation_route
-        - transaction_route
-        example: transaction
-      indexName:
-        description: The name of the index in MongoDB
-        type: string
-        example: metadata.tier_1
-      metadataKey:
-        description: The metadata key that is indexed
-        type: string
-        example: tier
-      sparse:
-        description: Whether the index is sparse
-        type: boolean
-        example: true
-      unique:
-        description: Whether the index enforces uniqueness
-        type: boolean
-        example: false
   Organization:
     description: Complete organization entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -8004,6 +7903,85 @@ definitions:
 
           required: false'
         type: string
+  CreateMetadataIndexInput:
+    description: CreateMetadataIndexInput payload
+    type: object
+    required:
+    - entityName
+    - metadataKey
+    properties:
+      entityName:
+        description: 'The entity/collection name to create the index on
+
+          required: true
+
+          enum: transaction,operation,operation_route,transaction_route'
+        type: string
+        enum:
+        - transaction
+        - operation
+        - operation_route
+        - transaction_route
+        example: transaction
+      metadataKey:
+        description: 'The metadata key to index (without "metadata." prefix)
+
+          required: true
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: tier
+      sparse:
+        description: 'Whether the index should be sparse (only include documents with
+          the field)
+
+          required: false
+
+          default: true'
+        type: boolean
+        example: true
+      unique:
+        description: 'Whether the index should enforce uniqueness
+
+          required: false
+
+          default: false'
+        type: boolean
+        example: false
+  MetadataIndex:
+    description: Represents a custom MongoDB index on a metadata field
+    type: object
+    properties:
+      createdAt:
+        description: 'When the index was created
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      entityName:
+        description: The entity/collection name where the index exists
+        type: string
+        example: transaction
+      indexName:
+        description: The name of the index in MongoDB
+        type: string
+        example: metadata.tier_1
+      metadataKey:
+        description: The metadata key that is indexed
+        type: string
+        example: tier
+      sparse:
+        description: Whether the index is sparse
+        type: boolean
+        example: true
+      unique:
+        description: Whether the index enforces uniqueness
+        type: boolean
+        example: false
 securityDefinitions:
   BearerAuth:
     type: apiKey
@@ -8011,4 +7989,4 @@ securityDefinitions:
     in: header
     description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
       Only required when auth plugin is enabled.'
-tags: null
+tags: []
