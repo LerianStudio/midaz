@@ -1169,7 +1169,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidEntityName.Error(),
 			Title:      "Invalid Entity Name",
-			Message:    "The provided entity name is not valid. Accepted values are: transaction, operation, operation_route, transaction_route.",
+			Message:    "The provided entity name is not valid.",
 		},
 		constant.ErrTransactionBackupCacheFailed: InternalServerError{
 			EntityType: entityType,
