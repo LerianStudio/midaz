@@ -1,3 +1,16 @@
+## [v3.5.0-beta.35] - 2026-01-07
+
+### 🐛 Bug Fixes
+- standardize swagger file names and clean up intermediate files in merge process
+- update authorization scopes for metadata index routes in settings
+
+### 📚 Documentation
+- update settings openapi specs
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.34] - 2026-01-07
 
 ### ✨ Features
@@ -872,7 +885,7 @@ Contributors: Fabricio Carneiro, lerian-studio
 - **Release Management**: Updated the CHANGELOG to include recent updates, providing users with the latest information on software changes and improvements for better project tracking.
 
 
-## [v3.4.2] - 2025-11-19
+## [v3.5.0-beta.36] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1...v3.4.2)
 Contributors: Clara Tersi, lerian-studio
