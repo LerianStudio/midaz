@@ -30,6 +30,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 		input          *mmodel.CreateMetadataIndexInput
 		setupMocks     func()
 		expectedErr    error
+		validateError  func(t *testing.T, err error)
 		validateResult func(t *testing.T, result *mmodel.MetadataIndex)
 	}{
 		{
@@ -204,7 +205,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedErr:    nil,
+			validateError: func(t *testing.T, err error) {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "metadata index with the same key already exists")
+			},
 			validateResult: nil,
 		},
 		{
@@ -236,9 +240,8 @@ func TestCreateMetadataIndex(t *testing.T) {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
-			} else if tt.name == "failure - index already exists" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "metadata index with the same key already exists")
+			} else if tt.validateError != nil {
+				tt.validateError(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
