@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -33,13 +34,12 @@ type Config struct {
 	MongoDBUser             string `env:"MONGO_USER"`
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
+	MongoDBParameters       string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize             int    `env:"MONGO_MAX_POOL_SIZE"`
 	HashSecretKey           string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	EncryptSecretKey        string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress             string `env:"PLUGIN_AUTH_ADDRESS"`
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
-	LicenseKey              string `env:"LICENSE_KEY"`
-	OrganizationIDs         string `env:"ORGANIZATION_IDS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -64,8 +64,15 @@ func InitServers() *Service {
 	})
 
 	// Mongo DB
+	// Extract port and parameters for MongoDB connection (handles backward compatibility)
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
+
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
+	}
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
