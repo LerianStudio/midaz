@@ -7500,9 +7500,11 @@ const docTemplate = `
             }
           }
         }
-      },
+      }
+    },
+    "/v1/settings/metadata-indexes/entities/{entity_name}": {
       "post": {
-        "description": "Create a metadata index with the input payload",
+        "description": "Create a metadata index for the specified entity",
         "consumes": [
           "application/json"
         ],
@@ -7526,6 +7528,19 @@ const docTemplate = `
             "description": "Request ID",
             "name": "X-Request-Id",
             "in": "header"
+          },
+          {
+            "enum": [
+              "transaction",
+              "operation",
+              "operation_route",
+              "transaction_route"
+            ],
+            "type": "string",
+            "description": "Entity Name",
+            "name": "entity_name",
+            "in": "path",
+            "required": true
           },
           {
             "description": "Metadata Index Input",
@@ -7577,9 +7592,9 @@ const docTemplate = `
         }
       }
     },
-    "/v1/settings/metadata-indexes/{index_name}": {
+    "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
       "delete": {
-        "description": "Delete a metadata index by its name",
+        "description": "Delete a metadata index by entity name and index key",
         "produces": [
           "application/json"
         ],
@@ -7602,13 +7617,6 @@ const docTemplate = `
             "in": "header"
           },
           {
-            "type": "string",
-            "description": "Index Name",
-            "name": "index_name",
-            "in": "path",
-            "required": true
-          },
-          {
             "enum": [
               "transaction",
               "operation",
@@ -7618,7 +7626,14 @@ const docTemplate = `
             "type": "string",
             "description": "Entity Name",
             "name": "entity_name",
-            "in": "query",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Index Key (metadata key, e.g., 'tier')",
+            "name": "index_key",
+            "in": "path",
             "required": true
           }
         ],
@@ -9970,21 +9985,9 @@ const docTemplate = `
       "description": "CreateMetadataIndexInput payload",
       "type": "object",
       "required": [
-        "entityName",
         "metadataKey"
       ],
       "properties": {
-        "entityName": {
-          "description": "The entity/collection name to create the index on\nrequired: true\nenum: transaction,operation,operation_route,transaction_route",
-          "type": "string",
-          "enum": [
-            "transaction",
-            "operation",
-            "operation_route",
-            "transaction_route"
-          ],
-          "example": "transaction"
-        },
         "metadataKey": {
           "description": "The metadata key to index (without \"metadata.\" prefix)\nrequired: true\nmaxLength: 100",
           "type": "string",
