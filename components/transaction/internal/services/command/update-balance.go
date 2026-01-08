@@ -2,12 +2,14 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -105,8 +107,9 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 	return result
 }
 
-// Update balance in the repository.
-func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) error {
+// Update balance in the repository and returns the updated balance.
+// Overlays Redis cached values for Available, OnHold, and Version to ensure freshest data.
+func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
@@ -114,13 +117,33 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	logger.Infof("Trying to update balance")
 
-	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	return nil
+	// Overlay amounts from Redis cache when available to ensure freshest values
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
+
+	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
+	if rerr != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache value on redis", rerr)
+		logger.Warnf("Failed to get balance cache value on redis: %v", rerr)
+	}
+
+	if value != "" {
+		cached := mmodel.BalanceRedis{}
+		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
+			logger.Warnf("Error unmarshalling balance cache value: %v", uerr)
+		} else {
+			balance.Available = cached.Available
+			balance.OnHold = cached.OnHold
+			balance.Version = cached.Version
+		}
+	}
+
+	return balance, nil
 }

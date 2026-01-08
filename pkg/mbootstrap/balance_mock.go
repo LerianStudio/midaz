@@ -22,7 +22,6 @@ import (
 type MockBalancePort struct {
 	ctrl     *gomock.Controller
 	recorder *MockBalancePortMockRecorder
-	isgomock struct{}
 }
 
 // MockBalancePortMockRecorder is the mock recorder for MockBalancePort.
@@ -42,45 +41,45 @@ func (m *MockBalancePort) EXPECT() *MockBalancePortMockRecorder {
 	return m.recorder
 }
 
-// CreateBalanceSync mocks base method.
-func (m *MockBalancePort) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+// CheckHealth mocks base method.
+func (m *MockBalancePort) CheckHealth(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBalanceSync", ctx, input)
+	ret := m.ctrl.Call(m, "CheckHealth", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CheckHealth indicates an expected call of CheckHealth.
+func (mr *MockBalancePortMockRecorder) CheckHealth(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHealth", reflect.TypeOf((*MockBalancePort)(nil).CheckHealth), arg0)
+}
+
+// CreateBalanceSync mocks base method.
+func (m *MockBalancePort) CreateBalanceSync(arg0 context.Context, arg1 mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBalanceSync", arg0, arg1)
 	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateBalanceSync indicates an expected call of CreateBalanceSync.
-func (mr *MockBalancePortMockRecorder) CreateBalanceSync(ctx, input any) *gomock.Call {
+func (mr *MockBalancePortMockRecorder) CreateBalanceSync(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalanceSync", reflect.TypeOf((*MockBalancePort)(nil).CreateBalanceSync), ctx, input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalanceSync", reflect.TypeOf((*MockBalancePort)(nil).CreateBalanceSync), arg0, arg1)
 }
 
 // DeleteAllBalancesByAccountID mocks base method.
-func (m *MockBalancePort) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+func (m *MockBalancePort) DeleteAllBalancesByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", ctx, organizationID, ledgerID, accountID, requestID)
+	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAllBalancesByAccountID indicates an expected call of DeleteAllBalancesByAccountID.
-func (mr *MockBalancePortMockRecorder) DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID any) *gomock.Call {
+func (mr *MockBalancePortMockRecorder) DeleteAllBalancesByAccountID(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockBalancePort)(nil).DeleteAllBalancesByAccountID), ctx, organizationID, ledgerID, accountID, requestID)
-}
-
-// CheckHealth mocks base method.
-func (m *MockBalancePort) CheckHealth(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckHealth", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CheckHealth indicates an expected call of CheckHealth.
-func (mr *MockBalancePortMockRecorder) CheckHealth(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckHealth", reflect.TypeOf((*MockBalancePort)(nil).CheckHealth), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockBalancePort)(nil).DeleteAllBalancesByAccountID), arg0, arg1, arg2, arg3, arg4)
 }

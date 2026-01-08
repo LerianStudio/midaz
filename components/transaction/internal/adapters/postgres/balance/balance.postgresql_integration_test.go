@@ -527,6 +527,134 @@ func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *test
 // Update Tests
 // ============================================================================
 
+func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@update-return-test"
+	params.AllowSending = true
+	params.AllowReceiving = true
+	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	ctx := context.Background()
+
+	// Get original balance to compare updated_at
+	original, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+	originalUpdatedAt := original.UpdatedAt
+
+	// Small delay to ensure updated_at differs
+	time.Sleep(10 * time.Millisecond)
+
+	// Act
+	newSending := false
+	newReceiving := false
+	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+		AllowSending:   &newSending,
+		AllowReceiving: &newReceiving,
+	})
+
+	// Assert
+	require.NoError(t, err, "Update should not return error")
+	require.NotNil(t, returned, "Update should return the updated balance")
+
+	// Verify returned balance has the updated values
+	assert.Equal(t, balanceID.String(), returned.ID, "returned ID should match")
+	assert.False(t, returned.AllowSending, "returned allow_sending should be updated to false")
+	assert.False(t, returned.AllowReceiving, "returned allow_receiving should be updated to false")
+	assert.True(t, returned.UpdatedAt.After(originalUpdatedAt), "returned updated_at should be after original")
+
+	// Verify unchanged fields are preserved
+	assert.Equal(t, original.Alias, returned.Alias, "alias should be unchanged")
+	assert.Equal(t, original.AssetCode, returned.AssetCode, "asset_code should be unchanged")
+	assert.True(t, original.Available.Equal(returned.Available), "available should be unchanged")
+	assert.True(t, original.OnHold.Equal(returned.OnHold), "on_hold should be unchanged")
+}
+
+func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedData(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@update-match-test"
+	params.AllowSending = true
+	params.AllowReceiving = false
+	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	ctx := context.Background()
+
+	// Act
+	newSending := false
+	newReceiving := true
+	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+		AllowSending:   &newSending,
+		AllowReceiving: &newReceiving,
+	})
+
+	// Assert - returned balance should match what's actually in the database
+	require.NoError(t, err)
+	require.NotNil(t, returned)
+
+	// Fetch from DB to compare
+	persisted, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+
+	// All fields should match between returned and persisted
+	assert.Equal(t, persisted.ID, returned.ID, "ID should match")
+	assert.Equal(t, persisted.OrganizationID, returned.OrganizationID, "OrganizationID should match")
+	assert.Equal(t, persisted.LedgerID, returned.LedgerID, "LedgerID should match")
+	assert.Equal(t, persisted.AccountID, returned.AccountID, "AccountID should match")
+	assert.Equal(t, persisted.Alias, returned.Alias, "Alias should match")
+	assert.Equal(t, persisted.Key, returned.Key, "Key should match")
+	assert.Equal(t, persisted.AssetCode, returned.AssetCode, "AssetCode should match")
+	assert.True(t, persisted.Available.Equal(returned.Available), "Available should match")
+	assert.True(t, persisted.OnHold.Equal(returned.OnHold), "OnHold should match")
+	assert.Equal(t, persisted.Version, returned.Version, "Version should match")
+	assert.Equal(t, persisted.AccountType, returned.AccountType, "AccountType should match")
+	assert.Equal(t, persisted.AllowSending, returned.AllowSending, "AllowSending should match")
+	assert.Equal(t, persisted.AllowReceiving, returned.AllowReceiving, "AllowReceiving should match")
+	assert.True(t, persisted.CreatedAt.Equal(returned.CreatedAt), "CreatedAt should match")
+	assert.True(t, persisted.UpdatedAt.Equal(returned.UpdatedAt), "UpdatedAt should match")
+}
+
+func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	nonExistentID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Act
+	newSending := false
+	returned, err := repo.Update(ctx, orgID, ledgerID, nonExistentID, mmodel.UpdateBalance{
+		AllowSending: &newSending,
+	})
+
+	// Assert
+	require.Error(t, err, "Update should return error for non-existent balance")
+	assert.Nil(t, returned, "returned balance should be nil on error")
+
+	var entityNotFoundErr pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &entityNotFoundErr, "error should be EntityNotFoundError")
+	assert.Equal(t, constant.ErrEntityNotFound.Error(), entityNotFoundErr.Code, "error code should be ErrEntityNotFound")
+	assert.Equal(t, "Balance", entityNotFoundErr.EntityType, "entity type should be Balance")
+}
+
 func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 
@@ -555,19 +683,26 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 	// Act
 	newSending := false
 	newReceiving := false
-	err = repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 		AllowSending:   &newSending,
 		AllowReceiving: &newReceiving,
 	})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
+	require.NotNil(t, returned, "Update should return the updated balance")
 
+	// Verify returned balance has expected values
+	assert.False(t, returned.AllowSending, "returned allow_sending should be updated to false")
+	assert.False(t, returned.AllowReceiving, "returned allow_receiving should be updated to false")
+	assert.True(t, returned.UpdatedAt.After(originalUpdatedAt), "returned updated_at should be changed after update")
+
+	// Also verify via Find to ensure persistence
 	found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
 	require.NoError(t, err)
-	assert.False(t, found.AllowSending, "allow_sending should be updated to false")
-	assert.False(t, found.AllowReceiving, "allow_receiving should be updated to false")
-	assert.True(t, found.UpdatedAt.After(originalUpdatedAt), "updated_at should be changed after update")
+	assert.False(t, found.AllowSending, "persisted allow_sending should be updated to false")
+	assert.False(t, found.AllowReceiving, "persisted allow_receiving should be updated to false")
+	assert.True(t, found.UpdatedAt.After(originalUpdatedAt), "persisted updated_at should be changed after update")
 }
 
 // ============================================================================

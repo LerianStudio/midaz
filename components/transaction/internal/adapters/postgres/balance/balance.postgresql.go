@@ -57,7 +57,7 @@ type Repository interface {
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
@@ -1167,7 +1167,8 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 }
 
 // Update updates the allow_sending and allow_receiving fields of a Balance in the database.
-func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error {
+// Returns the updated balance to avoid a second query and potential replication lag issues.
+func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
@@ -1179,10 +1180,10 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.update.exec")
+	ctx, spanQuery := tracer.Start(ctx, "postgres.update.query")
 	defer spanQuery.End()
 
 	var updates []string
@@ -1206,31 +1207,48 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		` AND deleted_at IS NULL` +
+		` RETURNING id, organization_id, ledger_id, account_id, alias, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key`
 
-	result, err := db.ExecContext(ctx, queryUpdate, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+	record := &BalancePostgreSQLModel{}
 
-		logger.Errorf("Err on result exec content: %v", err)
+	row := db.QueryRowContext(ctx, queryUpdate, args...)
+	if err = row.Scan(
+		&record.ID,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.AccountID,
+		&record.Alias,
+		&record.AssetCode,
+		&record.Available,
+		&record.OnHold,
+		&record.Version,
+		&record.AccountType,
+		&record.AllowSending,
+		&record.AllowReceiving,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+		&record.Key,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-		return err
-	}
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil || rowsAffected == 0 {
-		if err == nil {
-			err = sql.ErrNoRows
+			logger.Warnf("Balance not found: %v", err)
+
+			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Err on rows affected", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update balance", err)
 
-		logger.Errorf("Failed to update balance. Rows affected is 0: %v", err)
+		logger.Errorf("Failed to update balance: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	return nil
+	return record.ToEntity(), nil
 }
 
 func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {

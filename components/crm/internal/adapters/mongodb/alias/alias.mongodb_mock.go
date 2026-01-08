@@ -86,6 +86,20 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3, arg4 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3, arg4)
 }
 
+// DeleteRelatedParty mocks base method.
+func (m *MockRepository) DeleteRelatedParty(arg0 context.Context, arg1 string, arg2, arg3, arg4 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteRelatedParty", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteRelatedParty indicates an expected call of DeleteRelatedParty.
+func (mr *MockRepositoryMockRecorder) DeleteRelatedParty(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRelatedParty", reflect.TypeOf((*MockRepository)(nil).DeleteRelatedParty), arg0, arg1, arg2, arg3, arg4)
+}
+
 // Find mocks base method.
 func (m *MockRepository) Find(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 bool) (*mmodel.Alias, error) {
 	m.ctrl.T.Helper()
@@ -129,18 +143,4 @@ func (m *MockRepository) Update(arg0 context.Context, arg1 string, arg2, arg3 uu
 func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// DeleteRelatedParty mocks base method.
-func (m *MockRepository) DeleteRelatedParty(arg0 context.Context, arg1 string, arg2, arg3, arg4 uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRelatedParty", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteRelatedParty indicates an expected call of DeleteRelatedParty.
-func (mr *MockRepositoryMockRecorder) DeleteRelatedParty(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRelatedParty", reflect.TypeOf((*MockRepository)(nil).DeleteRelatedParty), arg0, arg1, arg2, arg3, arg4)
 }

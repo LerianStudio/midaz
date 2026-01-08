@@ -304,7 +304,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	err = handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
+	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Balance on command", err)
 
@@ -313,18 +313,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Balance on query", err)
-
-		logger.Errorf("Failed to retrieve Balance with ID: %s, Error: %s", balanceID, err.Error())
-
-		return http.WithError(c, err)
-	}
-
 	logger.Infof("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID)
 
-	return http.OK(c, op)
+	return http.OK(c, balance)
 }
 
 // GetBalancesByAlias retrieves balances by Alias.
