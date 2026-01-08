@@ -1093,39 +1093,9 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Unable to Delete Holder",
 			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
 		},
-		constant.ErrHolderLinkNotFound: EntityNotFoundError{
+		constant.ErrAliasClosingDateBeforeCreation: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrHolderLinkNotFound.Error(),
-			Title:      "Holder Link Not Found",
-			Message:    "The provided holder link ID does not exist in our records. Please verify the holder link ID and try again.",
-		},
-		constant.ErrPrimaryHolderAlreadyExists: EntityConflictError{
-			EntityType: entityType,
-			Code:       constant.ErrPrimaryHolderAlreadyExists.Error(),
-			Title:      "Primary Holder Already Exists",
-			Message:    "A primary holder already exists for this alias. Only one PRIMARY_HOLDER link is allowed per alias.",
-		},
-		constant.ErrDuplicateHolderLink: EntityConflictError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateHolderLink.Error(),
-			Title:      "Duplicate Holder Link Error",
-			Message:    "A holder link with the same alias ID and link type already exists. Please use a different link type.",
-		},
-		constant.ErrHolderLinkTypeRequired: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrHolderLinkTypeRequired.Error(),
-			Title:      "Holder Link Type Required",
-			Message:    "The holder link type is required. Please provide a valid holder link type.",
-		},
-		constant.ErrInvalidLinkType: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrInvalidLinkType.Error(),
-			Title:      "Invalid Link Type",
-			Message:    "The provided 'linkType' is not valid. Accepted types are PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY. Please provide a valid link type.",
-		},
-		constant.ErrAliasClosingDateBeforeCreationDate: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrAliasClosingDateBeforeCreationDate.Error(),
+			Code:       constant.ErrAliasClosingDateBeforeCreation.Error(),
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
 		},
