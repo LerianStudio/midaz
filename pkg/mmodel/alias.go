@@ -25,13 +25,13 @@ type RelatedParty struct {
 	// Document of the related party.
 	Document string `json:"document" validate:"required" example:"12345678900"`
 	// Name of the related party.
-	Name string `json:"name" validate:"required" example:"Maria de Jesus"`
+	Name string `json:"name" validate:"required" example:"John Smith"`
 	// Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).
 	Role string `json:"role" validate:"required,oneof=PRIMARY_HOLDER LEGAL_REPRESENTATIVE RESPONSIBLE_PARTY" example:"PRIMARY_HOLDER"`
-	// Start date of the relationship.
-	StartDate time.Time `json:"startDate" validate:"required" example:"2025-01-01T00:00:00Z"`
-	// End date of the relationship (optional).
-	EndDate *time.Time `json:"endDate,omitempty" example:"2026-01-01T00:00:00Z"`
+	// Start date of the relationship. Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
+	StartDate Date `json:"startDate" validate:"required" example:"2025-01-01"`
+	// End date of the relationship (optional). Accepts both "2025-01-01" and "2025-01-01T00:00:00Z" formats.
+	EndDate *Date `json:"endDate,omitempty" example:"2026-01-01"`
 } // @name RelatedParty
 
 // CreateAliasInput is a struct designed to encapsulate request create payload data.
@@ -49,6 +49,8 @@ type CreateAliasInput struct {
 	BankingDetails *BankingDetails `json:"bankingDetails"`
 	// Object with regulatory fields.
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
+	// List of related parties to add at creation.
+	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
 } // @name CreateAliasRequest
 
 // UpdateAliasInput is a struct designed to encapsulate request update payload data.

@@ -188,6 +188,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/RegulatoryFields'
         description: Object with regulatory fields.
+      relatedParties:
+        description: List of related parties to add at creation.
+        items:
+          $ref: '#/definitions/RelatedParty'
+        type: array
     required:
     - accountId
     - ledgerId
@@ -399,8 +404,9 @@ definitions:
         example: "12345678900"
         type: string
       endDate:
-        description: End date of the relationship (optional).
-        example: "2026-01-01T00:00:00Z"
+        description: End date of the relationship (optional). Accepts both "2025-01-01"
+          and "2025-01-01T00:00:00Z" formats.
+        example: "2026-01-01"
         type: string
       id:
         description: Unique identifier of the related party.
@@ -408,7 +414,7 @@ definitions:
         type: string
       name:
         description: Name of the related party.
-        example: Maria de Jesus
+        example: John Smith
         type: string
       role:
         description: Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,
@@ -420,8 +426,9 @@ definitions:
         example: PRIMARY_HOLDER
         type: string
       startDate:
-        description: Start date of the relationship.
-        example: "2025-01-01T00:00:00Z"
+        description: Start date of the relationship. Accepts both "2025-01-01" and
+          "2025-01-01T00:00:00Z" formats.
+        example: "2025-01-01"
         type: string
     required:
     - document

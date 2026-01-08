@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
@@ -128,6 +129,92 @@ func TestCreateAlias(t *testing.T) {
 					Return(nil, cn.ErrHolderNotFound)
 			},
 			expectedErr:    cn.ErrHolderNotFound,
+			expectedResult: nil,
+		},
+		{
+			name:     "Success with RelatedParties",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "John Smith",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: mmodel.Date{Time: time.Now()},
+					},
+				},
+			},
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+
+				mockAliasRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Alias{
+						ID:        &id,
+						Document:  &holderDocument,
+						AccountID: &accountID,
+						LedgerID:  &ledgerID,
+						RelatedParties: []*mmodel.RelatedParty{
+							{
+								Document:  "12345678900",
+								Name:      "John Smith",
+								Role:      "PRIMARY_HOLDER",
+								StartDate: mmodel.Date{Time: time.Now()},
+							},
+						},
+					}, nil)
+			},
+			expectedErr: nil,
+			expectedResult: &mmodel.Alias{
+				ID:        &id,
+				Document:  &holderDocument,
+				AccountID: &accountID,
+				LedgerID:  &ledgerID,
+			},
+		},
+		{
+			name:     "Error when related party document is empty",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "",
+						Name:      "Jane Doe",
+						Role:      "PRIMARY_HOLDER",
+						StartDate: mmodel.Date{Time: time.Now()},
+					},
+				},
+			},
+			mockSetup:      func() {},
+			expectedErr:    cn.ErrRelatedPartyDocumentRequired,
+			expectedResult: nil,
+		},
+		{
+			name:     "Error when related party role is invalid",
+			holderID: holderID,
+			input: &mmodel.CreateAliasInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+				RelatedParties: []*mmodel.RelatedParty{
+					{
+						Document:  "12345678900",
+						Name:      "Jane Doe",
+						Role:      "INVALID_ROLE",
+						StartDate: mmodel.Date{Time: time.Now()},
+					},
+				},
+			},
+			mockSetup:      func() {},
+			expectedErr:    cn.ErrInvalidRelatedPartyRole,
 			expectedResult: nil,
 		},
 	}

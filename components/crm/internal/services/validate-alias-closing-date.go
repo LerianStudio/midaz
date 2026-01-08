@@ -34,7 +34,7 @@ func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID 
 	}
 
 	if closingDate.Before(alias.CreatedAt) {
-		return pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreationDate, reflect.TypeOf(mmodel.Alias{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreation, reflect.TypeOf(mmodel.Alias{}).Name())
 	}
 
 	return nil

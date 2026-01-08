@@ -65,7 +65,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 					}, nil)
 			},
 			expectError:   true,
-			expectedError: cn.ErrAliasClosingDateBeforeCreationDate,
+			expectedError: cn.ErrAliasClosingDateBeforeCreation,
 		},
 		{
 			name:     "Success when closing date is after creation date",

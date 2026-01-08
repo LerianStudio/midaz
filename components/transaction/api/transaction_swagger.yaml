@@ -1,5 +1,17 @@
 basePath: /
 definitions:
+  AccountRule:
+    description: AccountRule object containing the rule type and condition for account
+      selection in operation routes.
+    properties:
+      ruleType:
+        description: The rule type for account selection.
+        example: alias
+        type: string
+      validIf:
+        description: The rule condition for account selection. String for alias type
+          (e.g. "@cash_account"), array for account_type.
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -258,6 +270,43 @@ definitions:
     - from
     - rate
     - to
+    type: object
+  CreateOperationRouteInput:
+    description: CreateOperationRouteInput payload for creating a new Operation Route
+      with title, description, operation type, and optional account rules.
+    properties:
+      account:
+        allOf:
+        - $ref: '#/definitions/AccountRule'
+        description: The account selection rule configuration.
+      code:
+        description: External reference of the operation route.
+        example: EXT-001
+        maxLength: 100
+        type: string
+      description:
+        description: Detailed description of the operation route purpose and usage.
+        example: This operation route handles cash-in transactions from service charge
+          collections
+        maxLength: 250
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: Additional metadata stored as JSON
+        type: object
+      operationType:
+        description: The type of the operation route.
+        example: source
+        type: string
+      title:
+        description: Short text summarizing the purpose of the operation. Used as
+          an entry note for identification.
+        example: Cashin from service charge
+        maxLength: 50
+        type: string
+    required:
+    - operationType
+    - title
     type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
@@ -727,7 +776,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1049,7 +1098,7 @@ definitions:
     properties:
       account:
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
       code:
         description: External reference of the operation route.
@@ -1116,8 +1165,6 @@ definitions:
         example: Charge Settlement
         maxLength: 50
         type: string
-    type: object
-  mmodel.AccountRule:
     type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
@@ -1257,8 +1304,6 @@ definitions:
         example: 1
         minimum: 1
         type: integer
-    type: object
-  mmodel.CreateOperationRouteInput:
     type: object
   transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
@@ -2485,7 +2530,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       produces:
       - application/json
       responses:

@@ -53,6 +53,22 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		}
 	}
 
+	if len(cai.RelatedParties) > 0 {
+		if err := uc.ValidateRelatedParties(ctx, cai.RelatedParties); err != nil {
+			libOpenTelemetry.HandleSpanError(&span, "Failed to validate related parties", err)
+			logger.Errorf("Failed to validate related parties: %v", err)
+
+			return nil, err
+		}
+
+		for _, rp := range cai.RelatedParties {
+			rpID := libCommons.GenerateUUIDv7()
+			rp.ID = &rpID
+		}
+
+		alias.RelatedParties = cai.RelatedParties
+	}
+
 	holder, err := uc.GetHolderByID(ctx, organizationID, holderID, false)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get holder by id", err)

@@ -1146,6 +1146,13 @@ const docTemplatecrm = `{
                             "$ref": "#/definitions/RegulatoryFields"
                         }
                     ]
+                },
+                "relatedParties": {
+                    "description": "List of related parties to add at creation.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
                 }
             }
         },
@@ -1426,9 +1433,9 @@ const docTemplatecrm = `{
                     "example": "12345678900"
                 },
                 "endDate": {
-                    "description": "End date of the relationship (optional).",
+                    "description": "End date of the relationship (optional). Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
                     "type": "string",
-                    "example": "2026-01-01T00:00:00Z"
+                    "example": "2026-01-01"
                 },
                 "id": {
                     "description": "Unique identifier of the related party.",
@@ -1438,7 +1445,7 @@ const docTemplatecrm = `{
                 "name": {
                     "description": "Name of the related party.",
                     "type": "string",
-                    "example": "Maria de Jesus"
+                    "example": "John Smith"
                 },
                 "role": {
                     "description": "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).",
@@ -1451,9 +1458,9 @@ const docTemplatecrm = `{
                     "example": "PRIMARY_HOLDER"
                 },
                 "startDate": {
-                    "description": "Start date of the relationship.",
+                    "description": "Start date of the relationship. Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.",
                     "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
+                    "example": "2025-01-01"
                 }
             }
         },

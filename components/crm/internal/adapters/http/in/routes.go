@@ -24,6 +24,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
+	f.Use(ErrorCodeTransformer()) // Transform generic error codes to CRM-specific codes
 	f.Use(http.WithRecover(http.WithRecoverLogger(lg)))
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())

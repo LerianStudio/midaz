@@ -5,12 +5,13 @@
 
 - [ ] Console
 - [ ] Documentation
-- [ ] Infra
-- [ ] Onboarding
 - [ ] Pipeline
+- [ ] Infra
+- [ ] Ledger
+- [ ] Onboarding
 - [ ] Transaction
-- [ ] Tests
 - [ ] CRM
+- [ ] Tests
 
 ## Checklist
 Please check each item after it's completed.

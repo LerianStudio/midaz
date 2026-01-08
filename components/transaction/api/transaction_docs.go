@@ -1599,7 +1599,7 @@ const docTemplatetransaction = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
+                            "$ref": "#/definitions/CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -3524,6 +3524,20 @@ const docTemplatetransaction = `{
         }
     },
     "definitions": {
+        "AccountRule": {
+            "description": "AccountRule object containing the rule type and condition for account selection in operation routes.",
+            "type": "object",
+            "properties": {
+                "ruleType": {
+                    "description": "The rule type for account selection.",
+                    "type": "string",
+                    "example": "alias"
+                },
+                "validIf": {
+                    "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
+                }
+            }
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
@@ -3725,6 +3739,52 @@ const docTemplatetransaction = `{
                     "type": "integer",
                     "minimum": 0,
                     "example": 3600
+                }
+            }
+        },
+        "CreateOperationRouteInput": {
+            "description": "CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.",
+            "type": "object",
+            "required": [
+                "operationType",
+                "title"
+            ],
+            "properties": {
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "EXT-001"
+                },
+                "description": {
+                    "description": "Detailed description of the operation route purpose and usage.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "This operation route handles cash-in transactions from service charge collections"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationType": {
+                    "description": "The type of the operation route.",
+                    "type": "string",
+                    "example": "source"
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "Cashin from service charge"
                 }
             }
         },
@@ -4133,7 +4193,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4458,7 +4518,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4533,9 +4593,6 @@ const docTemplatetransaction = `{
                     "example": "Charge Settlement"
                 }
             }
-        },
-        "mmodel.AccountRule": {
-            "type": "object"
         },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
@@ -4642,9 +4699,6 @@ const docTemplatetransaction = `{
                     "example": 1
                 }
             }
-        },
-        "mmodel.CreateOperationRouteInput": {
-            "type": "object"
         },
         "transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",
