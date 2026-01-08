@@ -105,8 +105,8 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 	return result
 }
 
-// Update balance in the repository.
-func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) error {
+// Update balance in the repository and returns the updated balance.
+func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
@@ -114,13 +114,13 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	logger.Infof("Trying to update balance")
 
-	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	return nil
+	return balance, nil
 }
