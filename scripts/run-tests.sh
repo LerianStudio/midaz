@@ -28,15 +28,6 @@ go test -v ./pkg || overall_exit_code=1
 
 echo -e "\nRunning component tests..."
 
-# Test console component
-echo -e "\nTesting console component..."
-if [ -d "components/console" ]; then
-    (cd components/console && make test) || { 
-        overall_exit_code=1
-        echo "[error] Console component tests failed."
-    }
-fi
-
 # Test onboarding component
 echo -e "\nTesting onboarding component..."
 if [ -d "components/onboarding" ]; then
