@@ -102,7 +102,7 @@ definitions:
         $ref: '#/definitions/RegulatoryFields'
       relatedParties:
         items:
-          $ref: '#/definitions/RelatedParty'
+          $ref: '#/definitions/mmodel.RelatedParty'
         type: array
       type:
         example: LEGAL_PERSON
@@ -163,34 +163,6 @@ definitions:
         description: The secondary email address of the holder.
         example: john.doe@example.com
         type: string
-    type: object
-  CreateAliasRequest:
-    description: CreateAliasRequest payload
-    properties:
-      accountId:
-        description: Unique identifier of the related account on ledger.
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      bankingDetails:
-        allOf:
-        - $ref: '#/definitions/BankingDetails'
-        description: Object with banking information of the related account.
-      ledgerId:
-        description: Unique identifier of the ledger of the related account.
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      metadata:
-        additionalProperties: {}
-        description: An object containing key-value pairs to add as metadata, where
-          the field name is the key and the field value is the value.
-        type: object
-      regulatoryFields:
-        allOf:
-        - $ref: '#/definitions/RegulatoryFields'
-        description: Object with regulatory fields.
-    required:
-    - accountId
-    - ledgerId
     type: object
   CreateHolderRequest:
     description: CreateHolderRequest payload
@@ -391,44 +363,6 @@ definitions:
         example: "12345678912345"
         type: string
     type: object
-  RelatedParty:
-    description: RelatedParty object
-    properties:
-      document:
-        description: Document of the related party.
-        example: "12345678900"
-        type: string
-      endDate:
-        description: End date of the relationship (optional).
-        example: "2026-01-01T00:00:00Z"
-        type: string
-      id:
-        description: Unique identifier of the related party.
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      name:
-        description: Name of the related party.
-        example: Maria de Jesus
-        type: string
-      role:
-        description: Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE,
-          RESPONSIBLE_PARTY).
-        enum:
-        - PRIMARY_HOLDER
-        - LEGAL_REPRESENTATIVE
-        - RESPONSIBLE_PARTY
-        example: PRIMARY_HOLDER
-        type: string
-      startDate:
-        description: Start date of the relationship.
-        example: "2025-01-01T00:00:00Z"
-        type: string
-    required:
-    - document
-    - name
-    - role
-    - startDate
-    type: object
   Representative:
     description: Representative object from LegalPerson
     properties:
@@ -472,7 +406,7 @@ definitions:
       relatedParties:
         description: List of related parties to add (appends to existing).
         items:
-          $ref: '#/definitions/RelatedParty'
+          $ref: '#/definitions/mmodel.RelatedParty'
         type: array
     type: object
   UpdateHolderRequest:
@@ -508,6 +442,16 @@ definitions:
         allOf:
         - $ref: '#/definitions/NaturalPerson'
         description: Object with natural person information.
+    type: object
+  mmodel.CreateAliasInput:
+    type: object
+  mmodel.Date:
+    description: Date type accepting both date-only and RFC3339 formats
+    properties:
+      time.Time:
+        type: string
+    type: object
+  mmodel.RelatedParty:
     type: object
   pkg.HTTPError:
     properties:
@@ -802,7 +746,7 @@ paths:
         name: alias
         required: true
         schema:
-          $ref: '#/definitions/CreateAliasRequest'
+          $ref: '#/definitions/mmodel.CreateAliasInput'
       produces:
       - application/json
       responses:

@@ -410,7 +410,7 @@ const docTemplatecrm = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/CreateAliasRequest"
+                            "$ref": "#/definitions/mmodel.CreateAliasInput"
                         }
                     }
                 ],
@@ -1028,7 +1028,7 @@ const docTemplatecrm = `{
                 "relatedParties": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/RelatedParty"
+                        "$ref": "#/definitions/mmodel.RelatedParty"
                     }
                 },
                 "type": {
@@ -1105,47 +1105,6 @@ const docTemplatecrm = `{
                     "description": "The secondary email address of the holder.",
                     "type": "string",
                     "example": "john.doe@example.com"
-                }
-            }
-        },
-        "CreateAliasRequest": {
-            "description": "CreateAliasRequest payload",
-            "type": "object",
-            "required": [
-                "accountId",
-                "ledgerId"
-            ],
-            "properties": {
-                "accountId": {
-                    "description": "Unique identifier of the related account on ledger.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "bankingDetails": {
-                    "description": "Object with banking information of the related account.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/BankingDetails"
-                        }
-                    ]
-                },
-                "ledgerId": {
-                    "description": "Unique identifier of the ledger of the related account.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "metadata": {
-                    "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "regulatoryFields": {
-                    "description": "Object with regulatory fields.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/RegulatoryFields"
-                        }
-                    ]
                 }
             }
         },
@@ -1410,53 +1369,6 @@ const docTemplatecrm = `{
                 }
             }
         },
-        "RelatedParty": {
-            "description": "RelatedParty object",
-            "type": "object",
-            "required": [
-                "document",
-                "name",
-                "role",
-                "startDate"
-            ],
-            "properties": {
-                "document": {
-                    "description": "Document of the related party.",
-                    "type": "string",
-                    "example": "12345678900"
-                },
-                "endDate": {
-                    "description": "End date of the relationship (optional).",
-                    "type": "string",
-                    "example": "2026-01-01T00:00:00Z"
-                },
-                "id": {
-                    "description": "Unique identifier of the related party.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "name": {
-                    "description": "Name of the related party.",
-                    "type": "string",
-                    "example": "Maria de Jesus"
-                },
-                "role": {
-                    "description": "Role of the related party (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, RESPONSIBLE_PARTY).",
-                    "type": "string",
-                    "enum": [
-                        "PRIMARY_HOLDER",
-                        "LEGAL_REPRESENTATIVE",
-                        "RESPONSIBLE_PARTY"
-                    ],
-                    "example": "PRIMARY_HOLDER"
-                },
-                "startDate": {
-                    "description": "Start date of the relationship.",
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                }
-            }
-        },
         "Representative": {
             "description": "Representative object from LegalPerson",
             "type": "object",
@@ -1517,7 +1429,7 @@ const docTemplatecrm = `{
                     "description": "List of related parties to add (appends to existing).",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/RelatedParty"
+                        "$ref": "#/definitions/mmodel.RelatedParty"
                     }
                 }
             }
@@ -1574,6 +1486,21 @@ const docTemplatecrm = `{
                     ]
                 }
             }
+        },
+        "mmodel.CreateAliasInput": {
+            "type": "object"
+        },
+        "mmodel.Date": {
+            "description": "Date type accepting both date-only and RFC3339 formats",
+            "type": "object",
+            "properties": {
+                "time.Time": {
+                    "type": "string"
+                }
+            }
+        },
+        "mmodel.RelatedParty": {
+            "type": "object"
         },
         "pkg.HTTPError": {
             "type": "object",
