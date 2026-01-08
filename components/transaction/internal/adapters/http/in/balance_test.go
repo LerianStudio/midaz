@@ -942,18 +942,12 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				AllowReceiving: boolPtr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
-				// Command.Update succeeds
+				// Command.Update returns the updated balance directly (using RETURNING clause)
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 						AllowSending:   boolPtr(false),
 						AllowReceiving: boolPtr(true),
 					}).
-					Return(nil).
-					Times(1)
-
-				// Query.GetBalanceByID to return updated balance
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, balanceID).
 					Return(&mmodel.Balance{
 						ID:             balanceID.String(),
 						OrganizationID: orgID.String(),
@@ -965,8 +959,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 						AllowReceiving: true,
 					}, nil).
 					Times(1)
-
-				// Redis is called to overlay cached values
+				// Redis overlay for freshest balance amounts (service layer calls RedisRepo.Get)
 				redisRepo.EXPECT().
 					Get(gomock.Any(), gomock.Any()).
 					Return("", nil).
@@ -999,9 +992,8 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
-					Return(pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
 					Times(1)
-				// Query.GetBalanceByID not called when update fails
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
@@ -1014,34 +1006,6 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			},
 		},
 		{
-			name: "balance found on update but not found on get returns 404",
-			payload: &mmodel.UpdateBalance{
-				AllowSending: boolPtr(false),
-			},
-			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
-				// Command.Update succeeds
-				balanceRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Query.GetBalanceByID fails with not found (edge case)
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, balanceID).
-					Return(nil, nil).
-					Times(1)
-				// Redis not called when balance not found
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-			},
-		},
-		{
 			name: "repository error on update returns 500",
 			payload: &mmodel.UpdateBalance{
 				AllowReceiving: boolPtr(false),
@@ -1049,7 +1013,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
-					Return(pkg.InternalServerError{
+					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
 						Message: "Database connection failed",
@@ -1084,6 +1048,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 
 			cmdUC := &command.UseCase{
 				BalanceRepo: mockBalanceRepo,
+				RedisRepo:   mockRedisRepo,
 			}
 			queryUC := &query.UseCase{
 				BalanceRepo: mockBalanceRepo,
