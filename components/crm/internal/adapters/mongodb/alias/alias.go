@@ -127,13 +127,18 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 			return nil, nil, err
 		}
 
+		var endDate *time.Time
+		if rp.EndDate != nil {
+			endDate = &rp.EndDate.Time
+		}
+
 		models[i] = &RelatedPartyMongoDBModel{
 			ID:        rp.ID,
 			Document:  encryptedDoc,
 			Name:      rp.Name,
 			Role:      rp.Role,
-			StartDate: rp.StartDate,
-			EndDate:   rp.EndDate,
+			StartDate: rp.StartDate.Time,
+			EndDate:   endDate,
 		}
 
 		hash := ds.GenerateHash(&rp.Document)
@@ -278,13 +283,18 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 				docValue = *decryptedDoc
 			}
 
+			var endDate *mmodel.Date
+			if rp.EndDate != nil {
+				endDate = &mmodel.Date{Time: *rp.EndDate}
+			}
+
 			alias.RelatedParties[i] = &mmodel.RelatedParty{
 				ID:        rp.ID,
 				Document:  docValue,
 				Name:      rp.Name,
 				Role:      rp.Role,
-				StartDate: rp.StartDate,
-				EndDate:   rp.EndDate,
+				StartDate: mmodel.Date{Time: rp.StartDate},
+				EndDate:   endDate,
 			}
 		}
 	}
