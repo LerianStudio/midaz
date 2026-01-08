@@ -34,7 +34,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 		name          string
 		holderID      uuid.UUID
 		aliasID       uuid.UUID
-		closingDate   *time.Time
+		closingDate   *mmodel.Date
 		mockSetup     func()
 		expectError   bool
 		expectedError error
@@ -51,9 +51,8 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			name:     "Error when closing date is before creation date",
 			holderID: holderID,
 			aliasID:  aliasID,
-			closingDate: func() *time.Time {
-				t := time.Now().Add(-48 * time.Hour)
-				return &t
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now().Add(-48 * time.Hour)}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
@@ -71,9 +70,8 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			name:     "Success when closing date is after creation date",
 			holderID: holderID,
 			aliasID:  aliasID,
-			closingDate: func() *time.Time {
-				t := time.Now().Add(24 * time.Hour)
-				return &t
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now().Add(24 * time.Hour)}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
@@ -90,9 +88,8 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			name:     "Error when alias not found",
 			holderID: holderID,
 			aliasID:  aliasID,
-			closingDate: func() *time.Time {
-				t := time.Now()
-				return &t
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now()}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
@@ -106,9 +103,8 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			name:     "Error when repository returns generic error",
 			holderID: holderID,
 			aliasID:  aliasID,
-			closingDate: func() *time.Time {
-				t := time.Now()
-				return &t
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now()}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
@@ -121,9 +117,8 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			name:     "Success when closing date equals creation date",
 			holderID: holderID,
 			aliasID:  aliasID,
-			closingDate: func() *time.Time {
-				t := createdAt
-				return &t
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: createdAt}
 			}(),
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
