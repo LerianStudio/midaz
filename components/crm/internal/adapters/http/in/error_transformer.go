@@ -72,6 +72,7 @@ func transformResponseCode(body []byte) ([]byte, bool) {
 
 	// Update the code and re-serialize
 	response["code"] = newCode
+
 	transformed, err := json.Marshal(response)
 	if err != nil {
 		return body, false

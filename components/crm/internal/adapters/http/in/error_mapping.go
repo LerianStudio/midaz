@@ -29,5 +29,6 @@ func TransformErrorCode(code string) string {
 	if crmCode, exists := CRMErrorMapping[code]; exists {
 		return crmCode
 	}
+
 	return code
 }
