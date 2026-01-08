@@ -291,7 +291,7 @@ generate-docs:
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
 	@cd $(MIDAZ_ROOT)/components/transaction && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName transaction
-	@docker run --rm -v ./:/transaction --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./transaction/api/swagger.json -g openapi-yaml -o ./transaction/api
+	@docker run --rm -v ./:/transaction --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./transaction/api/transaction_swagger.json -g openapi-yaml -o ./transaction/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"

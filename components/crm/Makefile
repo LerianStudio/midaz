@@ -337,8 +337,8 @@ generate-docs:
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
-	@cd $(MIDAZ_ROOT)/components/crm && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
-	@docker run --rm -v ./:/plugin --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./plugin/api/swagger.json -g openapi-yaml -o ./plugin/api
+	@cd $(MIDAZ_ROOT)/components/crm && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName crm
+	@docker run --rm -v ./:/plugin --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./plugin/api/crm_swagger.json -g openapi-yaml -o ./plugin/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 	@if [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
