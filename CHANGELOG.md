@@ -1,3 +1,20 @@
+## [v3.5.0-beta.39] - 2026-01-08
+
+### ✨ Features
+- enhance Update balance method to overlay Redis cached values for fresher data
+
+### 🐛 Bug Fixes
+- correct mockgen destination filename in metadata index repository files
+- update balance handling to return updated balance directly from repository
+
+### 🧪 Testing
+- add tests for balance update functionality and enhance command tests for Redis overlay
+- update mocks
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.38] - 2026-01-08
 
 ### 🔄 Changes
@@ -2353,7 +2370,7 @@ This release focuses on enhancing the build process for improved reliability and
 
 These updates collectively enhance the software's reliability and user experience by focusing on process improvements and maintaining comprehensive documentation.
 
-## [v3.0.0] - 2025-08-05
+## [v3.5.0-beta.40] - 2026-01-08
 
 This major release of midaz introduces significant enhancements to user experience, performance, and system capabilities, along with critical updates that may require user action.
 
