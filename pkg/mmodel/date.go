@@ -10,9 +10,9 @@ import (
 // It outputs date-only format ("2025-01-23") during marshaling.
 //
 // swagger:model Date
-// @Description Date type accepting both date-only and RFC3339 formats
+// @Description Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
 type Date struct {
-	time.Time
+	time.Time `swaggertype:"string" format:"date" example:"2025-06-15"`
 }
 
 // dateFormats lists the formats we accept, in order of preference

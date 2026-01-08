@@ -45,6 +45,11 @@ func TestDate_UnmarshalJSON(t *testing.T) {
 			input:   `"not-a-date"`,
 			wantErr: true,
 		},
+		{
+			name:    "Null value",
+			input:   `null`,
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
