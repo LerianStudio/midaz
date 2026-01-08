@@ -45,6 +45,11 @@ func TestTransformErrorCode(t *testing.T) {
 			expected: constant.ErrUnexpectedFieldsInTheRequestCRM.Error(),
 		},
 		{
+			name:     "transforms InvalidRequestBody to CRM code",
+			input:    constant.ErrInvalidRequestBody.Error(),
+			expected: constant.ErrInvalidFieldTypeInRequest.Error(),
+		},
+		{
 			name:     "returns original code when no mapping exists",
 			input:    "UNKNOWN-CODE",
 			expected: "UNKNOWN-CODE",

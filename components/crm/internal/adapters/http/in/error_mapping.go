@@ -20,6 +20,7 @@ var CRMErrorMapping = map[string]string{
 	constant.ErrInternalServer.Error():               constant.ErrInternalServerCRM.Error(),               // 0046 → CRM-0014
 	constant.ErrBadRequest.Error():                   constant.ErrBadRequestCRM.Error(),                   // 0047 → CRM-0015
 	constant.ErrInvalidQueryParameter.Error():        constant.ErrInvalidQueryParameterCRM.Error(),        // 0082 → CRM-0016
+	constant.ErrInvalidRequestBody.Error():           constant.ErrInvalidFieldTypeInRequest.Error(),       // 0094 → CRM-0004
 }
 
 // TransformErrorCode transforms a generic error code to a CRM-specific error code
