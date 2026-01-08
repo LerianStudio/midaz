@@ -11,8 +11,11 @@ import (
 //
 // swagger:model Date
 // @Description Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
+// @type string
+// @format date
+// @example "2025-06-15"
 type Date struct {
-	time.Time `swaggertype:"string" format:"date" example:"2025-06-15"`
+	time.Time
 }
 
 // dateFormats lists the formats we accept, in order of preference
