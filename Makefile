@@ -14,11 +14,11 @@ CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
-# Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
-
 # Define a list of all component directories for easier iteration
 COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
+
+# Unified mode: true = ledger (combined), false = separate onboarding+transaction
+UNIFIED ?= true
 
 # Include shared utility functions
 # Define common utility functions
@@ -60,12 +60,14 @@ endef
 # Check if environment files exist
 define check_env_files
 	@missing=false; \
-	for dir in $(COMPONENTS); do \
-		if [ ! -f "$$dir/.env" ]; then \
-			missing=true; \
-			break; \
-		fi; \
-	done; \
+	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
+	if [ "$(UNIFIED)" = "true" ]; then \
+		if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
+	else \
+		if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
+		if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
+	fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -121,8 +123,8 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start all services with Docker Compose"
-	@echo "  make down                         - Stop all services with Docker Compose"
+	@echo "  make up                           - Start all services (UNIFIED=true by default, use UNIFIED=false for separate mode)"
+	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
 	@echo "  make restart                      - Restart all containers"
@@ -133,13 +135,10 @@ help:
 	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
-	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
-	@echo "  make restart-backend              - Restart only backend services (onboarding, transaction and crm)"
-	@echo "  make up-unified-backend           - Start unified ledger service (onboarding + transaction in one process)"
-	@echo "  make down-unified-backend         - Stop unified ledger service"
-	@echo "  make restart-unified-backend      - Restart unified ledger service"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
+	@echo ""
+	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
+	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -190,10 +189,16 @@ help:
 .PHONY: build
 build:
 	$(call print_title,Building all components)
-	@for dir in $(COMPONENTS); do \
-		echo "Building in $$dir..."; \
-		(cd $$dir && $(MAKE) build) || exit 1; \
-	done
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Building unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1; \
+	else \
+		echo "Building separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) build) || exit 1; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) build) || exit 1; \
+	fi
+	@echo "Building CRM..."
+	@(cd $(CRM_DIR) && $(MAKE) build) || exit 1
 	@echo "[ok] All components built successfully"
 
 .PHONY: clean
@@ -216,74 +221,6 @@ cover:
 	@echo "----------------------------------------"
 	@echo "Open coverage.html in your browser to view detailed coverage report"
 	@echo "[ok] Coverage report generated successfully ✔️"
-
-#-------------------------------------------------------
-# Backend Commands
-#-------------------------------------------------------
-
-.PHONY: up-backend
-up-backend:
-	$(call print_title,Starting backend services)
-	$(call check_env_files)
-	@echo "Starting infrastructure services first..."
-	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting backend components..."
-	@for dir in $(BACKEND_COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting services in $$dir..."; \
-			(cd $$dir && $(MAKE) up) || exit 1; \
-		fi \
-	done
-	@echo "[ok] Backend services started successfully ✔️"
-
-.PHONY: down-backend
-down-backend:
-	$(call print_title,Stopping backend services)
-	@echo "Stopping backend components..."
-	@for dir in $(BACKEND_COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping services in $$dir..."; \
-			(cd $$dir && $(MAKE) down) || exit 1; \
-		fi \
-	done
-	@echo "Stopping infrastructure services..."
-	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "[ok] Backend services stopped successfully ✔️"
-
-.PHONY: restart-backend
-restart-backend:
-	$(call print_title,Restarting backend services)
-	@make down-backend && make up-backend
-	@echo "[ok] Backend services restarted successfully ✔️"
-
-#-------------------------------------------------------
-# Unified Backend Commands
-#-------------------------------------------------------
-
-.PHONY: up-unified-backend
-up-unified-backend:
-	$(call print_title,Starting unified backend service)
-	$(call check_env_files)
-	@echo "Starting infrastructure services first..."
-	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting unified backend (onboarding + transaction)..."
-	@cd $(LEDGER_DIR) && $(MAKE) up
-	@echo "[ok] Unified backend service started successfully ✔️"
-
-.PHONY: down-unified-backend
-down-unified-backend:
-	$(call print_title,Stopping unified backend service)
-	@echo "Stopping unified backend..."
-	@cd $(LEDGER_DIR) && $(MAKE) down
-	@echo "Stopping infrastructure services..."
-	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "[ok] Unified backend service stopped successfully ✔️"
-
-.PHONY: restart-unified-backend
-restart-unified-backend:
-	$(call print_title,Restarting unified backend service)
-	@make down-unified-backend && make up-unified-backend
-	@echo "[ok] Unified backend service restarted successfully ✔️"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -483,73 +420,118 @@ up:
 	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting services in $$dir..."; \
-			(cd $$dir && $(MAKE) up) || exit 1; \
-		fi; \
-	done
+	@echo "Starting infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) up); \
+	else \
+		echo "Starting separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
+	fi
+	@echo "Starting CRM service..."
+	@cd $(CRM_DIR) && $(MAKE) up
 	@echo "[ok] All services started successfully"
 
 .PHONY: down
 down:
 	$(call print_title,Stopping all services with Docker Compose)
-	@for dir in $(COMPONENTS); do \
-		component_name=$$(basename $$dir); \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping services in component: $$component_name"; \
-			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down)) || exit 1; \
-		else \
-			echo "No docker-compose.yml found in $$component_name, skipping"; \
+	@echo "Stopping CRM service..."
+	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
+		cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+	fi
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend (ledger)..."; \
+		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
+			cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
 		fi; \
-	done
+	else \
+		echo "Stopping separate backend services..."; \
+		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
+			cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+		fi; \
+		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
+			cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+		fi; \
+	fi
+	@echo "Stopping infrastructure services..."
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+	fi
 	@echo "[ok] All services stopped successfully"
 
 .PHONY: start
 start:
 	$(call print_title,Starting all containers)
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting containers in $$dir..."; \
-			(cd $$dir && $(MAKE) start) || exit 1; \
-		fi; \
-	done
+	@echo "Starting infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) start
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) start); \
+	else \
+		echo "Starting separate backend containers..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
+	fi
+	@echo "Starting CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) start
 	@echo "[ok] All containers started successfully"
 
 .PHONY: stop
 stop:
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping containers in $$dir..."; \
-			(cd $$dir && $(MAKE) stop) || exit 1; \
-		fi; \
-	done
+	$(call print_title,Stopping all containers)
+	@echo "Stopping CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	else \
+		echo "Stopping separate backend containers..."; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
+		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	fi
+	@echo "Stopping infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "[ok] All containers stopped successfully"
 
 .PHONY: restart
 restart:
-	@make stop && make start
+	@make down UNIFIED=$(UNIFIED) && make up UNIFIED=$(UNIFIED)
 	@echo "[ok] All containers restarted successfully"
 
 .PHONY: rebuild-up
 rebuild-up:
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Rebuilding and restarting services in $$dir..."; \
-			(cd $$dir && $(MAKE) rebuild-up) || exit 1; \
-		fi; \
-	done
+	$(call print_title,Rebuilding and restarting all services)
+	@echo "Rebuilding infrastructure..."
+	@cd $(INFRA_DIR) && $(MAKE) rebuild-up
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Rebuilding unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) rebuild-up); \
+	else \
+		echo "Rebuilding separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) rebuild-up); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) rebuild-up); \
+	fi
+	@echo "Rebuilding CRM..."
+	@cd $(CRM_DIR) && $(MAKE) rebuild-up
 	@echo "[ok] All services rebuilt and restarted successfully"
 
 .PHONY: clean-docker
 clean-docker:
 	$(call print_title,"Cleaning all Docker resources")
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Cleaning Docker resources in $$dir..."; \
-			(cd $$dir && $(MAKE) clean-docker) || exit 1; \
-		fi; \
-	done
+	@echo "Cleaning CRM Docker resources..."
+	@cd $(CRM_DIR) && $(MAKE) clean-docker 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Cleaning unified backend Docker resources (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+	else \
+		echo "Cleaning separate backend Docker resources..."; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+		(cd $(ONBOARDING_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+	fi
+	@echo "Cleaning infrastructure Docker resources..."
+	@cd $(INFRA_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Pruning system-wide Docker resources..."
 	@docker system prune -f
 	@echo "Pruning system-wide Docker volumes..."
@@ -559,14 +541,23 @@ clean-docker:
 .PHONY: logs
 logs:
 	$(call print_title,"Showing logs for all services")
-	@for dir in $(COMPONENTS); do \
-		component_name=$$(basename $$dir); \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Logs for component: $$component_name"; \
-			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml logs --tail=50)) || exit 1; \
-			echo ""; \
-		fi; \
-	done
+	@echo "=== Infrastructure logs ==="
+	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo ""; \
+		echo "=== Ledger (unified backend) logs ==="; \
+		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+	else \
+		echo ""; \
+		echo "=== Onboarding logs ==="; \
+		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+		echo ""; \
+		echo "=== Transaction logs ==="; \
+		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+	fi
+	@echo ""
+	@echo "=== CRM logs ==="
+	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
 .PHONY: infra onboarding transaction ledger all-components
