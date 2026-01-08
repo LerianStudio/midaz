@@ -1491,7 +1491,7 @@ const docTemplatecrm = `{
             "type": "object"
         },
         "mmodel.Date": {
-            "description": "Date type accepting both date-only and RFC3339 formats",
+            "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
             "type": "object",
             "properties": {
                 "time.Time": {
