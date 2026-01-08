@@ -3,7 +3,6 @@
 ## Pull Request Type
 [//]: # (Check the appropriate box for the type of pull request.)
 
-- [ ] Console
 - [ ] Documentation
 - [ ] Pipeline
 - [ ] Infra
