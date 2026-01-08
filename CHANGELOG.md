@@ -1,3 +1,38 @@
+## [v3.5.0-beta.37] - 2026-01-08
+
+### ✨ Features
+- implement CRM-specific error handling and transformation middleware
+- enhance CreateAlias functionality with related parties
+- implement custom Date type with JSON marshaling and unmarshaling
+
+### 🐛 Bug Fixes
+- handle JSON null value in Date UnmarshalJSON method
+- handle case when holder is not found during update operation
+- add additional related party validation errors to error mapping
+- add missing CRM errors to error mapping
+
+### 📚 Documentation
+- update API documentation for CRM, Onboarding, and Transaction components with new OpenAPI specifications and improved descriptions
+- add detailed descriptions and properties for CreateAliasRequest and RelatedParty in API documentation
+- enhance API documentation for AccountRule and CreateOperationRouteInput with detailed descriptions and properties
+- update API documentation references and definitions for CreateAliasRequest and RelatedParty, removing deprecated mmodel references
+- enhance Date struct documentation with type, format, and example details
+- update Date description in API documentation to specify YYYY-MM-DD format or null
+- update API documentation to use mmodel types and remove deprecated definitions
+
+### 🧪 Testing
+- add test case for handling null value in Date UnmarshalJSON
+- add validation tests for related party fields in alias handler
+
+### 💄 Style
+- linting
+
+### 🔧 Maintenance
+- update pull request template to include Pipeline and Ledger checkboxes
+- update indirect dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.36] - 2026-01-07
 
 ### ✨ Features
@@ -1009,7 +1044,7 @@ Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
 - **Changelog Update**: Refreshed the CHANGELOG to accurately reflect recent changes, maintaining up-to-date release notes for users.
 
 
-## [v3.4.0] - 2025-11-10
+## [v3.5.0-beta.38] - 2026-01-08
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
 Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
