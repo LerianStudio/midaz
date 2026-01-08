@@ -1,0 +1,70 @@
+package mmodel
+
+import (
+	"encoding/json"
+	"time"
+)
+
+// Date is a custom date type that accepts both "2025-01-23" (date only)
+// and "2025-01-23T00:00:00Z" (RFC3339) formats during JSON unmarshaling.
+// It outputs date-only format ("2025-01-23") during marshaling.
+//
+// swagger:model Date
+// @Description Date type accepting both date-only and RFC3339 formats
+type Date struct {
+	time.Time
+}
+
+// dateFormats lists the formats we accept, in order of preference
+var dateFormats = []string{
+	time.RFC3339,          // "2006-01-02T15:04:05Z07:00"
+	"2006-01-02T15:04:05", // RFC3339 without timezone
+	"2006-01-02",          // Date only
+}
+
+// UnmarshalJSON implements json.Unmarshaler with flexible date parsing.
+// Accepts both "2025-01-23" and "2025-01-23T00:00:00Z" formats.
+func (d *Date) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	if s == "" {
+		d.Time = time.Time{}
+		return nil
+	}
+
+	var parseErr error
+
+	for _, format := range dateFormats {
+		t, err := time.Parse(format, s)
+		if err == nil {
+			d.Time = t
+			return nil
+		}
+
+		parseErr = err
+	}
+
+	return parseErr
+}
+
+// MarshalJSON implements json.Marshaler, outputting date-only format ("2006-01-02").
+func (d Date) MarshalJSON() ([]byte, error) {
+	if d.IsZero() {
+		return json.Marshal(nil)
+	}
+
+	return json.Marshal(d.Format("2006-01-02"))
+}
+
+// Before reports whether d is before u.
+func (d Date) Before(u Date) bool {
+	return d.Time.Before(u.Time)
+}
+
+// After reports whether d is after u.
+func (d Date) After(u Date) bool {
+	return d.Time.After(u.Time)
+}
