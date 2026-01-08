@@ -410,7 +410,7 @@ const docTemplatecrm = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateAliasInput"
+                            "$ref": "#/definitions/CreateAliasRequest"
                         }
                     }
                 ],
@@ -1028,7 +1028,7 @@ const docTemplatecrm = `{
                 "relatedParties": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/mmodel.RelatedParty"
+                        "$ref": "#/definitions/RelatedParty"
                     }
                 },
                 "type": {
@@ -1107,6 +1107,9 @@ const docTemplatecrm = `{
                     "example": "john.doe@example.com"
                 }
             }
+        },
+        "CreateAliasRequest": {
+            "type": "object"
         },
         "CreateHolderRequest": {
             "description": "CreateHolderRequest payload",
@@ -1369,6 +1372,9 @@ const docTemplatecrm = `{
                 }
             }
         },
+        "RelatedParty": {
+            "type": "object"
+        },
         "Representative": {
             "description": "Representative object from LegalPerson",
             "type": "object",
@@ -1429,7 +1435,7 @@ const docTemplatecrm = `{
                     "description": "List of related parties to add (appends to existing).",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/mmodel.RelatedParty"
+                        "$ref": "#/definitions/RelatedParty"
                     }
                 }
             }
@@ -1487,9 +1493,6 @@ const docTemplatecrm = `{
                 }
             }
         },
-        "mmodel.CreateAliasInput": {
-            "type": "object"
-        },
         "mmodel.Date": {
             "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
             "type": "object",
@@ -1498,9 +1501,6 @@ const docTemplatecrm = `{
                     "type": "string"
                 }
             }
-        },
-        "mmodel.RelatedParty": {
-            "type": "object"
         },
         "pkg.HTTPError": {
             "type": "object",

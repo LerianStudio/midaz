@@ -1599,7 +1599,7 @@ const docTemplatetransaction = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
+                            "$ref": "#/definitions/CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -3524,6 +3524,9 @@ const docTemplatetransaction = `{
         }
     },
     "definitions": {
+        "AccountRule": {
+            "type": "object"
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
@@ -3727,6 +3730,9 @@ const docTemplatetransaction = `{
                     "example": 3600
                 }
             }
+        },
+        "CreateOperationRouteInput": {
+            "type": "object"
         },
         "CreateTransactionInflowSwaggerModel": {
             "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
@@ -4133,7 +4139,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4458,7 +4464,7 @@ const docTemplatetransaction = `{
                     "description": "The account selection rule configuration.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.AccountRule"
+                            "$ref": "#/definitions/AccountRule"
                         }
                     ]
                 },
@@ -4533,9 +4539,6 @@ const docTemplatetransaction = `{
                     "example": "Charge Settlement"
                 }
             }
-        },
-        "mmodel.AccountRule": {
-            "type": "object"
         },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
@@ -4642,9 +4645,6 @@ const docTemplatetransaction = `{
                     "example": 1
                 }
             }
-        },
-        "mmodel.CreateOperationRouteInput": {
-            "type": "object"
         },
         "transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",

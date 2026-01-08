@@ -3728,7 +3728,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
+          $ref: '#/definitions/CreateOperationRouteInput'
       responses:
         '201':
           description: Successfully created operation route
@@ -6466,6 +6466,8 @@ definitions:
         description: Updated status of the segment (active, inactive, pending)
         allOf:
         - $ref: '#/definitions/Status'
+  AccountRule:
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -6760,6 +6762,8 @@ definitions:
         type: integer
         minimum: 0
         example: 3600
+  CreateOperationRouteInput:
+    type: object
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
       operation structure defined inline
@@ -7224,7 +7228,7 @@ definitions:
       account:
         description: The account selection rule configuration.
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
       code:
         description: External reference of the operation route.
         type: string
@@ -7523,7 +7527,7 @@ definitions:
       account:
         description: The account selection rule configuration.
         allOf:
-        - $ref: '#/definitions/mmodel.AccountRule'
+        - $ref: '#/definitions/AccountRule'
       code:
         description: External reference of the operation route.
         type: string
@@ -7590,8 +7594,6 @@ definitions:
         type: string
         maxLength: 50
         example: Charge Settlement
-  mmodel.AccountRule:
-    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -7748,8 +7750,6 @@ definitions:
         type: integer
         minimum: 1
         example: 1
-  mmodel.CreateOperationRouteInput:
-    type: object
   transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
       structure defined inline

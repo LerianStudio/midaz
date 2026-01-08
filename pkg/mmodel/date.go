@@ -43,7 +43,8 @@ func (d *Date) UnmarshalJSON(data []byte) error {
 	for _, format := range dateFormats {
 		t, err := time.Parse(format, s)
 		if err == nil {
-			d.Time = t
+			// Normalize to UTC midnight to ensure consistency with date-only MarshalJSON
+			d.Time = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 			return nil
 		}
 
@@ -62,12 +63,23 @@ func (d Date) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.Format("2006-01-02"))
 }
 
-// Before reports whether d is before u.
+// Before reports whether d is before u (date-only comparison).
 func (d Date) Before(u Date) bool {
-	return d.Time.Before(u.Time)
+	dy, dm, dd := d.Time.Date()
+	uy, um, ud := u.Time.Date()
+
+	if dy != uy {
+		return dy < uy
+	}
+
+	if dm != um {
+		return dm < um
+	}
+
+	return dd < ud
 }
 
-// After reports whether d is after u.
+// After reports whether d is after u (date-only comparison).
 func (d Date) After(u Date) bool {
-	return d.Time.After(u.Time)
+	return u.Before(d)
 }

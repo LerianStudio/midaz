@@ -102,7 +102,7 @@ definitions:
         $ref: '#/definitions/RegulatoryFields'
       relatedParties:
         items:
-          $ref: '#/definitions/mmodel.RelatedParty'
+          $ref: '#/definitions/RelatedParty'
         type: array
       type:
         example: LEGAL_PERSON
@@ -163,6 +163,8 @@ definitions:
         description: The secondary email address of the holder.
         example: john.doe@example.com
         type: string
+    type: object
+  CreateAliasRequest:
     type: object
   CreateHolderRequest:
     description: CreateHolderRequest payload
@@ -363,6 +365,8 @@ definitions:
         example: "12345678912345"
         type: string
     type: object
+  RelatedParty:
+    type: object
   Representative:
     description: Representative object from LegalPerson
     properties:
@@ -406,7 +410,7 @@ definitions:
       relatedParties:
         description: List of related parties to add (appends to existing).
         items:
-          $ref: '#/definitions/mmodel.RelatedParty'
+          $ref: '#/definitions/RelatedParty'
         type: array
     type: object
   UpdateHolderRequest:
@@ -443,15 +447,11 @@ definitions:
         - $ref: '#/definitions/NaturalPerson'
         description: Object with natural person information.
     type: object
-  mmodel.CreateAliasInput:
-    type: object
   mmodel.Date:
     description: Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
     properties:
       time.Time:
         type: string
-    type: object
-  mmodel.RelatedParty:
     type: object
   pkg.HTTPError:
     properties:
@@ -746,7 +746,7 @@ paths:
         name: alias
         required: true
         schema:
-          $ref: '#/definitions/mmodel.CreateAliasInput'
+          $ref: '#/definitions/CreateAliasRequest'
       produces:
       - application/json
       responses:
