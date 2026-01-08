@@ -368,15 +368,17 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	update := mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove)
 
-	_, err = coll.UpdateByID(ctx, id, update)
+	updateResult, err := coll.UpdateByID(ctx, id, update)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update holder", err)
 
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
-		}
-
 		return nil, err
+	}
+
+	if updateResult.MatchedCount == 0 {
+		libOpenTelemetry.HandleSpanError(&spanUpdate, "Holder not found", cn.ErrHolderNotFound)
+
+		return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 	}
 
 	spanUpdate.End()

@@ -568,6 +568,30 @@ func TestIntegration_HolderRepo_Update_FieldsToRemove(t *testing.T) {
 	assert.Equal(t, "value3", result.Metadata["key3"], "key3 should still exist")
 }
 
+func TestIntegration_HolderRepo_Update_NotFound(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-updatenotfound-" + uuid.New().String()[:8]
+	nonExistentID := uuid.New()
+
+	// Act - Try to update non-existent holder
+	updateData := &mmodel.Holder{
+		Metadata: map[string]any{"key": "value"},
+	}
+	result, err := repo.Update(ctx, organizationID, nonExistentID, updateData, nil)
+
+	// Assert
+	require.Error(t, err, "should return error for non-existent holder")
+	assert.Nil(t, result, "result should be nil")
+
+	var notFoundErr pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &notFoundErr, "should return EntityNotFoundError")
+	assert.Equal(t, "CRM-0006", notFoundErr.Code, "should return ErrHolderNotFound code")
+}
+
 // ============================================================================
 // Delete Tests
 // ============================================================================
