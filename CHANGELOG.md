@@ -1,3 +1,14 @@
+## [v3.5.0-beta.38] - 2026-01-08
+
+### 🔄 Changes
+- update Makefile for unified backend support and improve service management commands
+- remove console component
+
+### 🔧 Maintenance
+- remove console option from pull request template
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.37] - 2026-01-08
 
 ### ✨ Features
@@ -2200,7 +2211,7 @@ Contributors: MartinezAvellan, lerian-studio
 - **Code Refactoring**: Simplified the `createTransaction` method to improve code readability and maintainability.
 
 
-## [v3.2.0] - 2025-08-18
+## [v3.5.0-beta.39] - 2026-01-08
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.0.0...v3.2.0)
 Contributors: Brecci, Caio Alexandre Troti Caetano, Fred Amaral, Gabriel Ferreira, MartinezAvellan, Rui Chen, lerian-studio, paulo
