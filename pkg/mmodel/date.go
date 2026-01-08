@@ -26,8 +26,14 @@ var dateFormats = []string{
 }
 
 // UnmarshalJSON implements json.Unmarshaler with flexible date parsing.
-// Accepts both "2025-01-23" and "2025-01-23T00:00:00Z" formats.
+// Accepts both "2025-01-23" and "2025-01-23T00:00:00Z" formats, as well as null.
 func (d *Date) UnmarshalJSON(data []byte) error {
+	// Handle JSON null - mirrors MarshalJSON which outputs null for zero values
+	if string(data) == "null" {
+		d.Time = time.Time{}
+		return nil
+	}
+
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
