@@ -65,8 +65,8 @@ func (d Date) MarshalJSON() ([]byte, error) {
 
 // Before reports whether d is before u (date-only comparison).
 func (d Date) Before(u Date) bool {
-	dy, dm, dd := d.Time.Date()
-	uy, um, ud := u.Time.Date()
+	dy, dm, dd := d.Date()
+	uy, um, ud := u.Date()
 
 	if dy != uy {
 		return dy < uy

@@ -3525,7 +3525,18 @@ const docTemplatetransaction = `{
     },
     "definitions": {
         "AccountRule": {
-            "type": "object"
+            "description": "AccountRule object containing the rule type and condition for account selection in operation routes.",
+            "type": "object",
+            "properties": {
+                "ruleType": {
+                    "description": "The rule type for account selection.",
+                    "type": "string",
+                    "example": "alias"
+                },
+                "validIf": {
+                    "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
+                }
+            }
         },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
@@ -3732,7 +3743,50 @@ const docTemplatetransaction = `{
             }
         },
         "CreateOperationRouteInput": {
-            "type": "object"
+            "description": "CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.",
+            "type": "object",
+            "required": [
+                "operationType",
+                "title"
+            ],
+            "properties": {
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "EXT-001"
+                },
+                "description": {
+                    "description": "Detailed description of the operation route purpose and usage.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "This operation route handles cash-in transactions from service charge collections"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationType": {
+                    "description": "The type of the operation route.",
+                    "type": "string",
+                    "example": "source"
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "Cashin from service charge"
+                }
+            }
         },
         "CreateTransactionInflowSwaggerModel": {
             "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",

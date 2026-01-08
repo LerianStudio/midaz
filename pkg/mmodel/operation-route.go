@@ -39,26 +39,15 @@ type OperationRoute struct {
 
 // CreateOperationRouteInput is a struct designed to store Operation Route input data.
 //
-// swagger:model CreateOperationRouteInput
 // @Description CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.
 type CreateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
-	// required: true
-	// maxLength: 50
-	// example: Cashin from service charge
 	Title string `json:"title,omitempty" validate:"required,max=50" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
-	// maxLength: 250
-	// example: This operation route handles cash-in transactions from service charge collections
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// External reference of the operation route.
-	// maxLength: 100
-	// example: EXT-001
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
-	// required: true
-	// example: source
-	// enum: source,destination
 	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
@@ -85,14 +74,10 @@ type UpdateOperationRouteInput struct {
 
 // AccountRule represents the account selection rule configuration.
 //
-// swagger:model AccountRule
 // @Description AccountRule object containing the rule type and condition for account selection in operation routes.
 type AccountRule struct {
 	// The rule type for account selection.
-	// example: alias
-	// enum: alias,account_type
 	RuleType string `json:"ruleType,omitempty" example:"alias" enum:"alias,account_type"`
-	// The rule condition for account selection. String for alias type, array for account_type.
-	// example: @cash_account
-	ValidIf any `json:"validIf,omitempty" example:"@cash_account"`
+	// The rule condition for account selection. String for alias type (e.g. "@cash_account"), array for account_type.
+	ValidIf any `json:"validIf,omitempty"`
 } // @name AccountRule
