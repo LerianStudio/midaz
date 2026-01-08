@@ -1099,6 +1099,42 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
 		},
+		constant.ErrRelatedPartyNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrRelatedPartyNotFound.Error(),
+			Title:      "Related Party Not Found",
+			Message:    "The specified related party does not exist. Please verify the related party ID and try again.",
+		},
+		constant.ErrInvalidRelatedPartyRole: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidRelatedPartyRole.Error(),
+			Title:      "Invalid Related Party Role",
+			Message:    "The provided related party role is not valid. Accepted roles are: PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY.",
+		},
+		constant.ErrRelatedPartyDocumentRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRelatedPartyDocumentRequired.Error(),
+			Title:      "Related Party Document Required",
+			Message:    "The related party document is required. Please provide a valid document.",
+		},
+		constant.ErrRelatedPartyNameRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRelatedPartyNameRequired.Error(),
+			Title:      "Related Party Name Required",
+			Message:    "The related party name is required. Please provide a valid name.",
+		},
+		constant.ErrRelatedPartyStartDateRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRelatedPartyStartDateRequired.Error(),
+			Title:      "Related Party Start Date Required",
+			Message:    "The related party start date is required. Please provide a valid start date.",
+		},
+		constant.ErrRelatedPartyEndDateInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRelatedPartyEndDateInvalid.Error(),
+			Title:      "Related Party End Date Invalid",
+			Message:    "The related party end date must be after the start date. Please provide a valid end date.",
+		},
 		constant.ErrMetadataIndexAlreadyExists: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexAlreadyExists.Error(),
