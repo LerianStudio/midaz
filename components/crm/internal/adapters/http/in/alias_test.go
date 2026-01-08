@@ -166,6 +166,131 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				assert.Contains(t, errResp, "message", "error response should contain message")
 			},
 		},
+		{
+			name: "invalid related party role returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002",
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "INVALID_ROLE",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before any repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrInvalidRelatedPartyRole.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "empty related party document returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002",
+				"relatedParties": [{
+					"document": "",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before any repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyDocumentRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "empty related party name returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002",
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before any repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyNameRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "missing related party start date returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002",
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before any repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyStartDateRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "related party end date before start date returns 400",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002",
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-06-01",
+					"endDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				// No mock calls expected - validation fails before any repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyEndDateInvalid.Error(), errResp["code"])
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -472,6 +597,121 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+		{
+			name: "invalid related party role returns 400",
+			jsonBody: `{
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "INVALID_ROLE",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				// No mock calls expected - validation fails before repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrInvalidRelatedPartyRole.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "empty related party document returns 400",
+			jsonBody: `{
+				"relatedParties": [{
+					"document": "",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				// No mock calls expected - validation fails before repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyDocumentRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "empty related party name returns 400",
+			jsonBody: `{
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				// No mock calls expected - validation fails before repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyNameRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "missing related party start date returns 400",
+			jsonBody: `{
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				// No mock calls expected - validation fails before repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyStartDateRequired.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "related party end date before start date returns 400",
+			jsonBody: `{
+				"relatedParties": [{
+					"document": "12345678900",
+					"name": "John Smith",
+					"role": "PRIMARY_HOLDER",
+					"startDate": "2025-06-01",
+					"endDate": "2025-01-01"
+				}]
+			}`,
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID uuid.UUID) {
+				// No mock calls expected - validation fails before repository call
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrRelatedPartyEndDateInvalid.Error(), errResp["code"])
 			},
 		},
 	}
