@@ -77,16 +77,14 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		}
 	}
 
-	if uai.ClosingDate != nil {
-		err := uc.validateAliasClosingDate(ctx, organizationID, holderID, id, uai.ClosingDate)
+	if uai.BankingDetails != nil && uai.BankingDetails.ClosingDate != nil {
+		err := uc.validateAliasClosingDate(ctx, organizationID, holderID, id, uai.BankingDetails.ClosingDate)
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to validate alias closing date", err)
 			logger.Errorf("Failed to validate alias closing date: %v", err)
 
 			return nil, err
 		}
-
-		alias.ClosingDate = uai.ClosingDate
 	}
 
 	updatedAlias, err := uc.AliasRepo.Update(ctx, organizationID, holderID, id, alias, fieldsToRemove)

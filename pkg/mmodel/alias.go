@@ -66,8 +66,6 @@ type UpdateAliasInput struct {
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	// List of related parties to add (appends to existing).
 	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
-	// The date the alias was closed.
-	ClosingDate *time.Time `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
 } // @name UpdateAliasRequest
 
 // Alias is a struct designed to store account data.
@@ -85,7 +83,6 @@ type Alias struct {
 	BankingDetails   *BankingDetails   `json:"bankingDetails,omitempty"`
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	RelatedParties   []*RelatedParty   `json:"relatedParties,omitempty"`
-	ClosingDate      *time.Time        `json:"closingDate,omitempty" example:"2025-01-01T00:00:00Z"`
 	CreatedAt        time.Time         `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	UpdatedAt        time.Time         `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
 	DeletedAt        *time.Time        `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
@@ -104,6 +101,8 @@ type BankingDetails struct {
 	Type *string `json:"type,omitempty" example:"CACC"`
 	// The date the account was opened.
 	OpeningDate *string `json:"openingDate,omitempty" example:"2025-01-01"`
+	// The date the account was closed.
+	ClosingDate *Date `json:"closingDate,omitempty" example:"2025-12-31"`
 	// The International Bank Account Number.
 	IBAN *string `json:"iban,omitempty" example:"US12345678901234567890"`
 	// The country code where the bank is located.
