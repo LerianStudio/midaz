@@ -30,7 +30,6 @@ jobs:
           filter_paths: |-
             components/onboarding
             components/transaction
-            components/console
             components/crm
             components/ledger
           get_app_name: true         # Derive an app name from changed paths

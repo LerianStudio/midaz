@@ -10,7 +10,6 @@ INFRA_DIR := ./components/infra
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 LEDGER_DIR := ./components/ledger
-CONSOLE_DIR := ./components/console
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
@@ -19,7 +18,7 @@ PKG_DIR := ./pkg
 BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR) $(CRM_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -133,7 +132,6 @@ help:
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
-	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make up-backend                   - Start only backend services (onboarding, transaction and crm)"
 	@echo "  make down-backend                 - Stop only backend services (onboarding, transaction and crm)"
@@ -571,7 +569,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction ledger console all-components
+.PHONY: infra onboarding transaction ledger all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -603,14 +601,6 @@ ledger:
 		exit 1; \
 	fi
 	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
-
-console:
-	$(call print_title,"Running command in console component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,"Running command across all components")

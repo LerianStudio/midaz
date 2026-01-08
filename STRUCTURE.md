@@ -94,7 +94,6 @@ MIDAZ
 
 #### Common Utilities (`./pkg`)
 
-* `console`: Description of the console utilities and their usage.
 * `libLog`: Overview of the logging framework and configuration details.
 * `libMongo`, `mpostgres`: Database utilities, including setup and configuration.
 * `libPointers`: Explanation of any custom pointer utilities or enhancements used in the project.

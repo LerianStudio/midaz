@@ -49,41 +49,9 @@ jobs:
         shell: bash
         run: make test
 
-  integration_tests_console:
-    name: Console Integration test
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: components/console
-    steps:
-      # Checkout the repository code
-      - uses: actions/checkout@v4
-
-      # Set up Node.js environment
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-
-      # Install SWC binary for Linux to improve build performance
-      - name: Install SWC binary (Linux only)
-        run: npm install --save-dev @next/swc-linux-x64-gnu --platform=linux --cpu=x64
-
-      # Install project dependencies
-      - name: Install dependencies
-        run: npm install
-
-      # Warm up Next.js by building once to ensure SWC binaries are properly set up
-      - name: Patch Next.js SWC binaries (warm-up)
-        run: npx next build
-
-      # Run the unit tests
-      - name: Run Unit Tests
-        run: npm test
-
   publish_release:
     runs-on: ubuntu-24.04
-    needs: [integration_tests_go, integration_tests_console]
+    needs: [integration_tests_go]
     environment:
       name: create_release
     name: 🏷️ Create release to Midaz
