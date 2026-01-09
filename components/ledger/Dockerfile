@@ -7,9 +7,6 @@ RUN go mod download
 
 COPY . .
 
-# Build the Go binary for the target platform
-# CGO is disabled for static builds
-# TARGETOS/TARGETARCH are Docker BuildKit built-in ARGs for multi-arch builds
 ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \

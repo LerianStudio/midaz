@@ -1,13 +1,18 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
 WORKDIR /transaction-app
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-ARG TARGETPLATFORM
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -tags netgo -ldflags '-s -w -extldflags "-static"' -o /app components/transaction/cmd/app/main.go
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -tags netgo \
+    -ldflags '-s -w -extldflags "-static"' \
+    -o /app components/transaction/cmd/app/main.go
 
 FROM gcr.io/distroless/static-debian12
 
