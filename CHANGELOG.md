@@ -1,3 +1,19 @@
+## [v3.5.0-beta.40] - 2026-01-09
+
+### ✨ Features
+- add ClosingDate field to BankingDetails and update related services for alias management
+
+### 📚 Documentation
+- update ClosingDate field in CRM documentation
+
+### 🧪 Testing
+- update StartDate field in alias integration test to use mmodel.Date
+- refactor alias tests to use mmodel.Date for ClosingDate and update related test cases
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.39] - 2026-01-08
 
 ### ✨ Features
@@ -3568,7 +3584,7 @@ Users are encouraged to review the breaking changes and major features to fully 
 - Update version in `.env.example` to v2.3.0 to reflect the latest release.
 
 
-## [v2.2.2] - 2025-06-16
+## [v3.5.0-beta.41] - 2026-01-09
 
 This release focuses on enhancing the reliability and stability of the midaz project, with key improvements in configuration management and documentation. Users will benefit from a more robust messaging infrastructure and streamlined development processes.
 
