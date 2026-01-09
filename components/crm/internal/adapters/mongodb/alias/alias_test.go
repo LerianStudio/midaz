@@ -151,14 +151,16 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 		{
 			name: "alias with closing date",
 			alias: &mmodel.Alias{
-				ID:          &aliasID,
-				Document:    testutils.Ptr("44455566677"),
-				Type:        testutils.Ptr("NATURAL_PERSON"),
-				LedgerID:    testutils.Ptr("ledger-close"),
-				AccountID:   testutils.Ptr("account-close"),
-				ClosingDate: &now,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				ID:        &aliasID,
+				Document:  testutils.Ptr("44455566677"),
+				Type:      testutils.Ptr("NATURAL_PERSON"),
+				LedgerID:  testutils.Ptr("ledger-close"),
+				AccountID: testutils.Ptr("account-close"),
+				BankingDetails: &mmodel.BankingDetails{
+					ClosingDate: &mmodel.Date{Time: now},
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
 			},
 			wantErr: false,
 		},
@@ -176,6 +178,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 					Account:     testutils.Ptr("999999"),
 					Type:        testutils.Ptr("SVGS"),
 					OpeningDate: testutils.Ptr("2020-06-15"),
+					ClosingDate: &mmodel.Date{Time: now},
 					IBAN:        testutils.Ptr("US12345678901234567890"),
 					CountryCode: testutils.Ptr("US"),
 					BankID:      testutils.Ptr("BANK123"),
@@ -195,10 +198,9 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 						StartDate: mmodel.Date{Time: now},
 					},
 				},
-				ClosingDate: &now,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-				DeletedAt:   &now,
+				CreatedAt: now,
+				UpdatedAt: now,
+				DeletedAt: &now,
 			},
 			wantErr: false,
 		},
@@ -220,7 +222,6 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			assert.Equal(t, tt.alias.LedgerID, model.LedgerID)
 			assert.Equal(t, tt.alias.AccountID, model.AccountID)
 			assert.Equal(t, tt.alias.HolderID, model.HolderID)
-			assert.Equal(t, tt.alias.ClosingDate, model.ClosingDate)
 
 			// Encrypted fields should not match original
 			if tt.alias.Document != nil {
@@ -318,6 +319,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 			Account:     testutils.Ptr("567890"),
 			Type:        testutils.Ptr("CACC"),
 			OpeningDate: testutils.Ptr("2023-06-15"),
+			ClosingDate: &mmodel.Date{Time: now},
 			IBAN:        testutils.Ptr("BR9876543210987654321098765"),
 			CountryCode: testutils.Ptr("BR"),
 			BankID:      testutils.Ptr("341"),
@@ -337,9 +339,8 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 				StartDate: mmodel.Date{Time: now},
 			},
 		},
-		ClosingDate: &now,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	var model MongoDBModel
@@ -358,7 +359,6 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	assert.Equal(t, originalAlias.AccountID, resultAlias.AccountID)
 	assert.Equal(t, originalAlias.HolderID, resultAlias.HolderID)
 	assert.Equal(t, originalAlias.Metadata, resultAlias.Metadata)
-	assert.Equal(t, originalAlias.ClosingDate, resultAlias.ClosingDate)
 	assert.Equal(t, originalAlias.CreatedAt, resultAlias.CreatedAt)
 	assert.Equal(t, originalAlias.UpdatedAt, resultAlias.UpdatedAt)
 
@@ -380,6 +380,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	assert.Equal(t, *originalAlias.BankingDetails.Account, *resultAlias.BankingDetails.Account)
 	assert.Equal(t, originalAlias.BankingDetails.Type, resultAlias.BankingDetails.Type)
 	assert.Equal(t, originalAlias.BankingDetails.OpeningDate, resultAlias.BankingDetails.OpeningDate)
+	assert.Equal(t, originalAlias.BankingDetails.ClosingDate.Time, resultAlias.BankingDetails.ClosingDate.Time)
 	assert.Equal(t, *originalAlias.BankingDetails.IBAN, *resultAlias.BankingDetails.IBAN)
 	assert.Equal(t, originalAlias.BankingDetails.CountryCode, resultAlias.BankingDetails.CountryCode)
 	assert.Equal(t, originalAlias.BankingDetails.BankID, resultAlias.BankingDetails.BankID)

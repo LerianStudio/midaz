@@ -74,9 +74,6 @@ definitions:
         type: string
       bankingDetails:
         $ref: '#/definitions/BankingDetails'
-      closingDate:
-        example: "2025-01-01T00:00:00Z"
-        type: string
       createdAt:
         example: "2025-01-01T00:00:00Z"
         type: string
@@ -126,6 +123,10 @@ definitions:
       branch:
         description: The branch number or code.
         example: "0001"
+        type: string
+      closingDate:
+        description: The date the account was closed.
+        example: "2025-12-31"
         type: string
       countryCode:
         description: The country code where the bank is located.
@@ -463,10 +464,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/BankingDetails'
         description: Object with banking information of the related account.
-      closingDate:
-        description: The date the alias was closed.
-        example: "2025-01-01T00:00:00Z"
-        type: string
       metadata:
         additionalProperties: {}
         description: An object containing key-value pairs to add as metadata, where

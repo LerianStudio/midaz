@@ -41,6 +41,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 			Account:     cai.BankingDetails.Account,
 			Type:        cai.BankingDetails.Type,
 			OpeningDate: cai.BankingDetails.OpeningDate,
+			ClosingDate: cai.BankingDetails.ClosingDate,
 			IBAN:        cai.BankingDetails.IBAN,
 			CountryCode: cai.BankingDetails.CountryCode,
 			BankID:      cai.BankingDetails.BankID,

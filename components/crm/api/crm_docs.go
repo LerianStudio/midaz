@@ -990,10 +990,6 @@ const docTemplatecrm = `{
                 "bankingDetails": {
                     "$ref": "#/definitions/BankingDetails"
                 },
-                "closingDate": {
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
                 "createdAt": {
                     "type": "string",
                     "example": "2025-01-01T00:00:00Z"
@@ -1059,6 +1055,11 @@ const docTemplatecrm = `{
                     "description": "The branch number or code.",
                     "type": "string",
                     "example": "0001"
+                },
+                "closingDate": {
+                    "description": "The date the account was closed.",
+                    "type": "string",
+                    "example": "2025-12-31"
                 },
                 "countryCode": {
                     "description": "The country code where the bank is located.",
@@ -1501,11 +1502,6 @@ const docTemplatecrm = `{
                             "$ref": "#/definitions/BankingDetails"
                         }
                     ]
-                },
-                "closingDate": {
-                    "description": "The date the alias was closed.",
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
                 },
                 "metadata": {
                     "description": "An object containing key-value pairs to add as metadata, where the field name is the key and the field value is the value.",

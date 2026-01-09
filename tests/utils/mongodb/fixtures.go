@@ -89,13 +89,12 @@ func ClearCollection(t *testing.T, db *mongo.Database, collection string) {
 
 // AliasParams holds parameters for creating a test alias.
 type AliasParams struct {
-	Document   string
-	Type       string
-	LedgerID   string
-	AccountID  string
-	Metadata   map[string]any
-	DeletedAt  *time.Time
-	ClosingDate *time.Time
+	Document  string
+	Type      string
+	LedgerID  string
+	AccountID string
+	Metadata  map[string]any
+	DeletedAt *time.Time
 }
 
 // DefaultAliasParams returns default parameters for creating a test alias.
@@ -116,17 +115,16 @@ func CreateTestAlias(t *testing.T, holderID uuid.UUID, params AliasParams) *mmod
 	now := time.Now().UTC().Truncate(time.Second)
 
 	return &mmodel.Alias{
-		ID:          &id,
-		Document:    testutils.Ptr(params.Document),
-		Type:        testutils.Ptr(params.Type),
-		LedgerID:    testutils.Ptr(params.LedgerID),
-		AccountID:   testutils.Ptr(params.AccountID),
-		HolderID:    &holderID,
-		Metadata:    params.Metadata,
-		ClosingDate: params.ClosingDate,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		DeletedAt:   params.DeletedAt,
+		ID:        &id,
+		Document:  testutils.Ptr(params.Document),
+		Type:      testutils.Ptr(params.Type),
+		LedgerID:  testutils.Ptr(params.LedgerID),
+		AccountID: testutils.Ptr(params.AccountID),
+		HolderID:  &holderID,
+		Metadata:  params.Metadata,
+		CreatedAt: now,
+		UpdatedAt: now,
+		DeletedAt: params.DeletedAt,
 	}
 }
 

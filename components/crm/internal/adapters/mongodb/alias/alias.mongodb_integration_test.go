@@ -648,7 +648,7 @@ func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 			Document:  originalRelatedPartyDoc,
 			Name:      "Test Related Party",
 			Role:      "PRIMARY_HOLDER",
-			StartDate: alias.CreatedAt,
+			StartDate: mmodel.Date{Time: alias.CreatedAt},
 		},
 	}
 

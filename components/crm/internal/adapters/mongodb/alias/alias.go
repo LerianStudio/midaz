@@ -10,21 +10,20 @@ import (
 )
 
 type MongoDBModel struct {
-	ID               *uuid.UUID                  `bson:"_id,omitempty"`
-	Document         *string                     `bson:"document,omitempty"`
-	Type             *string                     `bson:"type,omitempty"`
-	LedgerID         *string                     `bson:"ledger_id,omitempty"`
-	AccountID        *string                     `bson:"account_id,omitempty"`
-	HolderID         *uuid.UUID                  `bson:"holder_id,omitempty"`
-	Metadata         map[string]any              `bson:"metadata"`
-	Search           *SearchMongoDB              `bson:"search,omitempty"`
-	BankingDetails   *BankingMongoDBModel        `bson:"banking_details,omitempty"`
+	ID               *uuid.UUID                    `bson:"_id,omitempty"`
+	Document         *string                       `bson:"document,omitempty"`
+	Type             *string                       `bson:"type,omitempty"`
+	LedgerID         *string                       `bson:"ledger_id,omitempty"`
+	AccountID        *string                       `bson:"account_id,omitempty"`
+	HolderID         *uuid.UUID                    `bson:"holder_id,omitempty"`
+	Metadata         map[string]any                `bson:"metadata"`
+	Search           *SearchMongoDB                `bson:"search,omitempty"`
+	BankingDetails   *BankingMongoDBModel          `bson:"banking_details,omitempty"`
 	RegulatoryFields *RegulatoryFieldsMongoDBModel `bson:"regulatory_fields,omitempty"`
-	RelatedParties   []*RelatedPartyMongoDBModel `bson:"related_parties,omitempty"`
-	ClosingDate      *time.Time                  `bson:"closing_date,omitempty"`
-	CreatedAt        *time.Time                  `bson:"created_at,omitempty"`
-	UpdatedAt        *time.Time                  `bson:"updated_at"`
-	DeletedAt        *time.Time                  `bson:"deleted_at"`
+	RelatedParties   []*RelatedPartyMongoDBModel   `bson:"related_parties,omitempty"`
+	CreatedAt        *time.Time                    `bson:"created_at,omitempty"`
+	UpdatedAt        *time.Time                    `bson:"updated_at"`
+	DeletedAt        *time.Time                    `bson:"deleted_at"`
 }
 
 type SearchMongoDB struct {
@@ -36,13 +35,14 @@ type SearchMongoDB struct {
 }
 
 type BankingMongoDBModel struct {
-	Branch      *string `bson:"branch,omitempty"`
-	Account     *string `bson:"account,omitempty"`
-	Type        *string `bson:"type,omitempty"`
-	OpeningDate *string `bson:"opening_date,omitempty"`
-	IBAN        *string `bson:"iban,omitempty"`
-	CountryCode *string `bson:"country_code,omitempty"`
-	BankID      *string `bson:"bank_id,omitempty"`
+	Branch      *string    `bson:"branch,omitempty"`
+	Account     *string    `bson:"account,omitempty"`
+	Type        *string    `bson:"type,omitempty"`
+	OpeningDate *string    `bson:"opening_date,omitempty"`
+	ClosingDate *time.Time `bson:"closing_date,omitempty"`
+	IBAN        *string    `bson:"iban,omitempty"`
+	CountryCode *string    `bson:"country_code,omitempty"`
+	BankID      *string    `bson:"bank_id,omitempty"`
 }
 
 type RegulatoryFieldsMongoDBModel struct {
@@ -78,6 +78,10 @@ func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto
 		CountryCode: bd.CountryCode,
 		BankID:      bd.BankID,
 		IBAN:        iban,
+	}
+
+	if bd.ClosingDate != nil {
+		model.ClosingDate = &bd.ClosingDate.Time
 	}
 
 	var accountHash, ibanHash *string
@@ -156,16 +160,15 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	}
 
 	*amm = MongoDBModel{
-		ID:          a.ID,
-		Document:    document,
-		Type:        a.Type,
-		LedgerID:    a.LedgerID,
-		AccountID:   a.AccountID,
-		HolderID:    a.HolderID,
-		ClosingDate: a.ClosingDate,
-		CreatedAt:   &a.CreatedAt,
-		UpdatedAt:   &a.UpdatedAt,
-		DeletedAt:   a.DeletedAt,
+		ID:        a.ID,
+		Document:  document,
+		Type:      a.Type,
+		LedgerID:  a.LedgerID,
+		AccountID: a.AccountID,
+		HolderID:  a.HolderID,
+		CreatedAt: &a.CreatedAt,
+		UpdatedAt: &a.UpdatedAt,
+		DeletedAt: a.DeletedAt,
 	}
 
 	amm.Search = &SearchMongoDB{}
@@ -223,17 +226,16 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	alias := &mmodel.Alias{
-		ID:          amm.ID,
-		Document:    document,
-		Type:        amm.Type,
-		LedgerID:    amm.LedgerID,
-		AccountID:   amm.AccountID,
-		HolderID:    amm.HolderID,
-		Metadata:    amm.Metadata,
-		ClosingDate: amm.ClosingDate,
-		CreatedAt:   utils.SafeTimePtr(amm.CreatedAt),
-		UpdatedAt:   utils.SafeTimePtr(amm.UpdatedAt),
-		DeletedAt:   amm.DeletedAt,
+		ID:        amm.ID,
+		Document:  document,
+		Type:      amm.Type,
+		LedgerID:  amm.LedgerID,
+		AccountID: amm.AccountID,
+		HolderID:  amm.HolderID,
+		Metadata:  amm.Metadata,
+		CreatedAt: utils.SafeTimePtr(amm.CreatedAt),
+		UpdatedAt: utils.SafeTimePtr(amm.UpdatedAt),
+		DeletedAt: amm.DeletedAt,
 	}
 
 	if amm.BankingDetails != nil {
@@ -255,6 +257,10 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 			IBAN:        iban,
 			CountryCode: amm.BankingDetails.CountryCode,
 			BankID:      amm.BankingDetails.BankID,
+		}
+
+		if amm.BankingDetails.ClosingDate != nil {
+			alias.BankingDetails.ClosingDate = &mmodel.Date{Time: *amm.BankingDetails.ClosingDate}
 		}
 	}
 

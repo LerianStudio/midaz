@@ -863,7 +863,6 @@ components:
         regulatoryFields:
           participantDocument: "12345678912345"
         document: "91315026015"
-        closingDate: 2025-01-01T00:00:00Z
         type: LEGAL_PERSON
         holderId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
@@ -874,6 +873,7 @@ components:
           bankId: "12345"
           countryCode: US
           iban: US12345678901234567890
+          closingDate: 2025-12-31
           type: CACC
           branch: "0001"
           openingDate: 2025-01-01
@@ -899,9 +899,6 @@ components:
           type: string
         bankingDetails:
           $ref: '#/components/schemas/BankingDetails'
-        closingDate:
-          example: 2025-01-01T00:00:00Z
-          type: string
         createdAt:
           example: 2025-01-01T00:00:00Z
           type: string
@@ -943,6 +940,7 @@ components:
         bankId: "12345"
         countryCode: US
         iban: US12345678901234567890
+        closingDate: 2025-12-31
         type: CACC
         branch: "0001"
         openingDate: 2025-01-01
@@ -960,6 +958,10 @@ components:
         branch:
           description: The branch number or code.
           example: "0001"
+          type: string
+        closingDate:
+          description: The date the account was closed.
+          example: 2025-12-31
           type: string
         countryCode:
           description: The country code where the bank is located.
@@ -1446,17 +1448,12 @@ components:
           name: John Smith
           id: 00000000-0000-0000-0000-000000000000
           startDate: 2025-01-01
-        closingDate: 2025-01-01T00:00:00Z
       properties:
         bankingDetails:
           allOf:
           - $ref: '#/components/schemas/BankingDetails'
           description: Object with banking information of the related account.
           type: object
-        closingDate:
-          description: The date the alias was closed.
-          example: 2025-01-01T00:00:00Z
-          type: string
         metadata:
           additionalProperties:
             type: object
@@ -1551,7 +1548,6 @@ components:
           regulatoryFields:
             participantDocument: "12345678912345"
           document: "91315026015"
-          closingDate: 2025-01-01T00:00:00Z
           type: LEGAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -1562,6 +1558,7 @@ components:
             bankId: "12345"
             countryCode: US
             iban: US12345678901234567890
+            closingDate: 2025-12-31
             type: CACC
             branch: "0001"
             openingDate: 2025-01-01
@@ -1586,7 +1583,6 @@ components:
           regulatoryFields:
             participantDocument: "12345678912345"
           document: "91315026015"
-          closingDate: 2025-01-01T00:00:00Z
           type: LEGAL_PERSON
           holderId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -1597,6 +1593,7 @@ components:
             bankId: "12345"
             countryCode: US
             iban: US12345678901234567890
+            closingDate: 2025-12-31
             type: CACC
             branch: "0001"
             openingDate: 2025-01-01
