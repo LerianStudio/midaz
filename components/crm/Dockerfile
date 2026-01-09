@@ -9,8 +9,9 @@ RUN go mod download
 
 COPY . .
 
-ARG TARGETPLATFORM
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -tags netgo \
     -ldflags='-w -s -extldflags "-static"' \
     -o /app components/crm/cmd/app/main.go
