@@ -13,7 +13,6 @@ services:
       - .:/usr/src/app
     networks:
       - infra-network
-      - onboarding-network
       - crm-network
 
 networks:
