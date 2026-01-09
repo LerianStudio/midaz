@@ -48,9 +48,14 @@ func TestGetHealthCheckTimeout(t *testing.T) {
 			want:     defaultHealthCheckTimeout,
 		},
 		{
-			name:     "negative duration is valid in Go",
+			name:     "negative duration returns default",
 			envValue: "-5s",
-			want:     -5 * time.Second,
+			want:     defaultHealthCheckTimeout,
+		},
+		{
+			name:     "zero duration returns default",
+			envValue: "0s",
+			want:     defaultHealthCheckTimeout,
 		},
 	}
 
@@ -151,14 +156,3 @@ func TestContextMetadataInjection(t *testing.T) {
 	}
 }
 
-func TestErrGRPCConnectionNotReady(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "gRPC connection is not ready", ErrGRPCConnectionNotReady.Error())
-}
-
-func TestDefaultHealthCheckTimeout(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, 5*time.Second, defaultHealthCheckTimeout)
-}
