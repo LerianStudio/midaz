@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -28,6 +29,8 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 	holderID := libCommons.GenerateUUIDv7()
 	aliasID := libCommons.GenerateUUIDv7()
 	relatedPartyID := libCommons.GenerateUUIDv7()
+
+	errRepoGeneric := errors.New("connection refused")
 
 	testCases := []struct {
 		name           string
@@ -80,12 +83,38 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			expectedError: cn.ErrRelatedPartyNotFound,
 			errContains:   "CRM-0024",
 		},
+		{
+			name:           "error_repository_timeout",
+			organizationID: organizationID,
+			holderID:       holderID,
+			aliasID:        aliasID,
+			relatedPartyID: relatedPartyID,
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					Return(context.DeadlineExceeded)
+			},
+			expectedError: context.DeadlineExceeded,
+			errContains:   "deadline exceeded",
+		},
+		{
+			name:           "error_repository_generic",
+			organizationID: organizationID,
+			holderID:       holderID,
+			aliasID:        aliasID,
+			relatedPartyID: relatedPartyID,
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), organizationID, holderID, aliasID, relatedPartyID).
+					Return(errRepoGeneric)
+			},
+			expectedError: errRepoGeneric,
+			errContains:   "connection refused",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			tc.mockSetup()
 
 			ctx := context.Background()
