@@ -6,7 +6,7 @@ toolchain go1.25.5
 
 require (
 	github.com/LerianStudio/lib-auth/v2 v2.3.0
-	github.com/LerianStudio/lib-commons/v2 v2.6.1
+	github.com/LerianStudio/lib-commons/v2 v2.6.2
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
