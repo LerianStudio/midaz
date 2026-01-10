@@ -1,3 +1,19 @@
+## [v3.5.0-beta.42] - 2026-01-10
+
+### 🧪 Testing
+- update health check timeout tests to handle negative and zero duration cases
+- enhance unit tests for DeleteRelatedPartyByID function to cover repository error scenarios
+- add unit tests for MultiQueueConsumer
+- add unit tests for envFallback and envFallbackInt functions in onboarding and transaction bootstrap packages
+- add integration tests for MongoDB metadata repository functionality
+- add integration tests for transaction and transaction route repositories
+- add unit tests for DeleteRelatedPartyByID function in the services package
+
+### 🔧 Maintenance
+- update lib-commons dependency to v2.6.2
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.41] - 2026-01-09
 
 ### 🔄 Changes
@@ -3594,7 +3610,7 @@ This release focuses on enhancing the reliability and stability of the midaz pro
 
 This changelog provides a clear and concise overview of the changes introduced in version 2.2.2, focusing on the benefits and impacts for users, while maintaining a professional and accessible tone.
 
-## [v2.2.1] - 2025-06-06
+## [v3.5.0-beta.43] - 2026-01-10
 
 This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
 
