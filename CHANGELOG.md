@@ -1,3 +1,16 @@
+## [v3.5.0-beta.44] - 2026-01-12
+
+### 🔄 Changes
+- makefile commands
+
+### 📚 Documentation
+- update project structure in STRUCTURE.md to reflect new directory organization
+
+### 🔧 Maintenance
+- update GitHub workflows to include Ledger component in env file checks and security scans
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.43] - 2026-01-12
 
 ### 🔧 Maintenance
@@ -3656,7 +3669,7 @@ This release focuses on enhancing user experience with improved error messaging,
 
 This update consolidates improvements and bug fixes, enhancing the overall reliability and user experience of the software. Users are encouraged to upgrade to benefit from these enhancements.
 
-## [v2.2.0] - 2025-05-29
+## [v3.5.0-beta.45] - 2026-01-12
 
 ### ✨ Features
 - Implement comprehensive security hardening and UX improvements (#929)
