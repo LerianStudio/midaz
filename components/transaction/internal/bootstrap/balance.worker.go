@@ -21,25 +21,29 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const MaxBalanceSyncWorkers = 25
-
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
 type BalanceSyncWorker struct {
-	redisConn *libRedis.RedisConnection
-	logger    libLog.Logger
-	idleWait  time.Duration
-	batchSize int64
-	useCase   *command.UseCase
+	redisConn  *libRedis.RedisConnection
+	logger     libLog.Logger
+	idleWait   time.Duration
+	batchSize  int64
+	maxWorkers int
+	useCase    *command.UseCase
 }
 
-func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase) *BalanceSyncWorker {
+func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+	if maxWorkers <= 0 {
+		maxWorkers = 5
+	}
+
 	return &BalanceSyncWorker{
-		redisConn: conn,
-		logger:    logger,
-		idleWait:  600 * time.Second,
-		batchSize: 25,
-		useCase:   useCase,
+		redisConn:  conn,
+		logger:     logger,
+		idleWait:   600 * time.Second,
+		batchSize:  int64(maxWorkers),
+		maxWorkers: maxWorkers,
+		useCase:    useCase,
 	}
 }
 
@@ -98,7 +102,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 		return false
 	}
 
-	workers := MaxBalanceSyncWorkers
+	workers := w.maxWorkers
 	if int64(workers) > w.batchSize {
 		workers = int(w.batchSize)
 	}

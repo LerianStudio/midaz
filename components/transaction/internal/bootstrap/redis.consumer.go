@@ -13,7 +13,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -208,7 +208,7 @@ Outer:
 				},
 			}
 
-			var fromTo []libTransaction.FromTo
+			var fromTo []pkgTransaction.FromTo
 
 			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Source.From, true)...)
 			to := r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Distribute.To, true)

@@ -7,17 +7,18 @@ MIDAZ_ROOT := $(shell pwd)
 
 # Component directories
 INFRA_DIR := ./components/infra
-MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
-CONSOLE_DIR := ./components/console
+LEDGER_DIR := ./components/ledger
+CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
-
-# Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
+PKG_DIR := ./pkg
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
+
+# Unified mode: true = ledger (combined), false = separate onboarding+transaction
+UNIFIED ?= true
 
 # Include shared utility functions
 # Define common utility functions
@@ -59,12 +60,14 @@ endef
 # Check if environment files exist
 define check_env_files
 	@missing=false; \
-	for dir in $(COMPONENTS); do \
-		if [ ! -f "$$dir/.env" ]; then \
-			missing=true; \
-			break; \
-		fi; \
-	done; \
+	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
+	if [ "$(UNIFIED)" = "true" ]; then \
+		if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
+	else \
+		if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
+		if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
+	fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -115,12 +118,13 @@ help:
 	@echo ""
 	@echo "Setup Commands:"
 	@echo "  make set-env                     - Copy .env.example to .env for all components"
+	@echo "  make clear-envs                  - Remove .env files from all components"
 	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start all services with Docker Compose"
-	@echo "  make down                         - Stop all services with Docker Compose"
+	@echo "  make up                           - Start all services (UNIFIED=true by default, use UNIFIED=false for separate mode)"
+	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
 	@echo "  make restart                      - Restart all containers"
@@ -128,64 +132,73 @@ help:
 	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
-	@echo "  make mdz COMMAND=<cmd>            - Run command in mdz component"
 	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
-	@echo "  make console COMMAND=<cmd>        - Run command in console component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
-	@echo "  make up-backend                   - Start only backend services (onboarding and transaction)"
-	@echo "  make down-backend                 - Stop only backend services (onboarding and transaction)"
-	@echo "  make restart-backend              - Restart only backend services (onboarding and transaction)"
+	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
+	@echo ""
+	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
+	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo ""
-	@echo "API Testing Commands:"
-	@echo "  make newman                      - Run complete API workflow tests with Newman"
-	@echo "  make newman-install              - Install Newman CLI and reporters globally"
-	@echo "  make newman-env-check            - Verify environment file exists"
+	@echo "Migration Commands:"
+	@echo "  make migrate-lint                - Lint all migrations for dangerous patterns"
+	@echo "  make migrate-create              - Create new migration files (requires COMPONENT, NAME)"
 	@echo ""
 	@echo ""
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
-	@echo "  make test-integration            - Run Go integration tests"
-	@echo "  make test-e2e                    - Run Apidog E2E tests"
-	@echo "  make test-fuzzy                  - Run fuzz/robustness tests"
-	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests"
-	@echo "  make test-chaos                  - Run chaos/resilience tests"
-	@echo "  make test-property               - Run property-based tests"
+	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
+	@echo "  make test-all                    - Run all tests (unit + integration)"
+	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
+	@echo "  make test-fuzz                   - Run native Go fuzz tests (FUZZ=target, FUZZTIME=duration)"
+	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
+	@echo ""
+	@echo "Coverage Commands:"
+	@echo "  make coverage-unit               - Run unit tests with coverage report"
+	@echo "  make coverage-integration        - Run integration tests with coverage report"
+	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
+	@echo ""
+	@echo "Test Tooling:"
+	@echo "  make tools                       - Install test tools (gotestsum)"
+	@echo "  make wait-for-services           - Wait for backend services to be healthy"
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
-	@echo "  START_LOCAL_DOCKER            - 0|1 (default: $(START_LOCAL_DOCKER))"
 	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
 	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
-	@echo "  TEST_FUZZTIME                 - default: $(TEST_FUZZTIME)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
 	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
 	@sh -c 'if [ -n "$(TEST_AUTH_PASSWORD)" ]; then echo "  TEST_AUTH_PASSWORD            - [set]"; else echo "  TEST_AUTH_PASSWORD            - [unset]"; fi'
-	@echo "  TEST_PARALLEL                 - go test -parallel (default: $(TEST_PARALLEL))"
-	@echo "  TEST_GOMAXPROCS               - env GOMAXPROCS (default: $(TEST_GOMAXPROCS))"
+	@echo "  LOW_RESOURCE                  - 0|1 (default: 0) - reduces parallelism for CI"
 	@echo "  RETRY_ON_FAIL                 - 0|1 (default: $(RETRY_ON_FAIL))"
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
-	@echo "  test-integration: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
-	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
-	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-integration:  PKG, RUN, CHAOS=1, LOW_RESOURCE (testcontainers-based, no external services needed)"
+	@echo "  test-chaos-system: TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_* (starts full stack)"
+	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
+	@echo "  test-bench:        BENCH, BENCH_PKG (benchmark pattern and package filter)"
 
  
 
 .PHONY: build
 build:
 	$(call print_title,Building all components)
-	@for dir in $(COMPONENTS); do \
-		echo "Building in $$dir..."; \
-		(cd $$dir && $(MAKE) build) || exit 1; \
-	done
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Building unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1; \
+	else \
+		echo "Building separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) build) || exit 1; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) build) || exit 1; \
+	fi
+	@echo "Building CRM..."
+	@(cd $(CRM_DIR) && $(MAKE) build) || exit 1
 	@echo "[ok] All components built successfully"
 
 .PHONY: clean
@@ -210,45 +223,6 @@ cover:
 	@echo "[ok] Coverage report generated successfully ✔️"
 
 #-------------------------------------------------------
-# Backend Commands
-#-------------------------------------------------------
-
-.PHONY: up-backend
-up-backend:
-	$(call print_title,Starting backend services)
-	$(call check_env_files)
-	@echo "Starting infrastructure services first..."
-	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting backend components..."
-	@for dir in $(BACKEND_COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting services in $$dir..."; \
-			(cd $$dir && $(MAKE) up) || exit 1; \
-		fi \
-	done
-	@echo "[ok] Backend services started successfully ✔️"
-
-.PHONY: down-backend
-down-backend:
-	$(call print_title,Stopping backend services)
-	@echo "Stopping backend components..."
-	@for dir in $(BACKEND_COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping services in $$dir..."; \
-			(cd $$dir && $(MAKE) down) || exit 1; \
-		fi \
-	done
-	@echo "Stopping infrastructure services..."
-	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "[ok] Backend services stopped successfully ✔️"
-
-.PHONY: restart-backend
-restart-backend:
-	$(call print_title,Restarting backend services)
-	@make down-backend && make up-backend
-	@echo "[ok] Backend services restarted successfully ✔️"
-
-#-------------------------------------------------------
 # Code Quality Commands
 #-------------------------------------------------------
 
@@ -264,6 +238,13 @@ lint:
 			echo "No Go files found in $$dir, skipping linting"; \
 		fi; \
 	done
+	@echo "Checking for Go files in $(LEDGER_DIR)..."
+	@if find "$(LEDGER_DIR)" -name "*.go" -type f | grep -q .; then \
+		echo "Linting in $(LEDGER_DIR)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) lint) || exit 1; \
+	else \
+		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
+	fi
 	@echo "Checking for Go files in $(TESTS_DIR)..."
 	@if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
@@ -274,12 +255,29 @@ lint:
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
-			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+			(cd $(TESTS_DIR) && golangci-lint run --fix --build-tags=integration ./... --verbose) || exit 1; \
 		else \
 			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
 		fi; \
 	else \
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
+	fi
+	@echo "Checking for Go files in $(PKG_DIR)..."
+	@if [ -d "$(PKG_DIR)" ]; then \
+		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
+			echo "Linting in $(PKG_DIR)..."; \
+			if ! command -v golangci-lint >/dev/null 2>&1; then \
+				echo "golangci-lint not found, installing..."; \
+				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			else \
+				echo "golangci-lint already installed ✔️"; \
+			fi; \
+			(cd $(PKG_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+		else \
+			echo "No Go files found in $(PKG_DIR), skipping linting"; \
+		fi; \
+	else \
+		echo "No pkg directory found at $(PKG_DIR), skipping linting"; \
 	fi
 	@echo "[ok] Linting completed successfully"
 
@@ -384,7 +382,34 @@ set-env:
 			echo ".env already exists in $$dir"; \
 		fi; \
 	done
+	@if [ -f "$(LEDGER_DIR)/.env.example" ] && [ ! -f "$(LEDGER_DIR)/.env" ]; then \
+		echo "Creating .env in $(LEDGER_DIR) from .env.example"; \
+		cp "$(LEDGER_DIR)/.env.example" "$(LEDGER_DIR)/.env"; \
+	elif [ ! -f "$(LEDGER_DIR)/.env.example" ]; then \
+		echo "Warning: No .env.example found in $(LEDGER_DIR)"; \
+	else \
+		echo ".env already exists in $(LEDGER_DIR)"; \
+	fi
 	@echo "[ok] Environment files set up successfully"
+
+.PHONY: clear-envs
+clear-envs:
+	$(call print_title,Removing environment files)
+	@for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/.env" ]; then \
+			echo "Removing .env in $$dir"; \
+			rm "$$dir/.env"; \
+		else \
+			echo "No .env found in $$dir"; \
+		fi; \
+	done
+	@if [ -f "$(LEDGER_DIR)/.env" ]; then \
+		echo "Removing .env in $(LEDGER_DIR)"; \
+		rm "$(LEDGER_DIR)/.env"; \
+	else \
+		echo "No .env found in $(LEDGER_DIR)"; \
+	fi
+	@echo "[ok] Environment files removed successfully"
 
 #-------------------------------------------------------
 # Service Commands
@@ -395,73 +420,118 @@ up:
 	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting services in $$dir..."; \
-			(cd $$dir && $(MAKE) up) || exit 1; \
-		fi; \
-	done
+	@echo "Starting infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) up); \
+	else \
+		echo "Starting separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
+	fi
+	@echo "Starting CRM service..."
+	@cd $(CRM_DIR) && $(MAKE) up
 	@echo "[ok] All services started successfully"
 
 .PHONY: down
 down:
 	$(call print_title,Stopping all services with Docker Compose)
-	@for dir in $(COMPONENTS); do \
-		component_name=$$(basename $$dir); \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping services in component: $$component_name"; \
-			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down)) || exit 1; \
-		else \
-			echo "No docker-compose.yml found in $$component_name, skipping"; \
+	@echo "Stopping CRM service..."
+	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
+		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend (ledger)..."; \
+		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
+			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 		fi; \
-	done
+	else \
+		echo "Stopping separate backend services..."; \
+		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
+			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+		fi; \
+		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
+			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+		fi; \
+	fi
+	@echo "Stopping infrastructure services..."
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
 	@echo "[ok] All services stopped successfully"
 
 .PHONY: start
 start:
 	$(call print_title,Starting all containers)
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Starting containers in $$dir..."; \
-			(cd $$dir && $(MAKE) start) || exit 1; \
-		fi; \
-	done
+	@echo "Starting infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) start
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) start); \
+	else \
+		echo "Starting separate backend containers..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
+	fi
+	@echo "Starting CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) start
 	@echo "[ok] All containers started successfully"
 
 .PHONY: stop
 stop:
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Stopping containers in $$dir..."; \
-			(cd $$dir && $(MAKE) stop) || exit 1; \
-		fi; \
-	done
+	$(call print_title,Stopping all containers)
+	@echo "Stopping CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	else \
+		echo "Stopping separate backend containers..."; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
+		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	fi
+	@echo "Stopping infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "[ok] All containers stopped successfully"
 
 .PHONY: restart
 restart:
-	@make stop && make start
+	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
 	@echo "[ok] All containers restarted successfully"
 
 .PHONY: rebuild-up
 rebuild-up:
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Rebuilding and restarting services in $$dir..."; \
-			(cd $$dir && $(MAKE) rebuild-up) || exit 1; \
-		fi; \
-	done
+	$(call print_title,Rebuilding and restarting all services)
+	@echo "Rebuilding infrastructure..."
+	@cd $(INFRA_DIR) && $(MAKE) rebuild-up
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Rebuilding unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) rebuild-up); \
+	else \
+		echo "Rebuilding separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) rebuild-up); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) rebuild-up); \
+	fi
+	@echo "Rebuilding CRM..."
+	@cd $(CRM_DIR) && $(MAKE) rebuild-up
 	@echo "[ok] All services rebuilt and restarted successfully"
 
 .PHONY: clean-docker
 clean-docker:
 	$(call print_title,"Cleaning all Docker resources")
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Cleaning Docker resources in $$dir..."; \
-			(cd $$dir && $(MAKE) clean-docker) || exit 1; \
-		fi; \
-	done
+	@echo "Cleaning CRM Docker resources..."
+	@cd $(CRM_DIR) && $(MAKE) clean-docker 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Cleaning unified backend Docker resources (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+	else \
+		echo "Cleaning separate backend Docker resources..."; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+		(cd $(ONBOARDING_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
+	fi
+	@echo "Cleaning infrastructure Docker resources..."
+	@cd $(INFRA_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Pruning system-wide Docker resources..."
 	@docker system prune -f
 	@echo "Pruning system-wide Docker volumes..."
@@ -471,17 +541,26 @@ clean-docker:
 .PHONY: logs
 logs:
 	$(call print_title,"Showing logs for all services")
-	@for dir in $(COMPONENTS); do \
-		component_name=$$(basename $$dir); \
-		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "Logs for component: $$component_name"; \
-			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml logs --tail=50)) || exit 1; \
-			echo ""; \
-		fi; \
-	done
+	@echo "=== Infrastructure logs ==="
+	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo ""; \
+		echo "=== Ledger (unified backend) logs ==="; \
+		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+	else \
+		echo ""; \
+		echo "=== Onboarding logs ==="; \
+		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+		echo ""; \
+		echo "=== Transaction logs ==="; \
+		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
+	fi
+	@echo ""
+	@echo "=== CRM logs ==="
+	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
-.PHONY: infra mdz onboarding transaction console all-components
+.PHONY: infra onboarding transaction ledger all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -489,14 +568,6 @@ infra:
 		exit 1; \
 	fi
 	@cd $(INFRA_DIR) && $(MAKE) $(COMMAND)
-
-mdz:
-	$(call print_title,"Running command in mdz component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(MDZ_DIR) && $(MAKE) $(COMMAND)
 
 onboarding:
 	$(call print_title,"Running command in onboarding component")
@@ -514,13 +585,13 @@ transaction:
 	fi
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
 
-console:
-	$(call print_title,"Running command in console component")
+ledger:
+	$(call print_title,"Running command in ledger component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
-	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
+	@cd $(LEDGER_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,"Running command across all components")
@@ -543,56 +614,6 @@ generate-docs:
 	@./scripts/generate-docs.sh
 
 #-------------------------------------------------------
-# Newman / API Testing Commands
-#-------------------------------------------------------
-
-.PHONY: newman newman-install newman-env-check
-
-# Install Newman globally if not already installed
-newman-install:
-	$(call print_title,"Installing Newman CLI")
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo "📦 Newman not found. Installing globally..."; \
-		npm install -g newman newman-reporter-html newman-reporter-htmlextra; \
-		echo "✅ Newman installed successfully"; \
-	else \
-		echo "✅ Newman already installed: $$(newman --version)"; \
-	fi
-
-# Check environment file exists and has required variables
-newman-env-check:
-	@if [ ! -f "./postman/MIDAZ.postman_environment.json" ]; then \
-		echo "❌ Environment file not found: ./postman/MIDAZ.postman_environment.json"; \
-		echo "💡 Run 'make generate-docs' first to create the environment file"; \
-		exit 1; \
-	fi
-	@echo "✅ Environment file found: ./postman/MIDAZ.postman_environment.json"
-
-# Main Newman target - runs the complete API workflow (65 steps)
-newman: newman-install newman-env-check
-	$(call print_title,"Running Complete API Workflow with Newman")
-	@if [ ! -f "./postman/MIDAZ.postman_collection.json" ]; then \
-		echo "❌ Collection file not found. Running documentation generation first..."; \
-		$(MAKE) generate-docs; \
-	fi
-	@echo "🚀 Starting complete API workflow test (65 steps)..."
-	@mkdir -p ./reports/newman
-	newman run "./postman/MIDAZ.postman_collection.json" \
-		--environment "./postman/MIDAZ.postman_environment.json" \
-		--folder "Complete API Workflow" \
-		--reporters cli,json \
-		--reporter-json-export "./reports/newman/workflow-json.json" \
-		--timeout-request 30000 \
-		--timeout-script 10000 \
-		--delay-request 100 \
-		--color on \
-		--verbose
-	@echo ""
-	@echo "📊 Test Reports Generated:"
-	@echo "  - CLI Summary: displayed above"
-	@echo "  - JSON Report: ./reports/newman/workflow-json.json"
-
-#-------------------------------------------------------
 # Developer Helper Commands
 #-------------------------------------------------------
 
@@ -613,3 +634,41 @@ dev-setup:
 .PHONY: grpc-gen
 grpc-gen:
 	@protoc --proto_path=./pkg/mgrpc --go-grpc_out=./pkg/mgrpc --go_out=./pkg/mgrpc ./pkg/mgrpc/balance/balance.proto
+
+#-------------------------------------------------------
+# Migration Commands
+#-------------------------------------------------------
+
+.PHONY: migrate-lint migrate-create
+
+migrate-lint:
+	$(call print_title,"Linting database migrations")
+	@go build -o ./bin/migration-lint ./scripts/migration_linter
+	@echo "Checking onboarding migrations..."
+	@./bin/migration-lint ./components/onboarding/migrations
+	@echo ""
+	@echo "Checking transaction migrations..."
+	@./bin/migration-lint ./components/transaction/migrations
+	@echo "[ok] All migrations passed validation"
+
+migrate-create:
+	$(call print_title,"Creating new migration")
+	@if [ -z "$(COMPONENT)" ]; then \
+		echo "Error: COMPONENT not specified."; \
+		echo "Usage: make migrate-create COMPONENT=<onboarding|transaction> NAME=<migration_name>"; \
+		exit 1; \
+	fi
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME not specified."; \
+		echo "Usage: make migrate-create COMPONENT=<onboarding|transaction> NAME=<migration_name>"; \
+		exit 1; \
+	fi
+	$(call check_command,migrate,"Install from https://github.com/golang-migrate/migrate")
+	@migrate create -ext sql -dir ./components/$(COMPONENT)/migrations -seq $(NAME)
+	@echo "[ok] Migration files created"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Edit the .up.sql file with your changes"
+	@echo "  2. Edit the .down.sql file with the rollback"
+	@echo "  3. Run 'make migrate-lint' to validate"
+	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"

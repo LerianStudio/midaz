@@ -11,12 +11,12 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -132,7 +132,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
-	tran.Body = libTransaction.Transaction{}
+	tran.Body = pkgTransaction.Transaction{}
 
 	switch tran.Status.Code {
 	case constant.CREATED:
@@ -225,7 +225,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 

@@ -6,6 +6,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // CreateAccountingRouteCache creates a cache for the accounting route.
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 	logger.Infof("Creating transaction route cache for transaction route with id: %s", route.ID)
 
-	internalKey := libCommons.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
+	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
 
 	cacheData := route.ToCache()
 

@@ -75,6 +75,7 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 		AccountType:    req.GetAccountType(),
 		AllowSending:   req.GetAllowSending(),
 		AllowReceiving: req.GetAllowReceiving(),
+		RequestID:      req.GetRequestId(),
 	}
 
 	created, err := b.Command.CreateBalanceSync(ctx, input)
@@ -100,4 +101,58 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 	}
 
 	return resp, nil
+}
+
+func (b *BalanceProto) DeleteAllBalancesByAccountID(ctx context.Context, req *balance.DeleteAllBalancesByAccountIDRequest) (*balance.Empty, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "handler.delete_all_balances_by_account_id")
+
+	defer span.End()
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", req)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Initiating delete all balances by account id for account id: %s", req.GetAccountId())
+
+	orgID, err := uuid.Parse(req.GetOrganizationId())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid organization_id", err)
+
+		logger.Errorf("Invalid organization_id, Error: %s", err.Error())
+
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "organizationId")
+	}
+
+	ledgerID, err := uuid.Parse(req.GetLedgerId())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ledger_id", err)
+
+		logger.Errorf("Invalid ledger_id, Error: %s", err.Error())
+
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "ledgerId")
+	}
+
+	accountID, err := uuid.Parse(req.GetAccountId())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account_id", err)
+
+		logger.Errorf("Invalid account_id, Error: %s", err.Error())
+
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "accountId")
+	}
+
+	err = b.Command.DeleteAllBalancesByAccountID(ctx, orgID, ledgerID, accountID, req.GetRequestId())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
+
+		logger.Errorf("Failed to delete all balances by account id, Error: %s", err.Error())
+
+		return nil, err
+	}
+
+	return &balance.Empty{}, nil
 }

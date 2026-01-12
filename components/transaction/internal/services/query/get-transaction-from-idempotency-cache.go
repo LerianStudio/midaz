@@ -47,7 +47,7 @@ func (uc *UseCase) GetTransactionFromIdempotencyCache(ctx context.Context, organ
 	}
 
 	// Then look up idempotency response (idempotency key -> transaction JSON)
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
 
 	cachedJSON, err := uc.RedisRepo.Get(ctx, internalKey)
 	if err != nil {

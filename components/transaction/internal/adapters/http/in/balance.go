@@ -35,7 +35,7 @@ type BalanceHandler struct {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -110,7 +110,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -227,7 +227,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string			true	"Organization ID"
 //	@Param			ledger_id		path		string			true	"Ledger ID"
 //	@Param			balance_id		path		string			true	"Balance ID"
-//	@Success		204				{string}	string			"Balance successfully deleted"
+//	@Success		204				"Balance successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -304,7 +304,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
-	err = handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
+	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Balance on command", err)
 
@@ -313,18 +313,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Balance on query", err)
-
-		logger.Errorf("Failed to retrieve Balance with ID: %s, Error: %s", balanceID, err.Error())
-
-		return http.WithError(c, err)
-	}
-
 	logger.Infof("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID)
 
-	return http.OK(c, op)
+	return http.OK(c, balance)
 }
 
 // GetBalancesByAlias retrieves balances by Alias.
@@ -338,7 +329,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -390,7 +381,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"

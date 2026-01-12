@@ -4,12 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAccount_ToProto(t *testing.T) {
+	t.Parallel()
+
 	tm := time.Now()
 
 	var timeDel *time.Time = &tm
@@ -42,7 +44,7 @@ func TestAccount_ToProto(t *testing.T) {
 				Name:            "Account 1",
 				AssetCode:       "USD",
 				OrganizationID:  "org-123",
-				ParentAccountID: ptr.StringPtr("parent"),
+				ParentAccountID: utils.StringPtr("parent"),
 				LedgerID:        "ledger-456",
 				Status: Status{
 					Code:        "1",
@@ -52,16 +54,18 @@ func TestAccount_ToProto(t *testing.T) {
 				UpdatedAt:   time.Now(),
 				CreatedAt:   time.Now(),
 				DeletedAt:   timeDel,
-				EntityID:    ptr.StringPtr("EntityID"),
-				PortfolioID: ptr.StringPtr("PortfolioID"),
-				SegmentID:   ptr.StringPtr("SegmentID"),
-				Alias:       ptr.StringPtr("Alias"),
+				EntityID:    utils.StringPtr("EntityID"),
+				PortfolioID: utils.StringPtr("PortfolioID"),
+				SegmentID:   utils.StringPtr("SegmentID"),
+				Alias:       utils.StringPtr("Alias"),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.account
 			t.Log(result)
 		})
@@ -69,6 +73,7 @@ func TestAccount_ToProto(t *testing.T) {
 }
 
 func TestAccount_IDtoUUID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		account *Account
@@ -92,6 +97,8 @@ func TestAccount_IDtoUUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.account.IDtoUUID()
 			assert.Equal(t, tt.want, got)
 		})

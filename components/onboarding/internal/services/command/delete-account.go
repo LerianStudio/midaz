@@ -6,17 +6,21 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
 )
 
-// DeleteAccountByID delete an account from the repository by ids.
-func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+// DeleteAccountByID deletes an account from the repository by ids.
+// It first deletes all balances associated with the account via the BalancePort interface,
+// which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
+func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
@@ -25,15 +29,36 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by id", err)
 
-		logger.Errorf("Error finding account by alias: %v", err)
+		logger.Errorf("Error finding account by id: %v", err)
 
 		return err
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
 		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	// Inject authorization token into context metadata for downstream gRPC calls
+	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
+
+	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, uuid.MustParse(accFound.ID), requestID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
+
+		logger.Errorf("Failed to delete all balances by account id: %v", err)
+
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
+
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+			return err
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {

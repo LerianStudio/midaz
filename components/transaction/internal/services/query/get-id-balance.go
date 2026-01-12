@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -40,7 +41,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	}
 
 	// Overlay amounts from Redis cache when available to ensure freshest values
-	internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), balance.Alias+"#"+balance.Key)
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
 
 	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
 	if rerr != nil {

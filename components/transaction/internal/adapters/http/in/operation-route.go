@@ -87,13 +87,13 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			id				path		string	true	"Operation Route ID in UUID format"
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
+//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
+//	@Param			id				path		string					true	"Operation Route ID in UUID format"
 //	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -130,19 +130,19 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 //	@Tags			Operation Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			Authorization		header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
+//	@Param			organization_id		path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
 //	@Param			operation_route_id	path		string								true	"Operation Route ID in UUID format"
-//	@Param			operation-route	body		mmodel.UpdateOperationRouteInput	true	"Operation Route Input"
-//	@Success		200				{object}	mmodel.OperationRoute				"Successfully updated operation route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Operation Route not found"
-//	@Failure		409				{object}	mmodel.Error						"Conflict: Operation Route with the same title already exists"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Param			operation-route		body		mmodel.UpdateOperationRouteInput	true	"Operation Route Input"
+//	@Success		200					{object}	mmodel.OperationRoute				"Successfully updated operation route"
+//	@Failure		400					{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error						"Operation Route not found"
+//	@Failure		409					{object}	mmodel.Error						"Conflict: Operation Route with the same title already exists"
+//	@Failure		500					{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [patch]
 func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -203,15 +203,15 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			operation_route_id	path		string	true	"Operation Route ID in UUID format"
-//	@Success		204				"Successfully deleted operation route"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			Authorization		header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
+//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id			path	string	true	"Ledger ID in UUID format"
+//	@Param			operation_route_id	path	string	true	"Operation Route ID in UUID format"
+//	@Success		204					"Successfully deleted operation route"
+//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		404					{object}	mmodel.Error	"Operation Route not found"
+//	@Failure		500					{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [delete]
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -251,8 +251,8 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.OperationRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}

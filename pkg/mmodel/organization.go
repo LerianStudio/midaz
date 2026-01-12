@@ -5,9 +5,9 @@ import "time"
 // CreateOrganizationInput is a struct designed to encapsulate request create payload data.
 //
 // swagger:model CreateOrganizationInput
-// @Description Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
+//	@Description	Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
 //
-//	@example {
+//	@example		{
 //	  "legalName": "Lerian Financial Services Ltd.",
 //	  "legalDocument": "123456789012345",
 //	  "doingBusinessAs": "Lerian FS",
@@ -61,14 +61,14 @@ type CreateOrganizationInput struct {
 	// required: false
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateOrganizationInput
+} //	@name	CreateOrganizationInput
 
 // UpdateOrganizationInput is a struct designed to encapsulate request update payload data.
 //
 // swagger:model UpdateOrganizationInput
-// @Description Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+//	@Description	Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 //
-//	@example {
+//	@example		{
 //	  "legalName": "Lerian Financial Group Ltd.",
 //	  "doingBusinessAs": "Lerian Group",
 //	  "address": {
@@ -119,14 +119,14 @@ type UpdateOrganizationInput struct {
 	// required: false
 	// example: {"industry": "Financial Technology", "founded": 2020, "employees": 200, "headquarters": "New York"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateOrganizationInput
+} //	@name	UpdateOrganizationInput
 
 // Organization is a struct designed to encapsulate response payload data.
 //
 // swagger:model Organization
-// @Description Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
+//	@Description	Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
 //
-//	@example {
+//	@example		{
 //	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
 //	  "legalName": "Lerian Financial Services Ltd.",
 //	  "doingBusinessAs": "Lerian FS",
@@ -200,12 +200,12 @@ type Organization struct {
 	// Custom key-value pairs for extending the organization information
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata,omitempty"`
-} // @name Organization
+} //	@name	Organization
 
 // Address structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Address
-// @Description Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.
+//	@Description	Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.
 type Address struct {
 	// Primary address line (street address or PO Box)
 	// example: 123 Financial Avenue
@@ -237,7 +237,7 @@ type Address struct {
 	// minLength: 2
 	// maxLength: 2
 	Country string `json:"country" example:"US" minLength:"2" maxLength:"2"` // According to ISO 3166-1 alpha-2
-} // @name Address
+} //	@name	Address
 
 // IsEmpty method determines if an Address is empty or nil in all fields
 //
@@ -249,9 +249,9 @@ func (a Address) IsEmpty() bool {
 // Organizations struct to return paginated list of organizations.
 //
 // swagger:model Organizations
-// @Description Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
+//	@Description	Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
 //
-//	@example {
+//	@example		{
 //	  "items": [
 //	    {
 //	      "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
@@ -294,12 +294,12 @@ type Organizations struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} // @name Organizations
+} //	@name	Organizations
 
 // OrganizationResponse represents a success response containing a single organization.
 //
 // swagger:response OrganizationResponse
-// @Description Successful response containing a single organization entity.
+//	@Description	Successful response containing a single organization entity.
 type OrganizationResponse struct {
 	// in: body
 	Body Organization
@@ -308,7 +308,7 @@ type OrganizationResponse struct {
 // OrganizationsResponse represents a success response containing a paginated list of organizations.
 //
 // swagger:response OrganizationsResponse
-// @Description Successful response containing a paginated list of organizations.
+//	@Description	Successful response containing a paginated list of organizations.
 type OrganizationsResponse struct {
 	// in: body
 	Body Organizations
@@ -317,9 +317,9 @@ type OrganizationsResponse struct {
 // OrganizationErrorResponse represents an error response for organization operations.
 //
 // swagger:response OrganizationErrorResponse
-// @Description Error response for organization operations with error code and message.
+//	@Description	Error response for organization operations with error code and message.
 //
-//	@example {
+//	@example		{
 //	  "code": 400001,
 //	  "message": "Invalid input: field 'legalName' is required",
 //	  "details": {

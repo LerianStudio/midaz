@@ -1,9 +1,0 @@
-{
-  "name": "Cash Account",
-  "assetCode": "USD",
-  "type": "deposit",
-  "alias": "cash",
-  "metadata": {
-    "group": "cash"
-  }
-}

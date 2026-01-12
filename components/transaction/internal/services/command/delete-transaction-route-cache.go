@@ -5,6 +5,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +18,7 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 	logger.Infof("Deleting transaction route cache for transaction route with id: %s", transactionRouteID)
 
-	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	err := uc.RedisRepo.Del(ctx, internalKey)
 	if err != nil {

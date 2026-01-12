@@ -2,13 +2,14 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCreateOrganization(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCreateOrganization(t *testing.T) {
 			name: "Success with all fields provided",
 			input: &mmodel.CreateOrganizationInput{
 				LegalName:       "Test Org",
-				DoingBusinessAs: ptr.StringPtr("Test DBA"),
+				DoingBusinessAs: utils.StringPtr("Test DBA"),
 				LegalDocument:   "123456789",
 				Address: mmodel.Address{
 					Country: "US",
@@ -48,7 +49,7 @@ func TestCreateOrganization(t *testing.T) {
 					Return(&mmodel.Organization{
 						ID:                   "123",
 						LegalName:            "Test Org",
-						DoingBusinessAs:      ptr.StringPtr("Test DBA"),
+						DoingBusinessAs:      utils.StringPtr("Test DBA"),
 						LegalDocument:        "123456789",
 						Address:              mmodel.Address{Country: "US"},
 						Status:               mmodel.Status{Code: "ACTIVE"},
@@ -61,7 +62,7 @@ func TestCreateOrganization(t *testing.T) {
 			expectErr: false,
 			expectedOrg: &mmodel.Organization{
 				LegalName:       "Test Org",
-				DoingBusinessAs: ptr.StringPtr("Test DBA"),
+				DoingBusinessAs: utils.StringPtr("Test DBA"),
 				LegalDocument:   "123456789",
 				Address:         mmodel.Address{Country: "US"},
 				Status:          mmodel.Status{Code: "ACTIVE"},
@@ -71,7 +72,7 @@ func TestCreateOrganization(t *testing.T) {
 			name: "Success with default status",
 			input: &mmodel.CreateOrganizationInput{
 				LegalName:       "Default Status Org",
-				DoingBusinessAs: ptr.StringPtr("Default DBA"),
+				DoingBusinessAs: utils.StringPtr("Default DBA"),
 				LegalDocument:   "555555555",
 				Address: mmodel.Address{
 					Country: "CA",
@@ -85,7 +86,7 @@ func TestCreateOrganization(t *testing.T) {
 					Return(&mmodel.Organization{
 						ID:                   "124",
 						LegalName:            "Default Status Org",
-						DoingBusinessAs:      ptr.StringPtr("Default DBA"),
+						DoingBusinessAs:      utils.StringPtr("Default DBA"),
 						LegalDocument:        "555555555",
 						Address:              mmodel.Address{Country: "CA"},
 						Status:               mmodel.Status{Code: "ACTIVE"},
@@ -98,7 +99,7 @@ func TestCreateOrganization(t *testing.T) {
 			expectErr: false,
 			expectedOrg: &mmodel.Organization{
 				LegalName:       "Default Status Org",
-				DoingBusinessAs: ptr.StringPtr("Default DBA"),
+				DoingBusinessAs: utils.StringPtr("Default DBA"),
 				LegalDocument:   "555555555",
 				Address:         mmodel.Address{Country: "CA"},
 				Status:          mmodel.Status{Code: "ACTIVE"},

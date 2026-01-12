@@ -43,41 +43,21 @@ jobs:
         shell: bash
         run: make test
 
-  integration_tests_console:
-    name: Console Integration test
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: components/console
-    steps:
-      # Checkout the repository code
-      - uses: actions/checkout@v4
+      # Run unit tests for the CRM component
+      - name: Unit Tests - CRM
+        working-directory: components/crm
+        shell: bash
+        run: make test
 
-      # Set up Node.js environment
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-
-      # Install SWC binary for Linux to improve build performance
-      - name: Install SWC binary (Linux only)
-        run: npm install --save-dev @next/swc-linux-x64-gnu --platform=linux --cpu=x64
-
-      # Install project dependencies
-      - name: Install dependencies
-        run: npm install
-
-      # Warm up Next.js by building once to ensure SWC binaries are properly set up
-      - name: Patch Next.js SWC binaries (warm-up)
-        run: npx next build
-
-      # Run the unit tests
-      - name: Run Unit Tests
-        run: npm test
+      # Run unit tests for the Ledger component
+      - name: Unit Tests - Ledger
+        working-directory: components/ledger
+        shell: bash
+        run: make test
 
   publish_release:
     runs-on: ubuntu-24.04
-    needs: [integration_tests_go, integration_tests_console]
+    needs: [integration_tests_go]
     environment:
       name: create_release
     name: 🏷️ Create release to Midaz
@@ -154,27 +134,6 @@ jobs:
 
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-
-    # Set up Go environment for GoReleaser
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.25'
-        cache: false
-
-    - name: Clean repo (reset + clean)
-      run: |
-        git reset --hard
-        git clean -fd
-
-    # Build and publish Go binaries using GoReleaser
-    - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v6
-      with:
-        version: v2.8.2
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
   # Generate changelog with gptchangelog custom module
   generate_changelog:

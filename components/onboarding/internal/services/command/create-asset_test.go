@@ -7,9 +7,9 @@ import (
 	"time"
 
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,12 +22,12 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
+	mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:       mockAssetRepo,
 		AccountRepo:     mockAccountRepo,
-		BalanceGRPCRepo: mockBalanceGRPC,
+		BalancePort: mockBalanceGRPC,
 	}
 
 	ctx := context.Background()
@@ -99,7 +99,7 @@ func TestCreateAsset(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPC.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).
 					Times(1)
 			},
@@ -200,7 +200,7 @@ func TestCreateAsset(t *testing.T) {
 					Times(1)
 
 				mockBalanceGRPC.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("grpc create balance error")).
 					Times(1)
 			},

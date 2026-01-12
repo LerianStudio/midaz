@@ -3,7 +3,7 @@ info:
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Ledger API
+  description: This is a swagger documentation for the Midaz Onboarding API
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
@@ -179,10 +179,7 @@ paths:
           type: string
       responses:
         "204":
-          content:
-            '*/*':
-              schema:
-                type: string
+          content: {}
           description: No content with X-Total-Count header containing the count
         "401":
           content:
@@ -235,10 +232,7 @@ paths:
           type: string
       responses:
         "204":
-          content:
-            '*/*':
-              schema:
-                type: string
+          content: {}
           description: Organization successfully deleted
         "401":
           content:
@@ -590,10 +584,7 @@ paths:
           type: string
       responses:
         "204":
-          content:
-            '*/*':
-              schema:
-                type: string
+          content: {}
           description: No content with X-Total-Count header containing the count
         "401":
           content:
@@ -652,10 +643,7 @@ paths:
           type: string
       responses:
         "204":
-          content:
-            '*/*':
-              schema:
-                type: string
+          content: {}
           description: Ledger successfully deleted
         "401":
           content:
@@ -1471,7 +1459,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       description: Returns detailed information about an account identified by its
-        alias within the specified ledger
+        external code within the specified ledger
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -1526,15 +1514,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account with the specified alias, ledger, or organization not
-            found
+          description: Account with the specified external code, ledger, or organization
+            not found
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Internal server error
-      summary: Retrieve an account by alias
+      summary: Retrieve an account by external code
       tags:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
@@ -1566,7 +1554,7 @@ paths:
         schema:
           type: string
       responses:
-        "200":
+        "204":
           content: {}
           description: Successfully retrieved accounts count
         "401":
@@ -2041,10 +2029,7 @@ paths:
           type: string
       responses:
         "204":
-          content:
-            '*/*':
-              schema:
-                type: string
+          content: {}
           description: No content with X-Total-Count header containing the count
         "401":
           content:
@@ -2997,7 +2982,7 @@ paths:
         schema:
           type: string
       responses:
-        "200":
+        "204":
           content: {}
           description: Successfully retrieved segments count
         "401":
@@ -3273,6 +3258,7 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         portfolioId: 00000000-0000-0000-0000-000000000000
+        blocked: true
         segmentId: 00000000-0000-0000-0000-000000000000
         name: Corporate Checking Account
         alias: '@treasury_checking'
@@ -3296,6 +3282,9 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: Indicates if the account is blocked
+          type: boolean
         createdAt:
           description: |-
             Timestamp when the account was created (RFC3339 format)
@@ -3606,6 +3595,7 @@ components:
           key: '{}'
         assetCode: USD
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Corporate Checking Account
         alias: '@treasury_checking'
@@ -3631,6 +3621,12 @@ components:
           example: USD
           maxLength: 100
           type: string
+        blocked:
+          description: |-
+            Whether the account should start blocked
+            required: false
+            default: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -3982,8 +3978,6 @@ components:
           description: |-
             Optional detailed field validations for client-side handling
             example: {"name": "Field 'name' is required"}
-          example:
-            '{"name"': ' "Field ''name'' is required"}'
           type: object
         message:
           description: |-
@@ -4361,11 +4355,17 @@ components:
         metadata:
           key: '{}'
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
         entityId: EXT-ACC-12345
         status: '{}'
       properties:
+        blocked:
+          description: |-
+            Whether the account should be blocked
+            required: false
+          type: boolean
         entityId:
           description: |-
             Optional external identifier for linking to external systems
@@ -4724,7 +4724,7 @@ components:
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        page: '{}'
+        page: 6
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4762,8 +4762,7 @@ components:
         next_cursor:
           type: string
         page:
-          properties: {}
-          type: object
+          type: integer
         prev_cursor:
           type: string
       type: object
@@ -4789,6 +4788,7 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
@@ -4806,6 +4806,7 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
+          blocked: true
           segmentId: 00000000-0000-0000-0000-000000000000
           name: Corporate Checking Account
           alias: '@treasury_checking'
@@ -4959,4 +4960,11 @@ components:
         page:
           type: integer
       type: object
+  securitySchemes:
+    BearerAuth:
+      description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
+        Only required when auth plugin is enabled.'
+      in: header
+      name: Authorization
+      type: apiKey
 x-original-swagger-version: "2.0"

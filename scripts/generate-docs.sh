@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Components to process
-COMPONENTS=("onboarding" "transaction")
+COMPONENTS=("onboarding" "transaction" "crm")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
@@ -50,20 +50,52 @@ generate_openapi_spec() {
     local component="$1"
     local component_dir="${ROOT_DIR}/components/${component}"
     local start_time=$(date +%s.%N)
-    
+
     print_step "Generating ${component} OpenAPI spec" "PROCESSING"
-    
+
     # Redirect all swag output to log files
     local out_log="${LOG_DIR}/${component}_swag.out"
     local err_log="${LOG_DIR}/${component}_swag.err"
-    
-    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal > "${out_log}" 2> "${err_log}"); then
+
+    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "${component}" > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"
         return 0
     else
         print_step "Generate ${component} OpenAPI spec" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+}
+
+# Generate openapi.yaml from swagger JSON using Docker
+generate_openapi_yaml() {
+    local component="$1"
+    local component_dir="${ROOT_DIR}/components/${component}"
+    local start_time=$(date +%s.%N)
+
+    print_step "Generating ${component} openapi.yaml" "PROCESSING"
+
+    local out_log="${LOG_DIR}/${component}_openapi.out"
+    local err_log="${LOG_DIR}/${component}_openapi.err"
+    local swagger_file="${component}_swagger.json"
+
+    if (cd "${component_dir}" && \
+        docker run --rm -v ./:/workspace --user "$(id -u):$(id -g)" \
+            openapitools/openapi-generator-cli:v5.1.1 generate \
+            -i "/workspace/api/${swagger_file}" \
+            -g openapi-yaml \
+            -o /workspace/api > "${out_log}" 2> "${err_log}" && \
+        mv api/openapi/openapi.yaml api/openapi.yaml && \
+        rm -rf api/README.md api/.openapi-generator* api/openapi); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Generated ${component} openapi.yaml" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Generate ${component} openapi.yaml" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         head -5 "${err_log}" | sed 's/^/        /'
         return 1
@@ -153,7 +185,38 @@ main() {
             break
         fi
     done
-    
+
+    # Generate openapi.yaml for each component
+    if [ "$overall_success" = true ]; then
+        for component in "${COMPONENTS[@]}"; do
+            if ! generate_openapi_yaml "$component"; then
+                overall_success=false
+                break
+            fi
+        done
+    fi
+
+    # Generate ledger unified swagger (merges onboarding + transaction + ledger settings)
+    if [ "$overall_success" = true ]; then
+        if [ -f "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" ]; then
+            print_step "Generating ledger unified swagger" "PROCESSING"
+            local ledger_out="${LOG_DIR}/ledger_merge.out"
+            local ledger_err="${LOG_DIR}/ledger_merge.err"
+            local start_time=$(date +%s.%N)
+
+            if "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" > "${ledger_out}" 2> "${ledger_err}"; then
+                local end_time=$(date +%s.%N)
+                local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+                print_step "Generated ledger unified swagger" "SUCCESS" "${elapsed}"
+            else
+                print_step "Generate ledger unified swagger" "FAILED"
+                echo -e "      ${RED}Error details:${NC}"
+                head -5 "${ledger_err}" | sed 's/^/        /'
+                overall_success=false
+            fi
+        fi
+    fi
+
     # If OpenAPI generation succeeded, install dependencies and convert to Postman
     if [ "$overall_success" = true ]; then
         if ! install_npm_dependencies; then

@@ -13,40 +13,44 @@ const beginningKey = "{"
 const keySeparator = ":"
 const endKey = "}"
 
-// GenericInternalKey returns a key with the following format to be used on redis cluster:
-// "name:{contextName}:organizationID:ledgerID:key"
-func GenericInternalKey(name, contextName, organizationID, ledgerID, key string) string {
+// TransactionInternalKey returns a key with the following format to be used on redis cluster:
+// "transaction:{transactions}:organizationID:ledgerID:key"
+func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
-	builder.WriteString(name)
+	builder.WriteString("transaction")
 	builder.WriteString(keySeparator)
 	builder.WriteString(beginningKey)
-	builder.WriteString(contextName)
+	builder.WriteString("transactions")
 	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
-	builder.WriteString(organizationID)
+	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
-	builder.WriteString(ledgerID)
+	builder.WriteString(ledgerID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(key)
 
 	return builder.String()
 }
 
-// TransactionInternalKey returns a key with the following format to be used on redis cluster:
-// "transaction:{contextName}:organizationID:ledgerID:key"
-func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	transaction := GenericInternalKey("transaction", "transactions", organizationID.String(), ledgerID.String(), key)
-
-	return transaction
-}
-
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
-// "balance:{contextName}:organizationID:ledgerID:key"
+// "balance:{transactions}:organizationID:ledgerID:key"
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	balance := GenericInternalKey("balance", "transactions", organizationID.String(), ledgerID.String(), key)
+	var builder strings.Builder
 
-	return balance
+	builder.WriteString("balance")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transactions")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(key)
+
+	return builder.String()
 }
 
 // IdempotencyReverseKey returns a key with the following format to be used on redis cluster:
@@ -62,6 +66,63 @@ func IdempotencyReverseKey(organizationID, ledgerID uuid.UUID, transactionID str
 	builder.WriteString(keySeparator)
 	builder.WriteString(ledgerID.String())
 	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionID)
+
+	return builder.String()
+}
+
+// IdempotencyInternalKey returns a key with the following format to be used on redis cluster:
+// "idempotency:{organizationID:ledgerID:key}"
+func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
+	var builder strings.Builder
+
+	builder.WriteString("idempotency")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(key)
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
+// "accounting_routes:{organizationID:ledgerID:key}"
+func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.WriteString("accounting_routes")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(key.String())
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// PendingTransactionLockKey returns a key with the following format to be used on redis cluster:
+// "pending_transaction:{transaction}:organizationID:ledgerID:transactionID"
+// This key is used to lock pending transactions during commit/cancel operations.
+func PendingTransactionLockKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("pending_transaction")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transaction")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(transactionID)
 

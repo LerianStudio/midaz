@@ -3,10 +3,12 @@ package mmodel
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestStatus_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Code        string
 		Description *string
@@ -36,13 +38,15 @@ func TestStatus_IsEmpty(t *testing.T) {
 			name: "case 03",
 			fields: fields{
 				Code:        "1",
-				Description: ptr.StringPtr("a"),
+				Description: utils.StringPtr("a"),
 			},
 			want: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := Status{
 				Code:        tt.fields.Code,
 				Description: tt.fields.Description,

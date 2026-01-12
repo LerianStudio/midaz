@@ -9,15 +9,15 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 )
 
 // ValidateAccountingRules validates the accounting rules for the given operations
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *libTransaction.Responses) error {
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	accountingValidation := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
@@ -75,7 +75,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 }
 
 // validateAccountRules validates each operation against its corresponding route rule
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []mmodel.BalanceOperation) error {
+func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
@@ -139,7 +139,7 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
-		alias := libTransaction.SplitAlias(op.Alias)
+		alias := pkgTransaction.SplitAlias(op.Alias)
 
 		if alias != expected {
 			return pkg.ValidateBusinessError(

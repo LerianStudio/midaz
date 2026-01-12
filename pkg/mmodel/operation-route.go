@@ -39,8 +39,7 @@ type OperationRoute struct {
 
 // CreateOperationRouteInput is a struct designed to store Operation Route input data.
 //
-// swagger:model CreateOperationRouteInput
-// @Description CreateOperationRouteInput payload
+// @Description CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.
 type CreateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
 	Title string `json:"title,omitempty" validate:"required,max=50" example:"Cashin from service charge"`
@@ -75,11 +74,10 @@ type UpdateOperationRouteInput struct {
 
 // AccountRule represents the account selection rule configuration.
 //
-// swagger:model AccountRule
-// @Description AccountRule object
+// @Description AccountRule object containing the rule type and condition for account selection in operation routes.
 type AccountRule struct {
 	// The rule type for account selection.
 	RuleType string `json:"ruleType,omitempty" example:"alias" enum:"alias,account_type"`
-	// The rule condition for account selection. String for alias type, array for account_type.
-	ValidIf any `json:"validIf,omitempty" example:"@cash_account"`
+	// The rule condition for account selection. String for alias type (e.g. "@cash_account"), array for account_type.
+	ValidIf any `json:"validIf,omitempty"`
 } // @name AccountRule

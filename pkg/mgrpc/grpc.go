@@ -97,6 +97,12 @@ func getHealthCheckTimeout() time.Duration {
 		return defaultHealthCheckTimeout
 	}
 
+	if timeout <= 0 {
+		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+
+		return defaultHealthCheckTimeout
+	}
+
 	return timeout
 }
 
