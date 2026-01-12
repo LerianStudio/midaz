@@ -1,4 +1,4 @@
-## [v3.4.9-rc.1] - 2026-01-12
+## [v3.5.0-rc.1] - 2026-01-12
 
 ### ✨ Features
 - add ClosingDate field to BankingDetails and update related services for alias management
