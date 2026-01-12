@@ -439,25 +439,25 @@ down:
 	$(call print_title,Stopping all services with Docker Compose)
 	@echo "Stopping CRM service..."
 	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
-		cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
 	@if [ "$(UNIFIED)" = "true" ]; then \
 		echo "Stopping unified backend (ledger)..."; \
 		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
-			cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 		fi; \
 	else \
 		echo "Stopping separate backend services..."; \
 		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
-			cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 		fi; \
 		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
-			cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 		fi; \
 	fi
 	@echo "Stopping infrastructure services..."
 	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
-		cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down; \
+		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
 	@echo "[ok] All services stopped successfully"
 
@@ -497,7 +497,7 @@ stop:
 
 .PHONY: restart
 restart:
-	@make down UNIFIED=$(UNIFIED) && make up UNIFIED=$(UNIFIED)
+	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
 	@echo "[ok] All containers restarted successfully"
 
 .PHONY: rebuild-up
