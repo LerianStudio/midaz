@@ -1,3 +1,11 @@
+## [v3.5.0-beta.43] - 2026-01-12
+
+### 🔧 Maintenance
+- update indirect dependencies for golang.org/x/mod and golang.org/x/text to v0.32.0 and v0.33.0 respectively
+- update version to v3.5.0 in onboarding and transaction environment files
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.42] - 2026-01-10
 
 ### 🧪 Testing
@@ -3630,7 +3638,7 @@ This release of midaz focuses on enhancing user experience and system reliabilit
 
 Each of these updates is designed to improve the system's reliability and user experience, ensuring that users can interact with the platform more effectively and with fewer disruptions.
 
-## [v2.2.1] - 2025-06-05
+## [v3.5.0-beta.44] - 2026-01-12
 
 This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
 
