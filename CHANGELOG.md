@@ -1,4 +1,681 @@
-## [v3.4.8] - 2025-12-30
+## [v3.5.0-beta.43] - 2026-01-12
+
+### 🔧 Maintenance
+- update indirect dependencies for golang.org/x/mod and golang.org/x/text to v0.32.0 and v0.33.0 respectively
+- update version to v3.5.0 in onboarding and transaction environment files
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.42] - 2026-01-10
+
+### 🧪 Testing
+- update health check timeout tests to handle negative and zero duration cases
+- enhance unit tests for DeleteRelatedPartyByID function to cover repository error scenarios
+- add unit tests for MultiQueueConsumer
+- add unit tests for envFallback and envFallbackInt functions in onboarding and transaction bootstrap packages
+- add integration tests for MongoDB metadata repository functionality
+- add integration tests for transaction and transaction route repositories
+- add unit tests for DeleteRelatedPartyByID function in the services package
+
+### 🔧 Maintenance
+- update lib-commons dependency to v2.6.2
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.41] - 2026-01-09
+
+### 🔄 Changes
+- remove onboarding network from docker-compose.yml
+- update Dockerfiles to use TARGETOS and TARGETARCH for better platform compatibility
+- clean up Dockerfiles and remove unused onboarding network from docker-compose.yml
+
+
+## [v3.5.0-beta.39] - 2026-01-08
+
+### ✨ Features
+- enhance Update balance method to overlay Redis cached values for fresher data
+
+### 🐛 Bug Fixes
+- correct mockgen destination filename in metadata index repository files
+- update balance handling to return updated balance directly from repository
+
+### 🧪 Testing
+- add tests for balance update functionality and enhance command tests for Redis overlay
+- update mocks
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.38] - 2026-01-08
+
+### 🔄 Changes
+- update Makefile for unified backend support and improve service management commands
+- remove console component
+
+### 🔧 Maintenance
+- remove console option from pull request template
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.37] - 2026-01-08
+
+### ✨ Features
+- implement CRM-specific error handling and transformation middleware
+- enhance CreateAlias functionality with related parties
+- implement custom Date type with JSON marshaling and unmarshaling
+
+### 🐛 Bug Fixes
+- handle JSON null value in Date UnmarshalJSON method
+- handle case when holder is not found during update operation
+- add additional related party validation errors to error mapping
+- add missing CRM errors to error mapping
+
+### 📚 Documentation
+- update API documentation for CRM, Onboarding, and Transaction components with new OpenAPI specifications and improved descriptions
+- add detailed descriptions and properties for CreateAliasRequest and RelatedParty in API documentation
+- enhance API documentation for AccountRule and CreateOperationRouteInput with detailed descriptions and properties
+- update API documentation references and definitions for CreateAliasRequest and RelatedParty, removing deprecated mmodel references
+- enhance Date struct documentation with type, format, and example details
+- update Date description in API documentation to specify YYYY-MM-DD format or null
+- update API documentation to use mmodel types and remove deprecated definitions
+
+### 🧪 Testing
+- add test case for handling null value in Date UnmarshalJSON
+- add validation tests for related party fields in alias handler
+
+### 💄 Style
+- linting
+
+### 🔧 Maintenance
+- update pull request template to include Pipeline and Ledger checkboxes
+- update indirect dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.36] - 2026-01-07
+
+### ✨ Features
+- implement unified metadata index handling with dedicated repositories for onboarding and transaction modules
+- enhance metadata index API with entity-specific routes and validation
+
+### 🐛 Bug Fixes
+- simplify error message for invalid entity name in ValidateBusinessError function
+
+### 🔄 Changes
+- clarify method documentation for GetMetadataIndexPort in TransactionService interface
+- improve cursor closing logic in FindAllIndexes method for MongoDB repositories
+
+### 📚 Documentation
+- expand metadata index API with additional entity types and enhance index statistics documentation
+- update metadata index API to include entity-specific routes
+
+### 🧪 Testing
+- enhance error validation in CreateMetadataIndex unit tests
+- add integration tests for CreateIndex and DeleteIndex functionality in MetadataRepository
+- update metadata index
+- add comprehensive unit tests for metadata index handler and adapter functionality
+
+### 🔧 Maintenance
+- update preact to version 10.28.2
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.35] - 2026-01-07
+
+### 🐛 Bug Fixes
+- standardize swagger file names and clean up intermediate files in merge process
+- update authorization scopes for metadata index routes in settings
+
+### 📚 Documentation
+- update settings openapi specs
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.34] - 2026-01-07
+
+### ✨ Features
+- add MongoDBParameters to configuration and update connection string handling
+
+### 🔄 Changes
+- removes deprecated variables
+
+### 🧪 Testing
+- add unit tests for mongo parameters extraction
+
+### 🔧 Maintenance
+- add MONGO_PARAMETERS to .env.example for configuration clarity
+- update crm version
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.33] - 2026-01-06
+
+### 🐛 Bug Fixes
+- update application name from "crm" to "plugin-crm" in routes configuration
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.32] - 2026-01-06
+
+### ✨ Features
+- add RabbitMQ container setup and utility functions for integration testing
+- add logging for stale balance updates in UpdateBalances method
+
+### 🐛 Bug Fixes
+- update error logging to use correct transaction ID format in GetTransaction method
+- add early return for empty ID slices in ListByIDs methods for Ledger and Organization repositories
+
+### 🔄 Changes
+- add validation checks for missing fields in alias creation tests and improve random string generation in asset integration tests
+- enhance alias and holder tests with additional scenarios and validation checks
+- remove holder-link adapter and related tests, update alias and holder tests to eliminate holder-link dependencies
+- update test cases to use utility pointer function and improve request handling in account type tests
+- improve error handling in asset integration tests
+- enhance integration tests by improving error handling and resource cleanup
+- rename chaos data integrity test
+- remove unused test function and update constant imports
+- improve test readability and consistency by using fmt.Sprintf for string formatting in integration tests
+- update test utility imports
+- test utilities and enhance integration test setup for MongoDB and PostgreSQL
+- enhance container setup by adding port listening checks for MongoDB, PostgreSQL, and Redis
+- remove redundant cleanup calls from integration tests
+- cleanup processes in integration tests
+- enhance Toxiproxy container setup for Linux compatibility by adding host mapping
+- unify chaos testing infrastructure for RabbitMQ and Redis, enhancing proxy management and cleanup processes
+- remove deprecated assertions and chaos result logging from test utilities
+- consolidate chaos testing infrastructure and enhance Redis chaos tests
+- mongodb mock file name
+- ledger config and consumer redis integration tests
+
+### 📚 Documentation
+- update Makefile and tests.mk to include new test commands and benchmarks
+
+### 🧪 Testing
+- add integration tests for MongoDB and PostgreSQL repositories, enhancing coverage for holder and holder link functionalities
+- add integration tests for balance synchronization and TTL behavior
+- rename test functions for consistency in naming convention
+- rename chaos test functions to follow new naming convention with TestIntegration_Chaos_ prefix
+- add benchmarks for transaction operations and validations
+- enable parallel execution for all test cases to improve performance
+- implement integration tests
+- implement chaos testing for MongoDB and enhance integration tests with new infrastructure
+- add integration tests for PostgreSQL transaction repository
+- add waitForOperations function to enhance transaction integration tests
+- add integration tests for Asset, Portfolio, and Segment repositories
+- add integration tests for AccountType repository
+- add fuzz tests
+- enhance and refactor integration tests for transactions
+- add integration tests for asset and account creation, including validation for existing and deleted assets
+- add comprehensive unit tests for PostgreSQL transaction model, covering entity conversion, status checks, and transaction handling scenarios
+- refactor and enhance unit tests for SendBTOExecuteAsync and TransactionExecute with improved data setup and fallback scenarios
+- refactor and expand unit tests for CreateBalance with improved setup and additional scenarios
+- refactor and enhance unit tests for UpdateOperation with comprehensive scenarios and error handling
+- refactor and expand unit tests for GetAllMetadataTransactionRoutes with improved error handling and metadata filtering
+- add unit tests for MongoDBModel entity conversion and round-trip validation
+- add unit tests
+- add unit tests for MongoDB model alias handling with various scenarios
+- add integration tests for transaction handler's commit and revert behavior on pending and non-pending transactions
+- add integration test for pending transaction lifecycle with creation and commit phases
+- add integration tests for transaction handler with synchronous and asynchronous transaction creation
+- add integration test for N:N transactions rollback behavior in Redis
+- add unit tests for mongodb models
+- enhance unit tests for GetAllAssetRatesByAssetCode with metadata handling and error scenarios
+- add unit tests for update transaction fields
+- add unit tests for balance model
+- add unit tests for TransactionRoute PostgreSQL model with various scenarios
+- add unit tests for PostgreSQL models
+- add unit tests for organization model
+- remove redundant metadata validation integration tests
+- improve unit tests for CreateTransaction with comprehensive scenarios and mock setups
+- enhance unit tests for portfolio and segment handlers with additional field validations
+- expand unit tests for GetAllOperationsByAccount with metadata handling and error scenarios
+- enhance unit tests for operation and balance
+- add integration tests for account and ledger counting, pagination, and consistency
+- implement unit tests for CreateOrUpdateAssetRate
+- add unit tests for AddHolderLinkToAlias
+- add integration tests for filtering stale balances in UpdateBalance functionality
+- enhance unit tests for get transaction by id
+- add unit tests for filtering stale balances in UpdateBalance functionality
+- add unit test for unknown operation handling in OperateBalances function
+- refactor balance integration tests to use shared helper for large precision balances and add optimistic locking tests
+- add unit tests for GetAccountTypeByID method
+- add unit tests for GetOperationByID method, covering success, error scenarios, and metadata handling
+- add tests for handlers
+- add unit tests for TransactionHandler's GetTransaction method, covering success and error scenarios
+- add tests for organization handler
+- add tests for balance handler methods
+- add unit tests for oversized field validation in HTTP requests
+- add unit tests for error handling in HTTP responses
+- add comprehensive integration tests for organization repo
+- refactor and enhance unit tests for JSON unmarshalling and field validation, consolidating multiple test cases into structured table-driven tests
+- add unit tests for metadata validation including key length, value length, nested values, and combined scenarios
+- add PostgreSQL integration tests for Ledger and Organization repositories with ListByIDs functionality
+- add integration test for AccountRepository pagination to ensure no duplicate accounts across pages
+- add MongoDB integration tests for MetadataMongoDBRepository with create, find, update, and delete operations
+- update import paths for test utilities and add MongoDB, PostgreSQL, and Redis integration test utilities
+- moved integration test for accounts alias filtering
+- add integration tests for BalanceRepository to validate date range filtering and pagination functionality
+- add integration tests for BalanceRepository to validate large precision handling and empty alias scenarios
+- enhance PostgreSQL integration tests for BalanceRepository with additional scenarios and validations
+- add PostgreSQL integration tests for BalanceRepository functionality
+- refactor GetBalanceByID tests to use table-driven approach
+- remove deprecated integration test for GetByID functionality in organization ledger accounts
+- add PostgreSQL integration tests for AccountRepository functionality
+- refactor Redis integration tests to utilize new test utilities
+- add PostgreSQL and Redis integration test utilities
+- remove tests/property dir - tests moved closer to code
+- remove duplicate TestProperty_BalanceConsistency_API
+- add property test for balance operations sum invariant and enhance existing tests
+- remove tautological nonnegative_test.go
+- enhance Redis consumer integration tests for balance operations
+- remove tautological conservation_test.go
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update dependencies in go.mod
+- add chaos testing framework
+- remove deprecated API testing commands and update integration tests for transaction handling
+- add resource limit configuration for test containers
+- enhance test suite for Go unit and integration tests with coverage reporting
+
+
+## [v3.5.0-beta.31] - 2026-01-06
+
+### ✨ Features
+- add regulatory_fields_participant_document to SearchMongoDB and update related services
+- add related_party_id to UUIDPathParameters in http.go
+
+### 🔄 Changes
+- remove RelatedParty references from CreateAliasInput and related functions
+- update services and handlers for RelatedParty
+- update MongoDB adapters for RelatedParty embedded documents
+- replace HolderLink with RelatedParty and add RegulatoryFields models
+
+### 📚 Documentation
+- update swagger for RelatedParty and RegulatoryFields
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.30] - 2025-12-30
+
+### ✨ Features
+- add HTTP recovery middleware with customizable logging
+
+### 🔄 Changes
+- remove redundant span attribute setting for payload
+- replace direct UUID extraction from context with a safe utility function across multiple handlers
+
+### 🧪 Testing
+- add unit tests for GetUUIDFromLocals function and SafeTimePtr utility
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v3.5.0-beta.29] - 2025-12-30
+
+### ✨ Features
+- implement CheckHealth method for balance service and update related tests
+
+### 🐛 Bug Fixes
+- update error messages in delete metadata index tests
+- default grpc envs for microservices mode
+- update context timeout variable in gRPC health check
+- add health check for balance gRPC service in account and asset creation
+- implement CheckHealth method in balance gRPC repository
+- add grpc connection ready check
+- add whitespace for improved readability
+- move MongoDB port and parameters extraction to utils and remove deprecated function
+- style
+- set default values for TRANSACTION_GRPC_ADDRESS and TRANSACTION_GRPC_PORT in onboarding, and update PROTO_ADDRESS default in transaction configuration
+- update version numbers in console and onboarding environment files to v3.4.8
+- update Next.js version to 15.5.9
+- add panic recovery and context timeout for balance processing in BalanceSyncWorker
+- update version numbers in onboarding and transaction
+- add version balance fields to transaction operations in PostgreSQL adapter
+- remove unused operation variable and clean up transaction processing logic in PostgreSQL adapter
+- add whitespace for improved code readability in Redis consumer and environment helper
+- sanitize account aliases in transaction processing to ensure correct alias formats
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing
+- add backward compatibility for MongoDB connection parameters extraction
+- set default balance key for operations and balances in PostgreSQL and Redis consumers
+- improve error handling and logging for transaction backup cache operations
+- implement idempotency caching for transaction retrieval and mapping
+- enhance nullable pointer handling in transaction operations
+- add panic recovery and nil validation for message processing in Redis consumer
+- correct comment for lock acquisition in transaction handling
+- handle unique violation errors for duplicate inserts in PostgreSQL operations and transactions
+
+### 🔄 Changes
+- replace default key string with constant
+- cache key generation functions
+
+### 🔧 Maintenance
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons dependency to v2.5.3
+
+
+## [v3.5.0-beta.28] - 2025-12-29
+
+### ✨ Features
+- add enum values for entityName in Swagger documentation for ledger API
+- add 404 response for organization or ledger not found and clean up 204 response in API documentation
+- add metadata index endpoints to ledger API documentation and implement related routes
+- move metadata index to ledger component
+- add 409 Conflict response to API documentation for metadata index creation
+- implement metadata index creation, deletion, and retrieval functionality
+- add metadata index management functionality
+
+### 🐛 Bug Fixes
+- remove unnecessary schema definition for 204 response in transaction Swagger files
+- correct variable name typos and ensure proper span handling in MongoDB index methods
+
+### 🔄 Changes
+- update metadata index routes to use a unified endpoint structure under /v1/settings/metadata-indexes
+- clean up API documentation by removing unnecessary whitespace and adding date-time format to createdAt fields
+- revert unnecessary changes to documentation
+- multiple fixes in metadata indexes endpoints + add metadata indexes endpoints to docs
+- improve span handling in MongoDB index deletion and enhance code readability in metadata index retrieval
+- simplify metadata index methods by removing organization and ledger ID parameters, and enhance error handling for entity name validation
+
+### 📚 Documentation
+- enhance metadata index deletion endpoint description to specify required entity_name query parameter
+
+### 🧪 Testing
+- add error handling tests for CreateMetadataIndex and DeleteMetadataIndex endpoints
+- add comprehensive unit tests for metadata index creation, deletion, and retrieval
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update docs
+
+
+## [v3.5.0-beta.28] - 2025-12-22
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.27...v3.5.0-beta.28)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Alias Management Flexibility**: The `CreateAliasInput` and `UpdateAliasInput` structures now allow the `ParticipantDocument` field to be optional. This change simplifies the process of creating and updating aliases by reducing the need for unnecessary input, minimizing user errors, and streamlining workflows.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been updated to include the latest improvements and fixes, providing users with accurate and current information. This enhancement aids in troubleshooting and helps users discover new features more efficiently.
+
+### 🔧 Maintenance
+- **Build Process Improvements**: Behind-the-scenes updates to the build process ensure smoother operations and maintain the reliability of the software, indirectly benefiting users by supporting a stable and consistent development environment.
+
+
+## [v3.5.0-beta.27] - 2025-12-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.26...v3.5.0-beta.27)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Comprehensive Migration Linter Tool**: Enhance your database migration process with our new linter tool. It supports ignoring specific files and improves pattern matching, reducing errors and streamlining your workflow. Check out the updated guidelines for seamless integration into your projects.
+
+### 🐛 Bug Fixes
+- **Database Lint Error Resolution**: We've cleaned up various lint errors, resulting in more maintainable and stable database code. This fix ensures a smoother and more reliable development experience.
+
+### 🔄 Changes
+- **Migration Command Enhancements**: New migration commands have been added to the Makefile, simplifying database management and ensuring consistent practices.
+- **Updated Migration Guidelines**: Deployment commands are now included in our migration templates, providing clearer instructions and minimizing deployment errors.
+
+### 📚 Documentation
+- **Guideline Updates**: Our migration guidelines have been refreshed to incorporate new commands and best practices, helping you avoid common pitfalls and improve deployment success.
+
+### 🔧 Maintenance
+- **Legacy Code Management**: We've added lint ignore comments to legacy migration files, allowing you to focus on relevant code issues without unnecessary warnings.
+- **Query Optimization**: Refactored PostgreSQL queries now use explicit column lists instead of wildcards, enhancing performance and security by retrieving only necessary data.
+
+
+## [v3.5.0-beta.26] - 2025-12-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.25...v3.5.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: The changelog has been refreshed to accurately reflect recent updates and improvements. This ensures users can easily track the project's evolution and access the latest information about updates.
+
+### 🔧 Maintenance
+- **Docker Configuration Cleanup**: An unnecessary newline in the Dockerfile has been removed. This minor adjustment enhances the readability and maintainability of the Docker configuration, contributing to a cleaner setup process for developers working with the project.
+
+
+## [v3.5.0-beta.25] - 2025-12-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.24...v3.5.0-beta.25)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Dependency Update**: We've updated the `lib-commons` dependency to its latest version. This ensures that the application remains compatible with the newest features and security patches, enhancing the overall stability and security of your experience. Regular updates like this help prevent potential vulnerabilities and improve system reliability.
+- **Changelog Update**: The CHANGELOG has been refreshed to accurately reflect recent changes and improvements. This ensures that you can easily track the evolution of the project, understand the latest updates, and plan for any necessary adjustments in your usage or integration of the software.
+
+
+## [v3.5.0-beta.24] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.23...v3.5.0-beta.24)
+Contributors: Guilherme Moreira Rodrigues, lerian-studio
+
+### 📚 Documentation
+- **Updated Ledger Component Documentation**: The documentation for the ledger component has been thoroughly updated. This ensures that users have access to the latest information on how to effectively use and benefit from the component's features. Staying informed about these updates will help users maximize their productivity and efficiency when working with the ledger component.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect the latest changes, providing a clear and organized history of modifications. This helps users easily track the project's evolution and understand the context of new features and improvements.
+
+
+## [v3.5.0-beta.23] - 2025-12-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.22...v3.5.0-beta.23)
+Contributors: Clara Tersi, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Comprehensive API Documentation**: We've introduced detailed Swagger documentation for the Midaz Ledger API. This makes it easier for developers to understand and integrate with our system, providing clear endpoint specifications and response models.
+- **Unified Ledger Server**: Onboarding and transaction APIs are now consolidated onto a single port, simplifying deployment and reducing configuration complexity for users managing multiple services.
+
+### 🐛 Bug Fixes
+- **Configuration Stability**: Resolved a thread-safety issue in Swagger configuration initialization from environment variables, enhancing the stability and reliability of the configuration process.
+- **Documentation Clarity**: Improved example account alias in Swagger models, making it easier for developers to understand the intended use of API fields.
+
+### 🔄 Changes
+- **API Consistency**: Enhanced Swagger documentation generation to ensure consistent API behavior and documentation across different environments, improving the developer experience.
+- **Request Tracking**: Added RequestID to balance gRPC operations, facilitating better tracking and debugging of requests, which enhances reliability and supportability.
+
+### 📚 Documentation
+- **Version Management**: Updated Swagger to version v3.5.0 and improved the merge-swagger script to read version information from the .env file, ensuring consistency across environments.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed exposed ports for onboarding and transaction servers from the Dockerfile, reducing unnecessary exposure and enhancing security.
+- **Test Suite Improvements**: Updated StubService to implement onboarding.OnboardingService and added a GetRouteRegistrar method for route registration, improving test coverage and accuracy.
+
+
+## [v3.5.0-beta.22] - 2025-12-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.21...v3.5.0-beta.22)
+Contributors: Caio Alexandre Troti Caetano, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Timelines**: The frontend now includes a new date comparison utility and improved JSON serialization for `TransactionDate`. This ensures consistent and accurate display of transaction timelines, making it easier for users to track and compare dates.
+
+### 🐛 Bug Fixes
+- **Improved Code Quality**: Resolved various lint issues across backend and frontend components. This fix enhances system stability and reduces potential runtime errors, providing a smoother user experience.
+
+### ⚡ Performance
+- **Efficient Balance Updates**: The backend `UpdateBalances` method has been refactored for better performance and accuracy. Users will benefit from faster and more reliable balance operations, ensuring up-to-date financial information.
+
+### 🔄 Changes
+- **Consistent Date Management**: Both the database and frontend now handle `TransactionDate` with a custom type, leading to better JSON serialization and more reliable date management across the application.
+
+### 🔧 Maintenance
+- **Updated Dependencies**: The Next.js package has been updated to the latest version, ensuring compatibility with modern web standards and improving overall application performance.
+- **Streamlined Codebase**: Deprecated `lib-commons v2.6.0-beta.4` references have been removed and updated to `v2.6.0`, utilizing the latest utility functions for validation and reducing code redundancy.
+
+
+## [v3.5.0-beta.21] - 2025-12-15
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.20...v3.5.0-beta.21)
+Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
+
+### ⚠️ Breaking Changes
+- **API Authentication Update**: The Authorization header has been removed and replaced with Bearer token support. This change requires updates to client applications to ensure they authenticate correctly with the API. Please update your authentication process to use Bearer tokens.
+- **API Response Format**: Success responses for onboarding and transaction endpoints no longer include schema definitions. Client applications must adjust their parsing logic to handle the new response format.
+
+### ✨ Features
+- **Unified Ledger Mode**: A new comprehensive ledger component has been introduced, enhancing financial operations management by integrating onboarding and transaction modules. This feature streamlines processes, offering a more cohesive user experience.
+- **Balance Sync Worker Options**: New configuration options for the Balance Sync Worker provide enhanced synchronization capabilities and greater control over balance management, allowing for more flexible financial operations.
+
+### 🐛 Bug Fixes
+- **Secure gRPC Communication**: Fixed authorization token handling in gRPC calls, ensuring secure and reliable communication for account and asset management.
+- **Onboarding Initialization**: Improved error handling for missing configurations during onboarding service startup, preventing failures and enhancing reliability.
+
+### ⚡ Performance
+- **Service Initialization Improvements**: Enhanced error handling and logger support during service initialization, particularly in onboarding and transaction modules, increases system robustness and aids in troubleshooting.
+
+### 📚 Documentation
+- **API Documentation Update**: Added BearerAuth security annotations and clarified authorization token requirements across multiple endpoints, improving security clarity and API usage guidance.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated the Go toolchain and added testcontainers-go for integration testing, ensuring compatibility with the latest development tools and improving test coverage.
+- **Code Quality Enhancements**: Refactored MongoDB connection pool size handling and service initialization functions for improved clarity and consistency.
+
+
+## [v3.5.0-beta.20] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.19...v3.5.0-beta.20)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend/Database**: Fixed an issue where stale balances were incorrectly processed, ensuring users receive up-to-date and accurate balance information.
+
+### ⚡ Performance
+- **Backend/Database**: Improved database efficiency by implementing filtering of stale balances, resulting in faster data access and reduced processing time for balance updates.
+
+### 🔧 Maintenance
+- **Testing**: Enhanced balance transaction tests with a mock RedisRepo to validate stale balance handling, improving software robustness and reliability.
+- **Release Management**: Updated the CHANGELOG to provide clear and current information on recent improvements and fixes.
+
+
+## [v3.5.0-beta.19] - 2025-12-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.18...v3.5.0-beta.19)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔄 Changes
+- **Improved Test Reliability**: We've refactored the internal key generation process used in balance retrieval tests. This improvement makes our test suite more maintainable and efficient, resulting in faster development cycles and more accurate testing of balance-related functionalities.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The changelog has been refreshed to include the latest updates and improvements. This ensures transparency and keeps all stakeholders informed about the project's progress and changes.
+
+
+## [v3.5.0-beta.18] - 2025-12-10
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.17...v3.5.0-beta.18)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Balance Synchronization Worker**: Automatically syncs account balances to provide users with the most current financial information, enhancing trust and reliability. This feature is crucial for users who need accurate and timely financial data.
+
+### 📚 Documentation
+- **Balance Sync Worker Configuration**: Updated documentation now includes detailed instructions on configuring and using the new balance sync worker. This ensures users can easily set up and benefit from the new feature, reducing setup time and potential configuration errors.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes, ensuring transparency and effective communication with all stakeholders.
+
+
+## [v3.5.0-beta.17] - 2025-12-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.16...v3.5.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: The backend now includes improved alias enrichment with advanced tracing and error handling. This enhancement provides users with more reliable and informative alias management, facilitating smoother operations and easier debugging when issues arise.
+
+### 🐛 Bug Fixes
+- **Frontend Stability**: Updated console dependencies to resolve compatibility issues, resulting in fewer disruptions and a more responsive user interface.
+- **Transaction Reliability**: Fixed an issue where pending transaction locks were not removed after errors, ensuring transactions are processed correctly and reducing the likelihood of system hang-ups.
+- **Balance Accuracy**: Addressed a bug causing errors after balance updates by removing unnecessary unlocking, which improves transaction reliability and user confidence in balance accuracy.
+- **Documentation Accuracy**: Corrected version information in configuration and documentation, providing users with accurate guidance and system references.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Routine updates to OpenTelemetry and related dependencies ensure compatibility with the latest standards and improve system observability, aiding in performance monitoring and troubleshooting.
+- **Code Quality Improvements**: Comprehensive code linting and refactoring enhance code quality and maintainability, reducing potential errors and improving the overall development experience.
+
+
+## [v3.5.0-beta.16] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.15...v3.5.0-beta.16)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Participant Data Management**: We've added a new 'participant document' field to our database model, allowing for more comprehensive handling of participant-specific documents. This enhancement enables better data organization and retrieval, improving user interactions with participant data.
+
+### 🐛 Bug Fixes
+- **Data Consistency in Alias Model**: Fixed an issue where the 'participant document' field was inconsistently stored due to an incorrect 'omitempty' tag. This ensures all participant data is reliably saved and available when needed.
+- **Code Quality Improvements**: Resolved various lint errors across the codebase, enhancing overall stability and maintainability.
+
+### 📚 Documentation
+- **Updated Documentation**: The documentation now includes detailed guidance on the new participant document handling capabilities, ensuring developers and users can easily understand and implement the new features.
+
+### 🔧 Maintenance
+- **Changelog Updates**: We've ensured the changelog accurately reflects all recent changes, providing a reliable resource for tracking modifications and understanding their impacts.
+
+
+## [v3.5.0-beta.15] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.14...v3.5.0-beta.15)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security and Stability**: Updated critical dependencies including 'jws', 'jwa', 'next', 'react', and 'react-dom' to their latest versions. These updates address known security vulnerabilities and compatibility issues, ensuring a more secure and stable environment for your applications.
+- **Transaction Display Accuracy**: Fixed an issue with transaction status handling in the data table. This correction ensures that the transaction information displayed is accurate and reliable, eliminating previous inconsistencies.
+
+### 🔧 Maintenance
+- **Code Quality**: Removed unnecessary console logs from the transaction fetch process. This cleanup reduces console noise, making it easier to debug and maintain the code.
+- **Changelog Updates**: Updated the CHANGELOG file to reflect recent changes and improvements, keeping documentation current and helpful for tracking project updates.
+
+### ✨ Improvements
+- **Transaction Status Handling**: We've added new statuses 'Pending' and 'Other' to the transaction interface, complete with translations. This enhancement allows you to track your transactions more accurately and understand their current state, improving your overall experience.
+
+
+## [v3.5.0-beta.14] - 2025-12-05
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.13...v3.5.0-beta.14)
+Contributors: dependabot[bot], lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: Revised the CHANGELOG to include the latest changes and improvements. This ensures that users and developers have clear and updated information on project modifications, aiding in better understanding and tracking of project evolution.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded the `go-redis` library from version 9.17.0 to 9.17.2. This update brings minor improvements and bug fixes, enhancing the stability and performance of applications using Redis for data storage and caching. Keeping dependencies current is crucial for security and compatibility.
+
+
+## [v3.5.0-beta.13] - 2025-12-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.12...v3.5.0-beta.13)
+Contributors: Augusto Alvarenga, Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Alias Management**: A new closing date field in the MongoDB model allows for better lifecycle management of aliases, giving users more control over their alias operations.
+- **Comprehensive Link Functionality**: Users can now manage alias link associations with improved validation and repository methods, providing more flexibility and control.
+
+### 🐛 Bug Fixes
+- **Accurate Date Handling**: Resolved issues with alias closing date validation, ensuring precise date management and reducing errors.
+- **Improved Alias Creation**: Enhanced error handling for invalid link types, leading to more reliable alias creation processes.
+- **Data Integrity**: Fixed issues with nil values in the holder link entity, ensuring consistent data integrity.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded to Next.js 15.5.7 and React 19.1.2, ensuring compatibility with the latest features and security improvements.
+- **Codebase Streamlining**: Removed the unused TpVinc field, simplifying the codebase and enhancing maintainability.
+
+## [v3.5.0-beta.29] - 2025-12-29
+## [v3.5.0-beta.30] - 2025-12-30
 
 ### 🐛 Bug Fixes
 - update context timeout variable in gRPC health check
@@ -32,7 +709,7 @@
 - Update CHANGELOG
 
 
-## [v3.4.7] - 2025-12-09
+## [v3.5.0-beta.31] - 2025-12-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.6...v3.4.7)
 Contributors: Clara Tersi
@@ -46,7 +723,7 @@ Contributors: Clara Tersi
 - **Documentation and Configuration**: Updated version information across documentation and configuration files to reflect the latest release, ensuring clarity and consistency for both users and developers.
 
 
-## [v3.4.6] - 2025-12-04
+## [v3.5.0-beta.32] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.5...v3.4.6)
 Contributors: Augusto Alvarenga, lerian-studio
@@ -57,8 +734,213 @@ Contributors: Augusto Alvarenga, lerian-studio
 ### 🔧 Maintenance
 - **Changelog**: The CHANGELOG has been updated to reflect recent changes and improvements, ensuring users and developers have access to the latest information about the project's evolution. This aids in better understanding and tracking of updates, contributing to a more informed user base.
 
+## [v3.5.0-beta.12] - 2025-12-01
 
-## [v3.4.5] - 2025-11-28
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.11...v3.5.0-beta.12)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **CRM Integration**: The CRM plugin is now integrated into midaz, offering users a comprehensive and unified CRM experience across backend, database, and frontend components. This enhancement streamlines customer relationship management processes within the platform.
+
+### 🐛 Bug Fixes
+- **Documentation Validation**: Resolved issues in the Makefile that previously hindered document validation, ensuring that all documentation processes are accurate and up-to-date.
+
+### ⚡ Performance
+- **Build Process Optimization**: Streamlined the Dockerfile by removing unnecessary obfuscation, resulting in a more efficient build process and reduced complexity, which speeds up deployment and maintenance tasks.
+
+### 🔄 Changes
+- **Database Reliability**: Improved address mapping in MongoDB models by handling nil values, enhancing data storage and retrieval reliability.
+- **Encryption Upgrade**: Replaced lcrypto with libCrypto for better encryption handling in CRM MongoDB models, boosting security and performance.
+- **Metadata Management**: Enhanced metadata validation and removed unused files, contributing to better system organization and maintainability.
+
+### 📚 Documentation
+- **Changelog and Templates**: Updated the CHANGELOG and added a CRM checklist item to the pull request template, improving documentation practices and ensuring thorough review processes.
+
+### 🔧 Maintenance
+- **Configuration Updates**: Updated the .env.example file for the CRM component and enhanced the Makefile to generate LCRYPTO_ENCRYPT_SECRET_KEY, ensuring configuration files are current and secure.
+- **Workflow Integration**: Integrated the CRM component into build and workflow configurations, aligning development processes with the new CRM capabilities.
+
+
+## [v3.5.0-beta.11] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.10...v3.5.0-beta.11)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Date Handling**: Resolved an issue in the `validateDates` function to correct default date handling. This fix ensures accurate date validations, preventing potential errors in date-dependent functionalities.
+
+### 🔧 Maintenance
+- **Testing Improvements**: Enhanced the test suite for `ValidateParameters` and related utilities within `httputils`. This improvement provides more comprehensive coverage, leading to more robust application behavior.
+- **Changelog Updates**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring documentation remains current and helpful for users.
+- **Test Enhancements**: Improved the `TestValidateDates_BothZero` test case to better assess edge cases where both dates are zero, increasing the reliability of date validation logic.
+
+
+## [v3.5.0-beta.10] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.9...v3.5.0-beta.10)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Database Performance**: Removed a deprecated index from the transaction component. This improvement boosts database performance and reliability by eliminating outdated structures that could cause inefficiencies or errors during data processing.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements, ensuring users and developers have access to the most current information about updates and fixes. This transparency aids in understanding the evolution of the software and facilitates easier troubleshooting and development.
+
+### 🔧 Maintenance
+- **Release Management**: Continued efforts to maintain the integrity and performance of the database system, ensuring that all documentation is both current and informative for users and developers alike.
+
+
+## [v3.5.0-beta.9] - 2025-11-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.8...v3.5.0-beta.9)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Database Debugging**: We've added detailed debug logging for SQL queries in key database functions. This allows developers to better track and diagnose database interactions, making troubleshooting more transparent and efficient.
+
+### 🐛 Bug Fixes
+- **Documentation Consistency**: Resolved discrepancies between the configuration and documentation by updating both to version v3.4.5. This ensures users have consistent and accurate information, reducing potential confusion.
+
+### ⚡ Performance
+- **Optimized Query Efficiency**: By adding an index to the `operation` table for `account_id`, we've significantly improved query performance. Users will experience faster response times when performing operations involving account data.
+
+### 📚 Documentation
+- **Improved Function Guidance**: Enhanced the documentation for the `validateDates` function. This update provides clearer guidance and examples, helping developers understand and correctly implement this function.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes, ensuring all modifications are documented and accessible for future reference.
+
+
+## [v3.5.0-beta.8] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.7...v3.5.0-beta.8)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect the latest changes and improvements. This ensures users have access to the most current information about the project's progress and updates, providing clarity and transparency about what has been modified in this release.
+
+### 🔧 Maintenance
+- **Build/Dependencies**: We have updated the console dependencies to integrate the latest patches and improvements from third-party libraries. This update enhances the security and performance of the application, ensuring that users benefit from the most recent advancements in library support.
+
+
+## [v3.5.0-beta.7] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.6...v3.5.0-beta.7)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Data Integrity**: Implemented datetime format validation within the database. This ensures that all date and time entries adhere to a standard format, significantly reducing errors and improving the reliability of data-dependent applications.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded `lib-commons` to version `v2.6.0-beta.4`. This update brings various internal improvements, enhancing system stability and performance.
+- **Documentation Refresh**: Updated the CHANGELOG to accurately reflect recent changes, ensuring users have access to the latest information about software updates and enhancements.
+
+
+## [v3.5.0-beta.6] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.5...v3.5.0-beta.6)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Backend & Test Integration**: We've successfully integrated `libCommons` items into the current codebase. This enhancement boosts backend capabilities and aligns testing frameworks with the latest standards, ensuring a more reliable and maintainable system.
+
+### 🔄 Changes
+- **Code Cleanup**: Removed the unused `CheckMetadataKeyAndValueLength` function from the backend. This streamlines the codebase, reducing clutter and potential confusion for developers.
+- **Improved Documentation**: Rewritten comments for cache utilities in the backend. This update aids developers in understanding caching mechanisms, making maintenance and future enhancements easier.
+
+### 📚 Documentation
+- **Changelog Updates**: We've updated the CHANGELOG to accurately reflect recent changes and improvements, ensuring all stakeholders have access to the latest project information.
+
+### 🔧 Maintenance
+- **General Updates**: Continued efforts to maintain accurate and up-to-date documentation for the project's progression and history, supporting transparency and informed decision-making.
+
+
+## [v3.5.0-beta.5] - 2025-11-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.4...v3.5.0-beta.5)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Forms**: Users can now select different transaction routes, providing greater customization in transaction processing. This feature, coupled with localization updates, ensures a seamless experience with interface elements and error messages in users' preferred languages.
+
+### 🐛 Bug Fixes
+- **Localization and Formatting**: Resolved issues with localized error messages in transaction routes, ensuring users receive accurate and context-sensitive communication. Improved code formatting enhances readability and reduces confusion during transaction reviews.
+- **Testing Enhancements**: Added unit tests for transaction route selection logic, increasing the reliability and robustness of transaction forms.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: Behind-the-scenes enhancements to code quality across various components, including build and test systems, ensure better maintainability and performance without affecting user-facing features.
+
+## [v3.5.0-beta.4] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.3...v3.5.0-beta.4)
+Contributors: Augusto Alvarenga
+
+### ✨ Features
+- **Enhanced Operation Management**: A new 'code' field has been added to operation routes, allowing for better categorization and management of operations. This feature supports full localization, enabling users to interact with the system in their preferred language, enhancing usability and accessibility across different regions.
+
+### 🐛 Bug Fixes
+- **Accurate Operation Mapping**: Fixed an issue where the 'code' field was not correctly mapped in operation routes. This ensures all operations are accurately categorized and displayed, preventing potential errors in management and reporting.
+
+### 🔧 Maintenance
+- **Build and Frontend Optimization**: General improvements and optimizations have been made to the build process and frontend components, enhancing system performance and reliability for a smoother user experience.
+
+## [v3.5.0-beta.3] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.2...v3.5.0-beta.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Dependencies Updated**: We've refreshed several dependencies in `go.mod` and `go.sum` to their latest versions. This update enhances security and performance by incorporating the latest features and patches. Users can expect improved stability and reduced risk of vulnerabilities.
+- **Build and Testing Enhancements**: Routine updates have been applied to our build and testing infrastructure. These improvements streamline the development workflow, making it more reliable and efficient, which indirectly benefits users by ensuring smoother updates and fewer disruptions.
+- **Changelog Update**: The CHANGELOG has been meticulously updated to provide a clear and organized record of recent changes. This transparency helps users stay informed about the project's progress and any adjustments they might need to consider.
+
+## [v3.5.0-beta.2] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0-beta.1...v3.5.0-beta.2)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated indirect dependencies to address security vulnerabilities, significantly improving the security posture of the application and safeguarding user data.
+- **Version Consistency**: Updated version numbers in onboarding and transaction components to 3.4.4 across configuration and documentation, preventing potential version mismatch issues.
+
+### ⚡ Performance
+- **Database Optimization**: Implemented automatic MongoDB index creation on startup, optimizing query performance and reducing manual setup for database administrators.
+
+### 🔄 Changes
+- **Configuration Stability**: Increased timeout settings to reduce timeout errors during peak usage, enhancing overall system reliability and user experience.
+
+### 📚 Documentation
+- **Changelog Updates**: Revised the CHANGELOG file to accurately reflect recent changes, providing users with a clear and comprehensive historical record of updates.
+
+### 🔧 Maintenance
+- **Dependency Management**: Conducted routine updates to dependencies, maintaining system integrity and leveraging the latest improvements and security fixes.
+
+## [v3.5.0-beta.1] - 2025-11-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4-beta.1...v3.5.0-beta.1)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### ✨ Features
+- **Enhanced Balance Management**: New methods for balance retrieval and management, such as `ListByAccountID` and `DeleteAllByIDs`, provide users with greater flexibility and control over their account balances. This is particularly beneficial for those managing multiple accounts, allowing for more efficient operations.
+- **gRPC Service Expansion**: The Balance service now includes additional gRPC methods like `GetBalance` and `DeleteBalance`, offering detailed balance information with new fields such as `Available` and `OnHold`. This enhancement facilitates more comprehensive data retrieval and management through gRPC interfaces.
+
+### 🐛 Bug Fixes
+- **Improved Error Handling**: Resolved issues in methods like `DeleteAllBalancesByAccountID` and `toggleBalanceTransfers`, ensuring smoother operations and reducing the risk of unhandled exceptions.
+- **Code Quality Improvements**: Fixed lint errors and standardized error logging in PostgreSQL repository files, leading to cleaner code and more readable logs.
+
+### ⚡ Performance
+- **Backend Enhancements**: Improved error handling and logging consistency across balance management methods, enhancing system reliability and user feedback during operations.
+
+### 🔄 Changes
+- **Utility Function Updates**: Introduced the `IsNilOrEmpty` utility function to streamline code and enhance balance management operations with permission updates.
+- **Telemetry and Protobuf Improvements**: Updated telemetry handling and protobuf definitions for balance messages, ensuring better monitoring and data consistency across services.
+
+### 🔧 Maintenance
+- **Code Refactoring**: Conducted extensive refactoring to improve code quality, including renaming methods for clarity and optimizing balance restoration processes. These changes enhance maintainability and future-proof the codebase.
+- **Configuration and Workflow Updates**: Updated workflow configurations to exclude generated files from security scans, streamlining the development process and reducing false positives in security assessments.
+- **Testing Enhancements**: Improved test coverage for balance operations by introducing mocks for `BalanceGRPCRepo`, ensuring more reliable and comprehensive test scenarios.
+
+## [v3.5.0-beta.33] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.4...v3.4.5)
 Contributors: Clara Tersi, lerian-studio
@@ -73,7 +955,7 @@ Contributors: Clara Tersi, lerian-studio
 - **Changelog Update**: The CHANGELOG has been revised to incorporate the latest changes and improvements, providing users with a comprehensive and transparent record of updates. This facilitates easier tracking of project evolution and understanding of new features and fixes.
 
 
-## [v3.4.4] - 2025-11-25
+## [v3.5.0-beta.34] - 2026-01-06
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.3...v3.4.4)
 Contributors: Clara Tersi, lerian-studio
@@ -94,8 +976,27 @@ Contributors: Clara Tersi, lerian-studio
 ### 🔧 Maintenance
 - **Changelog Updates**: Revised the CHANGELOG to accurately reflect recent changes, making it easier for developers and users to track project history.
 
+## [v3.4.4-beta.1] - 2025-11-21
 
-## [v3.4.3] - 2025-11-20
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.6...v3.4.4-beta.1)
+Contributors: Clara Tersi, Fabricio Carneiro, Guilherme Moreira Rodrigues, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Enhancements**: Updated `js-yaml` to version 4.1.1 and `glob` dependencies to address security vulnerabilities, providing safer file handling and parsing.
+- **Stability Improvements**: Resolved issues with indirect dependencies, ensuring a stable and secure environment.
+
+### ⚡ Performance
+- **Backend Optimization**: Streamlined request processing by merging headers and options, resulting in improved performance and reduced complexity for backend operations.
+
+### 🔄 Changes
+- **Configuration Simplification**: Consolidated configuration settings to simplify the release workflow, enhancing maintainability and reducing potential errors.
+
+### 🔧 Maintenance
+- **Dependency Management**: Regular updates to package dependencies to maintain compatibility and leverage improvements from third-party libraries.
+- **Documentation Updates**: Updated CHANGELOG to accurately reflect recent changes, ensuring users have a clear understanding of the project's evolution.
+
+
+## [v3.5.0-beta.35] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.2...v3.4.3)
 Contributors: Fabricio Carneiro, lerian-studio
@@ -107,7 +1008,7 @@ Contributors: Fabricio Carneiro, lerian-studio
 - **Release Management**: Updated the CHANGELOG to include recent updates, providing users with the latest information on software changes and improvements for better project tracking.
 
 
-## [v3.4.2] - 2025-11-19
+## [v3.5.0-beta.36] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1...v3.4.2)
 Contributors: Clara Tersi, lerian-studio
@@ -127,7 +1028,59 @@ Contributors: Clara Tersi, lerian-studio
 - **Changelog Updates**: The CHANGELOG has been meticulously updated to reflect recent changes, providing users with a clear and comprehensive overview of modifications for easy reference and future maintenance.
 
 
-## [v3.4.1] - 2025-11-14
+## [v3.4.1-beta.6] - 2025-11-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.5...v3.4.1-beta.6)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Key Formatting**: Resolved discrepancies in transaction key generation by updating the configuration and documentation processes. This fix ensures stable transaction handling and reduces errors.
+- **Streamlined Transaction Updates**: Simplified the transaction status update process by removing unnecessary error returns, which reduces confusion and enhances workflow clarity.
+- **Efficient Release Management**: Introduced a hotfix branch in the CI/CD workflow, allowing for faster deployment of urgent fixes and improving overall release responsiveness.
+
+### 🔧 Maintenance
+- **Changelog Updates**: Ensured the CHANGELOG accurately reflects recent changes and improvements, providing clear and up-to-date information for users and developers.
+
+
+## [v3.4.1-beta.5] - 2025-11-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.4...v3.4.1-beta.5)
+Contributors: Clara Tersi
+
+### 🐛 Bug Fixes
+- **Improved Request Handling**: The `BalanceRequest` fields have been reordered to ensure compatibility and correct processing, resolving potential issues with field misalignment.
+- **Streamlined Metadata Injection**: Removed redundant request-id metadata injection, reducing unnecessary overhead and improving request processing efficiency.
+- **Enhanced Request Tracking**: Added a `request_id` field to balance-related operations, allowing for better tracking and correlation of requests across the system.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `lib-commons` to version 2.5.1, incorporating the latest patches and improvements for enhanced system stability and security.
+
+
+## [v3.4.1-beta.3] - 2025-11-12
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.1-beta.2...v3.4.1-beta.3)
+Contributors: Ygohr Medeiros
+
+### 🔧 Maintenance
+- **Config**: Removed GoReleaser setup steps from the release workflow. This change simplifies the process, reducing unnecessary configuration overhead and making it easier for developers to maintain the release pipeline. Users will experience a more reliable and consistent update process, though no direct interaction changes are required.
+
+
+## [v3.4.1-beta.1] - 2025-11-12
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1-beta.1)
+Contributors: Ygohr Medeiros, lerian-studio
+
+### 🐛 Bug Fixes
+- **Consistent Data Handling**: Account types and keys are now normalized to lowercase, reducing errors related to case sensitivity. Users will notice improved accuracy in account recognition and processing, leading to fewer disruptions.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been refreshed to provide users with the latest information about software updates, making it easier to track changes and understand the evolution of the software.
+
+### 🔧 Maintenance
+- **Code Stability**: Reverted recent lint changes in `withBody.go`. This rollback ensures code reliability, preventing potential issues that could affect user experience.
+
+
+## [v3.5.0-beta.37] - 2026-01-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0...v3.4.1)
 Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
@@ -151,7 +1104,7 @@ Contributors: Clara Tersi, Guilherme Moreira Rodrigues, lerian-studio
 - **Changelog Update**: Refreshed the CHANGELOG to accurately reflect recent changes, maintaining up-to-date release notes for users.
 
 
-## [v3.4.0] - 2025-11-10
+## [v3.5.0-beta.38] - 2026-01-08
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.6...v3.4.0)
 Contributors: Augusto Alvarenga, Clara Tersi, Fabricio Carneiro, Fred Amaral, Gabriel Castro, Gabriel Ferreira, Vagner Rodrigues, flopes, lerian-studio, paulo
@@ -283,7 +1236,6 @@ Contributors: Clara Tersi, lerian-studio
 ### 🔧 Maintenance
 - **Dependency Updates**: We've upgraded all project dependencies to their latest versions. This ensures compatibility with the latest security patches and improvements from third-party libraries, maintaining the application's stability and security.
 - **Changelog Updates**: The changelog has been meticulously updated to reflect recent changes and improvements. This provides users and developers with a clear and organized history of updates, aiding in tracking the project's evolution.
-
 
 ## [v3.4.0-beta.45] - 2025-11-07
 
@@ -1308,7 +2260,7 @@ Contributors: MartinezAvellan, lerian-studio
 - **Code Refactoring**: Simplified the `createTransaction` method to improve code readability and maintainability.
 
 
-## [v3.2.0] - 2025-08-18
+## [v3.5.0-beta.39] - 2026-01-08
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.0.0...v3.2.0)
 Contributors: Brecci, Caio Alexandre Troti Caetano, Fred Amaral, Gabriel Ferreira, MartinezAvellan, Rui Chen, lerian-studio, paulo
@@ -1450,7 +2402,7 @@ This release focuses on enhancing the build process for improved reliability and
 
 These updates collectively enhance the software's reliability and user experience by focusing on process improvements and maintaining comprehensive documentation.
 
-## [v3.0.0] - 2025-08-05
+## [v3.5.0-beta.40] - 2026-01-08
 
 This major release of midaz introduces significant enhancements to user experience, performance, and system capabilities, along with critical updates that may require user action.
 
@@ -2648,7 +3600,7 @@ Users are encouraged to review the breaking changes and major features to fully 
 - Update version in `.env.example` to v2.3.0 to reflect the latest release.
 
 
-## [v2.2.2] - 2025-06-16
+## [v3.5.0-beta.42] - 2026-01-09
 
 This release focuses on enhancing the reliability and stability of the midaz project, with key improvements in configuration management and documentation. Users will benefit from a more robust messaging infrastructure and streamlined development processes.
 
@@ -2666,7 +3618,7 @@ This release focuses on enhancing the reliability and stability of the midaz pro
 
 This changelog provides a clear and concise overview of the changes introduced in version 2.2.2, focusing on the benefits and impacts for users, while maintaining a professional and accessible tone.
 
-## [v2.2.1] - 2025-06-06
+## [v3.5.0-beta.43] - 2026-01-10
 
 This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
 
@@ -2686,7 +3638,7 @@ This release of midaz focuses on enhancing user experience and system reliabilit
 
 Each of these updates is designed to improve the system's reliability and user experience, ensuring that users can interact with the platform more effectively and with fewer disruptions.
 
-## [v2.2.1] - 2025-06-05
+## [v3.5.0-beta.44] - 2026-01-12
 
 This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
 

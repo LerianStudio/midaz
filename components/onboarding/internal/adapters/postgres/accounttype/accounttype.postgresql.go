@@ -25,6 +25,18 @@ import (
 	"github.com/lib/pq"
 )
 
+var accountTypeColumnList = []string{
+	"id",
+	"organization_id",
+	"ledger_id",
+	"name",
+	"description",
+	"key_value",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+}
+
 // Repository provides an interface for operations related to account type entities.
 //
 //go:generate mockgen --destination=accounttype.postgresql_mock.go --package=accounttype . Repository
@@ -89,7 +101,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&record.LedgerID,
 		&record.Name,
 		&record.Description,
-		strings.ToLower(record.KeyValue),
+		&record.KeyValue,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 		&record.DeletedAt,
@@ -379,7 +391,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(accountTypeColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).

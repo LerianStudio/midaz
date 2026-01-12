@@ -16,6 +16,9 @@ var UUIDPathParameters = []string{
 	"balance_id",
 	"operation_route_id",
 	"transaction_route_id",
+	"holder_id",
+	"alias_id",
+	"related_party_id",
 }
 
 const XTotalCount = "X-Total-Count"

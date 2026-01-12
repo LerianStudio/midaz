@@ -1,0 +1,3 @@
+// Type overrides for swaggo
+// Replace mmodel.Date with string type for date representation
+replace github.com/LerianStudio/midaz/v3/pkg/mmodel.Date string

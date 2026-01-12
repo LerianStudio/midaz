@@ -3,15 +3,16 @@ package command
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUpdateOrganizationByID(t *testing.T) {
@@ -50,7 +51,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 					Return(&mmodel.Organization{
 						ID:                   "123",
 						LegalName:            "Updated Organization",
-						DoingBusinessAs:      ptr.StringPtr("Updated DBA"),
+						DoingBusinessAs:      utils.StringPtr("Updated DBA"),
 						Address:              mmodel.Address{Country: "US"},
 						Status:               mmodel.Status{Code: "active"},
 						ParentOrganizationID: nil,

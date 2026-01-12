@@ -137,10 +137,11 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 		assert.NotNil(t, op.Metadata, "Operation metadata should be populated")
 		assert.Equal(t, "value", op.Metadata["key"])
 
-		if op.ID == opID1Str {
+		switch op.ID {
+		case opID1Str:
 			assert.Equal(t, constant.DEBIT, op.Type)
 			assert.Equal(t, "source1", op.AccountAlias)
-		} else if op.ID == opID2Str {
+		case opID2Str:
 			assert.Equal(t, constant.CREDIT, op.Type)
 			assert.Equal(t, "destination2", op.AccountAlias)
 		}

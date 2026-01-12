@@ -3,10 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
-	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
@@ -15,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,13 +23,13 @@ import (
 // TestCreateAccountScenarios tests various scenarios for the CreateAccount function
 func TestCreateAccountScenarios(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
-	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *grpcout.MockRepository) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
 		mockAssetRepo := asset.NewMockRepository(ctrl)
 		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
-		mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
+		mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 		uc := &UseCase{
 			AssetRepo:       mockAssetRepo,
@@ -38,7 +37,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalanceGRPCRepo: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -54,7 +53,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 		name         string
 		input        *mmodel.CreateAccountInput
 		envVar       string
-		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository)
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort)
 		expectedErr  string
 		expectedName string
 		expectError  bool
@@ -67,7 +66,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "", // Empty means validation disabled
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -93,7 +92,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -108,7 +107,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -142,7 +141,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -157,7 +156,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -188,7 +187,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -203,7 +202,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -234,7 +233,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -249,7 +248,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "XYZ",
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -270,7 +269,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -291,7 +290,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -317,7 +316,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -333,7 +332,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Alias:     &customAlias,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -359,7 +358,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -374,7 +373,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -404,7 +403,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Alias:     &existingAlias,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -428,15 +427,11 @@ func TestCreateAccountScenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
@@ -465,13 +460,13 @@ func TestCreateAccountScenarios(t *testing.T) {
 // TestCreateAccountEdgeCases tests edge cases for the CreateAccount function
 func TestCreateAccountEdgeCases(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
-	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *grpcout.MockRepository) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
 		mockAssetRepo := asset.NewMockRepository(ctrl)
 		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
-		mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
+		mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 		uc := &UseCase{
 			AssetRepo:       mockAssetRepo,
@@ -479,7 +474,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalanceGRPCRepo: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -497,7 +492,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 		name         string
 		input        *mmodel.CreateAccountInput
 		envVar       string
-		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository)
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort)
 		expectedErr  string
 		expectedName string
 		expectError  bool
@@ -511,7 +506,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				PortfolioID: &portfolioIDStr,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -544,7 +539,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -560,7 +555,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				PortfolioID: &portfolioIDStr,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -586,7 +581,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				ParentAccountID: &parentAccountIDStr,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -619,7 +614,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -635,7 +630,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				ParentAccountID: &parentAccountIDStr,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -661,7 +656,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				ParentAccountID: &parentAccountIDStr,
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -692,7 +687,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				},
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -718,7 +713,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(errors.New("metadata creation error")).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectError:  true,
@@ -733,7 +728,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -759,7 +754,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("grpc create balance error")).Times(1)
 
 				mockAccountRepo.EXPECT().
@@ -782,7 +777,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				},
 			},
 			envVar: "",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -808,7 +803,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -821,11 +816,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
 
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
@@ -854,13 +845,13 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 // TestCreateAccountValidationEdgeCases tests edge cases for accounting validation in CreateAccount
 func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
-	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *grpcout.MockRepository) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
 		mockAssetRepo := asset.NewMockRepository(ctrl)
 		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
-		mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
+		mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 		uc := &UseCase{
 			AssetRepo:       mockAssetRepo,
@@ -868,7 +859,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			AccountRepo:     mockAccountRepo,
 			MetadataRepo:    mockMetadataRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
-			BalanceGRPCRepo: mockBalanceGRPC,
+			BalancePort:     mockBalanceGRPC,
 		}
 
 		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceGRPC
@@ -882,7 +873,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 		name         string
 		input        *mmodel.CreateAccountInput
 		envVar       string
-		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository)
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort)
 		expectedErr  string
 		expectedName string
 		expectError  bool
@@ -895,7 +886,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "other-org:other-ledger,another-org:another-ledger",
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -926,7 +917,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -941,7 +932,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -976,7 +967,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					Return(nil).AnyTimes()
 
 				mockBalance.EXPECT().
-					CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+					CreateBalanceSync(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
 			expectedErr:  "",
@@ -991,7 +982,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 				AssetCode: "USD",
 			},
 			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *grpcout.MockRepository) {
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *mbootstrap.MockBalancePort) {
 				mockBalance.EXPECT().
 					CheckHealth(gomock.Any()).
 					Return(nil).Times(1)
@@ -1015,15 +1006,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
-			defer func() {
-				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-			}()
+			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
@@ -1050,15 +1037,11 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 // TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
 func TestCreateAccountBlockedFlag(t *testing.T) {
+	t.Setenv("ACCOUNT_TYPE_VALIDATION", "")
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-
-	originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
-	os.Setenv("ACCOUNT_TYPE_VALIDATION", "")
-	defer func() {
-		os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
-	}()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1068,7 +1051,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
-	mockBalanceGRPC := grpcout.NewMockRepository(ctrl)
+	mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:       mockAssetRepo,
@@ -1076,7 +1059,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		AccountRepo:     mockAccountRepo,
 		MetadataRepo:    mockMetadataRepo,
 		AccountTypeRepo: mockAccountTypeRepo,
-		BalanceGRPCRepo: mockBalanceGRPC,
+		BalancePort:     mockBalanceGRPC,
 	}
 
 	mockBalanceGRPC.EXPECT().
@@ -1104,7 +1087,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		Return(nil).AnyTimes()
 
 	mockBalanceGRPC.EXPECT().
-		CreateBalance(gomock.Any(), gomock.Any(), gomock.Any()).
+		CreateBalanceSync(gomock.Any(), gomock.Any()).
 		Return(nil, nil).Times(1)
 
 	// Input with blocked=true

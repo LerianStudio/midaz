@@ -6,12 +6,12 @@ import (
 	"sort"
 	"testing"
 
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -40,36 +40,33 @@ func TestGetBalances(t *testing.T) {
 	t.Run("get balances from redis and database", func(t *testing.T) {
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
-		toAmount2 := libTransaction.Amount{
+		toAmount2 := pkgTransaction.Amount{
 			Asset:     "EUR",
 			Value:     decimal.NewFromFloat(40),
 			Operation: constant.CREDIT,
 		}
-		toAmount3 := libTransaction.Amount{
+		toAmount3 := pkgTransaction.Amount{
 			Asset:     "GBP",
 			Value:     decimal.NewFromFloat(30),
 			Operation: constant.CREDIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
-			To: map[string]libTransaction.Amount{
+			To: map[string]pkgTransaction.Amount{
 				"alias2": toAmount2,
 				"alias3": toAmount3,
 			},
 		}
 
-		// --- mock data ---
-
-		// 1) Balance vindo do Redis
 		balanceRedis := mmodel.BalanceRedis{
 			ID:             uuid.New().String(),
 			AccountID:      uuid.New().String(),
@@ -83,7 +80,6 @@ func TestGetBalances(t *testing.T) {
 		}
 		balanceRedisJSON, _ := json.Marshal(balanceRedis)
 
-		// 2) Balances vindo do banco para alias2 e alias3
 		databaseBalances := []*mmodel.Balance{
 			{
 				ID:             uuid.New().String(),
@@ -98,7 +94,7 @@ func TestGetBalances(t *testing.T) {
 				AccountType:    "deposit",
 				AllowSending:   true,
 				AllowReceiving: true,
-				AssetCode:      "EUR", // bate com toAmount2.Asset
+				AssetCode:      "EUR",
 			},
 			{
 				ID:             uuid.New().String(),
@@ -117,12 +113,9 @@ func TestGetBalances(t *testing.T) {
 			},
 		}
 
-		// --- expectativas ---
-
-		// 2) Get de Redis para cada alias
-		key1 := utils.TransactionInternalKey(organizationID, ledgerID, "alias1#default")
-		key2 := utils.TransactionInternalKey(organizationID, ledgerID, "alias2#default")
-		key3 := utils.TransactionInternalKey(organizationID, ledgerID, "alias3#default")
+		key1 := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
+		key2 := utils.BalanceInternalKey(organizationID, ledgerID, "alias2#default")
+		key3 := utils.BalanceInternalKey(organizationID, ledgerID, "alias3#default")
 
 		mockRedisRepo.
 			EXPECT().
@@ -140,14 +133,12 @@ func TestGetBalances(t *testing.T) {
 			Return("", nil).
 			Times(1)
 
-		// 3) Busca no BD para os que não estavam no Redis
 		mockBalanceRepo.
 			EXPECT().
 			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"alias2#default", "alias3#default"}).
 			Return(databaseBalances, nil).
 			Times(1)
 
-		// 4) AddSumBalancesRedis for all balances
 		mockRedisRepo.
 			EXPECT().
 			AddSumBalancesRedis(
@@ -179,13 +170,11 @@ func TestGetBalances(t *testing.T) {
 			}, nil).
 			Times(1)
 
-		// --- execução & asserts ---
 		transactionID := uuid.New()
 		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 		assert.NoError(t, err)
 		assert.Len(t, balances, 3)
 
-		// para garantir determinismo independentemente da ordem interna
 		sort.Slice(balances, func(i, j int) bool {
 			return balances[i].Alias < balances[j].Alias
 		})
@@ -201,31 +190,29 @@ func TestGetBalances(t *testing.T) {
 	})
 
 	t.Run("all balances from redis", func(t *testing.T) {
-		// Test data
 		aliases := []string{"alias1#default", "alias2#default"}
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		toAmount := libTransaction.Amount{
+		toAmount := pkgTransaction.Amount{
 			Asset:     "EUR",
 			Value:     decimal.NewFromFloat(40),
 			Operation: constant.CREDIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: aliases,
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
-			To: map[string]libTransaction.Amount{
+			To: map[string]pkgTransaction.Amount{
 				"alias2": toAmount,
 			},
 		}
 
-		// Redis balances
 		balance1 := mmodel.BalanceRedis{
 			ID:        uuid.New().String(),
 			AccountID: uuid.New().String(),
@@ -254,20 +241,18 @@ func TestGetBalances(t *testing.T) {
 		}
 		balance2JSON, _ := json.Marshal(balance2)
 
-		// Mock Redis.Get for both aliases (found in Redis)
-		internalKey1 := utils.TransactionInternalKey(organizationID, ledgerID, "alias1#default")
+		internalKey1 := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey1).
 			Return(string(balance1JSON), nil).
 			Times(1)
 
-		internalKey2 := utils.TransactionInternalKey(organizationID, ledgerID, "alias2#default")
+		internalKey2 := utils.BalanceInternalKey(organizationID, ledgerID, "alias2#default")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey2).
 			Return(string(balance2JSON), nil).
 			Times(1)
 
-		// Mock Redis.AddSumBalancesRedis for all balances
 		mockRedisRepo.EXPECT().
 			AddSumBalancesRedis(
 				gomock.Any(),
@@ -310,11 +295,9 @@ func TestGetBalances(t *testing.T) {
 			}, nil).
 			Times(1)
 
-		// Call the method
 		transactionID := uuid.New()
 		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 
-		// Assertions
 		assert.NoError(t, err)
 		assert.Len(t, balances, 2)
 	})
@@ -335,19 +318,18 @@ func TestGetAccountAndLock(t *testing.T) {
 	}
 
 	t.Run("lock balances successfully", func(t *testing.T) {
-		// Test data
 		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
 		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
 
-		fromAmount := libTransaction.Amount{
+		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
 			Value:     decimal.NewFromFloat(50),
 			Operation: constant.DEBIT,
 		}
 
-		validate := &libTransaction.Responses{
+		validate := &pkgTransaction.Responses{
 			Aliases: []string{"alias1"},
-			From: map[string]libTransaction.Amount{
+			From: map[string]pkgTransaction.Amount{
 				"alias1": fromAmount,
 			},
 		}
@@ -404,10 +386,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 	ledgerID := uuid.New()
 
 	t.Run("some balances in redis", func(t *testing.T) {
-		// Test data
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
-		// Redis balance for alias1
 		balance1 := mmodel.BalanceRedis{
 			ID:             uuid.New().String(),
 			AccountID:      uuid.New().String(),
@@ -421,29 +401,26 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 		}
 		balance1JSON, _ := json.Marshal(balance1)
 
-		// Mock Redis.Get for all aliases
-		internalKey1 := utils.TransactionInternalKey(organizationID, ledgerID, "alias1#default")
+		internalKey1 := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey1).
 			Return(string(balance1JSON), nil).
 			Times(1)
 
-		internalKey2 := utils.TransactionInternalKey(organizationID, ledgerID, "alias2#default")
+		internalKey2 := utils.BalanceInternalKey(organizationID, ledgerID, "alias2#default")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey2).
 			Return("", nil).
 			Times(1)
 
-		internalKey3 := utils.TransactionInternalKey(organizationID, ledgerID, "alias3#default")
+		internalKey3 := utils.BalanceInternalKey(organizationID, ledgerID, "alias3#default")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey3).
 			Return("", nil).
 			Times(1)
 
-		// Call the method
 		balances, remainingAliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
 
-		// Assertions
 		assert.Len(t, balances, 1)
 		assert.Equal(t, balance1.ID, balances[0].ID)
 		assert.Equal(t, "alias1", balances[0].Alias)

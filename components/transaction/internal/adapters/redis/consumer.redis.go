@@ -52,23 +52,28 @@ type RedisRepository interface {
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
+	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn *libRedis.RedisConnection
+	conn               *libRedis.RedisConnection
+	balanceSyncEnabled bool
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
+// The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
+// When false, the ZADD to the balance sync schedule is skipped in the Lua script.
+func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
-		conn: rc,
+		conn:               rc,
+		balanceSyncEnabled: balanceSyncEnabled,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
-		panic("Failed to connect on redis")
+		return nil, fmt.Errorf("failed to connect on redis: %w", err)
 	}
 
-	return r
+	return r, nil
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
@@ -319,7 +324,15 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, args).Result()
+	// Prepend balanceSyncEnabled flag (1 = enabled, 0 = disabled) to args
+	scheduleSync := 0
+	if rr.balanceSyncEnabled {
+		scheduleSync = 1
+	}
+
+	finalArgs := append([]any{scheduleSync}, args...)
+
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, finalArgs...).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -638,4 +651,59 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	logger.Infof("Unscheduled synced balance: %s", member)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.list_balance_by_key")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
+
+		return nil, err
+	}
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
+
+	value, err := rds.Get(ctx, internalKey).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on redis", err)
+
+		logger.Errorf("Failed to get balance on redis: %v", err)
+
+		return nil, err
+	}
+
+	var balanceRedis mmodel.BalanceRedis
+
+	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal balance on redis", err)
+
+		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
+
+		return nil, err
+	}
+
+	balance := &mmodel.Balance{
+		ID:             balanceRedis.ID,
+		AccountID:      balanceRedis.AccountID,
+		Alias:          balanceRedis.Alias,
+		AssetCode:      balanceRedis.AssetCode,
+		Available:      balanceRedis.Available,
+		OnHold:         balanceRedis.OnHold,
+		Version:        balanceRedis.Version,
+		AccountType:    balanceRedis.AccountType,
+		AllowSending:   balanceRedis.AllowSending == 1,
+		AllowReceiving: balanceRedis.AllowReceiving == 1,
+		Key:            balanceRedis.Key,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+	}
+
+	return balance, nil
 }

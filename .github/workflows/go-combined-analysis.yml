@@ -24,6 +24,7 @@ jobs:
     outputs:
       onboarding: ${{ steps.changes.outputs.onboarding }}
       transaction: ${{ steps.changes.outputs.transaction }}
+      migrations: ${{ steps.changes.outputs.migrations }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,11 +37,16 @@ jobs:
               - 'components/onboarding/**'
             transaction:
               - 'components/transaction/**'
+            crm:
+              - 'components/crm/**'
+            migrations:
+              - 'components/onboarding/migrations/**'
+              - 'components/transaction/migrations/**'
 
   CodeQL:
     name: Run CodeQL to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -70,7 +76,7 @@ jobs:
   GolangCI-Lint:
     name: Run GolangCI-Lint to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +97,7 @@ jobs:
   GoSec:
     name: Run GoSec to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -104,12 +110,12 @@ jobs:
       - name: Gosec Scanner
         uses: securego/gosec@master
         with:
-          args: ./components/... ./pkg/...
+          args: -exclude-generated ./components/... ./pkg/...
 
   unit-tests:
     name: Run Unit Tests to Midaz
     needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -122,3 +128,25 @@ jobs:
       - name: Unit Tests (unit only)
         shell: bash
         run: make test-unit
+
+  migration-lint:
+    name: Lint Database Migrations
+    needs: detect-changes
+    if: needs.detect-changes.outputs.migrations == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Build migration linter
+        run: go build -o ./bin/migration-lint ./scripts/migration_linter
+
+      - name: Lint onboarding migrations
+        run: ./bin/migration-lint ./components/onboarding/migrations
+
+      - name: Lint transaction migrations
+        run: ./bin/migration-lint ./components/transaction/migrations

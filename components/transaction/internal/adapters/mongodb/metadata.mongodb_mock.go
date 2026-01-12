@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -54,6 +55,21 @@ func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1, arg2)
 }
 
+// CreateIndex mocks base method.
+func (m *MockRepository) CreateIndex(arg0 context.Context, arg1 string, arg2 *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateIndex", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*mmodel.MetadataIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateIndex indicates an expected call of CreateIndex.
+func (mr *MockRepositoryMockRecorder) CreateIndex(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIndex", reflect.TypeOf((*MockRepository)(nil).CreateIndex), arg0, arg1, arg2)
+}
+
 // Delete mocks base method.
 func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
@@ -66,6 +82,35 @@ func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2 string) error {
 func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2)
+}
+
+// DeleteIndex mocks base method.
+func (m *MockRepository) DeleteIndex(arg0 context.Context, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIndex", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteIndex indicates an expected call of DeleteIndex.
+func (mr *MockRepositoryMockRecorder) DeleteIndex(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIndex", reflect.TypeOf((*MockRepository)(nil).DeleteIndex), arg0, arg1, arg2)
+}
+
+// FindAllIndexes mocks base method.
+func (m *MockRepository) FindAllIndexes(arg0 context.Context, arg1 string) ([]*mmodel.MetadataIndex, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllIndexes", arg0, arg1)
+	ret0, _ := ret[0].([]*mmodel.MetadataIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllIndexes indicates an expected call of FindAllIndexes.
+func (mr *MockRepositoryMockRecorder) FindAllIndexes(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllIndexes", reflect.TypeOf((*MockRepository)(nil).FindAllIndexes), arg0, arg1)
 }
 
 // FindByEntity mocks base method.

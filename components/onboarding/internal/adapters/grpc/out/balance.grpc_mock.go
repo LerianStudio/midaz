@@ -68,3 +68,17 @@ func (mr *MockRepositoryMockRecorder) CreateBalance(arg0, arg1, arg2 any) *gomoc
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBalance", reflect.TypeOf((*MockRepository)(nil).CreateBalance), arg0, arg1, arg2)
 }
+
+// DeleteAllBalancesByAccountID mocks base method.
+func (m *MockRepository) DeleteAllBalancesByAccountID(arg0 context.Context, arg1 string, arg2 *balance.DeleteAllBalancesByAccountIDRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllBalancesByAccountID", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllBalancesByAccountID indicates an expected call of DeleteAllBalancesByAccountID.
+func (mr *MockRepositoryMockRecorder) DeleteAllBalancesByAccountID(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllBalancesByAccountID", reflect.TypeOf((*MockRepository)(nil).DeleteAllBalancesByAccountID), arg0, arg1, arg2)
+}

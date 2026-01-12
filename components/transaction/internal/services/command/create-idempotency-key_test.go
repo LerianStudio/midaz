@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -33,7 +32,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("success with key", func(t *testing.T) {
 		key := "test-key"
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
@@ -51,7 +50,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("success with empty key", func(t *testing.T) {
 		// When key is empty, it should use the hash value
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, hash)
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
@@ -69,7 +68,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("key already exists", func(t *testing.T) {
 		key := "existing-key"
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 		existingValue := "existing-transaction-json"
 
 		// Mock Redis.SetNX - failure case (key already exists)
@@ -95,7 +94,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("redis error", func(t *testing.T) {
 		key := "test-key"
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		// Mock Redis.SetNX - redis error
 		mockRedisRepo.EXPECT().
@@ -137,7 +136,7 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 
 	t.Run("success with key", func(t *testing.T) {
 		key := "test-key"
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		txn := transaction.Transaction{
 			ID:                       uuid.New().String(),
@@ -162,7 +161,7 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 	})
 
 	t.Run("success with empty key", func(t *testing.T) {
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, hash)
 
 		txn := transaction.Transaction{
 			ID:                       uuid.New().String(),
@@ -188,7 +187,7 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 
 	t.Run("redis set error", func(t *testing.T) {
 		key := "test-key"
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		txn := transaction.Transaction{
 			ID:                       uuid.New().String(),

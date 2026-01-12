@@ -1,0 +1,25 @@
+services:
+  crm:
+    container_name: midaz-crm
+    restart: always
+    build:
+      context: ../../
+      dockerfile: ./components/crm/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - infra-network
+      - crm-network
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
+  crm-network:
+    name: crm-network
+    driver: bridge

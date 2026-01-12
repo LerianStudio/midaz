@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -61,7 +62,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 			Return([]*mmodel.Balance{item}, mockCur, nil).
 			Times(1)
 
-		expectedKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), item.Alias+"#"+item.Key)
+		expectedKey := utils.BalanceInternalKey(organizationID, ledgerID, item.Alias+"#"+item.Key)
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Eq([]string{expectedKey})).
@@ -102,7 +103,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 			Return([]*mmodel.Balance{item}, mockCur, nil).
 			Times(1)
 
-		expectedKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), item.Alias+"#"+item.Key)
+		expectedKey := utils.BalanceInternalKey(organizationID, ledgerID, item.Alias+"#"+item.Key)
 		cachePayload := `{"available":"123.45","onHold":"6","version":42}`
 		mockRedisRepo.
 			EXPECT().
@@ -212,7 +213,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 			Return([]*mmodel.Balance{item}, mockCur, nil).
 			Times(1)
 
-		expectedKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), item.Alias+"#"+item.Key)
+		expectedKey := utils.BalanceInternalKey(organizationID, ledgerID, item.Alias+"#"+item.Key)
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Eq([]string{expectedKey})).
@@ -252,7 +253,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 			Return([]*mmodel.Balance{item}, mockCur, nil).
 			Times(1)
 
-		expectedKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), item.Alias+"#"+item.Key)
+		expectedKey := utils.BalanceInternalKey(organizationID, ledgerID, item.Alias+"#"+item.Key)
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Eq([]string{expectedKey})).

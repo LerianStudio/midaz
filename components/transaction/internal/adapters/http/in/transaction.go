@@ -17,7 +17,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -27,6 +26,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -46,10 +46,10 @@ type TransactionHandler struct {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string										true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string										false	"Request ID"
+//	@Param			organization_id	path		string										true	"Organization ID"
+//	@Param			ledger_id		path		string										true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -95,7 +95,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			Authorization	header		string										true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string										false	"Request ID"
 //	@Param			organization_id	path		string										true	"Organization ID"
-//	@Param			ledger_id		path		string								        true	"Ledger ID"
+//	@Param			ledger_id		path		string										true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -128,10 +128,10 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string											true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string											false	"Request ID"
+//	@Param			organization_id	path		string											true	"Organization ID"
+//	@Param			ledger_id		path		string											true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -171,10 +171,10 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			Authorization	header		string												true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string												false	"Request ID"
+//	@Param			organization_id	path		string												true	"Organization ID"
+//	@Param			ledger_id		path		string												true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
@@ -268,7 +268,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parsed := goldTransaction.Parse(dsl)
 
-	parserDSL, ok := parsed.(libTransaction.Transaction)
+	parserDSL, ok := parsed.(pkgTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
@@ -292,6 +292,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Summary		Commit a Transaction
 //	@Description	Commit a previously created transaction
 //	@Tags			Transactions
+//	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
@@ -335,6 +336,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Summary		Cancel a pre transaction
 //	@Description	Cancel a previously created pre transaction
 //	@Tags			Transactions
+//	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			X-Request-Id	header		string	false	"Request ID"
@@ -380,11 +382,11 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction_id	path		string								true	"Transaction ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -478,7 +480,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
@@ -541,7 +543,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
@@ -597,7 +599,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetTransaction, "Failed to retrieve Operations", err)
 
-		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.ID, err.Error())
+		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error())
 
 		return http.WithError(c, err)
 	}
@@ -616,12 +618,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
@@ -705,8 +707,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 // HandleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) HandleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
-	result := make([]libTransaction.FromTo, 0, len(entries))
+func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
+	result := make([]pkgTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
 		var newAlias string
@@ -724,11 +726,11 @@ func (handler *TransactionHandler) HandleAccountFields(entries []libTransaction.
 	return result
 }
 
-func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
+func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
 	transactionDate := now
 
-	if !parserDSL.TransactionDate.IsZero() {
+	if parserDSL.TransactionDate != nil && !parserDSL.TransactionDate.IsZero() {
 		if parserDSL.TransactionDate.After(now) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
 
@@ -742,7 +744,7 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 
 			return time.Time{}, err
 		} else {
-			transactionDate = parserDSL.TransactionDate
+			transactionDate = parserDSL.TransactionDate.Time()
 		}
 	}
 
@@ -753,10 +755,10 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
-	fromTo []libTransaction.FromTo,
-	parserDSL libTransaction.Transaction,
+	fromTo []pkgTransaction.FromTo,
+	parserDSL pkgTransaction.Transaction,
 	tran transaction.Transaction,
-	validate *libTransaction.Responses,
+	validate *pkgTransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
@@ -776,7 +778,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 				preBalances = append(preBalances, blc)
 
-				amt, bat, err := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
+				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
 				if err != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -833,7 +835,7 @@ func (handler *TransactionHandler) BuildOperations(
 					BalanceAfter:    balanceAfter,
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
-					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+					AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
 					BalanceKey:      blc.Key,
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
@@ -853,7 +855,7 @@ func (handler *TransactionHandler) BuildOperations(
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL libTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkgTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -896,7 +898,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
 
-	var fromTo []libTransaction.FromTo
+	var fromTo []pkgTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
@@ -938,7 +940,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	spanIdempotency.End()
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -1067,7 +1069,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
-	lockPendingTransactionKey := utils.GenericInternalKey("pending_transaction", "transaction", organizationID.String(), ledgerID.String(), tran.ID)
+	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tran.ID)
 
 	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
 	ttl := time.Duration(300)
@@ -1107,7 +1109,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
 	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
 
-	var fromTo []libTransaction.FromTo
+	var fromTo []pkgTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
@@ -1128,7 +1130,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -1208,7 +1210,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 }
 
 // ApplyDefaultBalanceKeys sets the BalanceKey to "default" for any entries where the BalanceKey is empty.
-func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []libTransaction.FromTo) {
+func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
 	for i := range entries {
 		if entries[i].BalanceKey == "" {
 			entries[i].BalanceKey = constant.DefaultBalanceKey

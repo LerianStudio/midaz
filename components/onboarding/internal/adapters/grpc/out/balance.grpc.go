@@ -2,12 +2,19 @@ package out
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	proto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"google.golang.org/grpc/metadata"
 )
 
 // Repository provides an interface for gRPC operations related to balance in the Transaction component.
@@ -15,6 +22,7 @@ import (
 //go:generate mockgen --destination=balance.grpc_mock.go --package=out . Repository
 type Repository interface {
 	CreateBalance(ctx context.Context, token string, req *proto.BalanceRequest) (*proto.BalanceResponse, error)
+	DeleteAllBalancesByAccountID(ctx context.Context, token string, req *proto.DeleteAllBalancesByAccountIDRequest) error
 	CheckHealth(ctx context.Context) error
 }
 
@@ -84,3 +92,143 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 
 	return resp, nil
 }
+
+// DeleteAllBalancesByAccountID deletes all balances for a given account via gRPC using the provided request.
+func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context, token string, req *proto.DeleteAllBalancesByAccountIDRequest) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id")
+	defer span.End()
+
+	conn, err := b.conn.GetNewClient()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+		return err
+	}
+
+	client := proto.NewBalanceProtoClient(conn)
+
+	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id.client_request")
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
+		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
+		return err
+	}
+
+	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
+
+	_, err = client.DeleteAllBalancesByAccountID(ctxReq, req)
+
+	spanClientReq.End()
+
+	if err != nil {
+		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "All Balances Deletion Failed", "All balances could not be deleted")
+		if mapped != err {
+			return mapped
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete all balances by account id", err)
+		logger.Errorf("gRPC DeleteAllBalancesByAccountID error: %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// BalanceAdapter wraps BalanceGRPCRepository to implement mbootstrap.BalancePort.
+// This adapter translates between the transport-agnostic interface (using native Go types)
+// and the gRPC-specific implementation (using protobuf types).
+type BalanceAdapter struct {
+	grpcRepo *BalanceGRPCRepository
+}
+
+// NewBalanceAdapter creates a new BalanceAdapter wrapping the given gRPC connection.
+func NewBalanceAdapter(c *mgrpc.GRPCConnection) *BalanceAdapter {
+	return &BalanceAdapter{
+		grpcRepo: NewBalanceGRPC(c),
+	}
+}
+
+// extractAuthToken extracts the authorization token from context metadata.
+// Returns empty string if no token is found.
+func extractAuthToken(ctx context.Context) string {
+	if md, ok := metadata.FromOutgoingContext(ctx); ok {
+		if vals := md.Get(libConstant.MetadataAuthorization); len(vals) > 0 {
+			return vals[0]
+		}
+	}
+
+	return ""
+}
+
+// CreateBalanceSync implements mbootstrap.BalancePort by converting native types to proto
+// and delegating to the gRPC repository.
+func (a *BalanceAdapter) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+	// Convert native input to proto request
+	req := &proto.BalanceRequest{
+		OrganizationId: input.OrganizationID.String(),
+		LedgerId:       input.LedgerID.String(),
+		AccountId:      input.AccountID.String(),
+		Alias:          input.Alias,
+		Key:            input.Key,
+		AssetCode:      input.AssetCode,
+		AccountType:    input.AccountType,
+		AllowSending:   input.AllowSending,
+		AllowReceiving: input.AllowReceiving,
+		RequestId:      input.RequestID,
+	}
+
+	// Extract authorization token from context metadata
+	token := extractAuthToken(ctx)
+
+	resp, err := a.grpcRepo.CreateBalance(ctx, token, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert proto response to native model
+	available, err := decimal.NewFromString(resp.Available)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Available for balance %s: %w", resp.Id, err)
+	}
+
+	onHold, err := decimal.NewFromString(resp.OnHold)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse OnHold for balance %s: %w", resp.Id, err)
+	}
+
+	return &mmodel.Balance{
+		ID:             resp.Id,
+		Alias:          resp.Alias,
+		Key:            resp.Key,
+		AssetCode:      resp.AssetCode,
+		Available:      available,
+		OnHold:         onHold,
+		AllowSending:   resp.AllowSending,
+		AllowReceiving: resp.AllowReceiving,
+	}, nil
+}
+
+// DeleteAllBalancesByAccountID implements mbootstrap.BalancePort by converting
+// native types to proto and delegating to the gRPC repository.
+func (a *BalanceAdapter) DeleteAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, requestID string) error {
+	req := &proto.DeleteAllBalancesByAccountIDRequest{
+		OrganizationId: organizationID.String(),
+		LedgerId:       ledgerID.String(),
+		AccountId:      accountID.String(),
+		RequestId:      requestID,
+	}
+
+	// Extract authorization token from context metadata
+	token := extractAuthToken(ctx)
+
+	return a.grpcRepo.DeleteAllBalancesByAccountID(ctx, token, req)
+}
+
+// CheckHealth checks the gRPC connection health.
+func (a *BalanceAdapter) CheckHealth(ctx context.Context) error {
+	return a.grpcRepo.CheckHealth(ctx)
+}
+
+// Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time
+var _ mbootstrap.BalancePort = (*BalanceAdapter)(nil)
