@@ -49,6 +49,12 @@ jobs:
         shell: bash
         run: make test
 
+      # Run unit tests for the Ledger component
+      - name: Unit Tests - Ledger
+        working-directory: components/ledger
+        shell: bash
+        run: make test
+
   publish_release:
     runs-on: ubuntu-24.04
     needs: [integration_tests_go]

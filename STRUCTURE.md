@@ -10,83 +10,94 @@ The project is structured into several key directories, each serving specific ro
 MIDAZ
  |   bin
  |   components
- |---   infra
- |---   |   artifacts
- |---   |   grafana
- |---   |   postgres
- |---   |   rabbitmq
- |---   |---   etc
- |---   crm
- |---   |   api
- |---   |   cmd
- |---   |   internal
- |---   |---   adapters
- |---   |---   |   http
- |---   |---   |---   in
- |---   |---   |   mongodb
- |---   |---   services
- |---   |   scripts
- |---   onboarding
- |---   |   api
- |---   |   artifacts
- |---   |   cmd
- |---   |---   app
- |---   |   internal
- |---   |---   adapters
- |---   |---   |   http
- |---   |---   |---   in
- |---   |---   |---   out
- |---   |---   |   mongodb
- |---   |---   |   postgres
- |---   |---   |---   account
- |---   |---   |---   asset
- |---   |---   |---   ledger
- |---   |---   |---   organization
- |---   |---   |---   portfolio
- |---   |---   |---   segment
- |---   |---   |   rabbitmq
- |---   |---   |   redis
- |---   |---   bootstrap
- |---   |---   services
- |---   |---   |   command
- |---   |---   |   query
- |---   |   migrations
- |---   transaction
- |---   |   api
- |---   |   artifacts
- |---   |   cmd
- |---   |---   app
- |---   |   internal
- |---   |---   adapters
- |---   |---   |   http
- |---   |---   |---   in
- |---   |---   |---   out
- |---   |---   |   mongodb
- |---   |---   |   postgres
- |---   |---   |---   assetrate
- |---   |---   |---   balance
- |---   |---   |---   operation
- |---   |---   |---   transaction
- |---   |---   |   rabbitmq
- |---   |---   |   redis
- |---   |---   bootstrap
- |---   |---   services
- |---   |---   |   command
- |---   |---   |   query
- |---   |   migrations
+ |   |---   crm
+ |   |   |---   api
+ |   |   |---   cmd
+ |   |   |---   internal
+ |   |   |   |---   adapters
+ |   |   |   |   |---   http
+ |   |   |   |   |   |---   in
+ |   |   |   |   |---   mongodb
+ |   |   |   |---   services
+ |   |   |---   scripts
+ |   |---   infra
+ |   |   |---   artifacts
+ |   |   |---   grafana
+ |   |   |---   postgres
+ |   |   |---   rabbitmq
+ |   |   |   |---   etc
+ |   |---   ledger
+ |   |   |---   api
+ |   |   |---   artifacts
+ |   |   |---   cmd
+ |   |   |   |---   app
+ |   |   |---   internal
+ |   |   |   |---   adapters
+ |   |   |   |   |---   http
+ |   |   |   |   |   |---   in
+ |   |   |   |---   bootstrap
+ |   |   |---   scripts
+ |   |---   onboarding
+ |   |   |---   api
+ |   |   |---   artifacts
+ |   |   |---   cmd
+ |   |   |   |---   app
+ |   |   |---   internal
+ |   |   |   |---   adapters
+ |   |   |   |   |---   http
+ |   |   |   |   |   |---   in
+ |   |   |   |   |   |---   out
+ |   |   |   |   |---   mongodb
+ |   |   |   |   |---   postgres
+ |   |   |   |   |   |---   account
+ |   |   |   |   |   |---   asset
+ |   |   |   |   |   |---   ledger
+ |   |   |   |   |   |---   organization
+ |   |   |   |   |   |---   portfolio
+ |   |   |   |   |   |---   segment
+ |   |   |   |   |---   rabbitmq
+ |   |   |   |   |---   redis
+ |   |   |   |---   bootstrap
+ |   |   |   |---   services
+ |   |   |   |   |---   command
+ |   |   |   |   |---   query
+ |   |   |---   migrations
+ |   |---   transaction
+ |   |   |---   api
+ |   |   |---   artifacts
+ |   |   |---   cmd
+ |   |   |   |---   app
+ |   |   |---   internal
+ |   |   |   |---   adapters
+ |   |   |   |   |---   http
+ |   |   |   |   |   |---   in
+ |   |   |   |   |   |---   out
+ |   |   |   |   |---   mongodb
+ |   |   |   |   |---   postgres
+ |   |   |   |   |   |---   assetrate
+ |   |   |   |   |   |---   balance
+ |   |   |   |   |   |---   operation
+ |   |   |   |   |   |---   transaction
+ |   |   |   |   |---   rabbitmq
+ |   |   |   |   |---   redis
+ |   |   |   |---   bootstrap
+ |   |   |   |---   services
+ |   |   |   |   |---   command
+ |   |   |   |   |---   query
+ |   |   |---   migrations
  |   image
- |---   README
+ |   |---   README
  |   pkg
- |---   constant
- |---   gold
- |---   |   parser
- |---   |   transaction
- |---   mmodel
- |---   mgrpc
- |---   net
- |---   |   http
- |---   shell
- |---   transaction
+ |   |---   constant
+ |   |---   gold
+ |   |   |---   parser
+ |   |   |---   transaction
+ |   |---   mmodel
+ |   |---   mgrpc
+ |   |---   net
+ |   |   |---   http
+ |   |---   shell
+ |   |---   transaction
  |   postman
  |   scripts
  |   tests
@@ -103,6 +114,20 @@ MIDAZ
 * `transaction`: Contains details of transaction models and validations
 
 #### Components (`./components`)
+
+##### CRM (`./components/crm`)
+
+###### API (`./components/crm/api`)
+
+* **Endpoints**: List and describe all CRM API endpoints, including parameters, request/response formats, and error codes.
+
+###### Internal (`./components/crm/internal`)
+
+* **Adapters** (`./components/crm/internal/adapters`):
+  * **HTTP**: Inbound HTTP handlers for CRM operations.
+  * **MongoDB**: Database connection and operations for CRM data persistence.
+* **Services** (`./components/crm/internal/services`):
+  * Business logic services for customer relationship management operations.
 
 ##### Ledger (`./components/onboarding`)
 
