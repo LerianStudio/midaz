@@ -10,6 +10,961 @@
 - update GitHub workflows to include Ledger component in env file checks and security scans
 - Update CHANGELOG
 
+## [v3.5.0] - 2026-01-12
+
+### ✨ Features
+- add ClosingDate field to BankingDetails and update related services for alias management
+- enhance Update balance method to overlay Redis cached values for fresher data
+- implement CRM-specific error handling and transformation middleware
+- enhance CreateAlias functionality with related parties
+- implement custom Date type with JSON marshaling and unmarshaling
+- implement unified metadata index handling with dedicated repositories for onboarding and transaction modules
+- enhance metadata index API with entity-specific routes and validation
+- add MongoDBParameters to configuration and update connection string handling
+- add regulatory_fields_participant_document to SearchMongoDB and update related services
+- add related_party_id to UUIDPathParameters in http.go
+- implement CheckHealth method for balance service and update related tests
+- add HTTP recovery middleware with customizable logging
+- add RabbitMQ container setup and utility functions for integration testing
+- add logging for stale balance updates in UpdateBalances method
+- add enum values for entityName in Swagger documentation for ledger API
+- add 404 response for organization or ledger not found and clean up 204 response in API documentation
+- add metadata index endpoints to ledger API documentation and implement related routes
+- move metadata index to ledger component
+- add Swagger documentation for Midaz Ledger API, including detailed endpoint specifications and response models
+- enhance Swagger documentation generation and unify API specs for ledger component
+- Add RequestID to balance grpc operations
+- implement unified ledger server to consolidate onboarding and transaction APIs on a single port
+- enhance Makefile to create and remove .env files based on .env.example presence
+- update Redis consumer initialization to return error instead of panic for improved error handling
+- enhance service initialization with logger support and error handling in onboarding and transaction modules
+- implement BalancePort interface for unified ledger mode in UseCase
+- add env fallback functions for environment variable handling with backward compatibility
+- enhance migration linter to ignore specific files and improve pattern matching
+- add migration commands for linting and creation in Makefile
+- add migration linting job to GitHub Actions workflow
+- implement migration_linter tool and guidelines
+- enhance Balance Sync Worker configuration and functionality
+- add configuration options for Balance Sync Worker in .env.example
+- conditionally include Transaction Balance Sync Worker based on configuration
+- add date comparison utility and enhance JSON serialization for TransactionDate
+- add balance sync worker configuration and initialization
+- add CRM API documentation and Swagger specifications
+- add clear-envs command and update unified ledger commands in Makefile
+- add 409 Conflict response to API documentation for metadata index creation
+- enhance alias enrichment with tracing and error handling
+- implement metadata index creation, deletion, and retrieval functionality
+- add metadata index management functionality
+- include participant document field in UpdateAliasInput and update alias service logic accordingly
+- add participant document field to MongoDB model and update alias service logic for handling participant documents
+- add closing date field to MongoDB model and update alias service logic for handling closing date
+- add validation for alias closing date and enhance related error handling
+- add unified ledger commands to Makefile for managing ledger service
+- implement BalanceAdapter for gRPC repository, enabling native type conversion for CreateBalance and DeleteAllBalancesByAccountID methods
+- enhance configuration for unified ledger mode with prefixed environment variables and fallback support
+- add unified ledger component with onboarding and transaction modules
+- enhance alias and holder deletion logic with holder link management and improve error handling
+- improve MongoDB repository methods and enhance error handling for link type validation
+- enhance multiple linkTypes handling
+- enhance error handling for duplicate key violations in holder link repository and update link type validation messages
+- enhance holder link functionality with validation and repository methods for alias ID and link type
+- add link type validation and update alias creation logic to handle optional link types
+- enrich alias with link type and update alias service methods
+- implement holder link validation and repository method for alias ID and link type
+- add holder link functionality with MongoDB repository
+- add debug logging for SQL queries in FindAllByAccount and FindOrListAllWithOperations
+- migrate plugin-crm as midaz components
+- enhance transaction forms with operation route selection and localization updates
+- add transaction route functionality to transaction forms and review
+- add code field to operation routes with localization support
+- update lib-commons to v2.6.0-beta.3 and add datetime format validation
+- migate libCommons items + refactors
+- add ListByAccountID method to Balance repository for retrieving balances by account ID
+- add OrganizationID and LedgerID to balance model in Redis consumer
+- implement DeleteAllByIDs method in PostgreSQL repository and update related Redis methods for balance management
+- Add IsNilOrEmpty utility function and enhance DeleteBalance method with balance transfer permission updates
+- Enhance GetBalance response structure to include Available and OnHold fields
+- Add DeleteBalance method and update GetBalance response structure in Balance service
+- Implement GetBalance method in MockRepository for testing
+- Add GetBalance method to BalanceGRPCRepository and update proto definitions
+
+### 🐛 Bug Fixes
+- correct mockgen destination filename in metadata index repository files
+- update balance handling to return updated balance directly from repository
+- handle JSON null value in Date UnmarshalJSON method
+- handle case when holder is not found during update operation
+- add additional related party validation errors to error mapping
+- add missing CRM errors to error mapping
+- simplify error message for invalid entity name in ValidateBusinessError function
+- standardize swagger file names and clean up intermediate files in merge process
+- update authorization scopes for metadata index routes in settings
+- update application name from "crm" to "plugin-crm" in routes configuration
+- update error messages in delete metadata index tests
+- default grpc envs for microservices mode
+- update error logging to use correct transaction ID format in GetTransaction method
+- add early return for empty ID slices in ListByIDs methods for Ledger and Organization repositories
+- make ParticipantDocument optional in CreateAliasInput struct
+- remove validation from ParticipantDocument in CreateAliasInput and UpdateAliasInput structs
+- remove unnecessary schema definition for 204 response in transaction Swagger files
+- implement thread-safe Swagger configuration initialization from environment variables
+- update example account alias in Swagger models for clarity
+- add ledger component to build workflow and expose port 3002 in Dockerfile
+- update Postman collection with new script IDs and add metadata comments for struct definitions in operation-route.go
+- update success response documentation for onboarding and transaction endpoints to remove schema definitions
+- correct success response documentation for account, asset, and portfolio deletion endpoints
+- add authorization token handling in gRPC calls for account and asset management
+- improve error handling for missing configuration in onboarding service initialization
+- correct success response documentation for UpdateSegment method in segment.go
+- add error handling for parsing Available and OnHold values in CreateBalanceSync method
+- ensure BalancePort is provided in unified mode for onboarding service initialization
+- update Postman collection scripts for improved variable handling and logging
+- lint errors
+- Lint issues on console
+- lint errors
+- implement filtering of stale balances to optimize database updates
+- update model references in API documentation for alias and holder handlers
+- correct variable name typos and ensure proper span handling in MongoDB index methods
+- update participant document field to remove omitempty in alias model
+- update 'jws' and 'jwa' dependencies to latest versions in package-lock.json
+- update dependencies to latest versions including 'next', 'react', and 'react-dom'; modify transaction status handling in data table
+- lint errors
+- correct validation logic for alias closing date and update related test cases
+- add new transaction statuses 'Pending' and 'Other' with corresponding translations
+- improve error handling for invalid link types in CreateAlias method
+- handle nil values for CreatedAt and UpdatedAt in holder link entity mapping
+- update default date handling in validateDates function
+- remove deprecated index
+- update localization for transaction operation route error message and improve code formatting in transaction review component
+- add unit tests for transaction route selection logic in useTransactionFormControl
+- update localization keys for operation routes and ensure code field is correctly mapped
+- enhance error handling in DeleteAllBalancesByAccountID and toggleBalanceTransfers methods
+- lint errors
+- align error logging indentation in PostgreSQL repository files
+- normalize account type and account keyValue to lowerCase
+
+### 🔄 Changes
+- makefile commands
+- remove onboarding network from docker-compose.yml
+- update Dockerfiles to use TARGETOS and TARGETARCH for better platform compatibility
+- clean up Dockerfiles and remove unused onboarding network from docker-compose.yml
+- update Makefile for unified backend support and improve service management commands
+- remove console component
+- clarify method documentation for GetMetadataIndexPort in TransactionService interface
+- improve cursor closing logic in FindAllIndexes method for MongoDB repositories
+- removes deprecated variables
+- add validation checks for missing fields in alias creation tests and improve random string generation in asset integration tests
+- enhance alias and holder tests with additional scenarios and validation checks
+- remove holder-link adapter and related tests, update alias and holder tests to eliminate holder-link dependencies
+- update test cases to use utility pointer function and improve request handling in account type tests
+- improve error handling in asset integration tests
+- enhance integration tests by improving error handling and resource cleanup
+- rename chaos data integrity test
+- remove unused test function and update constant imports
+- improve test readability and consistency by using fmt.Sprintf for string formatting in integration tests
+- update test utility imports
+- test utilities and enhance integration test setup for MongoDB and PostgreSQL
+- enhance container setup by adding port listening checks for MongoDB, PostgreSQL, and Redis
+- remove redundant cleanup calls from integration tests
+- cleanup processes in integration tests
+- enhance Toxiproxy container setup for Linux compatibility by adding host mapping
+- unify chaos testing infrastructure for RabbitMQ and Redis, enhancing proxy management and cleanup processes
+- remove deprecated assertions and chaos result logging from test utilities
+- consolidate chaos testing infrastructure and enhance Redis chaos tests
+- remove RelatedParty references from CreateAliasInput and related functions
+- update services and handlers for RelatedParty
+- update MongoDB adapters for RelatedParty embedded documents
+- replace HolderLink with RelatedParty and add RegulatoryFields models
+- remove redundant span attribute setting for payload
+- replace default key string with constant
+- cache key generation functions
+- replace direct UUID extraction from context with a safe utility function across multiple handlers
+- update metadata index routes to use a unified endpoint structure under /v1/settings/metadata-indexes
+- mongodb mock file name
+- ledger config and consumer redis integration tests
+- Update DeleteAllBalancesByAccountID method documentation and adjust test cases to use gomock.Any() for requestID
+- improve MongoDB connection pool size handling with safe conversion to uint64
+- rename service initialization functions to improve error handling clarity
+- update logger field in Service struct for improved clarity and consistency
+- remove redundant skip statements from validation checks in Postman test scripts for improved clarity
+- enhance variable detection and handling in Postman scripts for improved robustness
+- replace wildcard selection with explicit column lists in PostgreSQL repository queries
+- update migration guidelines and template for deployment commands
+- update UpdateBalances method to utilize pkgTransaction for balance operations and alias handling
+- update UpdateBalances method to use libTransaction and implement stale balance filtering
+- remove unused libTransaction references and balance conversion functions from balance model
+- update Swagger configuration to use SwaggerInfocrm
+- update balance tests to use libTransaction and add date comparison utilities
+- update transaction handling to consistently use pkgTransaction in inflow and outflow conversions
+- update TransactionDate handling to use custom type and improve JSON serialization
+- update internal key generation for balance retrieval in tests
+- replace libTransaction with pkgTransaction across transaction handling components
+- clean up API documentation by removing unnecessary whitespace and adding date-time format to createdAt fields
+- revert unnecessary changes to documentation
+- multiple fixes in metadata indexes endpoints + add metadata indexes endpoints to docs
+- linting
+- improve span handling in MongoDB index deletion and enhance code readability in metadata index retrieval
+- simplify metadata index methods by removing organization and ledger ID parameters, and enhance error handling for entity name validation
+- remove unnecessary console log from fetch all transactions use case
+- update account and asset creation methods to use BalancePort interface for balance management
+- enhance deleting holder and alias logic
+- remove TpVinc from holder link model and related services
+- improve address mapping by handling nil values for address fields in MongoDB model
+- replace lcrypto with libCrypto for encryption handling across CRM MongoDB models
+- reorganize CRM error constants
+- remove garble obfuscation from Dockerfile and streamline build process
+- simplify Dockerfile and update application metadata in CRM component
+- enhance metadata validation + removing unused files
+- improve debug logging format
+- update imports and adjust parameter handling in CRM services
+- remove unused CheckMetadataKeyAndValueLength func + rewrite comments for cache utils
+- add error handling to balance removal in delete-account
+- improve telemetry handling in DeleteAllByIDs method and update protobuf definitions for balance messages
+- enhance error handling in DeleteAllBalancesByAccountID method to ignore redis.Nil errors
+- update DeleteAllBalancesByAccountID method to improve logic e error handling
+- remove commented TODO regarding balance cache restoration in restoreBalanceCaches method
+- remove unnecessary blank line in toggleBalanceTransfers method
+- update Redis balance key pattern and optimize balance restoration loop
+- rename DeleteBalance method to DeleteAllBalancesByAccountID and update related files for consistency
+- rename delete balance files
+- Move utility functions to a new utils package and update DeleteBalance method to use the new utility functions
+- Comment out unused version check in DeleteBalance method for future implementation
+
+### 📚 Documentation
+- update project structure in STRUCTURE.md to reflect new directory organization
+- update ClosingDate field in CRM documentation
+- update API documentation for CRM, Onboarding, and Transaction components with new OpenAPI specifications and improved descriptions
+- add detailed descriptions and properties for CreateAliasRequest and RelatedParty in API documentation
+- enhance API documentation for AccountRule and CreateOperationRouteInput with detailed descriptions and properties
+- update API documentation references and definitions for CreateAliasRequest and RelatedParty, removing deprecated mmodel references
+- enhance Date struct documentation with type, format, and example details
+- update Date description in API documentation to specify YYYY-MM-DD format or null
+- update API documentation to use mmodel types and remove deprecated definitions
+- expand metadata index API with additional entity types and enhance index statistics documentation
+- update metadata index API to include entity-specific routes
+- update settings openapi specs
+- update Makefile and tests.mk to include new test commands and benchmarks
+- update swagger for RelatedParty and RegulatoryFields
+- enhance metadata index deletion endpoint description to specify required entity_name query parameter
+- update InitServersWithOptions documentation to clarify usage of UnifiedMode for balance operations
+- update API documentation to include authorization token requirements for various endpoints
+- add status check for component conversion in sync-postman.sh to improve error handling
+- enhance error handling for JSON parsing in test scripts and update idempotency key generation logic
+- remove redundant Authorization header from API documentation and update to include Bearer token support
+- add BearerAuth security annotations to multiple API endpoints in CRM
+- add BearerAuth security annotations to API endpoints
+- updates openapi and swagger
+- add support for X-Organization-Id parameter in request headers
+- update swagger annotations
+- add bearer token authentication support
+- minor fixes
+- generate Swagger documentation for onboarding and transaction components with updated Makefile commands
+- enhance validateDates function documentation
+- update project structure documentation to remove 'tools' directory and add 'mgrpc' and 'tests' directories
+
+### 🧪 Testing
+- update health check timeout tests to handle negative and zero duration cases
+- enhance unit tests for DeleteRelatedPartyByID function to cover repository error scenarios
+- add unit tests for MultiQueueConsumer
+- add unit tests for envFallback and envFallbackInt functions in onboarding and transaction bootstrap packages
+- add integration tests for MongoDB metadata repository functionality
+- add integration tests for transaction and transaction route repositories
+- add unit tests for DeleteRelatedPartyByID function in the services package
+- update StartDate field in alias integration test to use mmodel.Date
+- refactor alias tests to use mmodel.Date for ClosingDate and update related test cases
+- add tests for balance update functionality and enhance command tests for Redis overlay
+- update mocks
+- add test case for handling null value in Date UnmarshalJSON
+- add validation tests for related party fields in alias handler
+- enhance error validation in CreateMetadataIndex unit tests
+- add integration tests for CreateIndex and DeleteIndex functionality in MetadataRepository
+- update metadata index
+- add comprehensive unit tests for metadata index handler and adapter functionality
+- add unit tests for mongo parameters extraction
+- add integration tests for MongoDB and PostgreSQL repositories, enhancing coverage for holder and holder link functionalities
+- add integration tests for balance synchronization and TTL behavior
+- rename test functions for consistency in naming convention
+- rename chaos test functions to follow new naming convention with TestIntegration_Chaos_ prefix
+- add benchmarks for transaction operations and validations
+- enable parallel execution for all test cases to improve performance
+- implement integration tests
+- implement chaos testing for MongoDB and enhance integration tests with new infrastructure
+- add integration tests for PostgreSQL transaction repository
+- add waitForOperations function to enhance transaction integration tests
+- add integration tests for Asset, Portfolio, and Segment repositories
+- add integration tests for AccountType repository
+- add fuzz tests
+- enhance and refactor integration tests for transactions
+- add integration tests for asset and account creation, including validation for existing and deleted assets
+- add comprehensive unit tests for PostgreSQL transaction model, covering entity conversion, status checks, and transaction handling scenarios
+- refactor and enhance unit tests for SendBTOExecuteAsync and TransactionExecute with improved data setup and fallback scenarios
+- refactor and expand unit tests for CreateBalance with improved setup and additional scenarios
+- refactor and enhance unit tests for UpdateOperation with comprehensive scenarios and error handling
+- refactor and expand unit tests for GetAllMetadataTransactionRoutes with improved error handling and metadata filtering
+- add unit tests for MongoDBModel entity conversion and round-trip validation
+- add unit tests
+- add unit tests for MongoDB model alias handling with various scenarios
+- add unit tests for GetUUIDFromLocals function and SafeTimePtr utility
+- add error handling tests for CreateMetadataIndex and DeleteMetadataIndex endpoints
+- add integration tests for transaction handler's commit and revert behavior on pending and non-pending transactions
+- add integration test for pending transaction lifecycle with creation and commit phases
+- add integration tests for transaction handler with synchronous and asynchronous transaction creation
+- add integration test for N:N transactions rollback behavior in Redis
+- add unit tests for mongodb models
+- enhance unit tests for GetAllAssetRatesByAssetCode with metadata handling and error scenarios
+- add unit tests for update transaction fields
+- add unit tests for balance model
+- add unit tests for TransactionRoute PostgreSQL model with various scenarios
+- add unit tests for PostgreSQL models
+- add unit tests for organization model
+- remove redundant metadata validation integration tests
+- improve unit tests for CreateTransaction with comprehensive scenarios and mock setups
+- enhance unit tests for portfolio and segment handlers with additional field validations
+- expand unit tests for GetAllOperationsByAccount with metadata handling and error scenarios
+- enhance unit tests for operation and balance
+- add integration tests for account and ledger counting, pagination, and consistency
+- implement unit tests for CreateOrUpdateAssetRate
+- add unit tests for AddHolderLinkToAlias
+- add integration tests for filtering stale balances in UpdateBalance functionality
+- enhance unit tests for get transaction by id
+- add unit tests for filtering stale balances in UpdateBalance functionality
+- add unit test for unknown operation handling in OperateBalances function
+- refactor balance integration tests to use shared helper for large precision balances and add optimistic locking tests
+- add unit tests for GetAccountTypeByID method
+- add unit tests for GetOperationByID method, covering success, error scenarios, and metadata handling
+- add tests for handlers
+- add unit tests for TransactionHandler's GetTransaction method, covering success and error scenarios
+- add tests for organization handler
+- add tests for balance handler methods
+- add unit tests for oversized field validation in HTTP requests
+- add unit tests for error handling in HTTP responses
+- add comprehensive integration tests for organization repo
+- refactor and enhance unit tests for JSON unmarshalling and field validation, consolidating multiple test cases into structured table-driven tests
+- add unit tests for metadata validation including key length, value length, nested values, and combined scenarios
+- add PostgreSQL integration tests for Ledger and Organization repositories with ListByIDs functionality
+- add integration test for AccountRepository pagination to ensure no duplicate accounts across pages
+- add MongoDB integration tests for MetadataMongoDBRepository with create, find, update, and delete operations
+- update import paths for test utilities and add MongoDB, PostgreSQL, and Redis integration test utilities
+- moved integration test for accounts alias filtering
+- add integration tests for BalanceRepository to validate date range filtering and pagination functionality
+- add integration tests for BalanceRepository to validate large precision handling and empty alias scenarios
+- enhance PostgreSQL integration tests for BalanceRepository with additional scenarios and validations
+- add PostgreSQL integration tests for BalanceRepository functionality
+- refactor GetBalanceByID tests to use table-driven approach
+- remove deprecated integration test for GetByID functionality in organization ledger accounts
+- add PostgreSQL integration tests for AccountRepository functionality
+- refactor Redis integration tests to utilize new test utilities
+- add PostgreSQL and Redis integration test utilities
+- remove tests/property dir - tests moved closer to code
+- remove duplicate TestProperty_BalanceConsistency_API
+- add property test for balance operations sum invariant and enhance existing tests
+- remove tautological nonnegative_test.go
+- enhance Redis consumer integration tests for balance operations
+- remove tautological conservation_test.go
+- update StubService to implement onboarding.OnboardingService and add GetRouteRegistrar method for route registration
+- add unit tests for onboarding and transaction service initialization error handling
+- add unit tests for service composition and runnable retrieval in bootstrap package
+- add tests for service initialization and error handling with containerized dependencies
+- rename integration tests for Redis balance synchronization functionality
+- add integration tests for Redis balance synchronization
+- enhance balance transaction tests with mock RedisRepo for stale balance checks
+- update transaction tests to use pkgTransaction and improve structure
+- add comprehensive validation tests utils pkg
+- replace grpcout with mbootstrap in account and asset test files
+- add comprehensive unit tests for metadata index creation, deletion, and retrieval
+- enhance TestValidateDates_BothZero
+- add comprehensive tests for ValidateParameters and related functions in httputils
+- Enhance DeleteAccountByID tests with BalanceGRPCRepo mocks for balance retrieval and deletion
+
+### 💄 Style
+- linting
+- add missing newline
+- reorganize transaction and onboarding module initialization logs
+- add spacing for improved readability in bootstrap configuration files
+
+### 🔧 Maintenance
+- update GitHub workflows to include Ledger component in env file checks and security scans
+- Update CHANGELOG for v3.5.0-rc.1
+- Update CHANGELOG
+- Update CHANGELOG
+- update indirect dependencies for golang.org/x/mod and golang.org/x/text to v0.32.0 and v0.33.0 respectively
+- update version to v3.5.0 in onboarding and transaction environment files
+- Update CHANGELOG
+- update lib-commons dependency to v2.6.2
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- remove console option from pull request template
+- Update CHANGELOG
+- update pull request template to include Pipeline and Ledger checkboxes
+- update indirect dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- update preact to version 10.28.2
+- Update CHANGELOG
+- Update CHANGELOG
+- add MONGO_PARAMETERS to .env.example for configuration clarity
+- update crm version
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod
+- add chaos testing framework
+- remove deprecated API testing commands and update integration tests for transaction handling
+- add resource limit configuration for test containers
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- enhance test suite for Go unit and integration tests with coverage reporting
+- Update CHANGELOG
+- Update CHANGELOG
+- update docs
+- Update CHANGELOG
+- Update CHANGELOG
+- remove unnecessary newline in Dockerfile
+- update lib-commons dependency
+- Update CHANGELOG
+- trigger release to ledger component
+- Update CHANGELOG
+- update Swagger version to v3.5.0 in documentation files
+- update version to v3.5.0 and enhance merge-swagger script to read version from .env
+- remove exposed ports for onboarding and transaction servers from Dockerfile
+- Update CHANGELOG
+- Update CHANGELOG
+- update Dockerfile to use TARGETOS and TARGETARCH for multi-arch builds
+- update Go toolchain version to 1.25.5
+- enhance Makefile to include linting for Go files in LEDGER_DIR
+- update Makefile and tests.mk to enhance test commands and coverage reporting
+- add lint ignore comments to legacy migration files
+- add testcontainers-go dependency for integration testing
+- update nextjs package dependency
+- update Makefile to create both BIN_DIR and ARTIFACTS_DIR during build
+- remove deprecated lib-commons v2.6.0-beta.4 references from go.sum
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons dependency to v2.6.0 and refactor validation calls to use utils package
+- Update CHANGELOG
+- update OpenTelemetry and related dependencies to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- bump github.com/redis/go-redis/v9 from 9.17.0 to 9.17.2
+- Update CHANGELOG
+- Update CHANGELOG
+- update .env.example for CRM component
+- update .env.example for CRM component configuration and enhance Makefile to generate LCRYPTO_ENCRYPT_SECRET_KEY
+- Update CHANGELOG
+- Update CHANGELOG
+- integrate CRM component into build and workflow configurations
+- add CRM checklist item to pull request template
+- Update CHANGELOG
+- update console dependencies
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons to v2.6.0-beta.4
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update indirect dependencies to fix vulnerabilities
+- update package dependencies and versions
+- Revert "chore(console): update dependencies"
+
+This reverts commit 88da1dee4c823098d4c6ea66fbf0942a66d9ae30.
+- update dependencies
+- override glob dependency to address vulnerability
+- update glob dependency
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Exclude generated files from Gosec scanner arguments in workflow configuration
+- remove GoReleaser setup steps from release workflow
+- remove 'chocolatey' directory from project structure documentation
+- update env-vars-pr-notification workflow to exclude 'mdz' from .env.example file checks
+- Update CHANGELOG
+- Update CHANGELOG
+- remove mdz cli resources and related dependencies
+
+
+## [v3.5.0-rc.1] - 2026-01-12
+
+### ✨ Features
+- add ClosingDate field to BankingDetails and update related services for alias management
+- enhance Update balance method to overlay Redis cached values for fresher data
+- implement CRM-specific error handling and transformation middleware
+- enhance CreateAlias functionality with related parties
+- implement custom Date type with JSON marshaling and unmarshaling
+- implement unified metadata index handling with dedicated repositories for onboarding and transaction modules
+- enhance metadata index API with entity-specific routes and validation
+- add MongoDBParameters to configuration and update connection string handling
+- add regulatory_fields_participant_document to SearchMongoDB and update related services
+- add related_party_id to UUIDPathParameters in http.go
+- implement CheckHealth method for balance service and update related tests
+- add HTTP recovery middleware with customizable logging
+- add RabbitMQ container setup and utility functions for integration testing
+- add logging for stale balance updates in UpdateBalances method
+- add enum values for entityName in Swagger documentation for ledger API
+- add 404 response for organization or ledger not found and clean up 204 response in API documentation
+- add metadata index endpoints to ledger API documentation and implement related routes
+- move metadata index to ledger component
+- add Swagger documentation for Midaz Ledger API, including detailed endpoint specifications and response models
+- enhance Swagger documentation generation and unify API specs for ledger component
+- Add RequestID to balance grpc operations
+- implement unified ledger server to consolidate onboarding and transaction APIs on a single port
+- enhance Makefile to create and remove .env files based on .env.example presence
+- update Redis consumer initialization to return error instead of panic for improved error handling
+- enhance service initialization with logger support and error handling in onboarding and transaction modules
+- implement BalancePort interface for unified ledger mode in UseCase
+- add env fallback functions for environment variable handling with backward compatibility
+- enhance migration linter to ignore specific files and improve pattern matching
+- add migration commands for linting and creation in Makefile
+- add migration linting job to GitHub Actions workflow
+- implement migration_linter tool and guidelines
+- enhance Balance Sync Worker configuration and functionality
+- add configuration options for Balance Sync Worker in .env.example
+- conditionally include Transaction Balance Sync Worker based on configuration
+- add date comparison utility and enhance JSON serialization for TransactionDate
+- add balance sync worker configuration and initialization
+- add CRM API documentation and Swagger specifications
+- add clear-envs command and update unified ledger commands in Makefile
+- add 409 Conflict response to API documentation for metadata index creation
+- enhance alias enrichment with tracing and error handling
+- implement metadata index creation, deletion, and retrieval functionality
+- add metadata index management functionality
+- include participant document field in UpdateAliasInput and update alias service logic accordingly
+- add participant document field to MongoDB model and update alias service logic for handling participant documents
+- add closing date field to MongoDB model and update alias service logic for handling closing date
+- add validation for alias closing date and enhance related error handling
+- add unified ledger commands to Makefile for managing ledger service
+- implement BalanceAdapter for gRPC repository, enabling native type conversion for CreateBalance and DeleteAllBalancesByAccountID methods
+- enhance configuration for unified ledger mode with prefixed environment variables and fallback support
+- add unified ledger component with onboarding and transaction modules
+- enhance alias and holder deletion logic with holder link management and improve error handling
+- improve MongoDB repository methods and enhance error handling for link type validation
+- enhance multiple linkTypes handling
+- enhance error handling for duplicate key violations in holder link repository and update link type validation messages
+- enhance holder link functionality with validation and repository methods for alias ID and link type
+- add link type validation and update alias creation logic to handle optional link types
+- enrich alias with link type and update alias service methods
+- implement holder link validation and repository method for alias ID and link type
+- add holder link functionality with MongoDB repository
+- add debug logging for SQL queries in FindAllByAccount and FindOrListAllWithOperations
+- migrate plugin-crm as midaz components
+- enhance transaction forms with operation route selection and localization updates
+- add transaction route functionality to transaction forms and review
+- add code field to operation routes with localization support
+- update lib-commons to v2.6.0-beta.3 and add datetime format validation
+- migate libCommons items + refactors
+- add ListByAccountID method to Balance repository for retrieving balances by account ID
+- add OrganizationID and LedgerID to balance model in Redis consumer
+- implement DeleteAllByIDs method in PostgreSQL repository and update related Redis methods for balance management
+- Add IsNilOrEmpty utility function and enhance DeleteBalance method with balance transfer permission updates
+- Enhance GetBalance response structure to include Available and OnHold fields
+- Add DeleteBalance method and update GetBalance response structure in Balance service
+- Implement GetBalance method in MockRepository for testing
+- Add GetBalance method to BalanceGRPCRepository and update proto definitions
+
+### 🐛 Bug Fixes
+- correct mockgen destination filename in metadata index repository files
+- update balance handling to return updated balance directly from repository
+- handle JSON null value in Date UnmarshalJSON method
+- handle case when holder is not found during update operation
+- add additional related party validation errors to error mapping
+- add missing CRM errors to error mapping
+- simplify error message for invalid entity name in ValidateBusinessError function
+- standardize swagger file names and clean up intermediate files in merge process
+- update authorization scopes for metadata index routes in settings
+- update application name from "crm" to "plugin-crm" in routes configuration
+- update error messages in delete metadata index tests
+- default grpc envs for microservices mode
+- update error logging to use correct transaction ID format in GetTransaction method
+- add early return for empty ID slices in ListByIDs methods for Ledger and Organization repositories
+- make ParticipantDocument optional in CreateAliasInput struct
+- remove validation from ParticipantDocument in CreateAliasInput and UpdateAliasInput structs
+- remove unnecessary schema definition for 204 response in transaction Swagger files
+- implement thread-safe Swagger configuration initialization from environment variables
+- update example account alias in Swagger models for clarity
+- add ledger component to build workflow and expose port 3002 in Dockerfile
+- update Postman collection with new script IDs and add metadata comments for struct definitions in operation-route.go
+- update success response documentation for onboarding and transaction endpoints to remove schema definitions
+- correct success response documentation for account, asset, and portfolio deletion endpoints
+- add authorization token handling in gRPC calls for account and asset management
+- improve error handling for missing configuration in onboarding service initialization
+- correct success response documentation for UpdateSegment method in segment.go
+- add error handling for parsing Available and OnHold values in CreateBalanceSync method
+- ensure BalancePort is provided in unified mode for onboarding service initialization
+- update Postman collection scripts for improved variable handling and logging
+- lint errors
+- Lint issues on console
+- lint errors
+- implement filtering of stale balances to optimize database updates
+- update model references in API documentation for alias and holder handlers
+- correct variable name typos and ensure proper span handling in MongoDB index methods
+- update participant document field to remove omitempty in alias model
+- update 'jws' and 'jwa' dependencies to latest versions in package-lock.json
+- update dependencies to latest versions including 'next', 'react', and 'react-dom'; modify transaction status handling in data table
+- lint errors
+- correct validation logic for alias closing date and update related test cases
+- add new transaction statuses 'Pending' and 'Other' with corresponding translations
+- improve error handling for invalid link types in CreateAlias method
+- handle nil values for CreatedAt and UpdatedAt in holder link entity mapping
+- update default date handling in validateDates function
+- remove deprecated index
+- update localization for transaction operation route error message and improve code formatting in transaction review component
+- add unit tests for transaction route selection logic in useTransactionFormControl
+- update localization keys for operation routes and ensure code field is correctly mapped
+- enhance error handling in DeleteAllBalancesByAccountID and toggleBalanceTransfers methods
+- lint errors
+- align error logging indentation in PostgreSQL repository files
+- normalize account type and account keyValue to lowerCase
+
+### 🔄 Changes
+- remove onboarding network from docker-compose.yml
+- update Dockerfiles to use TARGETOS and TARGETARCH for better platform compatibility
+- clean up Dockerfiles and remove unused onboarding network from docker-compose.yml
+- update Makefile for unified backend support and improve service management commands
+- remove console component
+- clarify method documentation for GetMetadataIndexPort in TransactionService interface
+- improve cursor closing logic in FindAllIndexes method for MongoDB repositories
+- removes deprecated variables
+- add validation checks for missing fields in alias creation tests and improve random string generation in asset integration tests
+- enhance alias and holder tests with additional scenarios and validation checks
+- remove holder-link adapter and related tests, update alias and holder tests to eliminate holder-link dependencies
+- update test cases to use utility pointer function and improve request handling in account type tests
+- improve error handling in asset integration tests
+- enhance integration tests by improving error handling and resource cleanup
+- rename chaos data integrity test
+- remove unused test function and update constant imports
+- improve test readability and consistency by using fmt.Sprintf for string formatting in integration tests
+- update test utility imports
+- test utilities and enhance integration test setup for MongoDB and PostgreSQL
+- enhance container setup by adding port listening checks for MongoDB, PostgreSQL, and Redis
+- remove redundant cleanup calls from integration tests
+- cleanup processes in integration tests
+- enhance Toxiproxy container setup for Linux compatibility by adding host mapping
+- unify chaos testing infrastructure for RabbitMQ and Redis, enhancing proxy management and cleanup processes
+- remove deprecated assertions and chaos result logging from test utilities
+- consolidate chaos testing infrastructure and enhance Redis chaos tests
+- remove RelatedParty references from CreateAliasInput and related functions
+- update services and handlers for RelatedParty
+- update MongoDB adapters for RelatedParty embedded documents
+- replace HolderLink with RelatedParty and add RegulatoryFields models
+- remove redundant span attribute setting for payload
+- replace default key string with constant
+- cache key generation functions
+- replace direct UUID extraction from context with a safe utility function across multiple handlers
+- update metadata index routes to use a unified endpoint structure under /v1/settings/metadata-indexes
+- mongodb mock file name
+- ledger config and consumer redis integration tests
+- Update DeleteAllBalancesByAccountID method documentation and adjust test cases to use gomock.Any() for requestID
+- improve MongoDB connection pool size handling with safe conversion to uint64
+- rename service initialization functions to improve error handling clarity
+- update logger field in Service struct for improved clarity and consistency
+- remove redundant skip statements from validation checks in Postman test scripts for improved clarity
+- enhance variable detection and handling in Postman scripts for improved robustness
+- replace wildcard selection with explicit column lists in PostgreSQL repository queries
+- update migration guidelines and template for deployment commands
+- update UpdateBalances method to utilize pkgTransaction for balance operations and alias handling
+- update UpdateBalances method to use libTransaction and implement stale balance filtering
+- remove unused libTransaction references and balance conversion functions from balance model
+- update Swagger configuration to use SwaggerInfocrm
+- update balance tests to use libTransaction and add date comparison utilities
+- update transaction handling to consistently use pkgTransaction in inflow and outflow conversions
+- update TransactionDate handling to use custom type and improve JSON serialization
+- update internal key generation for balance retrieval in tests
+- replace libTransaction with pkgTransaction across transaction handling components
+- clean up API documentation by removing unnecessary whitespace and adding date-time format to createdAt fields
+- revert unnecessary changes to documentation
+- multiple fixes in metadata indexes endpoints + add metadata indexes endpoints to docs
+- linting
+- improve span handling in MongoDB index deletion and enhance code readability in metadata index retrieval
+- simplify metadata index methods by removing organization and ledger ID parameters, and enhance error handling for entity name validation
+- remove unnecessary console log from fetch all transactions use case
+- update account and asset creation methods to use BalancePort interface for balance management
+- enhance deleting holder and alias logic
+- remove TpVinc from holder link model and related services
+- improve address mapping by handling nil values for address fields in MongoDB model
+- replace lcrypto with libCrypto for encryption handling across CRM MongoDB models
+- reorganize CRM error constants
+- remove garble obfuscation from Dockerfile and streamline build process
+- simplify Dockerfile and update application metadata in CRM component
+- enhance metadata validation + removing unused files
+- improve debug logging format
+- update imports and adjust parameter handling in CRM services
+- remove unused CheckMetadataKeyAndValueLength func + rewrite comments for cache utils
+- add error handling to balance removal in delete-account
+- improve telemetry handling in DeleteAllByIDs method and update protobuf definitions for balance messages
+- enhance error handling in DeleteAllBalancesByAccountID method to ignore redis.Nil errors
+- update DeleteAllBalancesByAccountID method to improve logic e error handling
+- remove commented TODO regarding balance cache restoration in restoreBalanceCaches method
+- remove unnecessary blank line in toggleBalanceTransfers method
+- update Redis balance key pattern and optimize balance restoration loop
+- rename DeleteBalance method to DeleteAllBalancesByAccountID and update related files for consistency
+- rename delete balance files
+- Move utility functions to a new utils package and update DeleteBalance method to use the new utility functions
+- Comment out unused version check in DeleteBalance method for future implementation
+
+### 📚 Documentation
+- update ClosingDate field in CRM documentation
+- update API documentation for CRM, Onboarding, and Transaction components with new OpenAPI specifications and improved descriptions
+- add detailed descriptions and properties for CreateAliasRequest and RelatedParty in API documentation
+- enhance API documentation for AccountRule and CreateOperationRouteInput with detailed descriptions and properties
+- update API documentation references and definitions for CreateAliasRequest and RelatedParty, removing deprecated mmodel references
+- enhance Date struct documentation with type, format, and example details
+- update Date description in API documentation to specify YYYY-MM-DD format or null
+- update API documentation to use mmodel types and remove deprecated definitions
+- expand metadata index API with additional entity types and enhance index statistics documentation
+- update metadata index API to include entity-specific routes
+- update settings openapi specs
+- update Makefile and tests.mk to include new test commands and benchmarks
+- update swagger for RelatedParty and RegulatoryFields
+- enhance metadata index deletion endpoint description to specify required entity_name query parameter
+- update InitServersWithOptions documentation to clarify usage of UnifiedMode for balance operations
+- update API documentation to include authorization token requirements for various endpoints
+- add status check for component conversion in sync-postman.sh to improve error handling
+- enhance error handling for JSON parsing in test scripts and update idempotency key generation logic
+- remove redundant Authorization header from API documentation and update to include Bearer token support
+- add BearerAuth security annotations to multiple API endpoints in CRM
+- add BearerAuth security annotations to API endpoints
+- updates openapi and swagger
+- add support for X-Organization-Id parameter in request headers
+- update swagger annotations
+- add bearer token authentication support
+- minor fixes
+- generate Swagger documentation for onboarding and transaction components with updated Makefile commands
+- enhance validateDates function documentation
+- update project structure documentation to remove 'tools' directory and add 'mgrpc' and 'tests' directories
+
+### 🧪 Testing
+- update health check timeout tests to handle negative and zero duration cases
+- enhance unit tests for DeleteRelatedPartyByID function to cover repository error scenarios
+- add unit tests for MultiQueueConsumer
+- add unit tests for envFallback and envFallbackInt functions in onboarding and transaction bootstrap packages
+- add integration tests for MongoDB metadata repository functionality
+- add integration tests for transaction and transaction route repositories
+- add unit tests for DeleteRelatedPartyByID function in the services package
+- update StartDate field in alias integration test to use mmodel.Date
+- refactor alias tests to use mmodel.Date for ClosingDate and update related test cases
+- add tests for balance update functionality and enhance command tests for Redis overlay
+- update mocks
+- add test case for handling null value in Date UnmarshalJSON
+- add validation tests for related party fields in alias handler
+- enhance error validation in CreateMetadataIndex unit tests
+- add integration tests for CreateIndex and DeleteIndex functionality in MetadataRepository
+- update metadata index
+- add comprehensive unit tests for metadata index handler and adapter functionality
+- add unit tests for mongo parameters extraction
+- add integration tests for MongoDB and PostgreSQL repositories, enhancing coverage for holder and holder link functionalities
+- add integration tests for balance synchronization and TTL behavior
+- rename test functions for consistency in naming convention
+- rename chaos test functions to follow new naming convention with TestIntegration_Chaos_ prefix
+- add benchmarks for transaction operations and validations
+- enable parallel execution for all test cases to improve performance
+- implement integration tests
+- implement chaos testing for MongoDB and enhance integration tests with new infrastructure
+- add integration tests for PostgreSQL transaction repository
+- add waitForOperations function to enhance transaction integration tests
+- add integration tests for Asset, Portfolio, and Segment repositories
+- add integration tests for AccountType repository
+- add fuzz tests
+- enhance and refactor integration tests for transactions
+- add integration tests for asset and account creation, including validation for existing and deleted assets
+- add comprehensive unit tests for PostgreSQL transaction model, covering entity conversion, status checks, and transaction handling scenarios
+- refactor and enhance unit tests for SendBTOExecuteAsync and TransactionExecute with improved data setup and fallback scenarios
+- refactor and expand unit tests for CreateBalance with improved setup and additional scenarios
+- refactor and enhance unit tests for UpdateOperation with comprehensive scenarios and error handling
+- refactor and expand unit tests for GetAllMetadataTransactionRoutes with improved error handling and metadata filtering
+- add unit tests for MongoDBModel entity conversion and round-trip validation
+- add unit tests
+- add unit tests for MongoDB model alias handling with various scenarios
+- add unit tests for GetUUIDFromLocals function and SafeTimePtr utility
+- add error handling tests for CreateMetadataIndex and DeleteMetadataIndex endpoints
+- add integration tests for transaction handler's commit and revert behavior on pending and non-pending transactions
+- add integration test for pending transaction lifecycle with creation and commit phases
+- add integration tests for transaction handler with synchronous and asynchronous transaction creation
+- add integration test for N:N transactions rollback behavior in Redis
+- add unit tests for mongodb models
+- enhance unit tests for GetAllAssetRatesByAssetCode with metadata handling and error scenarios
+- add unit tests for update transaction fields
+- add unit tests for balance model
+- add unit tests for TransactionRoute PostgreSQL model with various scenarios
+- add unit tests for PostgreSQL models
+- add unit tests for organization model
+- remove redundant metadata validation integration tests
+- improve unit tests for CreateTransaction with comprehensive scenarios and mock setups
+- enhance unit tests for portfolio and segment handlers with additional field validations
+- expand unit tests for GetAllOperationsByAccount with metadata handling and error scenarios
+- enhance unit tests for operation and balance
+- add integration tests for account and ledger counting, pagination, and consistency
+- implement unit tests for CreateOrUpdateAssetRate
+- add unit tests for AddHolderLinkToAlias
+- add integration tests for filtering stale balances in UpdateBalance functionality
+- enhance unit tests for get transaction by id
+- add unit tests for filtering stale balances in UpdateBalance functionality
+- add unit test for unknown operation handling in OperateBalances function
+- refactor balance integration tests to use shared helper for large precision balances and add optimistic locking tests
+- add unit tests for GetAccountTypeByID method
+- add unit tests for GetOperationByID method, covering success, error scenarios, and metadata handling
+- add tests for handlers
+- add unit tests for TransactionHandler's GetTransaction method, covering success and error scenarios
+- add tests for organization handler
+- add tests for balance handler methods
+- add unit tests for oversized field validation in HTTP requests
+- add unit tests for error handling in HTTP responses
+- add comprehensive integration tests for organization repo
+- refactor and enhance unit tests for JSON unmarshalling and field validation, consolidating multiple test cases into structured table-driven tests
+- add unit tests for metadata validation including key length, value length, nested values, and combined scenarios
+- add PostgreSQL integration tests for Ledger and Organization repositories with ListByIDs functionality
+- add integration test for AccountRepository pagination to ensure no duplicate accounts across pages
+- add MongoDB integration tests for MetadataMongoDBRepository with create, find, update, and delete operations
+- update import paths for test utilities and add MongoDB, PostgreSQL, and Redis integration test utilities
+- moved integration test for accounts alias filtering
+- add integration tests for BalanceRepository to validate date range filtering and pagination functionality
+- add integration tests for BalanceRepository to validate large precision handling and empty alias scenarios
+- enhance PostgreSQL integration tests for BalanceRepository with additional scenarios and validations
+- add PostgreSQL integration tests for BalanceRepository functionality
+- refactor GetBalanceByID tests to use table-driven approach
+- remove deprecated integration test for GetByID functionality in organization ledger accounts
+- add PostgreSQL integration tests for AccountRepository functionality
+- refactor Redis integration tests to utilize new test utilities
+- add PostgreSQL and Redis integration test utilities
+- remove tests/property dir - tests moved closer to code
+- remove duplicate TestProperty_BalanceConsistency_API
+- add property test for balance operations sum invariant and enhance existing tests
+- remove tautological nonnegative_test.go
+- enhance Redis consumer integration tests for balance operations
+- remove tautological conservation_test.go
+- update StubService to implement onboarding.OnboardingService and add GetRouteRegistrar method for route registration
+- add unit tests for onboarding and transaction service initialization error handling
+- add unit tests for service composition and runnable retrieval in bootstrap package
+- add tests for service initialization and error handling with containerized dependencies
+- rename integration tests for Redis balance synchronization functionality
+- add integration tests for Redis balance synchronization
+- enhance balance transaction tests with mock RedisRepo for stale balance checks
+- update transaction tests to use pkgTransaction and improve structure
+- add comprehensive validation tests utils pkg
+- replace grpcout with mbootstrap in account and asset test files
+- add comprehensive unit tests for metadata index creation, deletion, and retrieval
+- enhance TestValidateDates_BothZero
+- add comprehensive tests for ValidateParameters and related functions in httputils
+- Enhance DeleteAccountByID tests with BalanceGRPCRepo mocks for balance retrieval and deletion
+
+### 💄 Style
+- linting
+- add missing newline
+- reorganize transaction and onboarding module initialization logs
+- add spacing for improved readability in bootstrap configuration files
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- update indirect dependencies for golang.org/x/mod and golang.org/x/text to v0.32.0 and v0.33.0 respectively
+- update version to v3.5.0 in onboarding and transaction environment files
+- Update CHANGELOG
+- update lib-commons dependency to v2.6.2
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- remove console option from pull request template
+- Update CHANGELOG
+- update pull request template to include Pipeline and Ledger checkboxes
+- update indirect dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- update preact to version 10.28.2
+- Update CHANGELOG
+- Update CHANGELOG
+- add MONGO_PARAMETERS to .env.example for configuration clarity
+- update crm version
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod
+- add chaos testing framework
+- remove deprecated API testing commands and update integration tests for transaction handling
+- add resource limit configuration for test containers
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- enhance test suite for Go unit and integration tests with coverage reporting
+- Update CHANGELOG
+- Update CHANGELOG
+- update docs
+- Update CHANGELOG
+- Update CHANGELOG
+- remove unnecessary newline in Dockerfile
+- update lib-commons dependency
+- Update CHANGELOG
+- trigger release to ledger component
+- Update CHANGELOG
+- update Swagger version to v3.5.0 in documentation files
+- update version to v3.5.0 and enhance merge-swagger script to read version from .env
+- remove exposed ports for onboarding and transaction servers from Dockerfile
+- Update CHANGELOG
+- Update CHANGELOG
+- update Dockerfile to use TARGETOS and TARGETARCH for multi-arch builds
+- update Go toolchain version to 1.25.5
+- enhance Makefile to include linting for Go files in LEDGER_DIR
+- update Makefile and tests.mk to enhance test commands and coverage reporting
+- add lint ignore comments to legacy migration files
+- add testcontainers-go dependency for integration testing
+- update nextjs package dependency
+- update Makefile to create both BIN_DIR and ARTIFACTS_DIR during build
+- remove deprecated lib-commons v2.6.0-beta.4 references from go.sum
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons dependency to v2.6.0 and refactor validation calls to use utils package
+- Update CHANGELOG
+- update OpenTelemetry and related dependencies to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- bump github.com/redis/go-redis/v9 from 9.17.0 to 9.17.2
+- Update CHANGELOG
+- Update CHANGELOG
+- update .env.example for CRM component
+- update .env.example for CRM component configuration and enhance Makefile to generate LCRYPTO_ENCRYPT_SECRET_KEY
+- Update CHANGELOG
+- Update CHANGELOG
+- integrate CRM component into build and workflow configurations
+- add CRM checklist item to pull request template
+- Update CHANGELOG
+- update console dependencies
+- Update CHANGELOG
+- Update CHANGELOG
+- update lib-commons to v2.6.0-beta.4
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update dependencies in go.mod and go.sum to latest versions
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update indirect dependencies to fix vulnerabilities
+- update package dependencies and versions
+- Revert "chore(console): update dependencies"
+
+This reverts commit 88da1dee4c823098d4c6ea66fbf0942a66d9ae30.
+- update dependencies
+- override glob dependency to address vulnerability
+- update glob dependency
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Exclude generated files from Gosec scanner arguments in workflow configuration
+- remove GoReleaser setup steps from release workflow
+- remove 'chocolatey' directory from project structure documentation
+- update env-vars-pr-notification workflow to exclude 'mdz' from .env.example file checks
+- Update CHANGELOG
+- Update CHANGELOG
+- remove mdz cli resources and related dependencies
+
 
 ## [v3.5.0-beta.43] - 2026-01-12
 
@@ -3669,7 +4624,7 @@ This release focuses on enhancing user experience with improved error messaging,
 
 This update consolidates improvements and bug fixes, enhancing the overall reliability and user experience of the software. Users are encouraged to upgrade to benefit from these enhancements.
 
-## [v3.5.0-beta.45] - 2026-01-12
+## [v3.5.0-rc.1] - 2026-01-12
 
 ### ✨ Features
 - Implement comprehensive security hardening and UX improvements (#929)
