@@ -1,4 +1,5 @@
 # Release pipeline with semantic versioning and changelog generation
+
 name: "Release Pipeline"
 
 on:
