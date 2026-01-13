@@ -1,6 +1,6 @@
 # Build workflow for Midaz Docker images
 
-# Shared workflows version: tracking
+# Shared workflows version: v1.7.0
 name: "Build midaz images"
 
 on:
