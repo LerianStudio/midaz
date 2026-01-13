@@ -1,5 +1,6 @@
 # Release pipeline with semantic versioning and changelog generation
 
+# GPT Changelog: main branch
 name: "Release Pipeline"
 
 on:
