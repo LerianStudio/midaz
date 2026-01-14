@@ -12,8 +12,8 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -195,7 +195,6 @@ type Config struct {
 	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
 	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
 	TenantCacheTTL     string `env:"TENANT_CACHE_TTL" default:"24h"`
-	TenantClaimKey     string `env:"TENANT_CLAIM_KEY" default:"tenantId"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -475,7 +474,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			ApplicationName: ApplicationName,
 			PoolManagerURL:  cfg.PoolManagerURL,
 			CacheTTL:        cacheTTL,
-			TenantClaimKey:  cfg.TenantClaimKey,
 		}
 
 		resolver = poolmanager.NewResolver(cfg.PoolManagerURL, poolmanager.WithCacheTTL(cacheTTL))
@@ -514,12 +512,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Infof("Multi-tenant mode enabled with Pool Manager URL: %s", cfg.PoolManagerURL)
 	}
 
-	// AdminHandler works with or without multi-tenant enabled (nil resolver is handled)
-	adminHandler := &in.AdminHandler{
-		Resolver: resolver,
-	}
-
-	app := in.NewRouter(logger, telemetry, auth, tenantsMiddleware, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, adminHandler)
+	app := in.NewRouter(logger, telemetry, auth, tenantsMiddleware, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
