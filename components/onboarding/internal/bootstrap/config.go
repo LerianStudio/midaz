@@ -158,9 +158,8 @@ type Config struct {
 
 	// Multi-Tenant Configuration
 	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	PoolManagerURL string `env:"POOL_MANAGER_URL"`
+	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
 	TenantCacheTTL     string `env:"TENANT_CACHE_TTL" default:"24h"`
-	TenantClaimKey     string `env:"TENANT_CLAIM_KEY" default:"tenantId"`
 }
 
 // Options contains optional dependencies that can be injected when running
@@ -456,7 +455,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			ApplicationName: ApplicationName,
 			PoolManagerURL:  cfg.PoolManagerURL,
 			CacheTTL:        cacheTTL,
-			TenantClaimKey:  cfg.TenantClaimKey,
 		}
 
 		resolver = poolmanager.NewResolver(cfg.PoolManagerURL, poolmanager.WithCacheTTL(cacheTTL))
@@ -495,12 +493,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Infof("Multi-tenant mode enabled with Pool Manager URL: %s", cfg.PoolManagerURL)
 	}
 
-	// AdminHandler works with or without multi-tenant enabled (nil resolver is handled)
-	adminHandler := &httpin.AdminHandler{
-		Resolver: resolver,
-	}
-
-	httpApp := httpin.NewRouter(logger, telemetry, auth, tenantsMiddleware, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, adminHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, auth, tenantsMiddleware, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

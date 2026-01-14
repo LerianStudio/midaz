@@ -9,6 +9,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -64,6 +65,11 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	headers := amqp.Table{
 		libConstants.HeaderID: reqId,
+	}
+
+	// Inject tenant ID if available in context (multi-tenant mode)
+	if tenantID := poolmanager.GetTenantID(ctx); tenantID != "" {
+		headers["X-Tenant-ID"] = tenantID
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
