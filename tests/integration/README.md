@@ -138,7 +138,7 @@ Test JWTs include the following claims for tenant identification:
 }
 ```
 
-The tenant ID is extracted from the JWT using the claim key configured via `TENANT_CLAIM_KEY` (default: "tenantId").
+The tenant ID is extracted from the JWT using the hardcoded claim key "tenantId".
 
 ### Expected Behavior
 
@@ -166,4 +166,4 @@ The tenant ID is extracted from the JWT using the claim key configured via `TENA
 
 3. **JWT validation errors**
    - Check that the auth service accepts test tokens
-   - Verify `TENANT_CLAIM_KEY` matches your JWT structure
+   - Verify JWT contains the "tenantId" claim

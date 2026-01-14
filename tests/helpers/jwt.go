@@ -23,13 +23,11 @@ func init() {
 }
 
 // TenantClaims represents JWT claims with tenant context.
-// The "tenantId" claim is used by default as the tenant identifier
-// (configurable via TENANT_CLAIM_KEY env var, default: "tenantId").
+// The "tenantId" claim is used as the tenant identifier (hardcoded).
 type TenantClaims struct {
 	jwt.RegisteredClaims
 
 	// Owner is the tenant ID (organization name from Casdoor)
-	// This is the default claim key used by TENANT_CLAIM_KEY
 	Owner string `json:"owner,omitempty"`
 
 	// TenantID is an alternative claim key for tenant identification
@@ -52,7 +50,7 @@ type TenantClaims struct {
 }
 
 // GenerateTestJWT creates a JWT token with the specified tenant context.
-// The token includes the tenant ID in the "tenantId" claim (default TENANT_CLAIM_KEY).
+// The token includes the tenant ID in the "tenantId" claim (hardcoded claim key).
 // This is suitable for testing multi-tenant scenarios.
 //
 // Parameters:

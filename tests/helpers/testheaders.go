@@ -22,7 +22,7 @@ func AuthHeaders(requestID string) map[string]string {
 
 // TenantAuthHeaders returns headers with tenant context for multi-tenant tests.
 // It generates a JWT with the specified tenant ID embedded in the claims.
-// The tenant claim key defaults to "tenantId" to match the default TENANT_CLAIM_KEY.
+// The tenant claim key is hardcoded as "tenantId".
 // If tenantID is empty, standard auth headers without tenant context are returned.
 func TenantAuthHeaders(requestID, tenantID string) map[string]string {
 	hdr := map[string]string{
