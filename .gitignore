@@ -41,3 +41,4 @@ postman/backups
 .windsurfrules
 cert/
 .mcp.json
+.ring/*
