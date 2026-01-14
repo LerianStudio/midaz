@@ -41,6 +41,7 @@ postman/backups
 .windsurfrules
 cert/
 .mcp.json
+.ring/*
 
 # Security scan reports
 *.sarif
