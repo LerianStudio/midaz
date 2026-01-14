@@ -1,3 +1,29 @@
+## [v3.5.1-beta.1] - 2026-01-14
+
+### 📚 Documentation
+- add workflow description to build.yml
+- add gptchangelog version tracking
+- add version tracking to security scan workflow
+- update version tracking to v1.7.0
+- add version tracking note to build workflow
+
+### 💄 Style
+- ensure trailing newline in build.yml
+- improve release.yml formatting
+- improve pr-security-scan.yml formatting
+- improve build.yml formatting
+
+### 🔧 Maintenance
+- update gptchangelog from develop to main
+- add header comment to release workflow
+- update shared-workflows to v1.7.0 in pr-security-scan.yml
+- update shared-workflows to v1.7.0 in build.yml
+- add header comment to security scan workflow
+- add header comment to build workflow
+- Update CHANGELOG
+- Update CHANGELOG
+
+
 ## [v3.5.0-beta.44] - 2026-01-12
 
 ### 🔄 Changes
