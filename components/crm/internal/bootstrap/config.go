@@ -67,7 +67,7 @@ func InitServers() *Service {
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if mongoParameters != "" {
