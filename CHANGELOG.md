@@ -1,3 +1,12 @@
+## [v3.5.1-beta.1] - 2026-01-15
+
+### 🐛 Bug Fixes
+- correct MongoDB connection string format by adding trailing slash
+
+### 🔧 Maintenance
+- enable balance sync worker in .env.example
+
+
 ## [v3.5.0-beta.44] - 2026-01-12
 
 ### 🔄 Changes
@@ -10,7 +19,7 @@
 - update GitHub workflows to include Ledger component in env file checks and security scans
 - Update CHANGELOG
 
-## [v3.5.0] - 2026-01-12
+## [v3.5.1-beta.2] - 2026-01-15
 
 ### ✨ Features
 - add ClosingDate field to BankingDetails and update related services for alias management
