@@ -1,10 +1,7 @@
 # Security scanning workflow for pull requests
-
 # Shared workflows version: v1.7.0
-name: "PR Security Scan"
 
-# This workflow runs security scans on pull requests
-# targeting develop, release-candidate, and main branches
+name: "PR Security Scan"
 
 on:
   pull_request:
@@ -16,6 +13,17 @@ on:
       - opened
       - synchronize
       - reopened
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'LICENSE'
+      - 'CODEOWNERS'
+      - '.gitignore'
+      - '.editorconfig'
+      - '*.png'
+      - '*.jpg'
+      - '*.svg'
 
 jobs:
   security-scan:
