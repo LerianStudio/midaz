@@ -13,6 +13,8 @@ on:
       - opened
       - synchronize
       - reopened
+    # Ignore non-application files - security scan focuses on application code
+    # via filter_paths. Workflow files are reviewed manually.
     paths-ignore:
       - '**.md'
       - 'docs/**'
