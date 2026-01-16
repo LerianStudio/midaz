@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   validate:
@@ -56,3 +57,4 @@ jobs:
       min_description_length: 50
       check_changelog: true
       enable_auto_labeler: false
+    secrets: inherit
