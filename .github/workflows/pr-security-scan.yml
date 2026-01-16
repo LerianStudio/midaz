@@ -37,4 +37,6 @@ jobs:
         components/ledger
       path_level: "2"
       dockerhub_org: "lerianstudio"
-    secrets: inherit
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
