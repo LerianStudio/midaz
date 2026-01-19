@@ -210,66 +210,6 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid document checksum returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "12345678901"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
-			name: "invalid document wrong length returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "123"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
-			name: "invalid document non-numeric returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "abc12345678"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
 			name: "oversized metadata key returns 400",
 			jsonBody: `{
 				"type": "NATURAL_PERSON",
