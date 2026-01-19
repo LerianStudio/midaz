@@ -1,3 +1,16 @@
+## [v3.5.1] - 2026-01-19
+
+### 🐛 Bug Fixes
+- remove CPF and CNPJ validation functions and related tests
+- remove cpf and cnpj document validation in holder creation
+- update version to v3.5.1 in environment configuration files
+- replace MongoDB connection string construction with centralized utility function
+- add BuildMongoConnectionString function and related tests
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v3.5.0] - 2026-01-12
 
 ### ✨ Features
