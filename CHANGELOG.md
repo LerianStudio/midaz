@@ -1,25 +1,17 @@
-## [v3.5.1-beta.1] - 2026-01-15
+## [v3.5.1] - 2026-01-19
 
 ### 🐛 Bug Fixes
-- correct MongoDB connection string format by adding trailing slash
+- remove CPF and CNPJ validation functions and related tests
+- remove cpf and cnpj document validation in holder creation
+- update version to v3.5.1 in environment configuration files
+- replace MongoDB connection string construction with centralized utility function
+- add BuildMongoConnectionString function and related tests
 
 ### 🔧 Maintenance
-- enable balance sync worker in .env.example
-
-
-## [v3.5.0-beta.44] - 2026-01-12
-
-### 🔄 Changes
-- makefile commands
-
-### 📚 Documentation
-- update project structure in STRUCTURE.md to reflect new directory organization
-
-### 🔧 Maintenance
-- update GitHub workflows to include Ledger component in env file checks and security scans
 - Update CHANGELOG
 
-## [v3.5.1-beta.2] - 2026-01-15
+
+## [v3.5.0] - 2026-01-12
 
 ### ✨ Features
 - add ClosingDate field to BankingDetails and update related services for alias management

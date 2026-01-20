@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -45,4 +46,43 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 	}
 
 	return actualPort, parameters
+}
+
+// BuildMongoConnectionString constructs a properly formatted MongoDB connection string.
+// It ensures the correct format: scheme://user:password@host:port/?parameters
+//
+// The trailing slash before the query string is required by the MongoDB URI specification
+// when no database name is provided. This function centralizes connection string building
+// to prevent formatting bugs across components.
+//
+// Parameters:
+//   - uri: The MongoDB scheme (e.g., "mongodb", "mongodb+srv")
+//   - user: The username for authentication
+//   - password: The password for authentication
+//   - host: The MongoDB host address
+//   - port: The MongoDB port number
+//   - parameters: Optional query parameters (e.g., "replicaSet=rs0&authSource=admin")
+//   - logger: Optional logger for debugging connection string construction (sensitive data is masked)
+//
+// Returns the complete connection string ready for use with MongoDB drivers.
+func BuildMongoConnectionString(uri, user, password, host, port, parameters string, logger libLog.Logger) string {
+	// Build base connection string with trailing slash (required before query params)
+	connectionString := fmt.Sprintf("%s://%s:%s@%s:%s/", uri, user, password, host, port)
+
+	// Append parameters if present
+	if parameters != "" {
+		connectionString += "?" + parameters
+	}
+
+	// Log connection string for debugging (mask all credentials)
+	if logger != nil {
+		maskedConnStr := fmt.Sprintf("%s://<credentials>@%s:%s/", uri, host, port)
+		if parameters != "" {
+			maskedConnStr += "?" + parameters
+		}
+
+		logger.Debugf("MongoDB connection string built: %s", maskedConnStr)
+	}
+
+	return connectionString
 }
