@@ -10328,3 +10328,6 @@ BREAKING
 * remove wrong rule :bug: ([b732416](https://github.com/LerianStudio/midaz/v3/commit/b732416c1e69094c1fa2526159f39e0eaee0cc1f))
 * semantic-release ([138e1cc](https://github.com/LerianStudio/midaz/v3/commit/138e1cca68d5b250222001645e608aef8b2c7b77))
 * Update merge-back.yml ([5c90141](https://github.com/LerianStudio/midaz/v3/commit/5c901412f9daff57e16013e38a8fbc1ac93222c2))
+
+## Test Entry
+- Test GPT changelog generation 2026-01-19
