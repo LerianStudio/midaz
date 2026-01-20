@@ -263,17 +263,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
+	// Build MongoDB connection string using centralized utility (ensures correct format)
+	mongoSource := utils.BuildMongoConnectionString(
+		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
 	// Safe conversion: use uint64 with default, only assign if positive
 	var mongoMaxPoolSize uint64 = 100
 	if mongoPoolSize > 0 {
 		mongoMaxPoolSize = uint64(mongoPoolSize)
-	}
-
-	if mongoParameters != "" {
-		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{

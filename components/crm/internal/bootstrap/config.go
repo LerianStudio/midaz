@@ -1,8 +1,6 @@
 package bootstrap
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
@@ -67,12 +65,9 @@ func InitServers() *Service {
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
-
-	if mongoParameters != "" {
-		mongoSource += "?" + mongoParameters
-	}
+	// Build MongoDB connection string using centralized utility (ensures correct format)
+	mongoSource := utils.BuildMongoConnectionString(
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort, mongoParameters, logger)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
