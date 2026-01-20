@@ -57,12 +57,17 @@ func envFallbackInt(prefixed, fallback int) int {
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
 func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
-	source := fmt.Sprintf("%s://%s:%s@%s:%s", uri, user, pass, host, port)
+	u := &url.URL{
+		Scheme: uri,
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+	}
 	if vhost != "" {
-		source = fmt.Sprintf("%s/%s", source, url.PathEscape(vhost))
+		u.RawPath = "/" + url.PathEscape(vhost)
+		u.Path = "/" + vhost
 	}
 
-	return source
+	return u.String()
 }
 
 // Config is the top level configuration struct for the entire application.
