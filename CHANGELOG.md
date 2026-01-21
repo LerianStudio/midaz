@@ -1,3 +1,15 @@
+## [v3.5.2-beta.1] - 2026-01-21
+
+### 🧪 Testing
+- enhance unit tests for RabbitMQ connection string builder to cover additional special character scenarios
+- add unit tests for RabbitMQ connection string builder and update main.go for clarity
+
+### 🔧 Maintenance
+- add RabbitMQ virtual host configuration to ledger .env.example
+- update dependencies in go.mod and go.sum, add RabbitMQ vhost configuration to .env.example files
+- Update CHANGELOG
+
+
 ## [v3.5.1-beta.3] - 2026-01-20
 
 ### 🐛 Bug Fixes
@@ -25,7 +37,7 @@
 - Update CHANGELOG
 
 
-## [v3.5.0] - 2026-01-12
+## [v3.5.2-beta.2] - 2026-01-21
 
 ### ✨ Features
 - add ClosingDate field to BankingDetails and update related services for alias management
