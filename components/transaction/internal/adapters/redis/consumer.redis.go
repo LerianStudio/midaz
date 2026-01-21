@@ -301,7 +301,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		return balances, nil
 	}
 
-	blcsRedis, err := rr.executeBalanceScript(ctx, rds, tracer, organizationID, ledgerID, transactionID, args, logger)
+	blcsRedis, err := rr.executeBalanceScript(ctx, rds, tracer, organizationID, ledgerID, transactionID, transactionStatus, args, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -370,13 +370,15 @@ func (rr *RedisConsumerRepository) buildBalanceOperationArgs(balancesOperation [
 }
 
 // executeBalanceScript executes the Lua script for balance operations
-func (rr *RedisConsumerRepository) executeBalanceScript(ctx context.Context, rds redis.UniversalClient, tracer trace.Tracer, organizationID, ledgerID, transactionID uuid.UUID, args []any, logger libLog.Logger) ([]mmodel.BalanceRedis, error) {
+func (rr *RedisConsumerRepository) executeBalanceScript(ctx context.Context, rds redis.UniversalClient, tracer trace.Tracer, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, args []any, logger libLog.Logger) ([]mmodel.BalanceRedis, error) {
 	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
 	defer spanScript.End()
 
 	script := redis.NewScript(addSubLua)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	idempKey := fmt.Sprintf("idemp:{transactions}:%s:%s:%s", organizationID, ledgerID, transactionID)
+	// Include transaction status in idempotency key to distinguish between different operations
+	// on the same transaction (e.g., PENDING creation vs CANCELED/APPROVED commit/cancel)
+	idempKey := fmt.Sprintf("idemp:{transactions}:%s:%s:%s:%s", organizationID, ledgerID, transactionID, transactionStatus)
 
 	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey, idempKey}, args).Result()
 	if err != nil {
