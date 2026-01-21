@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -63,10 +63,10 @@ func InitServers() *Service {
 
 	// Mongo DB
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := utils.BuildMongoConnectionString(
+	mongoSource := pkgMongo.BuildMongoConnectionString(
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort, mongoParameters, logger)
 
 	if cfg.MaxPoolSize <= 0 {
