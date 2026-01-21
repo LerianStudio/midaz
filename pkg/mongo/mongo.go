@@ -88,22 +88,26 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 		embeddedParams := port[idx+1:]
 
 		if parameters != "" {
-			logger.Warnf(
-				"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected but ignored "+
-					"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
-					"Sanitized port=%s, ignored embedded=%s, using explicit=%s",
-				actualPort, embeddedParams, parameters,
-			)
+			if logger != nil {
+				logger.Warnf(
+					"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected but ignored "+
+						"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
+						"Sanitized port=%s, ignored embedded=%s, using explicit=%s",
+					actualPort, embeddedParams, parameters,
+				)
+			}
 
 			return actualPort, parameters
 		}
 
-		logger.Warnf(
-			"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected. "+
-				"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
-				"Extracted port=%s, parameters=%s",
-			actualPort, embeddedParams,
-		)
+		if logger != nil {
+			logger.Warnf(
+				"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected. "+
+					"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
+					"Extracted port=%s, parameters=%s",
+				actualPort, embeddedParams,
+			)
+		}
 
 		return actualPort, embeddedParams
 	}

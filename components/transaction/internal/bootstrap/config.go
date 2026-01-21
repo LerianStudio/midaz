@@ -28,7 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -261,10 +261,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := utils.BuildMongoConnectionString(
+	mongoSource := pkgMongo.BuildMongoConnectionString(
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
 	// Safe conversion: use uint64 with default, only assign if positive
