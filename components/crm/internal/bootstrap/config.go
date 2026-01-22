@@ -48,10 +48,13 @@ func InitServers() *Service {
 		panic(err)
 	}
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		panic(err)
+	}
 
 	// Init Open telemetry to control logs and flows
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -60,6 +63,9 @@ func InitServers() *Service {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// Mongo DB
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
@@ -86,7 +92,7 @@ func InitServers() *Service {
 		Logger:           logger,
 	}
 
-	err := dataSecurity.InitializeCipher()
+	err = dataSecurity.InitializeCipher()
 	if err != nil {
 		panic(err)
 	}

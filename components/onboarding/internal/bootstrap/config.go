@@ -193,10 +193,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if opts != nil && opts.Logger != nil {
 		logger = opts.Logger
 	} else {
-		logger = libZap.InitializeLogger()
+		var err error
+
+		logger, err = libZap.InitializeLoggerWithError()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -205,6 +210,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)

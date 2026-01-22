@@ -21,7 +21,10 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		os.Exit(1)
+	}
 
 	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger: logger,
