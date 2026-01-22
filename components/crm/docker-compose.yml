@@ -3,8 +3,8 @@ services:
     container_name: midaz-crm
     restart: always
     build:
-      context: ../../
-      dockerfile: ./components/crm/Dockerfile
+      context: ../../../
+      dockerfile: ./midaz/components/crm/Dockerfile
     env_file:
       - .env
     ports:

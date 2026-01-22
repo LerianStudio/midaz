@@ -42,6 +42,7 @@ postman/backups
 cert/
 .mcp.json
 .ring/*
+go.work
 
 # Security scan reports
 *.sarif

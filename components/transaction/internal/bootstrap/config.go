@@ -12,7 +12,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
@@ -185,16 +184,11 @@ type Config struct {
 	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
 	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
-	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
-
-	// Multi-Tenant Configuration
-	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
-	TenantCacheTTL     string `env:"TENANT_CACHE_TTL" default:"24h"`
+	AuthEnabled              bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                 string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress             string `env:"PROTO_ADDRESS"`
+	BalanceSyncWorkerEnabled bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
+	BalanceSyncMaxWorkers    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -459,60 +453,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	// Initialize multi-tenant middleware and resolver (optional, disabled by default)
-	var tenantsMiddleware poolmanager.Middleware
-	var resolver poolmanager.Resolver
-
-	if cfg.MultiTenantEnabled {
-		cacheTTL, err := time.ParseDuration(cfg.TenantCacheTTL)
-		if err != nil || cacheTTL == 0 {
-			cacheTTL = 24 * time.Hour
-		}
-
-		tenantConfig := &poolmanager.Config{
-			Enabled:         true,
-			ApplicationName: ApplicationName,
-			PoolManagerURL:  cfg.PoolManagerURL,
-			CacheTTL:        cacheTTL,
-		}
-
-		resolver = poolmanager.NewResolver(cfg.PoolManagerURL, poolmanager.WithCacheTTL(cacheTTL))
-
-		// Create PostgreSQL Pool Manager for multi-tenant connections
-		pgPoolMgr := poolmanager.NewPostgresPoolManager(
-			resolver,
-			poolmanager.WithDefaultConnection(postgresConnection),
-			poolmanager.WithMaxPools(100),
-			poolmanager.WithIdleTimeout(30*time.Minute),
-			poolmanager.WithLogger(logger),
-		)
-
-		// Create MongoDB Pool Manager for multi-tenant connections
-		mongoPoolMgr := poolmanager.NewMongoPoolManager(
-			resolver,
-			poolmanager.WithMongoDefaultConnection(mongoConnection),
-			poolmanager.WithMongoMaxClients(100),
-			poolmanager.WithMongoIdleTimeout(30*time.Minute),
-			poolmanager.WithMongoLogger(logger),
-		)
-
-		// Create middleware WITH pool managers to enable tenant-specific database connections
-		tenantsMiddleware = poolmanager.NewMiddleware(
-			tenantConfig,
-			resolver,
-			poolmanager.WithPostgresPoolManager(pgPoolMgr),
-			poolmanager.WithMongoPoolManager(mongoPoolMgr),
-			poolmanager.WithMiddlewareLogger(logger),
-		)
-
-		if tenantsMiddleware == nil {
-			logger.Fatal("Failed to initialize tenants middleware")
-		}
-
-		logger.Infof("Multi-tenant mode enabled with Pool Manager URL: %s", cfg.PoolManagerURL)
-	}
-
-	app := in.NewRouter(logger, telemetry, auth, tenantsMiddleware, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

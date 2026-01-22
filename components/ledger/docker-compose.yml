@@ -3,8 +3,8 @@ services:
     container_name: midaz-ledger
     restart: always
     build:
-      context: ../../
-      dockerfile: ./components/ledger/Dockerfile
+      context: ../../../
+      dockerfile: ./midaz/components/ledger/Dockerfile
     env_file:
       - .env
     ports:
@@ -14,6 +14,7 @@ services:
     networks:
       - infra-network
       - ledger-network
+      - pool-manager-network
 
 networks:
   infra-network:
@@ -23,3 +24,5 @@ networks:
   ledger-network:
     name: ledger-network
     driver: bridge
+  pool-manager-network:
+    external: true

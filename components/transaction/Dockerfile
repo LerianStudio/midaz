@@ -2,10 +2,23 @@ FROM --platform=$BUILDPLATFORM golang:1.25.6-alpine AS builder
 
 WORKDIR /transaction-app
 
-COPY go.mod go.sum ./
+# Copy local dependencies from parent context
+COPY lib-commons /lib-commons
+COPY lib-auth /lib-auth
+
+# Copy Go module files
+COPY midaz/go.mod midaz/go.sum ./
+
+# Create symlinks so ../lib-commons and ../lib-auth work
+RUN ln -s /lib-commons ../lib-commons && ln -s /lib-auth ../lib-auth
+
 RUN go mod download
 
-COPY . .
+# Copy application source code
+COPY midaz/ .
+
+# Remove go.work if present (local dev only)
+RUN rm -f go.work go.work.sum
 
 ARG TARGETOS
 ARG TARGETARCH
