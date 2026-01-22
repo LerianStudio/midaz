@@ -484,7 +484,7 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			host:       "cluster.mongodb.net",
 			port:       "27017",
 			parameters: "retryWrites=true&w=majority",
-			expected:   "mongodb+srv://user:pass@cluster.mongodb.net:27017/?retryWrites=true&w=majority",
+			expected:   "mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true&w=majority",
 		},
 		{
 			name:       "special_characters_in_password",
@@ -514,7 +514,7 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			host:       "localhost",
 			port:       "27017",
 			parameters: "",
-			expected:   "mongodb://:@localhost:27017/",
+			expected:   "mongodb://localhost:27017/",
 		},
 		{
 			name:       "special_characters_in_username",

@@ -1,7 +1,6 @@
 package mongo
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -134,16 +133,42 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 //
 // Returns the complete connection string ready for use with MongoDB drivers.
 func BuildMongoConnectionString(uri, user, password, host, port, parameters string, logger libLog.Logger) string {
-	encodedUser := url.QueryEscape(user)
-	encodedPassword := url.QueryEscape(password)
-	connectionString := fmt.Sprintf("%s://%s:%s@%s:%s/", uri, encodedUser, encodedPassword, host, port)
+	connectionString := uri + "://"
 
+	// Add userinfo only when user is non-empty
+	if user != "" {
+		encodedUser := url.QueryEscape(user)
+		encodedPassword := url.QueryEscape(password)
+		connectionString += encodedUser + ":" + encodedPassword + "@"
+	}
+
+	connectionString += host
+
+	// Add port only when non-empty and not an SRV scheme
+	isSRV := strings.HasSuffix(strings.ToLower(uri), "+srv")
+	if port != "" && !isSRV {
+		connectionString += ":" + port
+	}
+
+	connectionString += "/"
+
+	// Add parameters only when non-empty
 	if parameters != "" {
 		connectionString += "?" + parameters
 	}
 
 	if logger != nil {
-		maskedConnStr := fmt.Sprintf("%s://<credentials>@%s:%s/", uri, host, port)
+		maskedConnStr := uri + "://"
+		if user != "" {
+			maskedConnStr += "<credentials>@"
+		}
+
+		maskedConnStr += host
+		if port != "" && !isSRV {
+			maskedConnStr += ":" + port
+		}
+
+		maskedConnStr += "/"
 		if parameters != "" {
 			maskedConnStr += "?" + parameters
 		}
