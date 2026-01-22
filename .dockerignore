@@ -1,0 +1,5 @@
+go.work
+go.work.sum
+.git
+.gitignore
+*.md

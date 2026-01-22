@@ -1,0 +1,144 @@
+# Multi-tenant test infrastructure
+# Use this file to provision additional Postgres and MongoDB databases for multi-tenant testing
+#
+# Usage:
+#   docker compose --env-file .env.multi-tenant -f docker-compose.multi-tenant.yml up -d
+#
+# This creates separate database instances for tenant testing alongside the main infra
+
+services:
+  midaz-mongodb-tenant:
+    container_name: midaz-mongodb-tenant
+    image: mongo:8
+    env_file:
+      - .env.multi-tenant
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: root
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_TENANT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_TENANT_PASSWORD}
+    ports:
+      - ${MONGO_TENANT_PORT}:${MONGO_TENANT_PORT}
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_TENANT_PORT}" ]
+    volumes:
+      - ./mongo/mongo-keyfile:/data/mongo-keyfile
+      - mongodb-tenant-data:/data/db
+    networks:
+      - infra-network
+
+  midaz-mongodb-tenant-init:
+    container_name: midaz-mongodb-tenant-init
+    env_file:
+      - .env.multi-tenant
+    image: mongo:8
+    depends_on:
+      - midaz-mongodb-tenant
+    environment:
+      MONGO_PORT: ${MONGO_TENANT_PORT}
+      MONGO_USER: ${MONGO_TENANT_USER}
+      MONGO_PASSWORD: ${MONGO_TENANT_PASSWORD}
+    entrypoint:
+      - bash
+      - -c
+      - |
+        sleep 10
+        echo "Initiating replica set for tenant MongoDB..."
+        mongosh --host midaz-mongodb-tenant --port $${MONGO_PORT} -u $${MONGO_USER} -p $${MONGO_PASSWORD} --authenticationDatabase admin <<EOF
+        rs.initiate({
+          _id: "rs0",
+          members: [{ _id: 0, host: "midaz-mongodb-tenant:$${MONGO_PORT}" }]
+        })
+        EOF
+        echo "Replica set initiated for tenant MongoDB"
+    networks:
+      - infra-network
+
+  midaz-postgres-tenant-primary:
+    container_name: midaz-postgres-tenant-primary
+    image: postgres:17
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_TENANT_USER} -p ${DB_TENANT_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - ${DB_TENANT_PORT}:${DB_TENANT_PORT}
+    environment:
+      PGPORT: ${DB_TENANT_PORT}
+      POSTGRES_USER: ${DB_TENANT_USER}
+      POSTGRES_PASSWORD: ${DB_TENANT_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: |
+      postgres
+      -c wal_level=logical
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby_feedback=on
+      -c max_connections=${TENANT_MAX_CONNECTIONS}
+      -c shared_buffers=${TENANT_SHARED_BUFFERS}
+    volumes:
+      - postgres-tenant-data:/var/lib/postgresql/data
+      - ./postgres/init-tenant.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - infra-network
+
+  midaz-postgres-tenant-replica:
+    container_name: midaz-postgres-tenant-replica
+    image: postgres:17
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
+    ports:
+      - ${DB_TENANT_REPLICA_PORT}:${DB_TENANT_REPLICA_PORT}
+    environment:
+      PGPORT: ${DB_TENANT_REPLICA_PORT}
+      PGUSER: ${TENANT_REPLICATION_USER}
+      PGPASSWORD: ${TENANT_REPLICATION_PASSWORD}
+    command: |
+      bash -c "
+      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-tenant-primary --port=${DB_TENANT_PORT}
+        do
+          echo 'Waiting for midaz-postgres-tenant-primary to connect...'
+          sleep 1s
+        done
+      
+        echo 'Backup done..., starting midaz-postgres-tenant-replica...'
+        chmod 0700 /var/lib/postgresql/data
+      
+        sed -i 's/^#port.*/port = ${DB_TENANT_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+        sed -i 's/^#*max_connections.*/max_connections = ${TENANT_MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf      
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${TENANT_SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf      
+      fi
+      exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
+      "
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_TENANT_USER} -p ${DB_TENANT_REPLICA_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      midaz-postgres-tenant-primary:
+        condition: service_healthy
+    volumes:
+      - postgres-tenant-replica-data:/var/lib/postgresql/data
+    networks:
+      - infra-network
+
+volumes:
+  postgres-tenant-data:
+  postgres-tenant-replica-data:
+  mongodb-tenant-data:
+
+networks:
+  infra-network:
+    name: infra-network
+    external: true
