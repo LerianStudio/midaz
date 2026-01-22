@@ -5,7 +5,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	_ "github.com/LerianStudio/midaz/v3/components/onboarding/api"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -18,7 +17,7 @@ const midazName = "midaz"
 const routingName = "routing"
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, tenantsMiddleware poolmanager.Middleware, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -31,13 +30,6 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
-
-	// Add multi-tenant middleware after auth middleware but before routes
-	// The middleware extracts tenant ID from JWT and injects tenant-specific
-	// database connections into the request context
-	if tenantsMiddleware != nil && tenantsMiddleware.IsEnabled() {
-		f.Use(tenantsMiddleware.Handler())
-	}
 
 	// Register all routes
 	RegisterRoutesToApp(f, auth, ah, ph, lh, ih, oh, sh, ath)
