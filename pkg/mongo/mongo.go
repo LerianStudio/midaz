@@ -137,8 +137,8 @@ func BuildMongoConnectionString(uri, user, password, host, port, parameters stri
 
 	// Add userinfo only when user is non-empty
 	if user != "" {
-		encodedUser := url.QueryEscape(user)
-		encodedPassword := url.QueryEscape(password)
+		encodedUser := url.PathEscape(user)
+		encodedPassword := url.PathEscape(password)
 		connectionString += encodedUser + ":" + encodedPassword + "@"
 	}
 
