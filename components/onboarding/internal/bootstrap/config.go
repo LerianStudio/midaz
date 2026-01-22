@@ -263,7 +263,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := pkgMongo.BuildMongoConnectionString(
+	mongoSource := libMongo.BuildConnectionString(
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
 	// Safe conversion: use uint64 with default, only assign if positive

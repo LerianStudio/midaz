@@ -92,7 +92,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := pkgMongo.BuildMongoConnectionString(
+	mongoSource := libMongo.BuildConnectionString(
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort, mongoParameters, logger)
 
 	if cfg.MaxPoolSize <= 0 {
