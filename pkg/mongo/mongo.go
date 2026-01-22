@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -92,8 +93,8 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 				logger.Warnf(
 					"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected but ignored "+
 						"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
-						"Sanitized port=%s, ignored embedded=%s, using explicit=%s",
-					actualPort, embeddedParams, parameters,
+						"Sanitized port=%s",
+					actualPort,
 				)
 			}
 
@@ -104,8 +105,8 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 			logger.Warnf(
 				"DEPRECATED: MongoDB parameters embedded in MONGO_PORT detected. "+
 					"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
-					"Extracted port=%s, parameters=%s",
-				actualPort, embeddedParams,
+					"Sanitized port=%s",
+				actualPort,
 			)
 		}
 
@@ -133,7 +134,9 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 //
 // Returns the complete connection string ready for use with MongoDB drivers.
 func BuildMongoConnectionString(uri, user, password, host, port, parameters string, logger libLog.Logger) string {
-	connectionString := fmt.Sprintf("%s://%s:%s@%s:%s/", uri, user, password, host, port)
+	encodedUser := url.QueryEscape(user)
+	encodedPassword := url.QueryEscape(password)
+	connectionString := fmt.Sprintf("%s://%s:%s@%s:%s/", uri, encodedUser, encodedPassword, host, port)
 
 	if parameters != "" {
 		connectionString += "?" + parameters

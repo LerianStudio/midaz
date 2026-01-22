@@ -368,6 +368,24 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 			expectWarning:      false,
 			warningSubstring:   "",
 		},
+		{
+			name:               "port_with_whitespace",
+			port:               " 5703 ",
+			parameters:         "",
+			expectedPort:       " 5703 ",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+		{
+			name:               "non_numeric_port",
+			port:               "abc",
+			parameters:         "",
+			expectedPort:       "abc",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -391,6 +409,28 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractMongoPortAndParameters_NilLogger(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_logger_with_embedded_parameters_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		actualPort, actualParameters := ExtractMongoPortAndParameters("5703/replicaSet=rs0", "", nil)
+
+		assert.Equal(t, "5703", actualPort)
+		assert.Equal(t, "replicaSet=rs0", actualParameters)
+	})
+
+	t.Run("nil_logger_with_both_embedded_and_explicit_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		actualPort, actualParameters := ExtractMongoPortAndParameters("5703/embedded=old", "explicit=new", nil)
+
+		assert.Equal(t, "5703", actualPort)
+		assert.Equal(t, "explicit=new", actualParameters)
+	})
 }
 
 func TestBuildMongoConnectionString(t *testing.T) {
@@ -454,7 +494,7 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			host:       "localhost",
 			port:       "27017",
 			parameters: "",
-			expected:   "mongodb://admin:p@ss:word/123@localhost:27017/",
+			expected:   "mongodb://admin:p%40ss%3Aword%2F123@localhost:27017/",
 		},
 		{
 			name:       "empty_parameters_no_question_mark",
@@ -465,6 +505,26 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			port:       "27017",
 			parameters: "",
 			expected:   "mongodb://user:pass@db.local:27017/",
+		},
+		{
+			name:       "empty_credentials",
+			uri:        "mongodb",
+			user:       "",
+			password:   "",
+			host:       "localhost",
+			port:       "27017",
+			parameters: "",
+			expected:   "mongodb://:@localhost:27017/",
+		},
+		{
+			name:       "special_characters_in_username",
+			uri:        "mongodb",
+			user:       "user@domain.com",
+			password:   "pass",
+			host:       "localhost",
+			port:       "27017",
+			parameters: "",
+			expected:   "mongodb://user%40domain.com:pass@localhost:27017/",
 		},
 	}
 

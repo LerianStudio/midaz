@@ -159,7 +159,7 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			host:       "localhost",
 			port:       "27017",
 			parameters: "",
-			expected:   "mongodb://admin:p@ss:word/123@localhost:27017/",
+			expected:   "mongodb://admin:p%40ss%3Aword%2F123@localhost:27017/",
 		},
 		{
 			name:       "empty_parameters_no_question_mark",
