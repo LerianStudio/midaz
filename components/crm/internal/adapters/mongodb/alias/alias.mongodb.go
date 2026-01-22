@@ -3,6 +3,7 @@ package alias
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -53,7 +54,7 @@ func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *li
 	}
 
 	if _, err := r.connection.GetDB(context.Background()); err != nil {
-		return nil, errors.New("failed to connect to MongoDB for alias repository")
+		return nil, fmt.Errorf("failed to connect to MongoDB for alias repository: %w", err)
 	}
 
 	return r, nil
