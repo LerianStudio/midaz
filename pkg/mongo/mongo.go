@@ -85,7 +85,7 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 	actualPort := port
 	if idx := strings.IndexAny(port, "/?"); idx != -1 {
 		actualPort = port[:idx]
-		embeddedParams := port[idx+1:]
+		embeddedParams := strings.TrimLeft(port[idx+1:], "/?")
 
 		if parameters != "" {
 			if logger != nil {
@@ -169,7 +169,7 @@ func BuildMongoConnectionString(uri, user, password, host, port, parameters stri
 
 		maskedConnStr += "/"
 		if parameters != "" {
-			maskedConnStr += "?" + parameters
+			maskedConnStr += "?<redacted>"
 		}
 
 		logger.Debugf("MongoDB connection string built: %s", maskedConnStr)
