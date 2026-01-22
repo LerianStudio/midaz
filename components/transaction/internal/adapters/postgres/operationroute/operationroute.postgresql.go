@@ -68,7 +68,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.create_operation_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -148,7 +148,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -216,7 +216,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return []*mmodel.OperationRoute{}, nil
 	}
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -325,7 +325,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -433,7 +433,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -471,7 +471,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -595,7 +595,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -634,7 +634,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenant(ctx, r.connection)
+	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
