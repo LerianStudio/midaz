@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -52,6 +53,21 @@ func envFallbackInt(prefixed, fallback int) int {
 	}
 
 	return fallback
+}
+
+// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
+func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
+	u := &url.URL{
+		Scheme: uri,
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+	}
+	if vhost != "" {
+		u.RawPath = "/" + url.PathEscape(vhost)
+		u.Path = "/" + vhost
+	}
+
+	return u.String()
 }
 
 // Config is the top level configuration struct for the entire application.
@@ -136,6 +152,7 @@ type Config struct {
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
 	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                string `env:"RABBITMQ_VHOST"`
 	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
@@ -336,8 +353,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+	rabbitSource := buildRabbitMQConnectionString(
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
 
 	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
@@ -346,6 +363,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
+		VHost:                  cfg.RabbitMQVHost,
 		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
@@ -406,8 +424,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+	rabbitConsumerSource := buildRabbitMQConnectionString(
+		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
 
 	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitConsumerSource,
@@ -416,6 +434,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQConsumerUser,
 		Pass:                   cfg.RabbitMQConsumerPass,
+		VHost:                  cfg.RabbitMQVHost,
 		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
