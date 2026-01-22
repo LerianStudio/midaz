@@ -1,9 +1,12 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -40,17 +43,34 @@ type Config struct {
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
 }
 
+// Options contains optional dependencies that can be injected by callers.
+type Options struct {
+	Logger libLog.Logger
+}
+
 // InitServers initiate http and grpc servers.
-func InitServers() *Service {
+func InitServers() (*Service, error) {
+	return InitServersWithOptions(nil)
+}
+
+// InitServersWithOptions initializes the CRM service with optional dependency injection.
+func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger, err := libZap.InitializeLoggerWithError()
-	if err != nil {
-		panic(err)
+	var logger libLog.Logger
+	if opts != nil && opts.Logger != nil {
+		logger = opts.Logger
+	} else {
+		var err error
+
+		logger, err = libZap.InitializeLoggerWithError()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
 	// Init Open telemetry to control logs and flows
@@ -64,7 +84,7 @@ func InitServers() *Service {
 		Logger:                    logger,
 	})
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
 	// Mongo DB
@@ -94,11 +114,18 @@ func InitServers() *Service {
 
 	err = dataSecurity.InitializeCipher()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to initialize cipher: %w", err)
 	}
 
-	holderMongoDBRepository := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
-	aliasMongoDBRepository := alias.NewMongoDBRepository(mongoConnection, dataSecurity)
+	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize holder repository: %w", err)
+	}
+
+	aliasMongoDBRepository, err := alias.NewMongoDBRepository(mongoConnection, dataSecurity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize alias repository: %w", err)
+	}
 
 	useCases := &services.UseCase{
 		HolderRepo: holderMongoDBRepository,
@@ -121,5 +148,5 @@ func InitServers() *Service {
 	return &Service{
 		Server: serverAPI,
 		Logger: logger,
-	}
+	}, nil
 }
