@@ -385,14 +385,14 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	ctx, span := tracer.Start(ctx, "mongodb.create_index")
 	defer span.End()
 
-	db, err := mmr.connection.GetDB(ctx)
+	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+	coll := tenantDB.Collection(strings.ToLower(collection))
 
 	indexName := fmt.Sprintf("metadata.%s", input.MetadataKey)
 
@@ -445,14 +445,14 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_indexes")
 	defer span.End()
 
-	db, err := mmr.connection.GetDB(ctx)
+	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+	coll := tenantDB.Collection(strings.ToLower(collection))
 
 	// First, get index stats via aggregation
 	ctx, spanStats := tracer.Start(ctx, "mongodb.find_all_indexes.stats")
@@ -570,7 +570,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	ctx, span := tracer.Start(ctx, "mongodb.delete_index")
 	defer span.End()
 
-	db, err := mmr.connection.GetDB(ctx)
+	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -579,7 +579,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 		return err
 	}
 
-	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+	coll := tenantDB.Collection(strings.ToLower(collection))
 
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
