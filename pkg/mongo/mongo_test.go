@@ -321,7 +321,7 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 			expectedPort:       "5703",
 			expectedParameters: "replicaSet=rs0&authSource=admin",
 			expectWarning:      true,
-			warningSubstring:   "DEPRECATED",
+			warningSubstring:   "embedded in MONGO_PORT",
 		},
 		{
 			name:               "legacy_embedded_with_question_mark",
@@ -330,7 +330,7 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 			expectedPort:       "5703",
 			expectedParameters: "replicaSet=rs0",
 			expectWarning:      true,
-			warningSubstring:   "DEPRECATED",
+			warningSubstring:   "embedded in MONGO_PORT",
 		},
 		{
 			name:               "new_clean_port_with_parameters",
