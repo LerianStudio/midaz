@@ -389,7 +389,6 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -497,6 +496,16 @@ func TestBuildMongoConnectionString(t *testing.T) {
 			expected:   "mongodb://admin:p%40ss%3Aword%2F123@localhost:27017/",
 		},
 		{
+			name:       "space_in_password",
+			uri:        "mongodb",
+			user:       "admin",
+			password:   "pass word",
+			host:       "localhost",
+			port:       "27017",
+			parameters: "",
+			expected:   "mongodb://admin:pass%20word@localhost:27017/",
+		},
+		{
 			name:       "empty_parameters_no_question_mark",
 			uri:        "mongodb",
 			user:       "user",
@@ -529,7 +538,6 @@ func TestBuildMongoConnectionString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
