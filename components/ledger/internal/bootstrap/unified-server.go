@@ -150,10 +150,42 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		return libHTTP.InternalServerError(c, "DB_ERROR", "Internal Server Error", "failed to get database interface")
 	}
 
-	// Store connection in context using poolmanager's context functions
-	// This ensures repositories can find the tenant connection via GetPostgresForTenant
-	ctx = poolmanager.ContextWithTenantPGConnection(ctx, db)
-	logger.Infof("[WithTenantDB] Set PostgreSQL connection in context for tenant: %s", tenantID)
+	// Store module-specific connection in context using poolmanager's context functions
+	// This ensures repositories can find the tenant connection via module-specific getters
+	// CRITICAL: Set BOTH module connections for in-process calls between modules
+	if m.isTransactionPath(path) {
+		// Primary: Transaction path - set transaction connection
+		ctx = poolmanager.ContextWithTransactionPGConnection(ctx, db)
+		logger.Infof("[WithTenantDB] Set Transaction PostgreSQL connection in context for tenant: %s", tenantID)
+
+		// Secondary: Also get and set onboarding connection for in-process calls FROM transaction TO onboarding
+		if m.onboardingPool != nil && m.onboardingPool.IsMultiTenant() {
+			onboardingConn, onboardingErr := m.onboardingPool.GetConnection(ctx, tenantID)
+			if onboardingErr == nil {
+				onboardingDB, dbErr := onboardingConn.GetDB()
+				if dbErr == nil && onboardingDB != nil {
+					ctx = poolmanager.ContextWithOnboardingPGConnection(ctx, onboardingDB)
+					logger.Infof("[WithTenantDB] Also set Onboarding PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
+				}
+			}
+		}
+	} else {
+		// Primary: Onboarding path - set onboarding connection
+		ctx = poolmanager.ContextWithOnboardingPGConnection(ctx, db)
+		logger.Infof("[WithTenantDB] Set Onboarding PostgreSQL connection in context for tenant: %s", tenantID)
+
+		// Secondary: Also get and set transaction connection for in-process calls FROM onboarding TO transaction
+		if m.transactionPool != nil && m.transactionPool.IsMultiTenant() {
+			transactionConn, transactionErr := m.transactionPool.GetConnection(ctx, tenantID)
+			if transactionErr == nil {
+				transactionDB, dbErr := transactionConn.GetDB()
+				if dbErr == nil && transactionDB != nil {
+					ctx = poolmanager.ContextWithTransactionPGConnection(ctx, transactionDB)
+					logger.Infof("[WithTenantDB] Also set Transaction PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
+				}
+			}
+		}
+	}
 
 	// Handle MongoDB if pool is configured
 	mongoPool := m.selectMongoPool(path)

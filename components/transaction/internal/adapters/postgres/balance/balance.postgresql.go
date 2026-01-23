@@ -93,7 +93,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 	ctx, span := tracer.Start(ctx, "postgres.create_balances")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -164,7 +164,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_ids")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -253,7 +253,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -377,7 +377,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances_by_account_id")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -502,7 +502,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -593,7 +593,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases_with_keys")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -709,7 +709,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -804,7 +804,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.find_balance")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -883,7 +883,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "postgres.find_balance_by_account_id_and_key")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -969,7 +969,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 	ctx, span := tracer.Start(ctx, "postgres.exists_balance_by_account_id_and_key")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1023,7 +1023,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.delete_balance")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1083,7 +1083,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 		return nil
 	}
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1175,7 +1175,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1267,7 +1267,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 		return false, err
 	}
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1307,7 +1307,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	ctx, span := tracer.Start(ctx, "postgres.update_all_by_account_id")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1380,7 +1380,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetTransactionPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
