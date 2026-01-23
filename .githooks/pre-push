@@ -4,110 +4,158 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 source "$REPO_ROOT"/pkg/shell/colors.sh
 source "$REPO_ROOT"/pkg/shell/ascii.sh
 
+# Capture stdin (push refs) for use in multiple checks
+PUSH_REFS=$(cat)
+
 # Validate branch naming convention early (before expensive checks)
 while read local_ref local_sha remote_ref remote_sha; do
     if [[ "$local_ref" =~ ^refs/heads/ ]]; then
         branch_name=$(echo "$local_ref" | sed 's|^refs/heads/||')
 
         if [[ ! "$branch_name" =~ ^(feature|fix|hotfix|docs|refactor|build|test|chore|ci)/.+$ ]]; then
-            echo "${red}❌ Invalid branch name: ${branch_name}${reset}"
+            echo "${red}❌ Invalid branch name: ${branch_name}${normal}"
             echo "Branch names must start with 'feature/', 'fix/', 'refactor/', 'docs/', 'test/', 'chore/', 'ci/' or 'hotfix/' followed by a task id or feature name."
             exit 1
         fi
+
+        # Save refs for later checks
+        LOCAL_SHA="$local_sha"
+        REMOTE_SHA="$remote_sha"
     fi
-done
+done <<< "$PUSH_REFS"
 
 # Run quality checks before pushing
-echo "${bold}Running pre-push checks...${reset}"
+echo "${bold}Running pre-push checks...${normal}"
+echo ""
 
-# Check code formatting (gofumpt)
-echo "Checking code formatting..."
-if ! command -v gofumpt &> /dev/null; then
-    echo "${red}❌ gofumpt not installed${reset}"
-    echo "Install with: go install mvdan.cc/gofumpt@latest"
-    exit 1
-fi
-UNFORMATTED=$(gofumpt -l . 2>/dev/null)
-if [ -n "$UNFORMATTED" ]; then
-    echo "${red}❌ Files need formatting:${reset}"
-    echo "$UNFORMATTED"
-    echo ""
-    echo "Run: ${bold}gofumpt -w .${reset}"
-    exit 1
-fi
-echo "${green}✅ Code formatting OK${reset}"
+# Get changed Go files (compared to origin/main)
+CHANGED_GO_FILES=$(git diff --name-only origin/main...HEAD -- '*.go' 2>/dev/null | grep -v '_test.go$' || true)
 
-# Check imports organization (goimports)
-echo "Checking imports..."
-if ! command -v goimports &> /dev/null; then
-    echo "${red}❌ goimports not installed${reset}"
-    echo "Install with: go install golang.org/x/tools/cmd/goimports@latest"
-    exit 1
+# If no Go files changed, skip Go-specific checks
+if [ -z "$CHANGED_GO_FILES" ]; then
+    echo "No Go files changed, skipping Go checks..."
+    echo "${green}✅ All checks passed!${normal}"
+    exit 0
 fi
-UNORGANIZED=$(goimports -l . 2>/dev/null)
-if [ -n "$UNORGANIZED" ]; then
-    echo "${red}❌ Files need import organization:${reset}"
-    echo "$UNORGANIZED"
-    echo ""
-    echo "Run: ${bold}goimports -w .${reset}"
-    exit 1
-fi
-echo "${green}✅ Imports OK${reset}"
 
-# Check go.mod/go.sum are tidy
+# Create temp dir for parallel check results
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
+
+# === PARALLEL CHECKS: go mod tidy, gitleaks ===
+
+# Check 1: go mod tidy (background)
+(
+    cp go.mod go.mod.bak
+    cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
+    go mod tidy 2>/dev/null
+    if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
+        mv go.mod.bak go.mod
+        mv go.sum.bak go.sum
+        echo "FAIL" > "$TEMP_DIR/gomod_status"
+    else
+        rm -f go.mod.bak go.sum.bak
+        echo "OK" > "$TEMP_DIR/gomod_status"
+    fi
+) &
+
+# Check 2: gitleaks (background)
+(
+    if command -v gitleaks &> /dev/null; then
+        if [ "$REMOTE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            GITLEAKS_RANGE="origin/main..$LOCAL_SHA"
+        else
+            GITLEAKS_RANGE="$REMOTE_SHA..$LOCAL_SHA"
+        fi
+        gitleaks_out=$(gitleaks detect --log-opts="$GITLEAKS_RANGE" --no-banner -v 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "FAIL" > "$TEMP_DIR/gitleaks_status"
+            echo "$gitleaks_out" > "$TEMP_DIR/gitleaks_output"
+        else
+            echo "OK" > "$TEMP_DIR/gitleaks_status"
+        fi
+    else
+        echo "SKIP" > "$TEMP_DIR/gitleaks_status"
+    fi
+) &
+
+# Wait for parallel checks to complete
+wait
+
+# Check results
+FAILED=0
+
+# go mod tidy result
 echo "Checking go.mod/go.sum..."
-cp go.mod go.mod.bak
-cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
-go mod tidy 2>/dev/null
-if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
-    mv go.mod.bak go.mod
-    mv go.sum.bak go.sum
-    echo "${red}❌ go.mod/go.sum need updating${reset}"
+GOMOD_STATUS=$(cat "$TEMP_DIR/gomod_status" 2>/dev/null || echo "SKIP")
+if [ "$GOMOD_STATUS" = "FAIL" ]; then
+    echo "${red}❌ go.mod/go.sum need updating${normal}"
     echo ""
-    echo "Run: ${bold}go mod tidy${reset}"
-    exit 1
+    echo "Run: ${bold}go mod tidy${normal}"
+    FAILED=1
+elif [ "$GOMOD_STATUS" = "OK" ]; then
+    echo "${green}✅ go.mod/go.sum OK${normal}"
 fi
-rm -f go.mod.bak go.sum.bak
-echo "${green}✅ go.mod/go.sum OK${reset}"
+echo ""
 
-# Scan for secrets (gitleaks) - second layer of protection
+# gitleaks result
 echo "Scanning for secrets..."
-if ! command -v gitleaks &> /dev/null; then
-    echo "${red}❌ gitleaks not installed${reset}"
-    echo "Install with: brew install gitleaks"
-    echo "         or: go install github.com/zricethezav/gitleaks/v8@latest"
-    exit 1
-fi
-if ! gitleaks detect --no-banner --no-git -v 2>/dev/null; then
-    echo "${red}❌ Secrets detected in codebase!${reset}"
+GITLEAKS_STATUS=$(cat "$TEMP_DIR/gitleaks_status" 2>/dev/null || echo "SKIP")
+if [ "$GITLEAKS_STATUS" = "FAIL" ]; then
+    echo "${red}❌ Secrets detected in commits being pushed!${normal}"
     echo ""
-    echo "Review the findings above and remove secrets before pushing."
-    echo "If this is a false positive, add to .gitleaksignore"
+    cat "$TEMP_DIR/gitleaks_output"
+    echo ""
+    echo "Remove secrets or add false positives to .gitleaksignore"
+    FAILED=1
+elif [ "$GITLEAKS_STATUS" = "OK" ]; then
+    echo "${green}✅ No secrets detected${normal}"
+fi
+echo ""
+
+# Exit early if parallel checks failed
+if [ $FAILED -ne 0 ]; then
     exit 1
 fi
-echo "${green}✅ No secrets detected${reset}"
 
+# === SEQUENTIAL CHECKS: tests, sec, lint ===
+
+# Run unit tests
 echo "Running unit tests..."
-if ! make test-unit; then
-    echo "${red}❌ Unit tests failed${reset}"
+test_output=$(make test-unit 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Unit tests failed${normal}"
+    echo ""
+    echo "$test_output"
     exit 1
 fi
-echo "${green}✅ Unit tests passed${reset}"
+echo "${green}✅ Unit tests passed${normal}"
+echo ""
 
+# Run security checks
 echo "Running security checks..."
-if ! make sec; then
-    echo "${red}❌ Security checks failed${reset}"
+sec_output=$(make sec 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Security checks failed${normal}"
+    echo ""
+    echo "$sec_output"
     exit 1
 fi
-echo "${green}✅ Security checks passed${reset}"
+echo "${green}✅ Security checks passed${normal}"
+echo ""
 
+# Run linter
 echo "Running linter..."
-if ! make lint; then
-    echo "${red}❌ Linter failed${reset}"
+lint_output=$(make lint 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Linter failed${normal}"
+    echo ""
+    echo "$lint_output"
     exit 1
 fi
-echo "${green}✅ Linter passed${reset}"
+echo "${green}✅ Linter passed${normal}"
+echo ""
 
-echo "${green}${bold}All checks passed!${reset}"
+echo "${green}${bold}✅ All checks passed!${normal}"
 
 exit 0

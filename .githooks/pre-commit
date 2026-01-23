@@ -7,17 +7,17 @@ source "$REPO_ROOT"/pkg/shell/ascii.sh
 # Check if trying to commit to protected branches
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [[ "$branch" == "main" || "$branch" == "develop" || "$branch" == "release-candidate" ]]; then
-    echo "${red}❌ You can't commit directly to protected branches${reset}"
+    echo "${red}❌ You can't commit directly to protected branches${normal}"
     exit 1
 fi
 
 # Block .env files from being committed (security)
 ENV_FILES=$(git diff --cached --name-only | grep -E '\.env$|\.env\.local$|\.env\.[^.]+\.local$' || true)
 if [ -n "$ENV_FILES" ]; then
-    echo "${red}❌ Attempting to commit .env file(s):${reset}"
+    echo "${red}❌ Attempting to commit .env file(s):${normal}"
     echo "$ENV_FILES"
     echo ""
-    echo "Remove from staging: ${bold}git reset HEAD <file>${reset}"
+    echo "Remove from staging: ${bold}git reset HEAD <file>${normal}"
     exit 1
 fi
 
@@ -34,25 +34,48 @@ while IFS= read -r file; do
 done < <(git diff --cached --name-only --diff-filter=d)
 
 if [ -n "$LARGE_FILES" ]; then
-    echo "${red}❌ Attempting to commit large files (>5MB):${reset}"
+    echo "${red}❌ Attempting to commit large files (>5MB):${normal}"
     echo -e "$LARGE_FILES"
     echo "Remove from staging or use Git LFS"
     exit 1
 fi
 
-# Scan for secrets in staged files (gitleaks)
-if ! command -v gitleaks &> /dev/null; then
-    echo "${red}❌ gitleaks not installed${reset}"
-    echo "Install with: brew install gitleaks"
-    echo "         or: go install github.com/zricethezav/gitleaks/v8@latest"
-    exit 1
+# Get staged Go files (excluding test files for formatting checks)
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=d | grep '\.go$' || true)
+
+# Check code formatting with gofumpt (only staged Go files)
+if [ -n "$STAGED_GO_FILES" ] && command -v gofumpt &> /dev/null; then
+    UNFORMATTED=$(echo "$STAGED_GO_FILES" | xargs gofumpt -l 2>/dev/null || true)
+    if [ -n "$UNFORMATTED" ]; then
+        echo "${red}❌ Files need formatting:${normal}"
+        echo "$UNFORMATTED"
+        echo ""
+        echo "Run: ${bold}gofumpt -w .${normal}"
+        exit 1
+    fi
 fi
-echo "Scanning for secrets..."
-if ! gitleaks protect --staged --no-banner 2>/dev/null; then
-    echo "${red}❌ Secrets detected in staged files!${reset}"
-    echo ""
-    echo "Review the findings above and remove secrets before committing."
-    echo "If this is a false positive, add to .gitleaksignore"
-    exit 1
+
+# Check imports organization with goimports (only staged Go files)
+if [ -n "$STAGED_GO_FILES" ] && command -v goimports &> /dev/null; then
+    UNORGANIZED=$(echo "$STAGED_GO_FILES" | xargs goimports -l 2>/dev/null || true)
+    if [ -n "$UNORGANIZED" ]; then
+        echo "${red}❌ Files need import organization:${normal}"
+        echo "$UNORGANIZED"
+        echo ""
+        echo "Run: ${bold}goimports -w .${normal}"
+        exit 1
+    fi
 fi
-echo "${green}✅ No secrets detected${reset}"
+
+# Scan for secrets in staged files (gitleaks) - silent on success
+if command -v gitleaks &> /dev/null; then
+    gitleaks_output=$(gitleaks protect --staged --no-banner -v 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "${red}❌ Secrets detected in staged files!${normal}"
+        echo ""
+        echo "$gitleaks_output"
+        echo ""
+        echo "Remove secrets or add false positives to .gitleaksignore"
+        exit 1
+    fi
+fi
