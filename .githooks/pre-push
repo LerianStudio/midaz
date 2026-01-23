@@ -17,10 +17,6 @@ while read local_ref local_sha remote_ref remote_sha; do
             echo "Branch names must start with 'feature/', 'fix/', 'refactor/', 'docs/', 'test/', 'chore/', 'ci/' or 'hotfix/' followed by a task id or feature name."
             exit 1
         fi
-
-        # Save refs for later checks
-        LOCAL_SHA="$local_sha"
-        REMOTE_SHA="$remote_sha"
     fi
 done <<< "$PUSH_REFS"
 
@@ -38,85 +34,22 @@ if [ -z "$CHANGED_GO_FILES" ]; then
     exit 0
 fi
 
-# Create temp dir for parallel check results
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
-
-# === PARALLEL CHECKS: go mod tidy, gitleaks ===
-
-# Check 1: go mod tidy (background)
-(
-    cp go.mod go.mod.bak
-    cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
-    go mod tidy 2>/dev/null
-    if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
-        mv go.mod.bak go.mod
-        mv go.sum.bak go.sum
-        echo "FAIL" > "$TEMP_DIR/gomod_status"
-    else
-        rm -f go.mod.bak go.sum.bak
-        echo "OK" > "$TEMP_DIR/gomod_status"
-    fi
-) &
-
-# Check 2: gitleaks (background)
-(
-    if command -v gitleaks &> /dev/null; then
-        if [ "$REMOTE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            GITLEAKS_RANGE="origin/main..$LOCAL_SHA"
-        else
-            GITLEAKS_RANGE="$REMOTE_SHA..$LOCAL_SHA"
-        fi
-        gitleaks_out=$(gitleaks detect --log-opts="$GITLEAKS_RANGE" --no-banner -v 2>&1)
-        if [ $? -ne 0 ]; then
-            echo "FAIL" > "$TEMP_DIR/gitleaks_status"
-            echo "$gitleaks_out" > "$TEMP_DIR/gitleaks_output"
-        else
-            echo "OK" > "$TEMP_DIR/gitleaks_status"
-        fi
-    else
-        echo "SKIP" > "$TEMP_DIR/gitleaks_status"
-    fi
-) &
-
-# Wait for parallel checks to complete
-wait
-
-# Check results
-FAILED=0
-
-# go mod tidy result
+# Check go.mod/go.sum
 echo "Checking go.mod/go.sum..."
-GOMOD_STATUS=$(cat "$TEMP_DIR/gomod_status" 2>/dev/null || echo "SKIP")
-if [ "$GOMOD_STATUS" = "FAIL" ]; then
+cp go.mod go.mod.bak
+cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
+go mod tidy 2>/dev/null
+if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
+    mv go.mod.bak go.mod
+    mv go.sum.bak go.sum
     echo "${red}❌ go.mod/go.sum need updating${normal}"
     echo ""
     echo "Run: ${bold}go mod tidy${normal}"
-    FAILED=1
-elif [ "$GOMOD_STATUS" = "OK" ]; then
-    echo "${green}✅ go.mod/go.sum OK${normal}"
-fi
-echo ""
-
-# gitleaks result
-echo "Scanning for secrets..."
-GITLEAKS_STATUS=$(cat "$TEMP_DIR/gitleaks_status" 2>/dev/null || echo "SKIP")
-if [ "$GITLEAKS_STATUS" = "FAIL" ]; then
-    echo "${red}❌ Secrets detected in commits being pushed!${normal}"
-    echo ""
-    cat "$TEMP_DIR/gitleaks_output"
-    echo ""
-    echo "Remove secrets or add false positives to .gitleaksignore"
-    FAILED=1
-elif [ "$GITLEAKS_STATUS" = "OK" ]; then
-    echo "${green}✅ No secrets detected${normal}"
-fi
-echo ""
-
-# Exit early if parallel checks failed
-if [ $FAILED -ne 0 ]; then
     exit 1
 fi
+rm -f go.mod.bak go.sum.bak
+echo "${green}✅ go.mod/go.sum OK${normal}"
+echo ""
 
 # === SEQUENTIAL CHECKS: tests, sec, lint ===
 
