@@ -36,6 +36,11 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// ServiceName allows callers to override the service name used for RabbitMQ pool
+	// registration. This is used in unified ledger mode where the parent service
+	// (ledger) needs the pool registered under its name instead of "transaction".
+	ServiceName string
 }
 
 // InitService initializes the transaction service.
@@ -66,6 +71,7 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: opts.Logger,
+		Logger:      opts.Logger,
+		ServiceName: opts.ServiceName,
 	})
 }

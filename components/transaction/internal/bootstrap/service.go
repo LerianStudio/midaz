@@ -26,6 +26,7 @@ type Service struct {
 	*Server
 	*ServerGRPC
 	*MultiQueueConsumer
+	*MultiTenantRabbitMQConsumer
 	*RedisQueueConsumer
 	*BalanceSyncWorker
 	BalanceSyncWorkerEnabled bool
@@ -50,9 +51,16 @@ func (app *Service) Run() {
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
-		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
 		libCommons.RunApp("gRPC Server", app.ServerGRPC),
+	}
+
+	if app.MultiQueueConsumer != nil {
+		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer))
+	}
+
+	if app.MultiTenantRabbitMQConsumer != nil {
+		opts = append(opts, libCommons.RunApp("Multi-Tenant RabbitMQ Consumer", app.MultiTenantRabbitMQConsumer))
 	}
 
 	if app.BalanceSyncWorkerEnabled {
@@ -74,8 +82,19 @@ func (app *Service) GetRunnables() []mbootstrap.RunnableConfig {
 func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.RunnableConfig {
 	runnables := []mbootstrap.RunnableConfig{
 		{Name: "Transaction Fiber Server", Runnable: app.Server},
-		{Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer},
 		{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
+	}
+
+	if app.MultiQueueConsumer != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer,
+		})
+	}
+
+	if app.MultiTenantRabbitMQConsumer != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Multi-Tenant RabbitMQ Consumer", Runnable: app.MultiTenantRabbitMQConsumer,
+		})
 	}
 
 	if app.BalanceSyncWorkerEnabled {

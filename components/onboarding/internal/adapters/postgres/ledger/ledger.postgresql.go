@@ -77,7 +77,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	ctx, span := tracer.Start(ctx, "postgres.create_ledger")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -149,7 +149,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -210,7 +210,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -283,7 +283,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger_by_name")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -341,7 +341,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		return []*mmodel.Ledger{}, nil
 	}
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -410,7 +410,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -506,7 +506,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.delete_ledger")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -555,7 +555,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 	var count = int64(0)
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

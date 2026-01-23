@@ -180,8 +180,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	ledgerLogger.Info("Initializing transaction module...")
 
 	// Initialize transaction module first to get the BalancePort
+	// Pass ApplicationName as ServiceName so RabbitMQ pool is registered under "ledger"
 	transactionService, err := transaction.InitServiceWithOptionsOrError(&transaction.Options{
-		Logger: transactionLogger,
+		Logger:      transactionLogger,
+		ServiceName: ApplicationName,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)

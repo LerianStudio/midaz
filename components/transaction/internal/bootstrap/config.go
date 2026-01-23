@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
@@ -189,6 +191,12 @@ type Config struct {
 	ProtoAddress             string `env:"PROTO_ADDRESS"`
 	BalanceSyncWorkerEnabled bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+
+	// Multi-Tenant Configuration
+	// When enabled, the single-tenant RabbitMQ consumer is disabled because
+	// the unified ledger handles multi-tenant message routing through Pool Manager
+	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
+	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -196,6 +204,11 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding double
 	// initialization when the cmd/app wants to handle bootstrap errors.
 	Logger libLog.Logger
+
+	// ServiceName allows callers to override the service name used for RabbitMQ pool
+	// registration. This is used in unified ledger mode where the parent service
+	// (ledger) needs the pool registered under its name instead of "transaction".
+	ServiceName string
 }
 
 // InitServers initiate http and grpc servers.
@@ -432,24 +445,67 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	rabbitConsumerSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
+	// Determine service name for RabbitMQ pool registration
+	// When running as part of unified ledger, use the caller's service name
+	serviceName := ApplicationName
+	if opts != nil && opts.ServiceName != "" {
+		serviceName = opts.ServiceName
 	}
 
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
+	// Only create single-tenant RabbitMQ consumer when NOT in multi-tenant mode
+	// In multi-tenant mode, the unified ledger handles message routing through Pool Manager
+	var multiQueueConsumer *MultiQueueConsumer
+	var multiTenantRabbitMQConsumer *MultiTenantRabbitMQConsumer
 
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+	if !cfg.MultiTenantEnabled {
+		rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+			cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+		rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
+			ConnectionStringSource: rabbitConsumerSource,
+			HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
+			Host:                   cfg.RabbitMQHost,
+			Port:                   cfg.RabbitMQPortAMQP,
+			User:                   cfg.RabbitMQConsumerUser,
+			Pass:                   cfg.RabbitMQConsumerPass,
+			Queue:                  cfg.RabbitMQBalanceCreateQueue,
+			Logger:                 logger,
+		}
+
+		routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
+		multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
+
+		logger.Infof("Single-tenant RabbitMQ consumer initialized for service: %s", serviceName)
+	} else {
+		logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ consumer")
+
+		// Create Pool Manager client for RabbitMQ pool
+		poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
+
+		// Create RabbitMQ pool for multi-tenant connections
+		rabbitMQPool := poolmanager.NewRabbitMQPool(poolManagerClient, serviceName,
+			poolmanager.WithRabbitMQModule("transaction"),
+			poolmanager.WithRabbitMQLogger(logger),
+		)
+
+		// Get BTO queue name from environment
+		btoQueue := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
+
+		// Create multi-tenant consumer
+		multiTenantRabbitMQConsumer = NewMultiTenantRabbitMQConsumer(
+			rabbitMQPool,
+			redisConsumerRepository.GetClient(),
+			serviceName,
+			cfg.PoolManagerURL,
+			cfg.RabbitMQBalanceCreateQueue,
+			btoQueue,
+			useCase,
+			logger,
+			telemetry,
+		)
+
+		logger.Infof("Multi-tenant RabbitMQ consumer initialized for service: %s", serviceName)
+	}
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
@@ -486,13 +542,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	return &Service{
-		Server:                   server,
-		ServerGRPC:               serverGRPC,
-		MultiQueueConsumer:       multiQueueConsumer,
-		RedisQueueConsumer:       redisConsumer,
-		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
-		Logger:                   logger,
+		Server:                       server,
+		ServerGRPC:                   serverGRPC,
+		MultiQueueConsumer:           multiQueueConsumer,
+		MultiTenantRabbitMQConsumer:  multiTenantRabbitMQConsumer,
+		RedisQueueConsumer:           redisConsumer,
+		BalanceSyncWorker:            balanceSyncWorker,
+		BalanceSyncWorkerEnabled:     balanceSyncWorkerEnabled,
+		Logger:                       logger,
 		Ports: Ports{
 			BalancePort:  useCase,
 			MetadataPort: metadataMongoDBRepository,

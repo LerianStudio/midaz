@@ -12,6 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -76,11 +77,20 @@ func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*R
 	return r, nil
 }
 
+// GetClient returns the underlying Redis client for use by other components.
+// This is used by the multi-tenant RabbitMQ consumer to access tenant cache.
+func (rr *RedisConsumerRepository) GetClient() redis.UniversalClient {
+	client, _ := rr.conn.GetClient(context.Background())
+	return client
+}
+
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
+
+	key = poolmanager.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -107,6 +117,8 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
 
+	key = poolmanager.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -131,6 +143,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
+
+	key = poolmanager.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -168,6 +182,12 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		return map[string]string{}, nil
 	}
 
+	// Wrap all keys with tenant prefix
+	prefixedKeys := make([]string, len(keys))
+	for i, k := range keys {
+		prefixedKeys[i] = poolmanager.GetKeyFromContext(ctx, k)
+	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -177,7 +197,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		return nil, err
 	}
 
-	res, err := rds.MGet(ctx, keys...).Result()
+	res, err := rds.MGet(ctx, prefixedKeys...).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
 
@@ -193,6 +213,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 			continue
 		}
 
+		// Use original keys (without prefix) for the output map
 		switch vv := v.(type) {
 		case string:
 			out[keys[i]] = vv
@@ -213,6 +234,8 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
+
+	key = poolmanager.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -238,6 +261,8 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
+
+	key = poolmanager.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -332,7 +357,12 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	finalArgs := append([]any{scheduleSync}, args...)
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, finalArgs...).Result()
+	// Apply tenant prefix to all keys passed to the Lua script
+	prefixedBackupQueue := poolmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+	prefixedTransactionKey := poolmanager.GetKeyFromContext(ctx, transactionKey)
+	prefixedBalanceSyncKey := poolmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+
+	result, err := script.Run(ctx, rds, []string{prefixedBackupQueue, prefixedTransactionKey, prefixedBalanceSyncKey}, finalArgs...).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -426,6 +456,8 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
 
+	key = poolmanager.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -450,6 +482,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
+
+	key = poolmanager.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -477,6 +511,10 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
 	defer span.End()
 
+	// Apply tenant prefix to both the queue key and the hash field key
+	prefixedQueue := poolmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = poolmanager.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -484,7 +522,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 		return err
 	}
 
-	if err := rds.HSet(ctx, TransactionBackupQueue, key, msg).Err(); err != nil {
+	if err := rds.HSet(ctx, prefixedQueue, key, msg).Err(); err != nil {
 		logger.Warnf("Failed to hset message: %v", err)
 
 		return err
@@ -502,6 +540,10 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
 	defer span.End()
 
+	// Apply tenant prefix to both the queue key and the hash field key
+	prefixedQueue := poolmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = poolmanager.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -509,7 +551,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 		return nil, err
 	}
 
-	data, err := rds.HGet(ctx, TransactionBackupQueue, key).Bytes()
+	data, err := rds.HGet(ctx, prefixedQueue, key).Bytes()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
@@ -528,6 +570,9 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
 	defer span.End()
 
+	// Apply tenant prefix to the queue key
+	prefixedQueue := poolmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -535,7 +580,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		return nil, err
 	}
 
-	data, err := rds.HGetAll(ctx, TransactionBackupQueue).Result()
+	data, err := rds.HGetAll(ctx, prefixedQueue).Result()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
@@ -554,6 +599,10 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
 	defer span.End()
 
+	// Apply tenant prefix to both the queue key and the hash field key
+	prefixedQueue := poolmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = poolmanager.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -561,7 +610,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 		return err
 	}
 
-	if err := rds.HDel(ctx, TransactionBackupQueue, key).Err(); err != nil {
+	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
 		logger.Warnf("Failed to hdel: %v", err)
 
 		return err
@@ -588,7 +637,11 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	script := redis.NewScript(getBalancesNearExpirationLua)
 
-	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
+	// Apply tenant prefix to the keys used in the Lua script
+	prefixedScheduleKey := poolmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := poolmanager.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
 	if err != nil {
 		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
 
@@ -641,7 +694,13 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 
 	script := redis.NewScript(unscheduleSyncedBalanceLua)
 
-	_, err = script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, member, utils.BalanceSyncLockPrefix).Result()
+	// Apply tenant prefix to the keys used in the Lua script
+	prefixedScheduleKey := poolmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := poolmanager.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+	// The member key should also be prefixed as it refers to balance keys
+	prefixedMember := poolmanager.GetKeyFromContext(ctx, member)
+
+	_, err = script.Run(ctx, rds, []string{prefixedScheduleKey}, prefixedMember, prefixedLockPrefix).Result()
 	if err != nil {
 		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
 
@@ -669,6 +728,8 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
+	// Apply tenant prefix to the internal key
+	internalKey = poolmanager.GetKeyFromContext(ctx, internalKey)
 
 	value, err := rds.Get(ctx, internalKey).Result()
 	if err != nil {

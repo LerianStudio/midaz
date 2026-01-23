@@ -79,7 +79,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	ctx, span := tracer.Start(ctx, "postgres.create_portfolio")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -155,7 +155,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio_by_id_entity")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -223,7 +223,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -308,7 +308,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -376,7 +376,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.list_portfolios_by_ids")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -459,7 +459,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.update_portfolio")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -556,7 +556,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.delete_portfolio")
 	defer span.End()
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -608,7 +608,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 
 	var count = int64(0)
 
-	db, err := poolmanager.GetPostgresForTenant(ctx)
+	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
