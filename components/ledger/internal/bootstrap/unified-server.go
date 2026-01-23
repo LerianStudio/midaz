@@ -12,7 +12,6 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
@@ -26,16 +25,6 @@ import (
 // Each module (onboarding, transaction) implements this to register its routes.
 type RouteRegistrar func(app *fiber.App)
 
-// TenantContextKey is the context key for storing tenant-specific database connection.
-type TenantContextKey string
-
-const (
-	// TenantDBConnectionKey is the key for storing tenant database connection in context.
-	TenantDBConnectionKey TenantContextKey = "tenant_db_connection"
-	// TenantIDKey is the key for storing tenant ID in context.
-	TenantIDKey TenantContextKey = "tenant_id"
-)
-
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
 // This enables the unified ledger mode where all routes are accessible on a single port.
 type UnifiedServer struct {
@@ -47,18 +36,24 @@ type UnifiedServer struct {
 
 // DualPoolMiddleware provides path-based routing to the correct tenant connection pool.
 // It selects the appropriate pool (onboarding or transaction) based on the request path.
+// Supports both PostgreSQL (TenantConnectionPool) and MongoDB (MongoPool) connections.
 type DualPoolMiddleware struct {
-	onboardingPool  *poolmanager.TenantConnectionPool
-	transactionPool *poolmanager.TenantConnectionPool
-	logger          libLog.Logger
+	onboardingPool       *poolmanager.TenantConnectionPool
+	transactionPool      *poolmanager.TenantConnectionPool
+	onboardingMongoPool  *poolmanager.MongoPool
+	transactionMongoPool *poolmanager.MongoPool
+	logger               libLog.Logger
 }
 
 // NewDualPoolMiddleware creates a middleware that routes requests to the appropriate pool.
+// Supports both PostgreSQL and MongoDB pools for multi-tenant database routing.
 func NewDualPoolMiddleware(pools *MultiTenantPools, logger libLog.Logger) *DualPoolMiddleware {
 	return &DualPoolMiddleware{
-		onboardingPool:  pools.OnboardingPool,
-		transactionPool: pools.TransactionPool,
-		logger:          logger,
+		onboardingPool:       pools.OnboardingPool,
+		transactionPool:      pools.TransactionPool,
+		onboardingMongoPool:  pools.OnboardingMongoPool,
+		transactionMongoPool: pools.TransactionMongoPool,
+		logger:               logger,
 	}
 }
 
@@ -66,20 +61,36 @@ func NewDualPoolMiddleware(pools *MultiTenantPools, logger libLog.Logger) *DualP
 // determines the correct pool based on the request path, and injects
 // the tenant-specific database connection into the request context.
 func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
+	path := c.Path()
+	method := c.Method()
+
+	m.logger.Infof("[WithTenantDB] START - Method: %s, Path: %s", method, path)
+
 	// Skip public endpoints that don't require tenant context
-	if m.isPublicPath(c.Path()) {
+	if m.isPublicPath(path) {
+		m.logger.Infof("[WithTenantDB] Skipping public path: %s", path)
 		return c.Next()
 	}
+
+	m.logger.Infof("[WithTenantDB] Path requires tenant context: %s", path)
 
 	// Select the appropriate pool based on the request path
-	pool := m.selectPool(c.Path())
+	pool := m.selectPool(path)
+	poolName := m.getPoolName(path)
+
+	m.logger.Infof("[WithTenantDB] Selected pool: %s (pool is nil: %v)", poolName, pool == nil)
+
 	if pool == nil {
-		m.logger.Warn("No pool available for path, passing through")
+		m.logger.Warn("[WithTenantDB] No pool available for path, passing through")
 		return c.Next()
 	}
 
+	isMultiTenant := pool.IsMultiTenant()
+	m.logger.Infof("[WithTenantDB] Pool %s IsMultiTenant: %v", poolName, isMultiTenant)
+
 	// Single-tenant mode: pass through if pool is not multi-tenant
-	if !pool.IsMultiTenant() {
+	if !isMultiTenant {
+		m.logger.Infof("[WithTenantDB] Pool %s is single-tenant mode, passing through", poolName)
 		return c.Next()
 	}
 
@@ -89,24 +100,27 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "middleware.dual_pool.with_tenant_db")
 	defer span.End()
 
+	logger.Infof("[WithTenantDB] Multi-tenant mode active for path: %s", path)
+
 	// Extract tenant ID from JWT token
 	// In multi-tenant mode, tenantId is REQUIRED - no fallback to default connection
 	tenantID, err := m.extractTenantIDFromToken(c)
 	if err != nil {
-		logger.Errorf("Failed to extract tenant ID from token: %v", err)
+		logger.Errorf("[WithTenantDB] Failed to extract tenant ID from token: %v", err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to extract tenant ID", err)
 		return libHTTP.Unauthorized(c, "TENANT_ID_REQUIRED", "Unauthorized", "tenantId claim is required in JWT token for multi-tenant mode")
 	}
 
-	logger.Infof("Extracted tenant ID: %s for path: %s", tenantID, c.Path())
+	logger.Infof("[WithTenantDB] Extracted tenant ID: %s for path: %s", tenantID, path)
 
-	// Store tenant ID in context
-	ctx = context.WithValue(ctx, TenantIDKey, tenantID)
+	// Store tenant ID in context using lib-commons poolmanager context function
+	ctx = poolmanager.ContextWithTenantID(ctx, tenantID)
+	logger.Infof("[WithTenantDB] Set tenant ID in context: %s", tenantID)
 
 	// Get tenant-specific connection from the selected pool
 	conn, err := pool.GetConnection(ctx, tenantID)
 	if err != nil {
-		logger.Errorf("Failed to get connection for tenant %s: %v", tenantID, err)
+		logger.Errorf("[WithTenantDB] Failed to get PostgreSQL connection for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get tenant connection", err)
 
 		// Check for specific errors
@@ -125,30 +139,53 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		return libHTTP.InternalServerError(c, "CONNECTION_ERROR", "Internal Server Error", "failed to establish database connection")
 	}
 
+	logger.Infof("[WithTenantDB] Got PostgreSQL connection for tenant: %s", tenantID)
+
 	// Get the dbresolver.DB interface from the connection
 	db, err := conn.GetDB()
 	if err != nil {
-		logger.Errorf("Failed to get DB interface for tenant %s: %v", tenantID, err)
+		logger.Errorf("[WithTenantDB] Failed to get DB interface for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get DB interface", err)
 
 		return libHTTP.InternalServerError(c, "DB_ERROR", "Internal Server Error", "failed to get database interface")
 	}
 
 	// Store connection in context using poolmanager's context functions
-	// This ensures repositories can find the tenant connection via GetDBForTenantWithFallback
+	// This ensures repositories can find the tenant connection via GetPostgresForTenant
 	ctx = poolmanager.ContextWithTenantPGConnection(ctx, db)
-	ctx = poolmanager.SetMultiTenantModeInContext(ctx, true)
+	logger.Infof("[WithTenantDB] Set PostgreSQL connection in context for tenant: %s", tenantID)
 
-	// Also store the full connection for cases that need it (like GetTenantConnection helper)
-	ctx = context.WithValue(ctx, TenantDBConnectionKey, conn)
+	// Handle MongoDB if pool is configured
+	mongoPool := m.selectMongoPool(path)
+	mongoPoolIsNil := mongoPool == nil
+
+	logger.Infof("[WithTenantDB] MongoDB pool for path %s: isNil=%v", path, mongoPoolIsNil)
+
+	if mongoPool != nil {
+		logger.Infof("[WithTenantDB] Getting MongoDB connection for tenant: %s", tenantID)
+
+		mongoDB, mongoErr := mongoPool.GetDatabaseForTenant(ctx, tenantID)
+		if mongoErr != nil {
+			logger.Errorf("[WithTenantDB] Failed to get tenant MongoDB connection for tenant %s: %v", tenantID, mongoErr)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get tenant MongoDB connection", mongoErr)
+
+			return libHTTP.InternalServerError(c, "TENANT_MONGO_ERROR", "Internal Server Error", "failed to resolve tenant MongoDB connection")
+		}
+
+		ctx = poolmanager.ContextWithTenantMongo(ctx, mongoDB)
+		logger.Infof("[WithTenantDB] Set MongoDB connection in context for tenant: %s (pool: %s, db: %s)", tenantID, poolName, mongoDB.Name())
+	} else {
+		logger.Warnf("[WithTenantDB] MongoDB pool is nil for path %s - MongoDB connection will NOT be set in context", path)
+	}
+
 	c.SetUserContext(ctx)
 
-	logger.Infof("Set tenant connection for tenant: %s (pool: %s)", tenantID, m.getPoolName(c.Path()))
+	logger.Infof("[WithTenantDB] COMPLETE - Set user context for tenant: %s (pool: %s)", tenantID, poolName)
 
 	return c.Next()
 }
 
-// selectPool determines which pool to use based on the request path.
+// selectPool determines which PostgreSQL pool to use based on the request path.
 // Onboarding routes: /v1/organizations, /v1/organizations/:org/ledgers,
 //
 //	/v1/organizations/:org/ledgers/:ledger/accounts,
@@ -170,6 +207,17 @@ func (m *DualPoolMiddleware) selectPool(path string) *poolmanager.TenantConnecti
 	}
 	// Default to onboarding pool for all other paths
 	return m.onboardingPool
+}
+
+// selectMongoPool determines which MongoDB pool to use based on the request path.
+// Uses the same path-based routing logic as selectPool.
+// Returns nil if no MongoDB pool is configured for the selected path.
+func (m *DualPoolMiddleware) selectMongoPool(path string) *poolmanager.MongoPool {
+	if m.isTransactionPath(path) {
+		return m.transactionMongoPool
+	}
+	// Default to onboarding MongoDB pool for all other paths
+	return m.onboardingMongoPool
 }
 
 // isTransactionPath checks if the path belongs to transaction module.
@@ -247,21 +295,18 @@ func (m *DualPoolMiddleware) extractTenantIDFromToken(c *fiber.Ctx) (string, err
 }
 
 // GetTenantConnection retrieves the tenant database connection from the context.
-// Returns nil if not in multi-tenant mode or no connection is set.
-func GetTenantConnection(ctx context.Context) *libPostgres.PostgresConnection {
-	if conn, ok := ctx.Value(TenantDBConnectionKey).(*libPostgres.PostgresConnection); ok {
-		return conn
-	}
-	return nil
+// Deprecated: Use poolmanager.GetTenantPGConnectionFromContext() directly instead.
+// This function returns nil since we no longer store the full PostgresConnection in context.
+// Repositories should use poolmanager.GetPostgresForTenant() to get database connections.
+func GetTenantConnection(ctx context.Context) interface{} {
+	return poolmanager.GetTenantPGConnectionFromContext(ctx)
 }
 
 // GetTenantID retrieves the tenant ID from the context.
+// Deprecated: Use poolmanager.GetTenantIDFromContext() directly instead.
 // Returns empty string if no tenant ID is set.
 func GetTenantID(ctx context.Context) string {
-	if tenantID, ok := ctx.Value(TenantIDKey).(string); ok {
-		return tenantID
-	}
-	return ""
+	return poolmanager.GetTenantIDFromContext(ctx)
 }
 
 // handleUnifiedServerError is a custom error handler that extends the default Fiber error handling

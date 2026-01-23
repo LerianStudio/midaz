@@ -60,7 +60,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -99,7 +99,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -193,7 +193,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -236,7 +236,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 		return []*Metadata{}, nil
 	}
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -308,7 +308,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -349,7 +349,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -385,7 +385,7 @@ func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collectio
 	ctx, span := tracer.Start(ctx, "mongodb.create_index")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -445,7 +445,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_indexes")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -570,7 +570,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	ctx, span := tracer.Start(ctx, "mongodb.delete_index")
 	defer span.End()
 
-	tenantDB, err := poolmanager.GetMongoDatabaseForTenant(ctx, mmr.connection)
+	tenantDB, err := poolmanager.GetMongoForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
