@@ -61,7 +61,7 @@ case $KEYWORD in
     style)   EMOJI=":gem:" ;;
     refactor) EMOJI=":hammer:" ;;
     perf)    EMOJI=":rocket:" ;;
-    test)    EMOJI=":rotating_light:" ;;
+    test)    EMOJI=":test_tube:" ;;
     build)   EMOJI=":package:" ;;
     ci)      EMOJI=":construction_worker:" ;;
     chore)   EMOJI=":wrench:" ;;
