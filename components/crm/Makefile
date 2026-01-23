@@ -126,15 +126,26 @@ set-env:
 	@$(MAKE) generate-keys
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
 
-# Helper function to generate a random 256-bit hex key
-# Uses OpenSSL if available, falls back to Go crypto/rand
-define generate_random_key
-$(shell if command -v openssl >/dev/null 2>&1; then \
-	openssl rand -hex 32; \
-else \
-	go run -exec 'sh -c' /dev/stdin <<< 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }' 2>/dev/null || \
-	echo "error"; \
-fi)
+# Helper function to generate and inject a crypto key into .env
+# Usage: $(call inject_crypto_key,KEY_NAME,PLACEHOLDER)
+define inject_crypto_key
+	@CURRENT_VAL=$$(grep "^$(1)=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_VAL" ] || [ "$$CURRENT_VAL" = "$(2)" ]; then \
+		echo "  Generating $(1)..."; \
+		NEW_KEY=$$(docker run --rm alpine/openssl rand -hex 32 2>/dev/null); \
+		if [ -z "$$NEW_KEY" ] || [ $${#NEW_KEY} -ne 64 ]; then \
+			echo "$(RED)  ✗ Failed to generate key. Ensure Docker is running.$(NC)"; \
+			exit 1; \
+		fi; \
+		if grep -q "^$(1)=" ".env"; then \
+			sed -i.bak "s|^$(1)=.*|$(1)=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "$(1)=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ $(1) generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ $(1) already set$(NC)"; \
+	fi
 endef
 
 .PHONY: generate-keys
@@ -144,42 +155,8 @@ generate-keys:
 		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
 		exit 0; \
 	fi
-	@# Generate LCRYPTO_HASH_SECRET_KEY if missing, empty, or placeholder
-	@CURRENT_HASH_KEY=$$(grep "^LCRYPTO_HASH_SECRET_KEY=" .env 2>/dev/null | cut -d'=' -f2); \
-	if [ -z "$$CURRENT_HASH_KEY" ] || [ "$$CURRENT_HASH_KEY" = "my-hash-secret-key" ]; then \
-		echo "  Generating LCRYPTO_HASH_SECRET_KEY..."; \
-		if command -v openssl >/dev/null 2>&1; then \
-			NEW_KEY=$$(openssl rand -hex 32); \
-		else \
-			NEW_KEY=$$(go run -e 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }'); \
-		fi; \
-		if grep -q "^LCRYPTO_HASH_SECRET_KEY=" ".env"; then \
-			sed -i.bak "s|^LCRYPTO_HASH_SECRET_KEY=.*|LCRYPTO_HASH_SECRET_KEY=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
-		else \
-			echo "LCRYPTO_HASH_SECRET_KEY=$$NEW_KEY" >> ".env"; \
-		fi; \
-		echo "$(GREEN)  ✓ LCRYPTO_HASH_SECRET_KEY generated$(NC)"; \
-	else \
-		echo "$(GREEN)  ✓ LCRYPTO_HASH_SECRET_KEY already set$(NC)"; \
-	fi
-	@# Generate LCRYPTO_ENCRYPT_SECRET_KEY if missing, empty, or placeholder
-	@CURRENT_ENCRYPT_KEY=$$(grep "^LCRYPTO_ENCRYPT_SECRET_KEY=" .env 2>/dev/null | cut -d'=' -f2); \
-	if [ -z "$$CURRENT_ENCRYPT_KEY" ] || [ "$$CURRENT_ENCRYPT_KEY" = "my-encrypt-secret-key" ]; then \
-		echo "  Generating LCRYPTO_ENCRYPT_SECRET_KEY..."; \
-		if command -v openssl >/dev/null 2>&1; then \
-			NEW_KEY=$$(openssl rand -hex 32); \
-		else \
-			NEW_KEY=$$(go run -e 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }'); \
-		fi; \
-		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
-			sed -i.bak "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
-		else \
-			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$NEW_KEY" >> ".env"; \
-		fi; \
-		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
-	else \
-		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY already set$(NC)"; \
-	fi
+	$(call inject_crypto_key,LCRYPTO_HASH_SECRET_KEY,my-hash-secret-key)
+	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
 	@echo ""
 	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
 	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
