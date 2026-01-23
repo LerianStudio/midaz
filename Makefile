@@ -336,26 +336,23 @@ sec:
 .PHONY: setup-git-hooks
 setup-git-hooks:
 	$(call print_title,Installing and configuring git hooks)
-	@sh ./scripts/setup-git-hooks.sh
-	@echo "[ok] Git hooks installed successfully"
+	@git config core.hooksPath .githooks
+	@echo "[ok] Git hooks configured (using .githooks/)"
 
 .PHONY: check-hooks
 check-hooks:
 	$(call print_title,Verifying git hooks installation status)
-	@err=0; \
-	for hook_dir in .githooks/*; do \
-		hook_name=$$(basename $$hook_dir); \
-		if [ ! -f ".git/hooks/$$hook_name" ]; then \
-			echo "Git hook $$hook_name is not installed"; \
-			err=1; \
-		else \
-			echo "Git hook $$hook_name is installed"; \
-		fi; \
-	done; \
-	if [ $$err -eq 0 ]; then \
-		echo "[ok] All git hooks are properly installed"; \
+	@HOOKS_PATH=$$(git config --get core.hooksPath); \
+	if [ "$$HOOKS_PATH" = ".githooks" ]; then \
+		echo "[ok] Git hooks are configured (core.hooksPath = .githooks)"; \
+		echo "Available hooks:"; \
+		for hook in .githooks/*; do \
+			if [ -x "$$hook" ]; then \
+				echo "  - $$(basename $$hook)"; \
+			fi; \
+		done; \
 	else \
-		echo "[error] Some git hooks are missing. Run 'make setup-git-hooks' to fix."; \
+		echo "[error] Git hooks not configured. Run 'make setup-git-hooks' to fix."; \
 		exit 1; \
 	fi
 
@@ -620,6 +617,10 @@ generate-docs:
 .PHONY: dev-setup
 dev-setup:
 	$(call print_title,"Setting up development environment for all components")
+	@echo "Installing development tools..."
+	@command -v gitleaks &> /dev/null || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest)
+	@command -v gofumpt &> /dev/null || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest)
+	@command -v goimports &> /dev/null || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest)
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \

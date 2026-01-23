@@ -1,0 +1,113 @@
+#!/bin/bash
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT"/pkg/shell/colors.sh
+source "$REPO_ROOT"/pkg/shell/ascii.sh
+
+# Validate branch naming convention early (before expensive checks)
+while read local_ref local_sha remote_ref remote_sha; do
+    if [[ "$local_ref" =~ ^refs/heads/ ]]; then
+        branch_name=$(echo "$local_ref" | sed 's|^refs/heads/||')
+
+        if [[ ! "$branch_name" =~ ^(feature|fix|hotfix|docs|refactor|build|test|chore|ci)/.+$ ]]; then
+            echo "${red}❌ Invalid branch name: ${branch_name}${reset}"
+            echo "Branch names must start with 'feature/', 'fix/', 'refactor/', 'docs/', 'test/', 'chore/', 'ci/' or 'hotfix/' followed by a task id or feature name."
+            exit 1
+        fi
+    fi
+done
+
+# Run quality checks before pushing
+echo "${bold}Running pre-push checks...${reset}"
+
+# Check code formatting (gofumpt)
+echo "Checking code formatting..."
+if ! command -v gofumpt &> /dev/null; then
+    echo "${red}❌ gofumpt not installed${reset}"
+    echo "Install with: go install mvdan.cc/gofumpt@latest"
+    exit 1
+fi
+UNFORMATTED=$(gofumpt -l . 2>/dev/null)
+if [ -n "$UNFORMATTED" ]; then
+    echo "${red}❌ Files need formatting:${reset}"
+    echo "$UNFORMATTED"
+    echo ""
+    echo "Run: ${bold}gofumpt -w .${reset}"
+    exit 1
+fi
+echo "${green}✅ Code formatting OK${reset}"
+
+# Check imports organization (goimports)
+echo "Checking imports..."
+if ! command -v goimports &> /dev/null; then
+    echo "${red}❌ goimports not installed${reset}"
+    echo "Install with: go install golang.org/x/tools/cmd/goimports@latest"
+    exit 1
+fi
+UNORGANIZED=$(goimports -l . 2>/dev/null)
+if [ -n "$UNORGANIZED" ]; then
+    echo "${red}❌ Files need import organization:${reset}"
+    echo "$UNORGANIZED"
+    echo ""
+    echo "Run: ${bold}goimports -w .${reset}"
+    exit 1
+fi
+echo "${green}✅ Imports OK${reset}"
+
+# Check go.mod/go.sum are tidy
+echo "Checking go.mod/go.sum..."
+cp go.mod go.mod.bak
+cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
+go mod tidy 2>/dev/null
+if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
+    mv go.mod.bak go.mod
+    mv go.sum.bak go.sum
+    echo "${red}❌ go.mod/go.sum need updating${reset}"
+    echo ""
+    echo "Run: ${bold}go mod tidy${reset}"
+    exit 1
+fi
+rm -f go.mod.bak go.sum.bak
+echo "${green}✅ go.mod/go.sum OK${reset}"
+
+# Scan for secrets (gitleaks) - second layer of protection
+echo "Scanning for secrets..."
+if ! command -v gitleaks &> /dev/null; then
+    echo "${red}❌ gitleaks not installed${reset}"
+    echo "Install with: brew install gitleaks"
+    echo "         or: go install github.com/zricethezav/gitleaks/v8@latest"
+    exit 1
+fi
+if ! gitleaks detect --no-banner --no-git -v 2>/dev/null; then
+    echo "${red}❌ Secrets detected in codebase!${reset}"
+    echo ""
+    echo "Review the findings above and remove secrets before pushing."
+    echo "If this is a false positive, add to .gitleaksignore"
+    exit 1
+fi
+echo "${green}✅ No secrets detected${reset}"
+
+echo "Running unit tests..."
+if ! make test-unit; then
+    echo "${red}❌ Unit tests failed${reset}"
+    exit 1
+fi
+echo "${green}✅ Unit tests passed${reset}"
+
+echo "Running security checks..."
+if ! make sec; then
+    echo "${red}❌ Security checks failed${reset}"
+    exit 1
+fi
+echo "${green}✅ Security checks passed${reset}"
+
+echo "Running linter..."
+if ! make lint; then
+    echo "${red}❌ Linter failed${reset}"
+    exit 1
+fi
+echo "${green}✅ Linter passed${reset}"
+
+echo "${green}${bold}All checks passed!${reset}"
+
+exit 0
