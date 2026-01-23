@@ -377,19 +377,45 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	rabbitSource := buildRabbitMQConnectionString(
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
 
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
+	// Determine service name for RabbitMQ pool registration
+	// When running as part of unified ledger, use the caller's service name
+	serviceName := ApplicationName
+	if opts != nil && opts.ServiceName != "" {
+		serviceName = opts.ServiceName
 	}
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// Initialize RabbitMQ producer based on mode
+	var producerRabbitMQRepository rabbitmq.ProducerRepository
+	var rabbitMQPool *poolmanager.RabbitMQPool
+
+	if cfg.MultiTenantEnabled {
+		// Multi-tenant mode: use RabbitMQ pool for tenant-specific connections
+		logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ producer")
+
+		poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
+		rabbitMQPool = poolmanager.NewRabbitMQPool(poolManagerClient, serviceName,
+			poolmanager.WithRabbitMQModule("transaction"),
+			poolmanager.WithRabbitMQLogger(logger),
+		)
+
+		producerRabbitMQRepository = rabbitmq.NewProducerRabbitMQMultiTenant(rabbitMQPool)
+		logger.Infof("Multi-tenant RabbitMQ producer initialized for service: %s", serviceName)
+	} else {
+		// Single-tenant mode: use static RabbitMQ connection
+		rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
+			ConnectionStringSource: rabbitSource,
+			HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
+			Host:                   cfg.RabbitMQHost,
+			Port:                   cfg.RabbitMQPortAMQP,
+			User:                   cfg.RabbitMQUser,
+			Pass:                   cfg.RabbitMQPass,
+			Queue:                  cfg.RabbitMQBalanceCreateQueue,
+			Logger:                 logger,
+		}
+
+		producerRabbitMQRepository = rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+		logger.Infof("Single-tenant RabbitMQ producer initialized for service: %s", serviceName)
+	}
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
@@ -445,13 +471,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	// Determine service name for RabbitMQ pool registration
-	// When running as part of unified ledger, use the caller's service name
-	serviceName := ApplicationName
-	if opts != nil && opts.ServiceName != "" {
-		serviceName = opts.ServiceName
-	}
-
 	// Only create single-tenant RabbitMQ consumer when NOT in multi-tenant mode
 	// In multi-tenant mode, the unified ledger handles message routing through Pool Manager
 	var multiQueueConsumer *MultiQueueConsumer
@@ -477,21 +496,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 		logger.Infof("Single-tenant RabbitMQ consumer initialized for service: %s", serviceName)
 	} else {
+		// Multi-tenant mode: reuse the RabbitMQ pool created for the producer
 		logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ consumer")
-
-		// Create Pool Manager client for RabbitMQ pool
-		poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
-
-		// Create RabbitMQ pool for multi-tenant connections
-		rabbitMQPool := poolmanager.NewRabbitMQPool(poolManagerClient, serviceName,
-			poolmanager.WithRabbitMQModule("transaction"),
-			poolmanager.WithRabbitMQLogger(logger),
-		)
 
 		// Get BTO queue name from environment
 		btoQueue := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
 
-		// Create multi-tenant consumer
+		// Create multi-tenant consumer using the same pool as the producer
 		multiTenantRabbitMQConsumer = NewMultiTenantRabbitMQConsumer(
 			rabbitMQPool,
 			redisConsumerRepository.GetClient(),
