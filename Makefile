@@ -323,8 +323,7 @@ sec:
 	fi
 	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running security checks on components/ and pkg/ folders..."; \
-		gosec ./components/... ./pkg/...; \
-		echo "[ok] Security checks completed"; \
+		gosec ./components/... ./pkg/... && echo "[ok] Security checks completed"; \
 	else \
 		echo "No Go files found, skipping security checks"; \
 	fi
