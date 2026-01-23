@@ -3,6 +3,7 @@ package mongo
 import (
 	"strings"
 
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/iancoleman/strcase"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -70,4 +71,43 @@ func shouldUnset(key string, fieldsToRemove []string) bool {
 	}
 
 	return false
+}
+
+// ExtractMongoPortAndParameters handles backward compatibility for MongoDB connection configuration.
+// MONGO_PORT=5703/replicaSet=rs0&authSource=admin&directConnection=true
+//
+// This function extracts the actual port and parameters from such configurations.
+// If MONGO_PARAMETERS is already set, it takes precedence over embedded parameters.
+func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger) (string, string) {
+	actualPort := port
+	if idx := strings.IndexAny(port, "/?"); idx != -1 {
+		actualPort = port[:idx]
+		embeddedParams := strings.TrimLeft(port[idx+1:], "/?")
+
+		if parameters != "" {
+			if logger != nil {
+				logger.Warnf(
+					"MongoDB parameters embedded in MONGO_PORT detected but ignored "+
+						"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
+						"Sanitized port=%s",
+					actualPort,
+				)
+			}
+
+			return actualPort, parameters
+		}
+
+		if logger != nil {
+			logger.Warnf(
+				"MongoDB parameters embedded in MONGO_PORT detected. "+
+					"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
+					"Sanitized port=%s",
+				actualPort,
+			)
+		}
+
+		return actualPort, embeddedParams
+	}
+
+	return actualPort, parameters
 }

@@ -174,7 +174,8 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 func CreateConnection(t *testing.T, addr string) *libRedis.RedisConnection {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err, "failed to initialize logger")
 
 	return &libRedis.RedisConnection{
 		Address: []string{addr},

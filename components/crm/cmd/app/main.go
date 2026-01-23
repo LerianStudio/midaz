@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
@@ -17,5 +21,23 @@ import (
 // @Security					BearerAuth
 func main() {
 	libCommons.InitLocalEnvConfig()
-	bootstrap.InitServers().Run()
+
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+
+		os.Exit(1)
+	}
+
+	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
+		Logger: logger,
+	})
+	if err != nil {
+		logger.Errorf("Failed to initialize CRM service: %v", err)
+		_ = logger.Sync()
+
+		os.Exit(1)
+	}
+
+	service.Run()
 }

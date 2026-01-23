@@ -29,7 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -215,14 +215,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if opts != nil && opts.Logger != nil {
 		logger = opts.Logger
 	} else {
-		logger = libZap.InitializeLogger()
+		var err error
+
+		logger, err = libZap.InitializeLoggerWithError()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
 	// BalanceSyncWorkerEnabled defaults to true via struct tag
 	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
 	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -231,6 +236,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
@@ -278,10 +286,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := utils.BuildMongoConnectionString(
+	mongoSource := libMongo.BuildConnectionString(
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
 	// Safe conversion: use uint64 with default, only assign if positive

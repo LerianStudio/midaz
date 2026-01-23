@@ -3,6 +3,7 @@ package alias
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -45,17 +46,18 @@ type MongoDBRepository struct {
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection
-func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) *MongoDBRepository {
+func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
 		connection:   connection,
 		Database:     connection.Database,
 		DataSecurity: dataSecurity,
 	}
+
 	if _, err := r.connection.GetDB(context.Background()); err != nil {
-		panic("Failed to connect mongo")
+		return nil, fmt.Errorf("failed to connect to MongoDB for alias repository: %w", err)
 	}
 
-	return r
+	return r, nil
 }
 
 // Create inserts an alias into mongo
