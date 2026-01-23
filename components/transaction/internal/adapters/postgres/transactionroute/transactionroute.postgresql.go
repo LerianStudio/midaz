@@ -68,7 +68,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
+	db, err := poolmanager.GetPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -206,7 +206,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_by_id")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
+	db, err := poolmanager.GetPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -370,7 +370,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
+	db, err := poolmanager.GetPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -500,7 +500,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
+	db, err := poolmanager.GetPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -569,7 +569,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transaction_routes")
 	defer span.End()
 
-	db, err := poolmanager.GetDBForTenantWithFallback(ctx, r.connection)
+	db, err := poolmanager.GetPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

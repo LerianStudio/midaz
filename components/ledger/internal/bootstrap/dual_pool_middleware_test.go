@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -289,16 +289,8 @@ func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
 }
 
 func TestGetTenantConnection(t *testing.T) {
-	t.Run("returns connection when set", func(t *testing.T) {
-		conn := &libPostgres.PostgresConnection{
-			ConnectionStringPrimary: "host=test-db",
-		}
-		ctx := context.WithValue(context.Background(), TenantDBConnectionKey, conn)
-
-		result := GetTenantConnection(ctx)
-
-		assert.Equal(t, conn, result)
-	})
+	// GetTenantConnection now delegates to poolmanager.GetTenantPGConnectionFromContext()
+	// which returns dbresolver.DB, not *libPostgres.PostgresConnection
 
 	t.Run("returns nil when not set", func(t *testing.T) {
 		ctx := context.Background()
@@ -307,19 +299,13 @@ func TestGetTenantConnection(t *testing.T) {
 
 		assert.Nil(t, result)
 	})
-
-	t.Run("returns nil for wrong type", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), TenantDBConnectionKey, "wrong-type")
-
-		result := GetTenantConnection(ctx)
-
-		assert.Nil(t, result)
-	})
 }
 
 func TestGetTenantID(t *testing.T) {
-	t.Run("returns tenant ID when set", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), TenantIDKey, "tenant-123")
+	// GetTenantID now delegates to poolmanager.GetTenantIDFromContext()
+
+	t.Run("returns tenant ID when set using poolmanager context", func(t *testing.T) {
+		ctx := poolmanager.ContextWithTenantID(context.Background(), "tenant-123")
 
 		result := GetTenantID(ctx)
 
@@ -328,14 +314,6 @@ func TestGetTenantID(t *testing.T) {
 
 	t.Run("returns empty string when not set", func(t *testing.T) {
 		ctx := context.Background()
-
-		result := GetTenantID(ctx)
-
-		assert.Equal(t, "", result)
-	})
-
-	t.Run("returns empty string for wrong type", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), TenantIDKey, 123)
 
 		result := GetTenantID(ctx)
 
