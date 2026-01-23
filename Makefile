@@ -390,6 +390,10 @@ set-env:
 	else \
 		echo ".env already exists in $(LEDGER_DIR)"; \
 	fi
+	@# Generate crypto keys for CRM component if .env exists
+	@if [ -f "$(CRM_DIR)/.env" ]; then \
+		$(MAKE) -C $(CRM_DIR) generate-keys; \
+	fi
 	@echo "[ok] Environment files set up successfully"
 
 .PHONY: clear-envs

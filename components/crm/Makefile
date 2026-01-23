@@ -72,6 +72,7 @@ help:
 	@echo "  make check-envs                  - Check for exposed .env files"
 	@echo "  make setup-git-hooks             - Install git hooks"
 	@echo "  make check-hooks                 - Check git hooks status"
+	@echo "  make generate-keys               - Generate crypto keys for local testing"
 	@echo ""
 
 #-------------------------------------------------------
@@ -117,20 +118,73 @@ set-env:
 		echo "  Creating .env from .env.example"; \
 		cp ".env.example" ".env"; \
 		echo "$(GREEN)  ✓ Backend .env created$(NC)"; \
-		echo "  Generating random LCRYPTO_ENCRYPT_SECRET_KEY for local testing..."; \
-		RANDOM_KEY=$$(openssl rand -hex 32); \
-		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
-			sed -i "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY|" ".env"; \
-		else \
-			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY" >> ".env"; \
-		fi; \
-		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
 	elif [ ! -f ".env.example" ]; then \
 		echo "$(YELLOW)  ! No .env.example found$(NC)"; \
 	else \
 		echo "$(GREEN)  ✓ Backend .env already exists$(NC)"; \
 	fi
+	@$(MAKE) generate-keys
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
+
+# Helper function to generate a random 256-bit hex key
+# Uses OpenSSL if available, falls back to Go crypto/rand
+define generate_random_key
+$(shell if command -v openssl >/dev/null 2>&1; then \
+	openssl rand -hex 32; \
+else \
+	go run -exec 'sh -c' /dev/stdin <<< 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }' 2>/dev/null || \
+	echo "error"; \
+fi)
+endef
+
+.PHONY: generate-keys
+generate-keys:
+	$(call title1,"Generating crypto keys for local testing")
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
+		exit 0; \
+	fi
+	@# Generate LCRYPTO_HASH_SECRET_KEY if missing, empty, or placeholder
+	@CURRENT_HASH_KEY=$$(grep "^LCRYPTO_HASH_SECRET_KEY=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_HASH_KEY" ] || [ "$$CURRENT_HASH_KEY" = "my-hash-secret-key" ]; then \
+		echo "  Generating LCRYPTO_HASH_SECRET_KEY..."; \
+		if command -v openssl >/dev/null 2>&1; then \
+			NEW_KEY=$$(openssl rand -hex 32); \
+		else \
+			NEW_KEY=$$(go run -e 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }'); \
+		fi; \
+		if grep -q "^LCRYPTO_HASH_SECRET_KEY=" ".env"; then \
+			sed -i.bak "s|^LCRYPTO_HASH_SECRET_KEY=.*|LCRYPTO_HASH_SECRET_KEY=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "LCRYPTO_HASH_SECRET_KEY=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ LCRYPTO_HASH_SECRET_KEY generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ LCRYPTO_HASH_SECRET_KEY already set$(NC)"; \
+	fi
+	@# Generate LCRYPTO_ENCRYPT_SECRET_KEY if missing, empty, or placeholder
+	@CURRENT_ENCRYPT_KEY=$$(grep "^LCRYPTO_ENCRYPT_SECRET_KEY=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_ENCRYPT_KEY" ] || [ "$$CURRENT_ENCRYPT_KEY" = "my-encrypt-secret-key" ]; then \
+		echo "  Generating LCRYPTO_ENCRYPT_SECRET_KEY..."; \
+		if command -v openssl >/dev/null 2>&1; then \
+			NEW_KEY=$$(openssl rand -hex 32); \
+		else \
+			NEW_KEY=$$(go run -e 'package main; import ("crypto/rand","fmt"); func main() { b := make([]byte, 32); rand.Read(b); fmt.Printf("%x", b) }'); \
+		fi; \
+		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
+			sed -i.bak "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY already set$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
+	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+	@echo ""
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Crypto keys generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Build / Test / Coverage
