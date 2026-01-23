@@ -617,9 +617,9 @@ generate-docs:
 dev-setup:
 	$(call print_title,"Setting up development environment for all components")
 	@echo "Installing development tools..."
-	@command -v gitleaks &> /dev/null || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest)
-	@command -v gofumpt &> /dev/null || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest)
-	@command -v goimports &> /dev/null || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest)
+	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest) || echo "⚠️  Failed to install gitleaks"
+	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
+	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
