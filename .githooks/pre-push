@@ -14,7 +14,7 @@ while read local_ref local_sha remote_ref remote_sha; do
 
         if [[ ! "$branch_name" =~ ^(feature|fix|hotfix|docs|refactor|build|test|chore|ci)/.+$ ]]; then
             echo "${red}❌ Invalid branch name: ${branch_name}${normal}"
-            echo "Branch names must start with 'feature/', 'fix/', 'refactor/', 'docs/', 'test/', 'chore/', 'ci/' or 'hotfix/' followed by a task id or feature name."
+            echo "Branch names must start with 'feature/', 'fix/', 'hotfix/', 'docs/', 'refactor/', 'build/', 'test/', 'chore/', or 'ci/' followed by a task id or feature name."
             exit 1
         fi
     fi
@@ -23,16 +23,6 @@ done <<< "$PUSH_REFS"
 # Run quality checks before pushing
 echo "${bold}Running pre-push checks...${normal}"
 echo ""
-
-# Get changed Go files (compared to origin/main)
-CHANGED_GO_FILES=$(git diff --name-only origin/main...HEAD -- '*.go' 2>/dev/null | grep -v '_test.go$' || true)
-
-# If no Go files changed, skip Go-specific checks
-if [ -z "$CHANGED_GO_FILES" ]; then
-    echo "No Go files changed, skipping Go checks..."
-    echo "${green}✅ All checks passed!${normal}"
-    exit 0
-fi
 
 # Check go.mod/go.sum
 echo "Checking go.mod/go.sum..."
