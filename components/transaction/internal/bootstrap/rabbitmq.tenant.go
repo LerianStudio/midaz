@@ -149,7 +149,12 @@ func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Cont
 // handleBalanceCreateMessage processes balance create messages.
 // The context contains the tenant ID via poolmanager.SetTenantIDInContext.
 func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Context, delivery amqp.Delivery) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	// Use c.logger directly since context doesn't have logger set up by multi-tenant consumer
+	logger := c.logger
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	// Inject logger into context for downstream code (like useCase)
+	ctx = libCommons.ContextWithLogger(ctx, logger)
 
 	ctx, span := tracer.Start(ctx, "multitenant_consumer.handle_balance_create")
 	defer span.End()
@@ -189,7 +194,12 @@ func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Con
 // handleBTOMessage processes balance transaction operation messages.
 // The context contains the tenant ID via poolmanager.SetTenantIDInContext.
 func (c *MultiTenantRabbitMQConsumer) handleBTOMessage(ctx context.Context, delivery amqp.Delivery) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	// Use c.logger directly since context doesn't have logger set up by multi-tenant consumer
+	logger := c.logger
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	// Inject logger into context for downstream code (like useCase)
+	ctx = libCommons.ContextWithLogger(ctx, logger)
 
 	ctx, span := tracer.Start(ctx, "multitenant_consumer.handle_bto")
 	defer span.End()
