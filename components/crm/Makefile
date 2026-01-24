@@ -72,6 +72,7 @@ help:
 	@echo "  make check-envs                  - Check for exposed .env files"
 	@echo "  make setup-git-hooks             - Install git hooks"
 	@echo "  make check-hooks                 - Check git hooks status"
+	@echo "  make generate-keys               - Generate crypto keys for local testing"
 	@echo ""
 
 #-------------------------------------------------------
@@ -117,20 +118,50 @@ set-env:
 		echo "  Creating .env from .env.example"; \
 		cp ".env.example" ".env"; \
 		echo "$(GREEN)  ✓ Backend .env created$(NC)"; \
-		echo "  Generating random LCRYPTO_ENCRYPT_SECRET_KEY for local testing..."; \
-		RANDOM_KEY=$$(openssl rand -hex 32); \
-		if grep -q "^LCRYPTO_ENCRYPT_SECRET_KEY=" ".env"; then \
-			sed -i "s|^LCRYPTO_ENCRYPT_SECRET_KEY=.*|LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY|" ".env"; \
-		else \
-			echo "LCRYPTO_ENCRYPT_SECRET_KEY=$$RANDOM_KEY" >> ".env"; \
-		fi; \
-		echo "$(GREEN)  ✓ LCRYPTO_ENCRYPT_SECRET_KEY generated$(NC)"; \
 	elif [ ! -f ".env.example" ]; then \
 		echo "$(YELLOW)  ! No .env.example found$(NC)"; \
 	else \
 		echo "$(GREEN)  ✓ Backend .env already exists$(NC)"; \
 	fi
+	@$(MAKE) generate-keys
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
+
+# Helper function to generate and inject a crypto key into .env
+# Usage: $(call inject_crypto_key,KEY_NAME,PLACEHOLDER)
+define inject_crypto_key
+	@CURRENT_VAL=$$(grep "^$(1)=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_VAL" ] || [ "$$CURRENT_VAL" = "$(2)" ]; then \
+		echo "  Generating $(1)..."; \
+		NEW_KEY=$$(docker run --rm alpine/openssl rand -hex 32 2>/dev/null); \
+		if [ -z "$$NEW_KEY" ] || [ $${#NEW_KEY} -ne 64 ]; then \
+			echo "$(RED)  ✗ Failed to generate key. Ensure Docker is running.$(NC)"; \
+			exit 1; \
+		fi; \
+		if grep -q "^$(1)=" ".env"; then \
+			sed -i.bak "s|^$(1)=.*|$(1)=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "$(1)=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ $(1) generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ $(1) already set$(NC)"; \
+	fi
+endef
+
+.PHONY: generate-keys
+generate-keys:
+	$(call title1,"Generating crypto keys for local testing")
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
+		exit 0; \
+	fi
+	$(call inject_crypto_key,LCRYPTO_HASH_SECRET_KEY,my-hash-secret-key)
+	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
+	@echo ""
+	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
+	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+	@echo ""
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Crypto keys generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Build / Test / Coverage

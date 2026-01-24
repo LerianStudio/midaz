@@ -1,3 +1,6 @@
+# Security scanning workflow for pull requests
+
+# Shared workflows version: v1.7.0
 name: "PR Security Scan"
 
 # This workflow runs security scans on pull requests
@@ -16,7 +19,7 @@ on:
 
 jobs:
   security-scan:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@main
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.7.0
     with:
       runner_type: "firmino-lxc-runners"
       filter_paths: |-

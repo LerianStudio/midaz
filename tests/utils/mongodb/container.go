@@ -123,7 +123,8 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 func CreateConnection(t *testing.T, uri, dbName string) *libMongo.MongoConnection {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err, "failed to initialize logger")
 
 	return &libMongo.MongoConnection{
 		ConnectionStringSource: uri,

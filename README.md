@@ -62,12 +62,14 @@ Lerian Midaz implements a comprehensive financial hierarchy:
    - RESTful API with OpenAPI documentation
    - PostgreSQL for primary data, MongoDB for flexible metadata
    - Manages the full financial hierarchy from organizations to accounts
+
 2. **Transaction Service**: Financial transaction processing system.
 
    - Handles complex n:n transactions with double-entry accounting
    - Supports multiple transaction creation methods (JSON, DSL, templates)
    - Asset rate management and balance tracking with optimistic concurrency
    - Event-driven architecture using RabbitMQ for transaction lifecycle
+
 3. **Infrastructure Layer**: Containerized infrastructure services.
 
    - PostgreSQL with primary-replica setup for high availability
@@ -75,6 +77,14 @@ Lerian Midaz implements a comprehensive financial hierarchy:
    - RabbitMQ for message queuing with predefined exchanges
    - Valkey for caching and message passing
    - Grafana/OpenTelemetry for comprehensive monitoring
+
+4. **CRM Service**: Customer Relationship Management for financial services.
+
+   - Manages Holders (natural/legal persons) and Aliases (financial identifiers like bank accounts, PIX keys)
+   - Field-level encryption (AES-GCM) for personal data (names, documents, contacts)
+   - Searchable hashing (HMAC-SHA256) for filtered queries without exposing plaintext
+   - Requires `LCRYPTO_ENCRYPT_SECRET_KEY` and `LCRYPTO_HASH_SECRET_KEY` (32-byte keys)
+   - Optional Auth integration via `PLUGIN_AUTH_ENABLED` and `PLUGIN_AUTH_ADDRESS`
 
 ### Transaction Processing
 

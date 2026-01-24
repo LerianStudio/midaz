@@ -124,10 +124,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if opts != nil && opts.Logger != nil {
 		baseLogger = opts.Logger
 	} else {
-		baseLogger = libZap.InitializeLogger()
+		var err error
+
+		baseLogger, err = libZap.InitializeLoggerWithError()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -136,6 +141,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    baseLogger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
 
 	// Initialize multi-tenant connection pools (optional, disabled by default)
 	// In multi-tenant mode, we create TWO pools: one for onboarding and one for transaction

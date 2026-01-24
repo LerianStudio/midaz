@@ -215,6 +215,7 @@ func main() {
 	outPath := flag.String("out", "", "path to write correlation summary")
 	transURL := flag.String("trans", getenv("TRANSACTION_URL", "http://localhost:3001"), "transaction base URL")
 	auth := flag.String("auth", getenv("TEST_AUTH_HEADER", ""), "Authorization header value")
+
 	flag.Parse()
 
 	if *acceptedPath == "" || *logPath == "" || *outPath == "" {
