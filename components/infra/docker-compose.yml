@@ -173,8 +173,8 @@ services:
     volumes:
       - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
       - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
-      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+      - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-logs:/var/log/rabbitmq
     networks:
       - infra-network
 
@@ -184,6 +184,8 @@ volumes:
   redis-data:
   grafana-data:
   mongodb-data:
+  rabbitmq-data:
+  rabbitmq-logs:
 
 networks:
   infra-network:
