@@ -311,8 +311,11 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			allowReceiving = 1
 		}
 
+		// Apply tenant prefix to the balance internal key
+		prefixedInternalKey := poolmanager.GetKeyFromContext(ctx, blcs.InternalKey)
+
 		args = append(args,
-			blcs.InternalKey,
+			prefixedInternalKey,
 			isPending,
 			transactionStatus,
 			blcs.Amount.Operation,
