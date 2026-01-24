@@ -387,6 +387,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Initialize RabbitMQ producer based on mode
 	var producerRabbitMQRepository rabbitmq.ProducerRepository
 	var rabbitMQPool *poolmanager.RabbitMQPool
+	var postgresPool *poolmanager.Pool
+	var mongoPool *poolmanager.MongoPool
 
 	if cfg.MultiTenantEnabled {
 		// Multi-tenant mode: use RabbitMQ pool for tenant-specific connections
@@ -397,6 +399,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			poolmanager.WithRabbitMQModule("transaction"),
 			poolmanager.WithRabbitMQLogger(logger),
 		)
+
+		// Create PostgreSQL pool for multi-tenant mode
+		postgresPool = poolmanager.NewPool(poolManagerClient, serviceName,
+			poolmanager.WithModule("transaction"),
+			poolmanager.WithPoolLogger(logger),
+		)
+		logger.Info("Created PostgreSQL connection pool for multi-tenant mode")
+
+		// Create MongoDB pool for multi-tenant mode
+		mongoPool = poolmanager.NewMongoPool(poolManagerClient, serviceName,
+			poolmanager.WithMongoModule("transaction"),
+			poolmanager.WithMongoLogger(logger),
+		)
+		logger.Info("Created MongoDB connection pool for multi-tenant mode")
 
 		producerRabbitMQRepository = rabbitmq.NewProducerRabbitMQMultiTenant(rabbitMQPool)
 		logger.Infof("Multi-tenant RabbitMQ producer initialized for service: %s", serviceName)
@@ -513,6 +529,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			useCase,
 			logger,
 			telemetry,
+			postgresPool,
+			mongoPool,
 		)
 
 		logger.Infof("Multi-tenant RabbitMQ consumer initialized for service: %s", serviceName)
