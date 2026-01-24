@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -24,6 +25,9 @@ type MultiTenantRabbitMQConsumer struct {
 	telemetry          *libOpentelemetry.Telemetry
 	balanceCreateQueue string
 	btoQueue           string
+	// Database pools for tenant connection injection
+	postgresPool *poolmanager.Pool
+	mongoPool    *poolmanager.MongoPool
 }
 
 // NewMultiTenantRabbitMQConsumer creates a new multi-tenant RabbitMQ consumer.
@@ -37,6 +41,8 @@ type MultiTenantRabbitMQConsumer struct {
 //   - useCase: Transaction use case for processing messages
 //   - logger: Logger for operational logging
 //   - telemetry: Telemetry for tracing
+//   - postgresPool: PostgreSQL connection pool for tenant database access
+//   - mongoPool: MongoDB connection pool for tenant database access (optional)
 func NewMultiTenantRabbitMQConsumer(
 	pool *poolmanager.RabbitMQPool,
 	redisClient redis.UniversalClient,
@@ -47,6 +53,8 @@ func NewMultiTenantRabbitMQConsumer(
 	useCase *command.UseCase,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
+	postgresPool *poolmanager.Pool,
+	mongoPool *poolmanager.MongoPool,
 ) *MultiTenantRabbitMQConsumer {
 	config := poolmanager.DefaultMultiTenantConfig()
 	config.Service = serviceName
@@ -63,6 +71,8 @@ func NewMultiTenantRabbitMQConsumer(
 		telemetry:          telemetry,
 		balanceCreateQueue: balanceCreateQueue,
 		btoQueue:           btoQueue,
+		postgresPool:       postgresPool,
+		mongoPool:          mongoPool,
 	}
 
 	// Register queue handlers
@@ -100,6 +110,42 @@ func (c *MultiTenantRabbitMQConsumer) Run(l *libCommons.Launcher) error {
 	return nil
 }
 
+// injectTenantDBConnections retrieves tenant-specific database connections from pools
+// and injects them into the context for use by repositories.
+func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Context, tenantID string, logger libLog.Logger) (context.Context, error) {
+	// Inject PostgreSQL connection
+	if c.postgresPool != nil {
+		pgConn, err := c.postgresPool.GetConnection(ctx, tenantID)
+		if err != nil {
+			logger.Errorf("Failed to get PostgreSQL connection for tenant %s: %v", tenantID, err)
+			return ctx, fmt.Errorf("failed to get PostgreSQL connection: %w", err)
+		}
+
+		db, err := pgConn.GetDB()
+		if err != nil {
+			logger.Errorf("Failed to get DB interface for tenant %s: %v", tenantID, err)
+			return ctx, fmt.Errorf("failed to get DB interface: %w", err)
+		}
+
+		ctx = poolmanager.ContextWithTransactionPGConnection(ctx, db)
+		logger.Infof("Injected PostgreSQL connection for tenant: %s", tenantID)
+	}
+
+	// Inject MongoDB connection (optional)
+	if c.mongoPool != nil {
+		mongoDB, err := c.mongoPool.GetDatabaseForTenant(ctx, tenantID)
+		if err != nil {
+			logger.Warnf("Failed to get MongoDB connection for tenant %s: %v (continuing without MongoDB)", tenantID, err)
+			// MongoDB is optional, don't fail the entire operation
+		} else {
+			ctx = poolmanager.ContextWithTenantMongo(ctx, mongoDB)
+			logger.Infof("Injected MongoDB connection for tenant: %s", tenantID)
+		}
+	}
+
+	return ctx, nil
+}
+
 // handleBalanceCreateMessage processes balance create messages.
 // The context contains the tenant ID via poolmanager.SetTenantIDInContext.
 func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Context, delivery amqp.Delivery) error {
@@ -110,6 +156,14 @@ func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Con
 
 	tenantID := poolmanager.GetTenantIDFromContext(ctx)
 	logger.Infof("Processing balance create message for tenant: %s", tenantID)
+
+	// Inject tenant database connections into context
+	var err error
+	ctx, err = c.injectTenantDBConnections(ctx, tenantID, logger)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to inject tenant DB connections", err)
+		return err
+	}
 
 	var message mmodel.Queue
 
@@ -142,6 +196,14 @@ func (c *MultiTenantRabbitMQConsumer) handleBTOMessage(ctx context.Context, deli
 
 	tenantID := poolmanager.GetTenantIDFromContext(ctx)
 	logger.Infof("Processing BTO message for tenant: %s", tenantID)
+
+	// Inject tenant database connections into context
+	var err error
+	ctx, err = c.injectTenantDBConnections(ctx, tenantID, logger)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to inject tenant DB connections", err)
+		return err
+	}
 
 	var message mmodel.Queue
 
