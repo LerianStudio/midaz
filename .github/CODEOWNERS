@@ -2,8 +2,8 @@
 *                                   @LerianStudio/g_github_dev
 
 # CI/CD and DevOps configurations
-.github/*                           @LerianStudio/g_github_devops
-.githooks/*                         @LerianStudio/g_github_devops
+.github/**                          @LerianStudio/g_github_devops
+.githooks/**                        @LerianStudio/g_github_devops
 
 # Components (monorepo)
 components/*                        @LerianStudio/g_github_dev
