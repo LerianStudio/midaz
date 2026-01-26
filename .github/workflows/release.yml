@@ -69,7 +69,7 @@ jobs:
           node-version: '22'
 
       - name: Install SWC binary (Linux only)
-        run: npm install --save-dev @next/swc-linux-x64-gnu --platform=linux --cpu=x64
+        run: npm install --no-save @next/swc-linux-x64-gnu --platform=linux --cpu=x64
 
       - name: Install dependencies
         run: npm install

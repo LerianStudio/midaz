@@ -6,8 +6,8 @@
 .githooks/*                         @LerianStudio/g_github_devops
 
 # Components (monorepo)
+components/*                        @LerianStudio/g_github_dev
 components/*/Dockerfile             @LerianStudio/g_github_devops @LerianStudio/g_github_dev
 components/*/docker-compose*.yml    @LerianStudio/g_github_devops @LerianStudio/g_github_dev
 components/*/.env.example           @LerianStudio/g_github_devops @LerianStudio/g_github_dev
 components/*/migrations/*           @LerianStudio/g_github_dev @LerianStudio/g_github_devops
-components/*                        @LerianStudio/g_github_dev

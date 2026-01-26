@@ -15,7 +15,7 @@ You can report security vulnerabilities through:
 
 2. **Email**
    - Send details to: [security@lerian.studio](mailto:security@lerian.studio)
-   - PGP key available for encrypted communications
+   - PGP key available at [keys.openpgp.org](https://keys.openpgp.org) (search for security@lerian.studio)
    - We recommend [Mailvelope](https://mailvelope.com/en) for email encryption
 
 **Please do NOT disclose the vulnerability publicly until we have addressed it.**
