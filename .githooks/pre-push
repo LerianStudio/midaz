@@ -1,0 +1,84 @@
+#!/bin/bash
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source "$REPO_ROOT"/pkg/shell/colors.sh
+source "$REPO_ROOT"/pkg/shell/ascii.sh
+
+# Capture stdin (push refs) for use in multiple checks
+PUSH_REFS=$(cat)
+
+# Validate branch naming convention early (before expensive checks)
+while read local_ref local_sha remote_ref remote_sha; do
+    if [[ "$local_ref" =~ ^refs/heads/ ]]; then
+        branch_name=$(echo "$local_ref" | sed 's|^refs/heads/||')
+
+        if [[ ! "$branch_name" =~ ^(feature|fix|hotfix|docs|refactor|build|test|chore|ci)/.+$ ]]; then
+            echo "${red}❌ Invalid branch name: ${branch_name}${normal}"
+            echo "Branch names must start with 'feature/', 'fix/', 'hotfix/', 'docs/', 'refactor/', 'build/', 'test/', 'chore/', or 'ci/' followed by a task id or feature name."
+            exit 1
+        fi
+    fi
+done <<< "$PUSH_REFS"
+
+# Run quality checks before pushing
+echo "${bold}Running pre-push checks...${normal}"
+echo ""
+
+# Check go.mod/go.sum
+echo "Checking go.mod/go.sum..."
+cp go.mod go.mod.bak
+cp go.sum go.sum.bak 2>/dev/null || touch go.sum.bak
+go mod tidy 2>/dev/null
+if ! diff -q go.mod go.mod.bak > /dev/null 2>&1 || ! diff -q go.sum go.sum.bak > /dev/null 2>&1; then
+    mv go.mod.bak go.mod
+    mv go.sum.bak go.sum
+    echo "${red}❌ go.mod/go.sum need updating${normal}"
+    echo ""
+    echo "Run: ${bold}go mod tidy${normal}"
+    exit 1
+fi
+rm -f go.mod.bak go.sum.bak
+echo "${green}✅ go.mod/go.sum OK${normal}"
+echo ""
+
+# === SEQUENTIAL CHECKS: tests, sec, lint ===
+
+# Run unit tests
+echo "Running unit tests..."
+test_output=$(make test-unit 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Unit tests failed${normal}"
+    echo ""
+    echo "$test_output"
+    exit 1
+fi
+echo "${green}✅ Unit tests passed${normal}"
+echo ""
+
+# Run security checks
+echo "Running security checks..."
+sec_output=$(make sec 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Security checks failed${normal}"
+    echo ""
+    echo "$sec_output"
+    exit 1
+fi
+echo "${green}✅ Security checks passed${normal}"
+echo ""
+
+# Run linter
+echo "Running linter..."
+lint_output=$(make lint 2>&1)
+if [ $? -ne 0 ]; then
+    echo "${red}❌ Linter failed${normal}"
+    echo ""
+    echo "$lint_output"
+    exit 1
+fi
+echo "${green}✅ Linter passed${normal}"
+echo ""
+
+echo "${green}${bold}✅ All checks passed!${normal}"
+
+exit 0
