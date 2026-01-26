@@ -1,0 +1,51 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [develop, release-candidate, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.10.1
+    with:
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      pr_title_types: |
+        feat
+        fix
+        docs
+        style
+        refactor
+        perf
+        test
+        chore
+        ci
+        build
+        revert
+      pr_title_scopes: |
+        onboarding
+        transaction
+        ledger
+        crm
+        console
+        mdz
+        infra
+        pkg
+        scripts
+        deps
+        api
+      require_scope: false
+      min_description_length: 50
+      check_changelog: true
+      enable_auto_labeler: true
+      labeler_config_path: '.github/labeler.yml'
+      # Source branch validation (replaces check-branch.yml)
+      enforce_source_branches: true
+      allowed_source_branches: 'develop|release-candidate|hotfix/*'
+      target_branches_for_source_check: 'main'
+    secrets: inherit
