@@ -133,9 +133,10 @@ func TestIntegration_CircuitBreaker_FastFail(t *testing.T) {
 		Timestamp: time.Now(),
 		Data:      "Initial message",
 	}
-	msgBytes, _ := json.Marshal(msg)
+	msgBytes, err := json.Marshal(msg)
+	require.NoError(t, err, "should marshal message")
 
-	_, err := producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
+	_, err = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 	require.NoError(t, err, "initial publish should succeed")
 
 	t.Log("Stopping RabbitMQ container to trigger circuit open...")
@@ -210,7 +211,8 @@ func TestIntegration_CircuitBreaker_Recovery(t *testing.T) {
 		Timestamp: time.Now(),
 		Data:      "Recovery test message",
 	}
-	msgBytes, _ := json.Marshal(msg)
+	msgBytes, err := json.Marshal(msg)
+	require.NoError(t, err, "should marshal message")
 
 	_, err = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 	require.NoError(t, err, "initial publish should succeed")
@@ -294,7 +296,8 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 		Timestamp: time.Now(),
 		Data:      "Natural recovery test message",
 	}
-	msgBytes, _ := json.Marshal(msg)
+	msgBytes, err := json.Marshal(msg)
+	require.NoError(t, err, "should marshal message")
 
 	_, err = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 	require.NoError(t, err, "initial publish should succeed")
@@ -346,7 +349,8 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 	for i := 0; i < int(naturalRecoveryConfig.MaxRequests)+1; i++ {
 		msg.ID = uuid.New().String()
 		msg.Timestamp = time.Now()
-		msgBytes, _ = json.Marshal(msg)
+		msgBytes, err = json.Marshal(msg)
+		require.NoError(t, err, "should marshal message")
 
 		_, err = newProducer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 		if err == nil {
