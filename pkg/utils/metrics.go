@@ -34,8 +34,8 @@ var (
 	}
 
 	CircuitBreakerFailureRatio = metrics.Metric{
-		Name:        "circuit_breaker_failure_ratio",
-		Unit:        "%",
-		Description: "Percentage of failures to total requests (0 to 100).",
+		Name:        "circuit_breaker_failure_ratio_bps",
+		Unit:        "bps",
+		Description: "Failure ratio in basis points (0-10000, where 10000 = 100%). Divide by 100 to get percentage.",
 	}
 )

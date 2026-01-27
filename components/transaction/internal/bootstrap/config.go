@@ -118,6 +118,49 @@ func envDuration(key string, defaultVal time.Duration) time.Duration {
 	return parsed
 }
 
+// logCircuitBreakerConfigWarnings logs warnings for invalid circuit breaker environment variables.
+func logCircuitBreakerConfigWarnings(logger libLog.Logger, cfg libCircuitBreaker.Config) {
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", cfg.MaxRequests)
+	checkEnvDuration(logger, "RABBITMQ_CIRCUIT_BREAKER_INTERVAL", cfg.Interval)
+	checkEnvDuration(logger, "RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", cfg.Timeout)
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", cfg.ConsecutiveFailures)
+	checkEnvFloat64(logger, "RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", cfg.FailureRatio)
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", cfg.MinRequests)
+}
+
+func checkEnvUint32(logger libLog.Logger, key string, usedValue uint32) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
+	}
+
+	if _, err := strconv.ParseUint(v, 10, 32); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid uint32, using default: %d", key, v, usedValue)
+	}
+}
+
+func checkEnvFloat64(logger libLog.Logger, key string, usedValue float64) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
+	}
+
+	if _, err := strconv.ParseFloat(v, 64); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid float64, using default: %f", key, v, usedValue)
+	}
+}
+
+func checkEnvDuration(logger libLog.Logger, key string, usedValue time.Duration) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
+	}
+
+	if _, err := time.ParseDuration(v); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid duration, using default: %s", key, v, usedValue)
+	}
+}
+
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
 func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
 	u := &url.URL{
@@ -450,6 +493,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		FailureRatio:        envFloat64WithRange("RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", 0.5, 0.0, 1.0),
 		MinRequests:         envUint32("RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", 10),
 	}
+
+	logCircuitBreakerConfigWarnings(logger, cbConfig)
+
 	cb := cbManager.GetOrCreate("rabbitmq", cbConfig)
 
 	cbManager.RegisterStateChangeListener(NewCircuitBreakerListener(logger, telemetry, cbManager))

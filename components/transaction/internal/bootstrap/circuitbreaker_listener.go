@@ -99,9 +99,9 @@ func (l *CircuitBreakerListener) emitMetrics(serviceName string, stateValue int6
 	l.telemetry.MetricsFactory.Gauge(utils.CircuitBreakerTotalRequests).
 		WithLabels(labels).Set(ctx, int64(counts.Requests))
 
-	failureRatioPercent := int64(l.calculateFailureRatioPercent(counts))
+	failureRatioBps := int64(l.calculateFailureRatioPercent(counts) * 100)
 	l.telemetry.MetricsFactory.Gauge(utils.CircuitBreakerFailureRatio).
-		WithLabels(labels).Set(ctx, failureRatioPercent)
+		WithLabels(labels).Set(ctx, failureRatioBps)
 }
 
 // buildTelemetryContext creates a context with all telemetry components.
