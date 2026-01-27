@@ -1,6 +1,9 @@
 package command
 
 import (
+	"context"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -10,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestNewUseCase(t *testing.T) {
@@ -46,4 +48,15 @@ func TestNewUseCase(t *testing.T) {
 	assert.Equal(t, mockMetadataRepo, uc.MetadataRepo)
 	assert.Equal(t, mockRabbitMQRepo, uc.RabbitMQRepo)
 	assert.Equal(t, mockRedisRepo, uc.RedisRepo)
+}
+
+// TestCheckHealth verifies that CheckHealth always returns nil for unified mode.
+func TestCheckHealth(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	err := uc.CheckHealth(context.Background())
+
+	assert.NoError(t, err, "CheckHealth should always return nil in unified mode")
 }

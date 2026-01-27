@@ -676,6 +676,505 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 		"expected error code 0088 (ErrTransactionIDIsAlreadyARevert)")
 }
 
+// TestRevertTransaction_GetParentError_ReturnsError validates that errors from
+// GetParentByTransactionID are properly propagated.
+func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	// Mock: Parent lookup returns error
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, pkg.InternalServerError{
+			Code:    "0046",
+			Title:   "Internal Server Error",
+			Message: "Database connection failed",
+		}).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode, "expected HTTP 500 for database error")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Contains(t, errResp, "code", "error response should contain code field")
+}
+
+// TestRevertTransaction_GetTransactionError_ReturnsError validates that errors from
+// GetTransactionWithOperationsByID are properly propagated.
+func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Mock: No existing revert (parent lookup returns nil)
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Transaction lookup returns error
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, pkg.EntityNotFoundError{
+			EntityType: "Transaction",
+			Code:       cn.ErrEntityNotFound.Error(),
+			Title:      "Entity Not Found",
+			Message:    "Transaction not found",
+		}).
+		Times(1)
+
+	// Mock: Metadata lookup (conditional - may not be called if transaction lookup fails first)
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 404, resp.StatusCode, "expected HTTP 404 for not found")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrEntityNotFound.Error(), errResp["code"],
+		"expected error code for entity not found")
+}
+
+// TestRevertTransaction_EmptyRevert_ReturnsError validates that when TransactionRevert
+// returns an empty result (transaction can't be reverted), HTTP 400 is returned.
+// TransactionRevert.IsEmpty() returns true when AssetCode is empty and Amount is zero.
+func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Transaction with APPROVED status but empty AssetCode and zero Amount
+	// This causes TransactionRevert().IsEmpty() to return true
+	zeroAmount := decimal.Zero
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction",
+		AssetCode:           "", // Empty asset code
+		Amount:              &zeroAmount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Body: pkgTransaction.Transaction{},
+	}
+
+	// Mock: No existing revert (parent lookup returns nil)
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for empty revert")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrTransactionCantRevert.Error(), errResp["code"],
+		"expected error code 0089 (ErrTransactionCantRevert)")
+}
+
+// TestCommitTransaction_GetTransactionError_ReturnsError validates that errors from
+// GetTransactionByID are properly propagated.
+func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	// Mock: Transaction lookup returns error
+	// GetTransactionByID calls TransactionRepo.Find directly (no Redis cache)
+	mockTransactionRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, pkg.EntityNotFoundError{
+			EntityType: "Transaction",
+			Code:       cn.ErrEntityNotFound.Error(),
+			Title:      "Entity Not Found",
+			Message:    "Transaction not found",
+		}).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.CommitTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 404, resp.StatusCode, "expected HTTP 404 for not found")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrEntityNotFound.Error(), errResp["code"],
+		"expected error code for entity not found")
+}
+
+// TestCommitTransaction_RedisLockError_ReturnsError validates that errors from
+// Redis SetNX (lock acquisition) are properly propagated.
+func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	txBody := pkgTransaction.Transaction{
+		Send: pkgTransaction.Send{
+			Asset: "USD",
+			Value: amount,
+			Source: pkgTransaction.Source{
+				From: []pkgTransaction.FromTo{{AccountAlias: "@acc1"}},
+			},
+			Distribute: pkgTransaction.Distribute{
+				To: []pkgTransaction.FromTo{{AccountAlias: "@acc2"}},
+			},
+		},
+	}
+	tran := &transaction.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Description:    "Test transaction",
+		AssetCode:      "USD",
+		Amount:         &amount,
+		Status: transaction.Status{
+			Code: cn.PENDING,
+		},
+		Body: txBody,
+	}
+
+	// Mock: Transaction found successfully
+	mockTransactionRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Redis lock acquisition fails with error
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, pkg.InternalServerError{
+			Code:    "0046",
+			Title:   "Internal Server Error",
+			Message: "Redis connection failed",
+		}).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	commandUC := &command.UseCase{
+		RedisRepo: mockRedisRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.CommitTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode, "expected HTTP 500 for Redis error")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Contains(t, errResp, "code", "error response should contain code field")
+}
+
+// TestCommitTransaction_LockNotAcquired_ReturnsError validates that when the transaction
+// lock cannot be acquired (already being processed), HTTP 422 is returned.
+func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	txBody := pkgTransaction.Transaction{
+		Send: pkgTransaction.Send{
+			Asset: "USD",
+			Value: amount,
+			Source: pkgTransaction.Source{
+				From: []pkgTransaction.FromTo{{AccountAlias: "@acc1"}},
+			},
+			Distribute: pkgTransaction.Distribute{
+				To: []pkgTransaction.FromTo{{AccountAlias: "@acc2"}},
+			},
+		},
+	}
+	tran := &transaction.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Description:    "Test transaction",
+		AssetCode:      "USD",
+		Amount:         &amount,
+		Status: transaction.Status{
+			Code: cn.PENDING,
+		},
+		Body: txBody,
+	}
+
+	// Mock: Transaction found successfully
+	mockTransactionRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Redis lock NOT acquired (returns false, nil) - transaction already being processed
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	commandUC := &command.UseCase{
+		RedisRepo: mockRedisRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.CommitTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for locked transaction")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
+		"expected error code 0099 (ErrCommitTransactionNotPending)")
+}
+
 // TestCreateTransactionJSON_NonPositiveValue_Returns422 validates that creating a transaction
 // with send.value <= 0 returns HTTP 422 with error code 0125.
 // Business rule: Transaction values must be greater than zero.
