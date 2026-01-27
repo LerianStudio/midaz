@@ -88,16 +88,16 @@ func envFloat64(key string, defaultVal float64) float64 {
 	return parsed
 }
 
-// envFloat64WithRange returns the environment variable value as float64, clamped to [min, max] range.
-func envFloat64WithRange(key string, defaultVal, min, max float64) float64 {
+// envFloat64WithRange returns the environment variable value as float64, clamped to [minVal, maxVal] range.
+func envFloat64WithRange(key string, defaultVal, minVal, maxVal float64) float64 {
 	value := envFloat64(key, defaultVal)
 
-	if value < min {
-		return min
+	if value < minVal {
+		return minVal
 	}
 
-	if value > max {
-		return max
+	if value > maxVal {
+		return maxVal
 	}
 
 	return value
