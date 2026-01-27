@@ -76,10 +76,9 @@ func TestIntegration_CircuitBreaker_NormalOperation(t *testing.T) {
 	state := cb.State()
 	assert.Equal(t, libCircuitBreaker.StateClosed, state, "circuit should remain closed")
 
-	time.Sleep(500 * time.Millisecond)
-
-	msgCount := rmqtestutil.GetQueueMessageCount(t, rmqContainer.Channel, queue)
-	assert.Equal(t, 1, msgCount, "message should be in queue")
+	require.Eventually(t, func() bool {
+		return rmqtestutil.GetQueueMessageCount(t, rmqContainer.Channel, queue) == 1
+	}, 5*time.Second, 100*time.Millisecond, "message should arrive in queue")
 
 	t.Log("Integration test passed: circuit breaker normal operation verified")
 }
@@ -143,6 +142,7 @@ func TestIntegration_CircuitBreaker_FastFail(t *testing.T) {
 	err = rmqContainer.Container.Stop(ctx, nil)
 	require.NoError(t, err, "should be able to stop container")
 
+	// Intentionally ignoring errors to trigger circuit opening in test
 	for i := 0; i < 3; i++ {
 		_, _ = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 		t.Logf("Attempt %d - circuit state: %s", i+1, cb.State())
@@ -196,7 +196,7 @@ func TestIntegration_CircuitBreaker_Recovery(t *testing.T) {
 	recoveryConfig := libCircuitBreaker.Config{
 		MaxRequests:         3,
 		Interval:            1 * time.Minute,
-		Timeout:             5 * time.Second,
+		Timeout:             2 * time.Second,
 		ConsecutiveFailures: 2,
 		FailureRatio:        0.3,
 		MinRequests:         1,
@@ -230,13 +230,17 @@ func TestIntegration_CircuitBreaker_Recovery(t *testing.T) {
 	t.Log("Circuit is now open")
 
 	t.Log("Waiting for circuit to transition to half-open...")
-	time.Sleep(6 * time.Second)
+	require.Eventually(t, func() bool {
+		return cb.State() == libCircuitBreaker.StateHalfOpen
+	}, 10*time.Second, 200*time.Millisecond, "circuit should transition to half-open")
 
 	t.Log("Restarting RabbitMQ container...")
 	err = rmqContainer.Container.Start(ctx)
 	require.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
+	require.Eventually(t, func() bool {
+		return rmqtestutil.IsRabbitMQHealthy(rmqContainer.Host, rmqContainer.MgmtPort)
+	}, 30*time.Second, 500*time.Millisecond, "RabbitMQ should become healthy")
 
 	cbManager.Reset("rabbitmq-recovery-test")
 	t.Log("Circuit breaker reset")

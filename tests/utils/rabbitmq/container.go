@@ -5,10 +5,11 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 
@@ -385,4 +386,20 @@ func CreateChannelWithRetry(t *testing.T, uri string, timeout time.Duration) *am
 	require.NoError(t, lastErr, "failed to connect to RabbitMQ at %s after %v", uri, timeout)
 
 	return nil // unreachable, require.NoError fails the test
+}
+
+// IsRabbitMQHealthy checks if RabbitMQ management API is responding.
+// Returns true if the health check endpoint responds with HTTP 200.
+func IsRabbitMQHealthy(host, mgmtPort string) bool {
+	url := fmt.Sprintf("http://%s:%s@%s:%s/api/health/checks/alarms", DefaultUser, DefaultPassword, host, mgmtPort)
+
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
