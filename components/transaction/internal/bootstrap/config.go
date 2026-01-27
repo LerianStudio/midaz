@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -53,6 +56,66 @@ func envFallbackInt(prefixed, fallback int) int {
 	}
 
 	return fallback
+}
+
+// envUint32 returns the environment variable value as uint32, or defaultVal if not set or invalid.
+func envUint32(key string, defaultVal uint32) uint32 {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+
+	parsed, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return defaultVal
+	}
+
+	return uint32(parsed)
+}
+
+// envFloat64 returns the environment variable value as float64, or defaultVal if not set or invalid.
+func envFloat64(key string, defaultVal float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+
+	parsed, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return defaultVal
+	}
+
+	return parsed
+}
+
+// envFloat64WithRange returns the environment variable value as float64, clamped to [min, max] range.
+func envFloat64WithRange(key string, defaultVal, min, max float64) float64 {
+	value := envFloat64(key, defaultVal)
+
+	if value < min {
+		return min
+	}
+
+	if value > max {
+		return max
+	}
+
+	return value
+}
+
+// envDuration returns the environment variable value as time.Duration, or defaultVal if not set or invalid.
+func envDuration(key string, defaultVal time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+
+	parsed, err := time.ParseDuration(v)
+	if err != nil {
+		return defaultVal
+	}
+
+	return parsed
 }
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
@@ -378,6 +441,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
+	cbManager := libCircuitBreaker.NewManager(logger)
+	cbConfig := libCircuitBreaker.Config{
+		MaxRequests:         envUint32("RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", 3),
+		Interval:            envDuration("RABBITMQ_CIRCUIT_BREAKER_INTERVAL", 2*time.Minute),
+		Timeout:             envDuration("RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
+		ConsecutiveFailures: envUint32("RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", 15),
+		FailureRatio:        envFloat64WithRange("RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", 0.5, 0.0, 1.0),
+		MinRequests:         envUint32("RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", 10),
+	}
+	cb := cbManager.GetOrCreate("rabbitmq", cbConfig)
+
+	cbManager.RegisterStateChangeListener(&circuitBreakerMetricsListener{
+		logger: logger,
+	})
+
+	producerWithCircuitBreaker := rabbitmq.NewProducerCircuitBreaker(producerRabbitMQRepository, cb)
+
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
@@ -386,7 +466,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         producerWithCircuitBreaker,
 		RedisRepo:            redisConsumerRepository,
 	}
 
@@ -398,7 +478,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         producerWithCircuitBreaker,
 		RedisRepo:            redisConsumerRepository,
 	}
 
@@ -505,4 +585,38 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
+}
+
+// circuitBreakerMetricsListener implements StateChangeListener for circuit breaker observability.
+type circuitBreakerMetricsListener struct {
+	logger libLog.Logger
+}
+
+// OnStateChange logs circuit breaker state transitions.
+// State values for monitoring: 0=closed, 1=open, 2=half_open
+func (l *circuitBreakerMetricsListener) OnStateChange(serviceName string, from libCircuitBreaker.State, to libCircuitBreaker.State) {
+	stateValue := stateToInt(to)
+
+	switch to {
+	case libCircuitBreaker.StateOpen:
+		l.logger.Warnf("Circuit breaker [%s] state changed: %s -> %s (state=%d, OPENED - requests will fast-fail)", serviceName, from, to, stateValue)
+	case libCircuitBreaker.StateHalfOpen:
+		l.logger.Infof("Circuit breaker [%s] state changed: %s -> %s (state=%d, HALF-OPEN - testing recovery)", serviceName, from, to, stateValue)
+	case libCircuitBreaker.StateClosed:
+		l.logger.Infof("Circuit breaker [%s] state changed: %s -> %s (state=%d, CLOSED - normal operation resumed)", serviceName, from, to, stateValue)
+	}
+}
+
+// stateToInt converts circuit breaker state to integer for metrics (0=closed, 1=open, 2=half_open).
+func stateToInt(state libCircuitBreaker.State) int64 {
+	switch state {
+	case libCircuitBreaker.StateClosed:
+		return 0
+	case libCircuitBreaker.StateOpen:
+		return 1
+	case libCircuitBreaker.StateHalfOpen:
+		return 2
+	default:
+		return -1
+	}
 }
