@@ -770,7 +770,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		}).
 		Times(1)
 
-	// Mock: Metadata lookup (required by query)
+	// Mock: Metadata lookup (conditional - may not be called if transaction lookup fails first)
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
 		Return(nil, nil).
