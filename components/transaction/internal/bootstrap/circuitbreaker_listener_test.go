@@ -5,8 +5,10 @@ import (
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func TestNewCircuitBreakerListener(t *testing.T) {
@@ -150,7 +152,8 @@ func TestCircuitBreakerListener_getCounts_WithManager(t *testing.T) {
 
 	counts := listener.getCounts("rabbitmq")
 
-	require.NotNil(t, counts)
+	assert.Equal(t, uint32(0), counts.Requests, "new circuit breaker should have zero requests")
+	assert.Equal(t, uint32(0), counts.TotalFailures, "new circuit breaker should have zero failures")
 }
 
 func TestCircuitBreakerListener_calculateFailureRatioPercent_ZeroRequests(t *testing.T) {
@@ -200,11 +203,17 @@ func TestCircuitBreakerListener_buildTelemetryContext_NilTelemetry(t *testing.T)
 	require.NotNil(t, ctx)
 }
 
-func TestCircuitBreakerListener_buildTelemetryContext_WithLogger(t *testing.T) {
+func TestCircuitBreakerListener_buildTelemetryContext_WithTelemetry(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	listener := NewCircuitBreakerListener(logger, nil, nil)
+	meterProvider := noop.NewMeterProvider()
+	meter := meterProvider.Meter("test")
+	metricsFactory := libMetrics.NewMetricsFactory(meter, logger)
+	telemetry := &libOpentelemetry.Telemetry{
+		MetricsFactory: metricsFactory,
+	}
+	listener := NewCircuitBreakerListener(logger, telemetry, nil)
 
 	ctx := listener.buildTelemetryContext()
 
