@@ -20,7 +20,8 @@ func TestProducerCircuitBreaker_ProducerDefault_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-success", libCircuitBreaker.DefaultConfig())
 
@@ -49,7 +50,8 @@ func TestProducerCircuitBreaker_ProducerDefault_ReturnsMessageID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-msgid", libCircuitBreaker.DefaultConfig())
 
@@ -80,7 +82,8 @@ func TestProducerCircuitBreaker_ProducerDefault_Error(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-error", libCircuitBreaker.DefaultConfig())
 
@@ -111,7 +114,8 @@ func TestProducerCircuitBreaker_CircuitOpens_AfterConsecutiveFailures(t *testing
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 
 	config := libCircuitBreaker.Config{
@@ -150,7 +154,7 @@ func TestProducerCircuitBreaker_CircuitOpens_AfterConsecutiveFailures(t *testing
 
 	// When circuit is open, request should fail immediately without calling mock
 	start := time.Now()
-	_, err := wrapper.ProducerDefault(ctx, exchange, key, message)
+	_, err = wrapper.ProducerDefault(ctx, exchange, key, message)
 	fastFailDuration := time.Since(start)
 
 	assert.Error(t, err, "should return error when circuit is open")
@@ -164,7 +168,8 @@ func TestProducerCircuitBreaker_CheckRabbitMQHealth_ReturnsTrue(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-health-true", libCircuitBreaker.DefaultConfig())
 
@@ -187,7 +192,8 @@ func TestProducerCircuitBreaker_CheckRabbitMQHealth_ReturnsFalse(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-health-false", libCircuitBreaker.DefaultConfig())
 
@@ -210,7 +216,8 @@ func TestNewProducerCircuitBreaker_ValidParameters(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-new", libCircuitBreaker.DefaultConfig())
 
@@ -224,7 +231,8 @@ func TestNewProducerCircuitBreaker_ValidParameters(t *testing.T) {
 func TestNewProducerCircuitBreaker_NilRepo_Panics(t *testing.T) {
 	t.Parallel()
 
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-nil-repo", libCircuitBreaker.DefaultConfig())
 
@@ -253,7 +261,8 @@ func TestProducerCircuitBreaker_ProducerDefault_WithCancelledContext(t *testing.
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-cancelled", libCircuitBreaker.DefaultConfig())
 
@@ -286,7 +295,8 @@ func TestProducerCircuitBreaker_ProducerDefault_EmptyInputs(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockProducerRepository(ctrl)
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-empty", libCircuitBreaker.DefaultConfig())
 
