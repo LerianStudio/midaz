@@ -11,7 +11,7 @@
 
 # Lerian Midaz: Enterprise-Grade Open-Source Ledger System
 
-Lerian Midaz is a modern, open-source ledger system designed for building financial infrastructure that can scale from fintech startups to enterprise banking solutions. With a robust and flexible architecture, Midaz empowers developers to create sophisticated financial applications that can handle complex transactional requirements.
+Lerian Midaz is a modern, open-source ledger system for building financial infrastructure. It scales from fintech startups to enterprise banking solutions. The robust architecture empowers developers to create sophisticated financial applications that handle complex transactional requirements.
 
 ## Why Midaz?
 
@@ -33,9 +33,7 @@ At Lerian, we view a core banking system as a comprehensive platform consisting 
 
 Our open-source approach allows for the integration of Midaz with other components, like transactional messaging and governance, creating a complete core banking solution tailored to your specific needs. We also provide a marketplace with different plugins that streamline the integration of these messaging systems and governance players. These plugins are built by both Lerian and the community/partners.
 
-If you are interested in contributing to the development of these plugins or have any questions, please feel free to reach out to us in the Discussions tab or at [contact@lerian.studio](mailto:contact@lerian.studio).
-
-We will also provide soon a list of potential new plugins that could be built, to help you get started. More to come!
+Interested in contributing to plugin development? Reach out in the Discussions tab or at [contact@lerian.studio](mailto:contact@lerian.studio).
 
 ## Core Architecture
 
@@ -100,7 +98,7 @@ Lerian Midaz implements true double-entry accounting with sophisticated transact
 
 ## Getting Started
 
-To start using Lerian Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
+Follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started) to begin. For features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
 
 ## Community & Support
 
@@ -115,8 +113,8 @@ To start using Lerian Midaz, please follow our [Getting Started Guide](https://d
 
 ## Contributing & License
 
-We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
+We welcome contributions from the community. Read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for details. You can use, modify, and distribute Midaz as long as you include the original copyright and license notice.
 
 ## About Lerian
 
-Midaz is developed by Lerian, a tech company founded in 2024, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.studio](mailto:contact@lerian.studio) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/v3/discussions).
+Midaz is developed by Lerian, a tech company founded in 2024. Our team has a track record in developing ledger and core banking solutions. For inquiries or support, reach out at [contact@lerian.studio](mailto:contact@lerian.studio) or open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/v3/discussions).
