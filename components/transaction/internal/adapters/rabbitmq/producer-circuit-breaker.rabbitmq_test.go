@@ -317,3 +317,43 @@ func TestProducerCircuitBreaker_ProducerDefault_EmptyInputs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, result)
 }
+
+// stubCircuitBreakerWithWrongType is a test stub that returns an unexpected type
+// to test the type assertion error path.
+type stubCircuitBreakerWithWrongType struct{}
+
+func (s *stubCircuitBreakerWithWrongType) Execute(_ func() (any, error)) (any, error) {
+	return 12345, nil
+}
+
+func (s *stubCircuitBreakerWithWrongType) State() libCircuitBreaker.State {
+	return libCircuitBreaker.StateClosed
+}
+
+func (s *stubCircuitBreakerWithWrongType) Counts() libCircuitBreaker.Counts {
+	return libCircuitBreaker.Counts{}
+}
+
+func TestProducerCircuitBreaker_ProducerDefault_TypeAssertionError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockProducerRepository(ctrl)
+	stubCB := &stubCircuitBreakerWithWrongType{}
+
+	wrapper := NewProducerCircuitBreaker(mockRepo, stubCB)
+
+	ctx := context.Background()
+	exchange := "test-exchange"
+	key := "test-key"
+	message := []byte("test-message")
+
+	result, err := wrapper.ProducerDefault(ctx, exchange, key, message)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "unexpected result type")
+	assert.Contains(t, err.Error(), "int")
+}

@@ -452,9 +452,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 	cb := cbManager.GetOrCreate("rabbitmq", cbConfig)
 
-	cbManager.RegisterStateChangeListener(&circuitBreakerMetricsListener{
-		logger: logger,
-	})
+	cbManager.RegisterStateChangeListener(NewCircuitBreakerListener(logger, telemetry, cbManager))
 
 	producerWithCircuitBreaker := rabbitmq.NewProducerCircuitBreaker(producerRabbitMQRepository, cb)
 
@@ -585,38 +583,4 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
-}
-
-// circuitBreakerMetricsListener implements StateChangeListener for circuit breaker observability.
-type circuitBreakerMetricsListener struct {
-	logger libLog.Logger
-}
-
-// OnStateChange logs circuit breaker state transitions.
-// State values for monitoring: 0=closed, 1=open, 2=half_open
-func (l *circuitBreakerMetricsListener) OnStateChange(serviceName string, from libCircuitBreaker.State, to libCircuitBreaker.State) {
-	stateValue := stateToInt(to)
-
-	switch to {
-	case libCircuitBreaker.StateOpen:
-		l.logger.Warnf("Circuit breaker [%s] state changed: %s -> %s (state=%d, OPENED - requests will fast-fail)", serviceName, from, to, stateValue)
-	case libCircuitBreaker.StateHalfOpen:
-		l.logger.Infof("Circuit breaker [%s] state changed: %s -> %s (state=%d, HALF-OPEN - testing recovery)", serviceName, from, to, stateValue)
-	case libCircuitBreaker.StateClosed:
-		l.logger.Infof("Circuit breaker [%s] state changed: %s -> %s (state=%d, CLOSED - normal operation resumed)", serviceName, from, to, stateValue)
-	}
-}
-
-// stateToInt converts circuit breaker state to integer for metrics (0=closed, 1=open, 2=half_open).
-func stateToInt(state libCircuitBreaker.State) int64 {
-	switch state {
-	case libCircuitBreaker.StateClosed:
-		return 0
-	case libCircuitBreaker.StateOpen:
-		return 1
-	case libCircuitBreaker.StateHalfOpen:
-		return 2
-	default:
-		return -1
-	}
 }
