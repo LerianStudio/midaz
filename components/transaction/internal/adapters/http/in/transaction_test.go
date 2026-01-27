@@ -901,7 +901,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	require.NoError(t, err, "error response should be valid JSON")
 
 	assert.Equal(t, cn.ErrTransactionCantRevert.Error(), errResp["code"],
-		"expected error code 0097 (ErrTransactionCantRevert)")
+		"expected error code 0089 (ErrTransactionCantRevert)")
 }
 
 // TestCommitTransaction_GetTransactionError_ReturnsError validates that errors from
