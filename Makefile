@@ -107,7 +107,8 @@ help:
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
-	@echo "  make sec                         - Run security checks using gosec"
+	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
+	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -314,16 +315,34 @@ check-tests:
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
+# SARIF output for GitHub Security tab integration (optional)
+# Usage: make sec SARIF=1
+SARIF ?= 0
+
 .PHONY: sec
 sec:
-	$(call print_title,Running security checks using gosec)
+	$(call print_title,Running security checks)
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
 	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
-		echo "Running security checks on components/ and pkg/ folders..."; \
-		gosec ./components/... ./pkg/... && echo "[ok] Security checks completed"; \
+		echo "Running gosec on components/ and pkg/ folders..."; \
+		if [ "$(SARIF)" = "1" ]; then \
+			echo "Generating SARIF output: gosec-report.sarif"; \
+			gosec -no-fail -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
+			echo "[ok] SARIF report generated: gosec-report.sarif"; \
+		else \
+			gosec ./components/... ./pkg/...; \
+		fi; \
+		echo ""; \
+		echo "Running govulncheck on components/ and pkg/ folders..."; \
+		govulncheck ./components/... ./pkg/...; \
+		echo "[ok] Security checks completed"; \
 	else \
 		echo "No Go files found, skipping security checks"; \
 	fi
