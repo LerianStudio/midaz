@@ -319,33 +319,44 @@ check-tests:
 # Usage: make sec SARIF=1
 SARIF ?= 0
 
-.PHONY: sec
-sec:
-	$(call print_title,Running security checks)
+.PHONY: sec-gosec
+sec-gosec:
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
-		echo "Installing govulncheck..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@latest; \
 	fi
 	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running gosec on components/ and pkg/ folders..."; \
 		if [ "$(SARIF)" = "1" ]; then \
 			echo "Generating SARIF output: gosec-report.sarif"; \
-			gosec -no-fail -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
+			gosec -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
 			echo "[ok] SARIF report generated: gosec-report.sarif"; \
 		else \
 			gosec ./components/... ./pkg/...; \
 		fi; \
-		echo ""; \
+	else \
+		echo "No Go files found, skipping gosec"; \
+	fi
+
+.PHONY: sec-govulncheck
+sec-govulncheck:
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running govulncheck on components/ and pkg/ folders..."; \
 		govulncheck ./components/... ./pkg/...; \
-		echo "[ok] Security checks completed"; \
 	else \
-		echo "No Go files found, skipping security checks"; \
+		echo "No Go files found, skipping govulncheck"; \
 	fi
+
+.PHONY: sec
+sec:
+	$(call print_title,Running security checks)
+	@$(MAKE) sec-gosec SARIF=$(SARIF)
+	@$(MAKE) sec-govulncheck
+	@echo "[ok] Security checks completed"
 
 #-------------------------------------------------------
 # Git Hook Commands
