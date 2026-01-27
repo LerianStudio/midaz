@@ -195,3 +195,134 @@ func TestGetAllTransactions(t *testing.T) {
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 }
+
+func TestGetOperationsByTransaction(t *testing.T) {
+	t.Parallel()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionID := uuid.New()
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+	}
+
+	tests := []struct {
+		name              string
+		setupMocks        func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository)
+		expectedErr       error
+		expectedSourceLen int
+		expectedDestLen   int
+		expectedOpLen     int
+	}{
+		{
+			name: "success with debit and credit operations",
+			setupMocks: func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				ops := []*operation.Operation{
+					{
+						ID:             uuid.New().String(),
+						TransactionID:  transactionID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.DEBIT,
+						AccountAlias:   "source1",
+					},
+					{
+						ID:             uuid.New().String(),
+						TransactionID:  transactionID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.CREDIT,
+						AccountAlias:   "dest1",
+					},
+					{
+						ID:             uuid.New().String(),
+						TransactionID:  transactionID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.DEBIT,
+						AccountAlias:   "source2",
+					},
+				}
+
+				mockOpRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+					Return(ops, libHTTP.CursorPagination{}, nil).
+					Times(1)
+
+				mockMetaRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+			},
+			expectedErr:       nil,
+			expectedSourceLen: 2,
+			expectedDestLen:   1,
+			expectedOpLen:     3,
+		},
+		{
+			name: "success with no operations",
+			setupMocks: func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				// When there are no operations, GetAllOperations returns early without calling metadata
+				mockOpRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+					Return([]*operation.Operation{}, libHTTP.CursorPagination{}, nil).
+					Times(1)
+			},
+			expectedErr:       nil,
+			expectedSourceLen: 0,
+			expectedDestLen:   0,
+			expectedOpLen:     0,
+		},
+		{
+			name: "error from GetAllOperations",
+			setupMocks: func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockOpRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+					Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+					Times(1)
+			},
+			expectedErr: errors.New("database error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockOpRepo := operation.NewMockRepository(ctrl)
+			mockMetaRepo := mongodb.NewMockRepository(ctrl)
+
+			tt.setupMocks(mockOpRepo, mockMetaRepo)
+
+			uc := UseCase{
+				OperationRepo: mockOpRepo,
+				MetadataRepo:  mockMetaRepo,
+			}
+
+			tran := &transaction.Transaction{
+				ID:             transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+			}
+
+			result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr.Error())
+				assert.Nil(t, result)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Len(t, result.Source, tt.expectedSourceLen)
+			assert.Len(t, result.Destination, tt.expectedDestLen)
+			assert.Len(t, result.Operations, tt.expectedOpLen)
+		})
+	}
+}
