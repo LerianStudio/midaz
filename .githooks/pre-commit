@@ -50,7 +50,7 @@ if [ -n "$STAGED_GO_FILES" ] && command -v gofumpt &> /dev/null; then
         echo "${red}❌ Files need formatting:${normal}"
         echo "$UNFORMATTED"
         echo ""
-        echo "Run: ${bold}gofumpt -w .${normal}"
+        echo "Run: ${bold}gofumpt -w $(echo $UNFORMATTED)${normal}"
         exit 1
     fi
 fi
@@ -62,7 +62,7 @@ if [ -n "$STAGED_GO_FILES" ] && command -v goimports &> /dev/null; then
         echo "${red}❌ Files need import organization:${normal}"
         echo "$UNORGANIZED"
         echo ""
-        echo "Run: ${bold}goimports -w .${normal}"
+        echo "Run: ${bold}goimports -w $(echo $UNORGANIZED)${normal}"
         exit 1
     fi
 fi
