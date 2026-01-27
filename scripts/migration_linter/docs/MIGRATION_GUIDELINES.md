@@ -1,6 +1,6 @@
 # Database Migration Guidelines
 
-This document establishes standards for writing SQL migrations that ensure:
+These standards ensure SQL migrations have:
 - Zero-downtime during deployments
 - Backward compatibility with previous application versions
 - Safe rollbacks without data loss

@@ -1,16 +1,14 @@
 # Support Hub: Connect, Contribute, Collaborate
 
-Midaz is a mission-critical service, and we are committed to maintaining it up-to-date and bug-free. Our mission, along with the community, is to open the doors to receive improvements and address bugs swiftly. If you have any suggestions, such as improvements, ideas, questions, or anything else that can enhance Midaz, please contact us using the channels listed below.
+Midaz is a mission-critical service. We keep it up-to-date and bug-free with help from our community. If you have suggestions, ideas, questions, or anything that can improve Midaz, contact us through the channels below.
 
-In our repository, there is a section for discussing Midaz using the Discussions tab. Feel free to share your opinions, ideas, and report bugs.
+Use the Discussions tab in our repository to share opinions, ideas, and report bugs.
 
 ### Channels
 
-1. **GitHub:** Enter our public repository and join the [Discussions](https://github.com/LerianStudio/midaz-private/discussions).
-2. **Discord**: Enter our [Discord](https://discord.gg/DnhqKwkGv3).
+1. **GitHub:** Join the [Discussions](https://github.com/LerianStudio/midaz-private/discussions).
+2. **Discord:** Join our [Discord](https://discord.gg/DnhqKwkGv3).
 
-**Pick an Issue, Share Ideas and Questions**: Check out the open issues, ideas and questions labeled for beginners or propose your own project.
+**Pick an Issue, Share Ideas and Questions:** Check out open issues labeled for beginners or propose your own project.
 
-Don't be afraid to take the first step. Whether it's your first time contributing to an open-source project or you're an experienced developer, your contributions are welcome here. Together, we can make Midaz better for everyone.
-
-Your ideas, your passion, and your contributions can make a significant difference. Let's build something amazing together.
+Whether it's your first contribution or you're an experienced developer, you're welcome here. Every contribution helps make Midaz better.
