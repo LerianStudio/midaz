@@ -210,7 +210,7 @@ definitions:
         - $ref: '#/definitions/Contact'
         description: Object with contact information.
       document:
-        description: The holder’s identification document.
+        description: The holder's identification document.
         example: "91315026015"
         type: string
       externalId:

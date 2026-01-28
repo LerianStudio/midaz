@@ -239,6 +239,19 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	c.SetUserContext(ctx)
 
+	// RFC 8594 Deprecation Headers
+	// Indicates this endpoint is deprecated and will be removed on the sunset date.
+	// Clients should migrate to POST /transactions/json endpoint.
+	c.Set("Deprecation", "true")
+	c.Set("Sunset", "Sat, 01 Aug 2026 00:00:00 GMT")
+	c.Set("Link", "</v1/organizations/"+c.Params("organization_id")+
+		"/ledgers/"+c.Params("ledger_id")+
+		"/transactions/json>; rel=\"successor-version\"")
+
+	logger.Warnf("DEPRECATED ENDPOINT: POST /transactions/dsl called. "+
+		"request_id=%s. Use POST /transactions/json instead. "+
+		"Sunset date: 2026-08-01", c.Get("X-Request-Id"))
+
 	_, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)

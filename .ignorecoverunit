@@ -1,0 +1,24 @@
+# Patterns to exclude from unit test coverage
+# One pattern per line (glob style)
+# Lines starting with # are comments
+
+# Infrastructure adapters (tested via integration tests)
+*.postgresql.go
+*.mongodb.go
+*.rabbitmq.go
+*.redis.go
+
+# Auto-generated mocks
+*_mock.go
+
+# Bootstrap/initialization code (minimal logic)
+/bootstrap/
+/cmd/app/
+bootstrap.go
+
+# Auto-generated API docs
+/api/
+
+# HTTP routing infrastructure (no business logic)
+routes.go
+swagger.go

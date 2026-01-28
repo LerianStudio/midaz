@@ -56,21 +56,6 @@ func (mr *MockRedisRepositoryMockRecorder) AddMessageToQueue(arg0, arg1, arg2 an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMessageToQueue", reflect.TypeOf((*MockRedisRepository)(nil).AddMessageToQueue), arg0, arg1, arg2)
 }
 
-// AddSumBalancesRedis mocks base method.
-func (m *MockRedisRepository) AddSumBalancesRedis(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string, arg5 bool, arg6 []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddSumBalancesRedis", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-	ret0, _ := ret[0].([]*mmodel.Balance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AddSumBalancesRedis indicates an expected call of AddSumBalancesRedis.
-func (mr *MockRedisRepositoryMockRecorder) AddSumBalancesRedis(arg0, arg1, arg2, arg3, arg4, arg5, arg6 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalancesRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalancesRedis), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-}
-
 // Del mocks base method.
 func (m *MockRedisRepository) Del(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -172,6 +157,21 @@ func (m *MockRedisRepository) MGet(arg0 context.Context, arg1 []string) (map[str
 func (mr *MockRedisRepositoryMockRecorder) MGet(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MGet", reflect.TypeOf((*MockRedisRepository)(nil).MGet), arg0, arg1)
+}
+
+// ProcessBalanceAtomicOperation mocks base method.
+func (m *MockRedisRepository) ProcessBalanceAtomicOperation(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string, arg5 bool, arg6 []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessBalanceAtomicOperation indicates an expected call of ProcessBalanceAtomicOperation.
+func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(arg0, arg1, arg2, arg3, arg4, arg5, arg6 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // ReadAllMessagesFromQueue mocks base method.

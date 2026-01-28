@@ -88,9 +88,9 @@ func createBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode
 	}
 }
 
-// TestAddSumBalancesRedis_NotedStatus verifies that NOTED status triggers early return
+// TestProcessBalanceAtomicOperation_NotedStatus verifies that NOTED status triggers early return
 // without executing the Lua script. Uses fail-on-call stub to detect unexpected Redis calls.
-func TestAddSumBalancesRedis_NotedStatus(t *testing.T) {
+func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 	testCases := []struct {
 		name           string
 		balanceAliases []string
@@ -138,7 +138,7 @@ func TestAddSumBalancesRedis_NotedStatus(t *testing.T) {
 			ctx := context.Background()
 
 			// Act - with NOTED status, Lua script should be skipped entirely
-			balances, err := repo.AddSumBalancesRedis(
+			balances, err := repo.ProcessBalanceAtomicOperation(
 				ctx,
 				organizationID, ledgerID, transactionID,
 				constant.NOTED,
