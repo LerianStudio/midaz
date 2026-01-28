@@ -21,8 +21,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-//go:embed scripts/add_sub.lua
-var addSubLua string
+//go:embed scripts/balance_atomic_operation.lua
+var balanceAtomicOperationLua string
 
 //go:embed scripts/get_balances_near_expiration.lua
 var getBalancesNearExpirationLua string
@@ -320,7 +320,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
 
-	script := redis.NewScript(addSubLua)
+	script := redis.NewScript(balanceAtomicOperationLua)
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
