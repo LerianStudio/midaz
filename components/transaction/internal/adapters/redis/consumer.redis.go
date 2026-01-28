@@ -43,7 +43,7 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
+	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
@@ -251,10 +251,10 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
-func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
+func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
+	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -318,7 +318,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		return balances, nil
 	}
 
-	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
+	ctx, spanScript := tracer.Start(ctx, "redis.process_balance_atomic_operation.script")
 
 	script := redis.NewScript(balanceAtomicOperationLua)
 
