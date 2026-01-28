@@ -141,7 +141,7 @@ func TestGetBalances(t *testing.T) {
 
 		mockRedisRepo.
 			EXPECT().
-			AddSumBalancesRedis(
+			ProcessBalanceAtomicOperation(
 				gomock.Any(),
 				organizationID,
 				ledgerID,
@@ -254,7 +254,7 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		mockRedisRepo.EXPECT().
-			AddSumBalancesRedis(
+			ProcessBalanceAtomicOperation(
 				gomock.Any(),
 				organizationID,
 				ledgerID,
@@ -352,7 +352,7 @@ func TestGetAccountAndLock(t *testing.T) {
 		}
 
 		mockRedisRepo.EXPECT().
-			AddSumBalancesRedis(
+			ProcessBalanceAtomicOperation(
 				gomock.Any(),
 				organizationID,
 				ledgerID,

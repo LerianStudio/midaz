@@ -260,7 +260,7 @@ func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
 			}
 		}
 
-		balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 		require.NoError(t, err, "operation %d should succeed", i)
 
 		// Verify balance after each operation is non-negative
@@ -307,7 +307,7 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 	}
 
 	// Execute as pending (isPending=true)
-	balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "PENDING", true, balanceOps)
+	balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "PENDING", true, balanceOps)
 	require.NoError(t, err, "pending operation should succeed")
 	require.NotNil(t, balances, "should return balances")
 
@@ -323,7 +323,7 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 		),
 	}
 
-	balances, err = infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, commitOps)
+	balances, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, commitOps)
 	require.NoError(t, err, "commit operation should succeed")
 
 	t.Log("Integration test passed: pending transaction flow verified")
@@ -423,7 +423,7 @@ func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 		),
 	}
 
-	balances, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "initial balance operation should succeed")
 	require.NotNil(t, balances, "should return balances")
 	t.Logf("Initial balance operation successful: %d balances updated", len(balances))
@@ -455,7 +455,7 @@ func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 	}
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps2)
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps2)
 		return err
 	}, 30*time.Second, "Redis should recover and process operations after restart")
 
@@ -551,7 +551,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 		),
 	}
 
-	balances, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	balances, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "initial operation through proxy should succeed")
 	require.NotNil(t, balances, "should return balances")
 	t.Log("Initial operation successful through proxy")
@@ -576,7 +576,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 		}
 
 		start := time.Now()
-		_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, ops)
+		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, ops)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err, "operation %d with latency should succeed", i+1)
@@ -601,7 +601,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err = infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	elapsed := time.Since(start)
 	require.NoError(t, err, "operation after removing latency should succeed")
 	t.Logf("Operation after latency removal completed in %v", elapsed)
@@ -637,7 +637,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 		),
 	}
 
-	_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "baseline operation should succeed")
 	t.Log("Baseline operation successful")
 
@@ -659,7 +659,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 	}
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	_, err = infra.proxyRepo.AddSumBalancesRedis(ctxWithTimeout, orgID, ledgerID, transactionID, "ACTIVE", false, partitionOps)
+	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctxWithTimeout, orgID, ledgerID, transactionID, "ACTIVE", false, partitionOps)
 	cancel()
 
 	// Expect error during network partition
@@ -684,7 +684,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 	}
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.proxyRepo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, recoveryOps)
+		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, recoveryOps)
 		return err
 	}, 10*time.Second, "operations should succeed after network recovery")
 
@@ -737,7 +737,7 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 				),
 			}
 
-			balances, err := infra.repo.AddSumBalancesRedis(
+			balances, err := infra.repo.ProcessBalanceAtomicOperation(
 				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
 			)
 			results <- result{workerID: workerID, balances: balances, err: err}
@@ -812,7 +812,7 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 				),
 			}
 
-			_, err := infra.repo.AddSumBalancesRedis(
+			_, err := infra.repo.ProcessBalanceAtomicOperation(
 				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
 			)
 			results <- result{workerID: workerID, err: err}
@@ -878,7 +878,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 		),
 	}
 
-	_, err := infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "normal operation should work")
 
 	// Test with cancelled context (simulates timeout/unavailability)
@@ -888,7 +888,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 	chaos.AssertGracefulDegradation(t,
 		func() error {
 			transactionID := uuid.New()
-			_, err := infra.repo.AddSumBalancesRedis(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+			_, err := infra.repo.ProcessBalanceAtomicOperation(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 			return err
 		},
 		nil, // Any error is acceptable for graceful degradation
@@ -897,7 +897,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 
 	// Verify normal operation still works
 	transactionID2 := uuid.New()
-	_, err = infra.repo.AddSumBalancesRedis(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps)
+	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "normal operation should work after graceful degradation")
 
 	t.Log("Chaos test passed: graceful degradation verified")
