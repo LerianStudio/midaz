@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -30,6 +33,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -37,22 +41,47 @@ import (
 
 const ApplicationName = "transaction"
 
-// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
-func envFallback(prefixed, fallback string) string {
-	if prefixed != "" {
-		return prefixed
-	}
-
-	return fallback
+// logCircuitBreakerConfigWarnings logs warnings for invalid circuit breaker environment variables.
+func logCircuitBreakerConfigWarnings(logger libLog.Logger, cfg libCircuitBreaker.Config) {
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", cfg.MaxRequests)
+	checkEnvDuration(logger, "RABBITMQ_CIRCUIT_BREAKER_INTERVAL", cfg.Interval)
+	checkEnvDuration(logger, "RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", cfg.Timeout)
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", cfg.ConsecutiveFailures)
+	checkEnvFloat64(logger, "RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", cfg.FailureRatio)
+	checkEnvUint32(logger, "RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", cfg.MinRequests)
 }
 
-// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
-func envFallbackInt(prefixed, fallback int) int {
-	if prefixed != 0 {
-		return prefixed
+func checkEnvUint32(logger libLog.Logger, key string, usedValue uint32) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
 	}
 
-	return fallback
+	if _, err := strconv.ParseUint(v, 10, 32); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid uint32, using default: %d", key, v, usedValue)
+	}
+}
+
+func checkEnvFloat64(logger libLog.Logger, key string, usedValue float64) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
+	}
+
+	if _, err := strconv.ParseFloat(v, 64); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid float64, using default: %f", key, v, usedValue)
+	}
+}
+
+func checkEnvDuration(logger libLog.Logger, key string, usedValue time.Duration) {
+	v := os.Getenv(key)
+	if v == "" {
+		return
+	}
+
+	if _, err := time.ParseDuration(v); err != nil {
+		logger.Warnf("Invalid value for %s: %q is not a valid duration, using default: %s", key, v, usedValue)
+	}
 }
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
@@ -241,22 +270,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+	dbSSLMode := utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
 
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
+	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
+	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
+	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
+	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
+	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
+	dbReplicaSSLMode := utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
 
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
+	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
+	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
@@ -276,14 +305,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
+	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
+	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
+	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
+	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
+	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
@@ -378,6 +407,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
+	cbManager := libCircuitBreaker.NewManager(logger)
+	cbConfig := libCircuitBreaker.Config{
+		MaxRequests:         utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", 3),
+		Interval:            utils.GetEnvDuration("RABBITMQ_CIRCUIT_BREAKER_INTERVAL", 2*time.Minute),
+		Timeout:             utils.GetEnvDuration("RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
+		ConsecutiveFailures: utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", 15),
+		FailureRatio:        utils.GetEnvFloat64WithRange("RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", 0.5, 0.0, 1.0),
+		MinRequests:         utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", 10),
+	}
+
+	logCircuitBreakerConfigWarnings(logger, cbConfig)
+
+	cb := cbManager.GetOrCreate("rabbitmq", cbConfig)
+
+	cbManager.RegisterStateChangeListener(NewCircuitBreakerListener(logger, telemetry, cbManager))
+
+	producerWithCircuitBreaker := rabbitmq.NewProducerCircuitBreaker(producerRabbitMQRepository, cb)
+
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
@@ -386,7 +433,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         producerWithCircuitBreaker,
 		RedisRepo:            redisConsumerRepository,
 	}
 
@@ -398,7 +445,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         producerWithCircuitBreaker,
 		RedisRepo:            redisConsumerRepository,
 	}
 

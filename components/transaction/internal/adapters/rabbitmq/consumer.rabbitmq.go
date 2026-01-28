@@ -72,7 +72,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		go func(queueName string, handler QueueHandlerFunc) {
-			backoff := utils.InitialBackoff
+			backoff := utils.InitialBackoff()
 
 			for {
 				if err := cr.conn.EnsureChannel(); err != nil {
@@ -126,7 +126,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 				cr.Infof("[Consumer %s] consuming started", queueName)
 
-				backoff = utils.InitialBackoff
+				backoff = utils.InitialBackoff()
 
 				notifyClose := make(chan *amqp.Error, 1)
 				cr.conn.Channel.NotifyClose(notifyClose)
@@ -157,16 +157,20 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			midazID = libCommons.GenerateUUIDv7().String()
 		}
 
+		midazIDStr, ok := midazID.(string)
+		if !ok {
+			midazIDStr = libCommons.GenerateUUIDv7().String()
+		}
+
 		log := cr.Logger.WithFields(
-			libConstants.HeaderID, midazID.(string),
-		).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+			libConstants.HeaderID, midazIDStr,
+		).WithDefaultMessageTemplate(midazIDStr + libConstants.LoggerDefaultSeparator)
 
 		ctx := libCommons.ContextWithLogger(
-			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
+			libCommons.ContextWithHeaderID(context.Background(), midazIDStr),
 			log,
 		)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)

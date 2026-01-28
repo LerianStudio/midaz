@@ -15,7 +15,7 @@ import (
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
-// // It defines methods for sending messages to a queue.
+// It defines methods for sending messages to a queue.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
@@ -60,7 +60,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	var err error
 
-	backoff := utils.InitialBackoff
+	backoff := utils.InitialBackoff()
 
 	headers := amqp.Table{
 		libConstants.HeaderID: reqId,
@@ -68,7 +68,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
+	maxRetries := utils.MaxRetries()
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if err = prmq.conn.EnsureChannel(); err != nil {
 			logger.Errorf("Failed to reopen channel: %v", err)
 
@@ -99,12 +100,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			return nil, nil
 		}
 
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
+		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
 
-		if attempt == utils.MaxRetries {
+		if attempt == maxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
 
-			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
+			logger.Errorf("Giving up after %d attempts: %s", maxRetries+1, err)
 
 			return nil, err
 		}
