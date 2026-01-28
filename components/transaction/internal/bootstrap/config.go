@@ -33,90 +33,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "transaction"
-
-// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
-func envFallback(prefixed, fallback string) string {
-	if prefixed != "" {
-		return prefixed
-	}
-
-	return fallback
-}
-
-// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
-func envFallbackInt(prefixed, fallback int) int {
-	if prefixed != 0 {
-		return prefixed
-	}
-
-	return fallback
-}
-
-// envUint32 returns the environment variable value as uint32, or defaultVal if not set or invalid.
-func envUint32(key string, defaultVal uint32) uint32 {
-	v := os.Getenv(key)
-	if v == "" {
-		return defaultVal
-	}
-
-	parsed, err := strconv.ParseUint(v, 10, 32)
-	if err != nil {
-		return defaultVal
-	}
-
-	return uint32(parsed)
-}
-
-// envFloat64 returns the environment variable value as float64, or defaultVal if not set or invalid.
-func envFloat64(key string, defaultVal float64) float64 {
-	v := os.Getenv(key)
-	if v == "" {
-		return defaultVal
-	}
-
-	parsed, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return defaultVal
-	}
-
-	return parsed
-}
-
-// envFloat64WithRange returns the environment variable value as float64, clamped to [minVal, maxVal] range.
-func envFloat64WithRange(key string, defaultVal, minVal, maxVal float64) float64 {
-	value := envFloat64(key, defaultVal)
-
-	if value < minVal {
-		return minVal
-	}
-
-	if value > maxVal {
-		return maxVal
-	}
-
-	return value
-}
-
-// envDuration returns the environment variable value as time.Duration, or defaultVal if not set or invalid.
-func envDuration(key string, defaultVal time.Duration) time.Duration {
-	v := os.Getenv(key)
-	if v == "" {
-		return defaultVal
-	}
-
-	parsed, err := time.ParseDuration(v)
-	if err != nil {
-		return defaultVal
-	}
-
-	return parsed
-}
 
 // logCircuitBreakerConfigWarnings logs warnings for invalid circuit breaker environment variables.
 func logCircuitBreakerConfigWarnings(logger libLog.Logger, cfg libCircuitBreaker.Config) {
@@ -347,22 +270,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+	dbSSLMode := utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
 
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
+	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
+	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
+	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
+	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
+	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
+	dbReplicaSSLMode := utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
 
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
+	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
+	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
@@ -382,14 +305,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
+	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
+	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
+	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
+	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
+	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
@@ -486,12 +409,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	cbManager := libCircuitBreaker.NewManager(logger)
 	cbConfig := libCircuitBreaker.Config{
-		MaxRequests:         envUint32("RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", 3),
-		Interval:            envDuration("RABBITMQ_CIRCUIT_BREAKER_INTERVAL", 2*time.Minute),
-		Timeout:             envDuration("RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
-		ConsecutiveFailures: envUint32("RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", 15),
-		FailureRatio:        envFloat64WithRange("RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", 0.5, 0.0, 1.0),
-		MinRequests:         envUint32("RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", 10),
+		MaxRequests:         utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS", 3),
+		Interval:            utils.GetEnvDuration("RABBITMQ_CIRCUIT_BREAKER_INTERVAL", 2*time.Minute),
+		Timeout:             utils.GetEnvDuration("RABBITMQ_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
+		ConsecutiveFailures: utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES", 15),
+		FailureRatio:        utils.GetEnvFloat64WithRange("RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO", 0.5, 0.0, 1.0),
+		MinRequests:         utils.GetEnvUint32("RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS", 10),
 	}
 
 	logCircuitBreakerConfigWarnings(logger, cbConfig)

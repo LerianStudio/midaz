@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
@@ -378,4 +380,175 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 		"should have enough successful requests to close circuit")
 
 	t.Log("Integration test passed: circuit breaker natural recovery verified")
+}
+
+// TestIntegration_RetryConfiguration_CustomValues tests that retry configuration
+// can be customized via environment variables for faster failure detection.
+func TestIntegration_RetryConfiguration_CustomValues(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	utils.ResetConfigForTesting()
+
+	originalMaxRetries := os.Getenv("RETRY_MAX_RETRIES")
+	originalInitialBackoff := os.Getenv("RETRY_INITIAL_BACKOFF")
+	originalMaxBackoff := os.Getenv("RETRY_MAX_BACKOFF")
+	originalBackoffFactor := os.Getenv("RETRY_BACKOFF_FACTOR")
+
+	t.Cleanup(func() {
+		if originalMaxRetries != "" {
+			os.Setenv("RETRY_MAX_RETRIES", originalMaxRetries)
+		} else {
+			os.Unsetenv("RETRY_MAX_RETRIES")
+		}
+		if originalInitialBackoff != "" {
+			os.Setenv("RETRY_INITIAL_BACKOFF", originalInitialBackoff)
+		} else {
+			os.Unsetenv("RETRY_INITIAL_BACKOFF")
+		}
+		if originalMaxBackoff != "" {
+			os.Setenv("RETRY_MAX_BACKOFF", originalMaxBackoff)
+		} else {
+			os.Unsetenv("RETRY_MAX_BACKOFF")
+		}
+		if originalBackoffFactor != "" {
+			os.Setenv("RETRY_BACKOFF_FACTOR", originalBackoffFactor)
+		} else {
+			os.Unsetenv("RETRY_BACKOFF_FACTOR")
+		}
+		utils.ResetConfigForTesting()
+	})
+
+	os.Setenv("RETRY_MAX_RETRIES", "2")
+	os.Setenv("RETRY_INITIAL_BACKOFF", "100ms")
+	os.Setenv("RETRY_MAX_BACKOFF", "500ms")
+	os.Setenv("RETRY_BACKOFF_FACTOR", "2.0")
+
+	assert.Equal(t, 2, utils.MaxRetries(), "MaxRetries should be 2")
+	assert.Equal(t, 100*time.Millisecond, utils.InitialBackoff(), "InitialBackoff should be 100ms")
+	assert.Equal(t, 500*time.Millisecond, utils.MaxBackoff(), "MaxBackoff should be 500ms")
+	assert.Equal(t, 2.0, utils.BackoffFactor(), "BackoffFactor should be 2.0")
+
+	rmqContainer := rmqtestutil.SetupContainer(t)
+
+	exchange := "retry-config-exchange"
+	routingKey := "retry.config.key"
+	queue := "retry-config-queue"
+
+	rmqtestutil.SetupExchange(t, rmqContainer.Channel, exchange, "topic")
+	rmqtestutil.SetupQueue(t, rmqContainer.Channel, queue, exchange, routingKey)
+
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
+	conn := &libRabbitmq.RabbitMQConnection{
+		ConnectionStringSource: rmqContainer.URI,
+		HealthCheckURL:         healthCheckURL,
+		Host:                   rmqContainer.Host,
+		Port:                   rmqContainer.AMQPPort,
+		User:                   rmqtestutil.DefaultUser,
+		Pass:                   rmqtestutil.DefaultPassword,
+		Logger:                 logger,
+	}
+
+	producer := NewProducerRabbitMQ(conn)
+	ctx := context.Background()
+
+	msg := circuitBreakerTestMessage{
+		ID:        uuid.New().String(),
+		Timestamp: time.Now(),
+		Data:      "Retry configuration test message",
+	}
+	msgBytes, err := json.Marshal(msg)
+	require.NoError(t, err)
+
+	_, err = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
+	require.NoError(t, err, "publish with custom retry config should succeed")
+
+	require.Eventually(t, func() bool {
+		return rmqtestutil.GetQueueMessageCount(t, rmqContainer.Channel, queue) == 1
+	}, 5*time.Second, 100*time.Millisecond, "message should arrive in queue")
+
+	t.Log("Integration test passed: custom retry configuration verified")
+}
+
+// TestIntegration_RetryConfiguration_FastFailureDetection tests that with
+// aggressive retry settings, failure detection is faster than with defaults.
+func TestIntegration_RetryConfiguration_FastFailureDetection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	utils.ResetConfigForTesting()
+
+	originalMaxRetries := os.Getenv("RETRY_MAX_RETRIES")
+	originalInitialBackoff := os.Getenv("RETRY_INITIAL_BACKOFF")
+	originalMaxBackoff := os.Getenv("RETRY_MAX_BACKOFF")
+
+	t.Cleanup(func() {
+		if originalMaxRetries != "" {
+			os.Setenv("RETRY_MAX_RETRIES", originalMaxRetries)
+		} else {
+			os.Unsetenv("RETRY_MAX_RETRIES")
+		}
+		if originalInitialBackoff != "" {
+			os.Setenv("RETRY_INITIAL_BACKOFF", originalInitialBackoff)
+		} else {
+			os.Unsetenv("RETRY_INITIAL_BACKOFF")
+		}
+		if originalMaxBackoff != "" {
+			os.Setenv("RETRY_MAX_BACKOFF", originalMaxBackoff)
+		} else {
+			os.Unsetenv("RETRY_MAX_BACKOFF")
+		}
+		utils.ResetConfigForTesting()
+	})
+
+	os.Setenv("RETRY_MAX_RETRIES", "2")
+	os.Setenv("RETRY_INITIAL_BACKOFF", "200ms")
+	os.Setenv("RETRY_MAX_BACKOFF", "1s")
+
+	rmqContainer := rmqtestutil.SetupContainer(t)
+
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
+	conn := &libRabbitmq.RabbitMQConnection{
+		ConnectionStringSource: rmqContainer.URI,
+		HealthCheckURL:         healthCheckURL,
+		Host:                   rmqContainer.Host,
+		Port:                   rmqContainer.AMQPPort,
+		User:                   rmqtestutil.DefaultUser,
+		Pass:                   rmqtestutil.DefaultPassword,
+		Logger:                 logger,
+	}
+
+	producer := NewProducerRabbitMQ(conn)
+	ctx := context.Background()
+
+	t.Log("Stopping RabbitMQ to measure failure detection time...")
+	err = rmqContainer.Container.Stop(ctx, nil)
+	require.NoError(t, err)
+
+	msg := circuitBreakerTestMessage{
+		ID:        uuid.New().String(),
+		Timestamp: time.Now(),
+		Data:      "Fast failure detection test",
+	}
+	msgBytes, err := json.Marshal(msg)
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = producer.ProducerDefault(ctx, "test-exchange", "test.key", msgBytes)
+	failureDuration := time.Since(start)
+
+	assert.Error(t, err, "should fail when RabbitMQ is down")
+	assert.Less(t, failureDuration, 5*time.Second,
+		"with custom config (2 retries, 200ms initial, 1s max), failure should be detected in <5s")
+
+	t.Logf("Failure detected in %v (expected <5s with custom retry config)", failureDuration)
+	t.Log("Integration test passed: fast failure detection verified")
 }

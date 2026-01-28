@@ -72,7 +72,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		go func(queueName string, handler QueueHandlerFunc) {
-			backoff := utils.InitialBackoff
+			backoff := utils.InitialBackoff()
 
 			for {
 				if err := cr.conn.EnsureChannel(); err != nil {
@@ -126,7 +126,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 				cr.Infof("[Consumer %s] consuming started", queueName)
 
-				backoff = utils.InitialBackoff
+				backoff = utils.InitialBackoff()
 
 				notifyClose := make(chan *amqp.Error, 1)
 				cr.conn.Channel.NotifyClose(notifyClose)
