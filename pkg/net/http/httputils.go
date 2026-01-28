@@ -106,14 +106,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "start_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, false)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
 			}
 
 			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, true)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "end_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
 			}
 
 			endDate = parsedDate

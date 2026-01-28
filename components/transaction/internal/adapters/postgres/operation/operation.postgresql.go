@@ -39,6 +39,9 @@ type Repository interface {
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
 	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	// Point-in-time balance queries
+	FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error)
+	FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 }
 
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
@@ -880,6 +883,231 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 			logger.Errorf("Failed to calculate cursor: %v", err)
 
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	return operations, cur, nil
+}
+
+// FindLastOperationBeforeTimestamp finds the last operation for a specific balance before a given timestamp.
+// This is used for point-in-time balance queries to determine the balance state at a specific moment.
+func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_last_operation_before_timestamp")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+		return nil, err
+	}
+
+	// Build query to find the last operation for this balance before the timestamp
+	findQuery := squirrel.Select(operationColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"balance_id": balanceID}).
+		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(1).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		logger.Errorf("Failed to build query: %v", err)
+		return nil, err
+	}
+
+	logger.Debugf("FindLastOperationBeforeTimestamp query: %s with args: %v", query, args)
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_last_operation_before_timestamp.query")
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	spanQuery.End()
+
+	var operation OperationPostgreSQLModel
+	if err := row.Scan(
+		&operation.ID,
+		&operation.TransactionID,
+		&operation.Description,
+		&operation.Type,
+		&operation.AssetCode,
+		&operation.Amount,
+		&operation.AvailableBalance,
+		&operation.OnHoldBalance,
+		&operation.AvailableBalanceAfter,
+		&operation.OnHoldBalanceAfter,
+		&operation.Status,
+		&operation.StatusDescription,
+		&operation.AccountID,
+		&operation.AccountAlias,
+		&operation.BalanceID,
+		&operation.ChartOfAccounts,
+		&operation.OrganizationID,
+		&operation.LedgerID,
+		&operation.CreatedAt,
+		&operation.UpdatedAt,
+		&operation.DeletedAt,
+		&operation.Route,
+		&operation.BalanceAffected,
+		&operation.BalanceKey,
+		&operation.VersionBalance,
+		&operation.VersionBalanceAfter,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No operation found before timestamp", err)
+			logger.Debugf("No operation found for balance %s before timestamp %s", balanceID, timestamp)
+			return nil, nil
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		logger.Errorf("Failed to scan row: %v", err)
+		return nil, err
+	}
+
+	return operation.ToEntity(), nil
+}
+
+// FindLastOperationsForAccountBeforeTimestamp finds the last operation for each balance of an account before a given timestamp.
+// This is used for point-in-time account balance queries to get all balance states at a specific moment.
+func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_last_operations_for_account_before_timestamp")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	operations := make([]*Operation, 0)
+
+	// Cursor pagination setup
+	decodedCursor := libHTTP.Cursor{PointsNext: true}
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !libCommons.IsNilOrEmpty(&filter.Cursor) {
+		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+			logger.Errorf("Failed to decode cursor: %v", err)
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	// Build query using DISTINCT ON to get the last operation per balance_id
+	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY
+	findQuery := squirrel.Select("DISTINCT ON (balance_id) " + strings.Join(operationColumnList, ", ")).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"account_id": accountID}).
+		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("balance_id", "created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	// Wrap in subquery for cursor pagination (DISTINCT ON requires specific ordering)
+	subQuery, subArgs, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build subquery", err)
+		logger.Errorf("Failed to build subquery: %v", err)
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	// Apply pagination on the outer query
+	outerQuery := squirrel.Select(operationColumnList...).
+		FromSelect(findQuery, "sub").
+		PlaceholderFormat(squirrel.Dollar)
+
+	outerQuery, orderDirection = libHTTP.ApplyCursorPagination(outerQuery, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := outerQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build outer query", err)
+		logger.Errorf("Failed to build outer query: %v, subquery was: %s with args: %v", err, subQuery, subArgs)
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	logger.Debugf("FindLastOperationsForAccountBeforeTimestamp query: %s with args: %v", query, args)
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_last_operations_for_account_before_timestamp.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		logger.Errorf("Failed to query database: %v", err)
+		return nil, libHTTP.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var operation OperationPostgreSQLModel
+		if err := rows.Scan(
+			&operation.ID,
+			&operation.TransactionID,
+			&operation.Description,
+			&operation.Type,
+			&operation.AssetCode,
+			&operation.Amount,
+			&operation.AvailableBalance,
+			&operation.OnHoldBalance,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.Status,
+			&operation.StatusDescription,
+			&operation.AccountID,
+			&operation.AccountAlias,
+			&operation.BalanceID,
+			&operation.ChartOfAccounts,
+			&operation.OrganizationID,
+			&operation.LedgerID,
+			&operation.CreatedAt,
+			&operation.UpdatedAt,
+			&operation.DeletedAt,
+			&operation.Route,
+			&operation.BalanceAffected,
+			&operation.BalanceKey,
+			&operation.VersionBalance,
+			&operation.VersionBalanceAfter,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			logger.Errorf("Failed to scan row: %v", err)
+			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		operations = append(operations, operation.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+		logger.Errorf("Failed to get rows: %v", err)
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	hasPagination := len(operations) > filter.Limit
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && !decodedCursor.PointsNext
+
+	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
+
+	cur := libHTTP.CursorPagination{}
+	if len(operations) > 0 {
+		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+			logger.Errorf("Failed to calculate cursor: %v", err)
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}

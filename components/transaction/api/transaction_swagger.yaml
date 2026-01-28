@@ -1645,6 +1645,92 @@ paths:
       summary: Create Additional Balance
       tags:
       - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      description: Get the historical state of all Balances for an account at a specific
+        point in time (RFC3339 format)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - description: Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)
+        in: query
+        name: date
+        required: true
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
+              type: object
+        "400":
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account not found or no data available at date
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get Account Balances history at date
+      tags:
+      - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       description: Get all Operations with the input ID
@@ -2406,6 +2492,70 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Update Balance
+      tags:
+      - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      description: Get the historical state of a Balance at a specific point in time
+        (RFC3339 format)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      - description: Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)
+        in: query
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+        "400":
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Balance not found or no data available at date
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get Balance history at date
       tags:
       - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
