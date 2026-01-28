@@ -157,16 +157,21 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			midazID = libCommons.GenerateUUIDv7().String()
 		}
 
+		midazIDStr, ok := midazID.(string)
+		if !ok {
+			midazIDStr = libCommons.GenerateUUIDv7().String()
+		}
+
 		log := cr.Logger.WithFields(
-			libConstants.HeaderID, midazID.(string),
-		).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+			libConstants.HeaderID, midazIDStr,
+		).WithDefaultMessageTemplate(midazIDStr + libConstants.LoggerDefaultSeparator)
 
 		ctx := libCommons.ContextWithLogger(
-			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
+			libCommons.ContextWithHeaderID(context.Background(), midazIDStr),
 			log,
 		)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
+		ctx = libCommons.ContextWithHeaderID(ctx, midazIDStr)
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
