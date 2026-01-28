@@ -322,7 +322,9 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 	err = rmqContainer.Container.Start(ctx)
 	require.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
+	require.Eventually(t, func() bool {
+		return rmqtestutil.IsRabbitMQHealthy(rmqContainer.Host, rmqContainer.MgmtPort)
+	}, 30*time.Second, 500*time.Millisecond, "RabbitMQ should become healthy")
 
 	t.Logf("Waiting for circuit timeout (%v) to transition to half-open...", naturalRecoveryConfig.Timeout)
 	time.Sleep(naturalRecoveryConfig.Timeout + 1*time.Second)
