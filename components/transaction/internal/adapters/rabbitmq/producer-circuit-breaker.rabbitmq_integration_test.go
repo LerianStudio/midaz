@@ -311,6 +311,7 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 	err = rmqContainer.Container.Stop(ctx, nil)
 	require.NoError(t, err)
 
+	// Intentionally discard errors to simulate repeated failing publishes for circuit-breaker behavior
 	for i := 0; i < 3; i++ {
 		_, _ = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 	}
