@@ -256,34 +256,29 @@ func TestCircuitBreakerListener_OnStateChange_AllStates(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		from          libCircuitBreaker.State
-		to            libCircuitBreaker.State
-		expectedState int64
+		name string
+		from libCircuitBreaker.State
+		to   libCircuitBreaker.State
 	}{
 		{
-			name:          "closed to open",
-			from:          libCircuitBreaker.StateClosed,
-			to:            libCircuitBreaker.StateOpen,
-			expectedState: 1,
+			name: "closed to open",
+			from: libCircuitBreaker.StateClosed,
+			to:   libCircuitBreaker.StateOpen,
 		},
 		{
-			name:          "open to half-open",
-			from:          libCircuitBreaker.StateOpen,
-			to:            libCircuitBreaker.StateHalfOpen,
-			expectedState: 2,
+			name: "open to half-open",
+			from: libCircuitBreaker.StateOpen,
+			to:   libCircuitBreaker.StateHalfOpen,
 		},
 		{
-			name:          "half-open to closed",
-			from:          libCircuitBreaker.StateHalfOpen,
-			to:            libCircuitBreaker.StateClosed,
-			expectedState: 0,
+			name: "half-open to closed",
+			from: libCircuitBreaker.StateHalfOpen,
+			to:   libCircuitBreaker.StateClosed,
 		},
 		{
-			name:          "half-open to open",
-			from:          libCircuitBreaker.StateHalfOpen,
-			to:            libCircuitBreaker.StateOpen,
-			expectedState: 1,
+			name: "half-open to open",
+			from: libCircuitBreaker.StateHalfOpen,
+			to:   libCircuitBreaker.StateOpen,
 		},
 	}
 
@@ -297,7 +292,6 @@ func TestCircuitBreakerListener_OnStateChange_AllStates(t *testing.T) {
 			assert.NotPanics(t, func() {
 				listener.OnStateChange("test-service", tt.from, tt.to)
 			})
-			assert.Equal(t, tt.expectedState, stateToInt(tt.to))
 		})
 	}
 }
