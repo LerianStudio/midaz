@@ -1980,7 +1980,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 			name: "deprecation headers present on missing file error",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
 				// Request without file - will fail validation but should still have deprecation headers
-				req := httptest.NewRequest("POST",
+				req := httptest.NewRequest(nethttp.MethodPost,
 					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
 					nil)
 				req.Header.Set("Content-Type", "multipart/form-data")
@@ -2013,7 +2013,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 		{
 			name: "deprecation headers present with invalid query parameters",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest("POST",
+				req := httptest.NewRequest(nethttp.MethodPost,
 					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format",
 					nil)
 				req.Header.Set("Content-Type", "multipart/form-data")
@@ -2039,7 +2039,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 		{
 			name: "Link header contains dynamic organization_id and ledger_id",
 			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest("POST",
+				req := httptest.NewRequest(nethttp.MethodPost,
 					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
 					nil)
 				req.Header.Set("Content-Type", "multipart/form-data")
@@ -2150,7 +2150,7 @@ func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
 				handler.CreateTransactionDSL,
 			)
 
-			req := httptest.NewRequest("POST",
+			req := httptest.NewRequest(nethttp.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
 				nil)
 			req.Header.Set("Content-Type", "multipart/form-data")
