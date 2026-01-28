@@ -69,8 +69,12 @@ case $KEYWORD in
     *)       EMOJI="" ;;
 esac
 
-# Only add emoji if one was selected
+# Only add emoji if one was selected and not already present
 if [ -n "$EMOJI" ]; then
+    # Skip if first line already ends with an emoji (prevents duplication on amend)
+    if [[ "$first_line" =~ :[a-z_]+:$ ]]; then
+        exit 0
+    fi
     # Build new first line with emoji (avoids sed escaping issues with special chars)
     new_first_line="$first_line $EMOJI"
     # Get the rest of the message (lines 2+)
