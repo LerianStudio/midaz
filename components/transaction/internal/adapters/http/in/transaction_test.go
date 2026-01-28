@@ -3,6 +3,7 @@ package in
 import (
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -1955,6 +1956,215 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 			msg, ok := errResp["message"].(string)
 			assert.True(t, ok, "error response should contain message field")
 			assert.Contains(t, msg, "zero", "error message should mention zero values")
+		})
+	}
+}
+
+// TestCreateTransactionDSL_DeprecationHeaders validates that the deprecated DSL endpoint
+// returns RFC 8594 compliant deprecation headers.
+// RFC 8594 specifies standard HTTP headers for communicating API deprecation status:
+// - Deprecation: indicates the resource is deprecated
+// - Sunset: specifies when the deprecated resource will become unavailable
+// - Link with rel="successor-version": points to the replacement resource
+func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		setupRequest     func(orgID, ledgerID uuid.UUID) *nethttp.Request
+		expectedStatus   int
+		validateHeaders  func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID)
+		validateResponse func(t *testing.T, body []byte)
+	}{
+		{
+			name: "deprecation headers present on missing file error",
+			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
+				// Request without file - will fail validation but should still have deprecation headers
+				req := httptest.NewRequest(nethttp.MethodPost,
+					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
+					nil)
+				req.Header.Set("Content-Type", "multipart/form-data")
+				return req
+			},
+			expectedStatus: 400,
+			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+				// Verify Deprecation header
+				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
+					"Deprecation header should be 'true'")
+
+				// Verify Sunset header with correct date format
+				assert.Equal(t, "Sat, 01 Aug 2026 00:00:00 GMT", resp.Header.Get("Sunset"),
+					"Sunset header should have correct RFC 1123 date format")
+
+				// Verify Link header with successor-version
+				expectedLink := "</v1/organizations/" + orgID.String() +
+					"/ledgers/" + ledgerID.String() +
+					"/transactions/json>; rel=\"successor-version\""
+				assert.Equal(t, expectedLink, resp.Header.Get("Link"),
+					"Link header should point to JSON endpoint with successor-version rel")
+			},
+			validateResponse: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+		{
+			name: "deprecation headers present with invalid query parameters",
+			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
+				req := httptest.NewRequest(nethttp.MethodPost,
+					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format",
+					nil)
+				req.Header.Set("Content-Type", "multipart/form-data")
+				return req
+			},
+			expectedStatus: 400,
+			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+				// Even on validation errors, deprecation headers should be present
+				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
+					"Deprecation header should be present even on error")
+				assert.Equal(t, "Sat, 01 Aug 2026 00:00:00 GMT", resp.Header.Get("Sunset"),
+					"Sunset header should be present even on error")
+				assert.Contains(t, resp.Header.Get("Link"), "successor-version",
+					"Link header should contain successor-version rel")
+			},
+			validateResponse: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+		{
+			name: "Link header contains dynamic organization_id and ledger_id",
+			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
+				req := httptest.NewRequest(nethttp.MethodPost,
+					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
+					nil)
+				req.Header.Set("Content-Type", "multipart/form-data")
+				return req
+			},
+			expectedStatus: 400,
+			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+				linkHeader := resp.Header.Get("Link")
+
+				// Verify Link header contains the specific organization_id
+				assert.Contains(t, linkHeader, orgID.String(),
+					"Link header should contain the organization_id from the request")
+
+				// Verify Link header contains the specific ledger_id
+				assert.Contains(t, linkHeader, ledgerID.String(),
+					"Link header should contain the ledger_id from the request")
+
+				// Verify Link header has correct structure
+				assert.Contains(t, linkHeader, "/v1/organizations/",
+					"Link header should have /v1/organizations/ path prefix")
+				assert.Contains(t, linkHeader, "/ledgers/",
+					"Link header should have /ledgers/ path segment")
+				assert.Contains(t, linkHeader, "/transactions/json",
+					"Link header should point to /transactions/json endpoint")
+				assert.Contains(t, linkHeader, "rel=\"successor-version\"",
+					"Link header should have rel=\"successor-version\"")
+			},
+			validateResponse: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			// No mocks needed - these tests focus on response headers
+			// which are set before any business logic executes
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				handler.CreateTransactionDSL,
+			)
+
+			// Act
+			req := tt.setupRequest(orgID, ledgerID)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			// Validate deprecation headers
+			if tt.validateHeaders != nil {
+				tt.validateHeaders(t, resp, orgID, ledgerID)
+			}
+
+			// Validate response body
+			if tt.validateResponse != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateResponse(t, body)
+			}
+		})
+	}
+}
+
+// TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs validates that the Link header
+// correctly uses the organization_id and ledger_id from each unique request.
+func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
+	t.Parallel()
+
+	// Test with multiple different ID combinations to ensure dynamic header construction
+	testCases := []struct {
+		name string
+	}{
+		{name: "first unique ID pair"},
+		{name: "second unique ID pair"},
+		{name: "third unique ID pair"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate unique IDs for each test
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			handler := &TransactionHandler{}
+
+			app := fiber.New()
+			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("ledger_id", ledgerID)
+					return c.Next()
+				},
+				handler.CreateTransactionDSL,
+			)
+
+			req := httptest.NewRequest(nethttp.MethodPost,
+				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
+				nil)
+			req.Header.Set("Content-Type", "multipart/form-data")
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			// Build expected Link header with this test's specific IDs
+			expectedLink := "</v1/organizations/" + orgID.String() +
+				"/ledgers/" + ledgerID.String() +
+				"/transactions/json>; rel=\"successor-version\""
+
+			assert.Equal(t, expectedLink, resp.Header.Get("Link"),
+				"Link header should use the organization_id and ledger_id from this specific request")
 		})
 	}
 }
