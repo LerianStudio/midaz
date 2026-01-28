@@ -75,6 +75,10 @@ func GetEnvFloat64(key string, defaultVal float64) float64 {
 
 // GetEnvFloat64WithRange returns the environment variable value as float64, clamped to [minVal, maxVal] range.
 func GetEnvFloat64WithRange(key string, defaultVal, minVal, maxVal float64) float64 {
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
+	}
+
 	value := GetEnvFloat64(key, defaultVal)
 
 	if value < minVal {

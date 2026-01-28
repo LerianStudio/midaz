@@ -106,7 +106,7 @@ func TestNextBackoff_ExponentialGrowth(t *testing.T) {
 		current  time.Duration
 		expected time.Duration
 	}{
-		{"from_initial", InitialBackoff(), time.Duration(float64(InitialBackoff()) * BackoffFactor())},
+		{"from_initial", 500 * time.Millisecond, 1 * time.Second},
 		{"from_1_second", 1 * time.Second, 2 * time.Second},
 		{"from_2_seconds", 2 * time.Second, 4 * time.Second},
 		{"from_500ms", 500 * time.Millisecond, 1 * time.Second},

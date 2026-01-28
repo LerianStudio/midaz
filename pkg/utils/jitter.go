@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -27,10 +26,13 @@ type retryConfig struct {
 var (
 	config     retryConfig
 	configOnce sync.Once
+	configMu   sync.Mutex
 )
 
 // loadConfig loads retry configuration from environment variables with defaults.
 // Called once via sync.Once to ensure thread-safe initialization.
+// Note: Invalid env values are silently corrected here; use LogRetryConfigWarnings
+// at bootstrap time (where a logger is available) to emit warnings.
 func loadConfig() {
 	config = retryConfig{
 		maxRetries:     GetEnvInt("RETRY_MAX_RETRIES", DefaultMaxRetries),
@@ -40,33 +42,32 @@ func loadConfig() {
 	}
 
 	if config.maxRetries < 0 {
-		log.Printf("Warning: RETRY_MAX_RETRIES=%d is negative, using default: %d", config.maxRetries, DefaultMaxRetries)
 		config.maxRetries = DefaultMaxRetries
 	}
 
 	if config.initialBackoff <= 0 {
-		log.Printf("Warning: RETRY_INITIAL_BACKOFF=%v is not positive, using default: %v", config.initialBackoff, DefaultInitialBackoff)
 		config.initialBackoff = DefaultInitialBackoff
 	}
 
 	if config.maxBackoff <= 0 {
-		log.Printf("Warning: RETRY_MAX_BACKOFF=%v is not positive, using default: %v", config.maxBackoff, DefaultMaxBackoff)
 		config.maxBackoff = DefaultMaxBackoff
 	}
 
 	if config.backoffFactor < 1.0 {
-		log.Printf("Warning: RETRY_BACKOFF_FACTOR=%f is less than 1.0, using default: %f", config.backoffFactor, DefaultBackoffFactor)
 		config.backoffFactor = DefaultBackoffFactor
 	}
 
 	if config.initialBackoff > config.maxBackoff {
-		log.Printf("Warning: RETRY_INITIAL_BACKOFF=%v exceeds RETRY_MAX_BACKOFF=%v, capping initial to max", config.initialBackoff, config.maxBackoff)
 		config.initialBackoff = config.maxBackoff
 	}
 }
 
 func getConfig() *retryConfig {
+	configMu.Lock()
+	defer configMu.Unlock()
+
 	configOnce.Do(loadConfig)
+
 	return &config
 }
 
@@ -118,11 +119,4 @@ func NextBackoff(current time.Duration) time.Duration {
 	}
 
 	return next
-}
-
-// ResetConfigForTesting resets the configuration singleton for testing purposes.
-// This function should ONLY be called in test code.
-func ResetConfigForTesting() {
-	configOnce = sync.Once{}
-	config = retryConfig{}
 }

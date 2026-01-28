@@ -224,6 +224,7 @@ func TestIntegration_CircuitBreaker_Recovery(t *testing.T) {
 	err = rmqContainer.Container.Stop(ctx, nil)
 	require.NoError(t, err)
 
+	// Intentionally discard errors to trigger circuit opening
 	for i := 0; i < 3; i++ {
 		_, _ = producer.ProducerDefault(ctx, exchange, routingKey, msgBytes)
 	}
