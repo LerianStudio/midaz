@@ -2,17 +2,27 @@ package utils
 
 import (
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// resetConfigForTesting resets the configuration singleton for testing purposes.
+// This is a test-only helper that directly manipulates the package-level config state.
+func resetConfigForTesting() {
+	configMu.Lock()
+	defer configMu.Unlock()
+	configOnce = sync.Once{}
+	config = retryConfig{}
+}
+
 // setupTest resets the configuration singleton and clears environment variables.
 // Note: t.Parallel() is intentionally NOT used in these tests because:
 // 1. Tests modify global state (config singleton via sync.Once)
 // 2. Tests modify shared environment variables
-// 3. ResetConfigForTesting() is not safe for concurrent use
+// 3. resetConfigForTesting() is not safe for concurrent use
 func setupTest(t *testing.T) {
 	t.Helper()
 
@@ -42,10 +52,10 @@ func setupTest(t *testing.T) {
 		} else {
 			os.Unsetenv("RETRY_BACKOFF_FACTOR")
 		}
-		ResetConfigForTesting()
+		resetConfigForTesting()
 	})
 
-	ResetConfigForTesting()
+	resetConfigForTesting()
 	os.Unsetenv("RETRY_MAX_RETRIES")
 	os.Unsetenv("RETRY_INITIAL_BACKOFF")
 	os.Unsetenv("RETRY_MAX_BACKOFF")

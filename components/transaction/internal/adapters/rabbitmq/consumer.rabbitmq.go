@@ -171,7 +171,6 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			log,
 		)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazIDStr)
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)

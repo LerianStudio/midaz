@@ -390,7 +390,7 @@ func TestIntegration_RetryConfiguration_CustomValues(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	utils.ResetConfigForTesting()
+	resetJitterConfigForTesting()
 
 	originalMaxRetries := os.Getenv("RETRY_MAX_RETRIES")
 	originalInitialBackoff := os.Getenv("RETRY_INITIAL_BACKOFF")
@@ -418,7 +418,7 @@ func TestIntegration_RetryConfiguration_CustomValues(t *testing.T) {
 		} else {
 			os.Unsetenv("RETRY_BACKOFF_FACTOR")
 		}
-		utils.ResetConfigForTesting()
+		resetJitterConfigForTesting()
 	})
 
 	os.Setenv("RETRY_MAX_RETRIES", "2")
@@ -482,7 +482,7 @@ func TestIntegration_RetryConfiguration_FastFailureDetection(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	utils.ResetConfigForTesting()
+	resetJitterConfigForTesting()
 
 	originalMaxRetries := os.Getenv("RETRY_MAX_RETRIES")
 	originalInitialBackoff := os.Getenv("RETRY_INITIAL_BACKOFF")
@@ -504,7 +504,7 @@ func TestIntegration_RetryConfiguration_FastFailureDetection(t *testing.T) {
 		} else {
 			os.Unsetenv("RETRY_MAX_BACKOFF")
 		}
-		utils.ResetConfigForTesting()
+		resetJitterConfigForTesting()
 	})
 
 	os.Setenv("RETRY_MAX_RETRIES", "2")

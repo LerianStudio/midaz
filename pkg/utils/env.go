@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -59,6 +60,7 @@ func GetEnvUint32(key string, defaultVal uint32) uint32 {
 }
 
 // GetEnvFloat64 returns the environment variable value as float64, or defaultVal if not set or invalid.
+// Non-finite values (NaN, Inf, -Inf) are treated as invalid and return defaultVal.
 func GetEnvFloat64(key string, defaultVal float64) float64 {
 	v := os.Getenv(key)
 	if v == "" {
@@ -67,6 +69,10 @@ func GetEnvFloat64(key string, defaultVal float64) float64 {
 
 	parsed, err := strconv.ParseFloat(v, 64)
 	if err != nil {
+		return defaultVal
+	}
+
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
 		return defaultVal
 	}
 
