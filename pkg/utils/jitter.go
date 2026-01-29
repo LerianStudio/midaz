@@ -120,3 +120,11 @@ func NextBackoff(current time.Duration) time.Duration {
 
 	return next
 }
+
+// ResetConfigForTesting resets the configuration singleton for testing purposes.
+func ResetConfigForTesting() {
+	configMu.Lock()
+	defer configMu.Unlock()
+	configOnce = sync.Once{}
+	config = retryConfig{}
+}
