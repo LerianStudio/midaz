@@ -88,7 +88,7 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	//Route
+	// Route
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -377,7 +377,7 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	//Route
+	// Route
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: string
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
@@ -569,21 +569,25 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 	return transaction
 }
 
-// TransactionQueue this is a struct that is responsible to send and receive from queue.
+// TransactionProcessingPayload contains all data needed to process a transaction
+// via message queue (create balances, transaction record, and operations).
 //
-// @Description Container for transaction data exchanged via message queues, including validation responses, balances, and transaction details.
-type TransactionQueue struct {
+// This struct is serialized via msgpack to RabbitMQ. The msgpack tags preserve
+// backward compatibility with messages serialized before the rename.
+//
+// @Description Container for transaction data exchanged via message queues.
+type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
-	Validate *pkgTransaction.Responses `json:"validate"`
+	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
 
 	// Account balances affected by the transaction
-	Balances []*mmodel.Balance `json:"balances"`
+	Balances []*mmodel.Balance `json:"balances" msgpack:"Balances"`
 
 	// The transaction being processed
-	Transaction *Transaction `json:"transaction"`
+	Transaction *Transaction `json:"transaction" msgpack:"Transaction"`
 
-	// Parsed transaction DSL
-	ParseDSL *pkgTransaction.Transaction `json:"parseDSL"`
+	// Input transaction data (renamed from ParseDSL for clarity)
+	Input *pkgTransaction.Transaction `json:"input" msgpack:"ParseDSL"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.
