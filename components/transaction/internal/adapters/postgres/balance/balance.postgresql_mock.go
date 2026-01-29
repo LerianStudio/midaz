@@ -12,6 +12,7 @@ package balance
 import (
 	context "context"
 	reflect "reflect"
+	"time"
 
 	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -190,6 +191,21 @@ func (m *MockRepository) ListByAccountID(ctx context.Context, organizationID, le
 func (mr *MockRepositoryMockRecorder) ListByAccountID(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAccountID", reflect.TypeOf((*MockRepository)(nil).ListByAccountID), ctx, organizationID, ledgerID, accountID)
+}
+
+// ListByAccountIDAtTimestamp mocks base method.
+func (m *MockRepository) ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAccountIDAtTimestamp", ctx, organizationID, ledgerID, accountID, timestamp)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAccountIDAtTimestamp indicates an expected call of ListByAccountIDAtTimestamp.
+func (mr *MockRepositoryMockRecorder) ListByAccountIDAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAccountIDAtTimestamp", reflect.TypeOf((*MockRepository)(nil).ListByAccountIDAtTimestamp), ctx, organizationID, ledgerID, accountID, timestamp)
 }
 
 // ListByAccountIDs mocks base method.

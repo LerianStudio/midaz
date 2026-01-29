@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -523,6 +524,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, "Balance", "date")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
 		logger.Warnf("Missing date query parameter")
+
 		return http.WithError(c, err)
 	}
 
@@ -531,6 +533,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "RFC3339")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid date format", validationErr)
 		logger.Warnf("Invalid date format: %s", dateStr)
+
 		return http.WithError(c, validationErr)
 	}
 
@@ -540,6 +543,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balance at date", err)
 		logger.Errorf("Failed to retrieve balance at date, Error: %s", err.Error())
+
 		return http.WithError(c, err)
 	}
 
@@ -560,9 +564,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			date			query		string	true	"Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	[]mmodel.Balance
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -587,6 +589,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, "Balance", "date")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
 		logger.Warnf("Missing date query parameter")
+
 		return http.WithError(c, err)
 	}
 
@@ -595,43 +598,31 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "RFC3339")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid date format", validationErr)
 		logger.Warnf("Invalid date format: %s", dateStr)
+
 		return http.WithError(c, validationErr)
-	}
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-		return http.WithError(c, err)
-	}
-
-	filter := http.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		Cursor:    headerParams.Cursor,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
-	}
-
-	pagination := libPostgres.Pagination{
-		Limit:     headerParams.Limit,
-		SortOrder: headerParams.SortOrder,
 	}
 
 	logger.Infof("Initiating retrieval of balances for account %s at date %s", accountID, date.Format(time.RFC3339))
 
-	balances, cur, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date, filter)
+	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve account balances at date", err)
 		logger.Errorf("Failed to retrieve account balances at date, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	// Check if we have any balances to return
+	if len(balances) == 0 {
+		// No balances existed at that time
+		err := pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, date.Format(time.RFC3339))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
+		logger.Infof("No balances found for account %s at timestamp %s", accountID, date)
+
 		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved %d balances for account %s at date %s", len(balances), accountID, date.Format(time.RFC3339))
 
-	pagination.SetItems(balances)
-	pagination.SetCursor(cur.Next, cur.Prev)
-
-	return http.OK(c, pagination)
+	return http.OK(c, balances)
 }

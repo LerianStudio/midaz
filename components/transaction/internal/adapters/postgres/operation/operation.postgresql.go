@@ -79,6 +79,22 @@ var operationColumnList = []string{
 	"balance_version_after",
 }
 
+// operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
+// This reduced column list enables PostgreSQL to use Index-Only Scan with the covering index
+// idx_operation_point_in_time, avoiding expensive heap fetches.
+// Note: 'id' is included for cursor pagination support in list queries.
+var operationPointInTimeColumns = []string{
+	"id",
+	"balance_id",
+	"account_id",
+	"asset_code",
+	"balance_key",
+	"available_balance_after",
+	"on_hold_balance_after",
+	"balance_version_after",
+	"created_at",
+}
+
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
 func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationPostgreSQLRepository {
 	c := &OperationPostgreSQLRepository{
@@ -907,7 +923,8 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	}
 
 	// Build query to find the last operation for this balance before the timestamp
-	findQuery := squirrel.Select(operationColumnList...).
+	// Uses optimized column list (8 columns vs 26) to enable Index-Only Scan with covering index
+	findQuery := squirrel.Select(operationPointInTimeColumns...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -934,34 +951,17 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 
 	spanQuery.End()
 
-	var operation OperationPostgreSQLModel
+	var operation OperationPointInTimeModel
 	if err := row.Scan(
 		&operation.ID,
-		&operation.TransactionID,
-		&operation.Description,
-		&operation.Type,
+		&operation.BalanceID,
+		&operation.AccountID,
 		&operation.AssetCode,
-		&operation.Amount,
-		&operation.AvailableBalance,
-		&operation.OnHoldBalance,
+		&operation.BalanceKey,
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
-		&operation.Status,
-		&operation.StatusDescription,
-		&operation.AccountID,
-		&operation.AccountAlias,
-		&operation.BalanceID,
-		&operation.ChartOfAccounts,
-		&operation.OrganizationID,
-		&operation.LedgerID,
-		&operation.CreatedAt,
-		&operation.UpdatedAt,
-		&operation.DeletedAt,
-		&operation.Route,
-		&operation.BalanceAffected,
-		&operation.BalanceKey,
-		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
+		&operation.CreatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No operation found before timestamp", err)
@@ -1013,7 +1013,8 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 
 	// Build query using DISTINCT ON to get the last operation per balance_id
 	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY
-	findQuery := squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationColumnList, ", ")).
+	// Uses optimized column list (9 columns vs 26) to enable Index-Only Scan with covering index
+	findQuery := squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationPointInTimeColumns, ", ")).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -1033,7 +1034,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	}
 
 	// Apply pagination on the outer query
-	outerQuery := squirrel.Select(operationColumnList...).
+	outerQuery := squirrel.Select(operationPointInTimeColumns...).
 		FromSelect(findQuery, "sub").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1063,34 +1064,17 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var operation OperationPointInTimeModel
 		if err := rows.Scan(
 			&operation.ID,
-			&operation.TransactionID,
-			&operation.Description,
-			&operation.Type,
+			&operation.BalanceID,
+			&operation.AccountID,
 			&operation.AssetCode,
-			&operation.Amount,
-			&operation.AvailableBalance,
-			&operation.OnHoldBalance,
+			&operation.BalanceKey,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
-			&operation.Status,
-			&operation.StatusDescription,
-			&operation.AccountID,
-			&operation.AccountAlias,
-			&operation.BalanceID,
-			&operation.ChartOfAccounts,
-			&operation.OrganizationID,
-			&operation.LedgerID,
-			&operation.CreatedAt,
-			&operation.UpdatedAt,
-			&operation.DeletedAt,
-			&operation.Route,
-			&operation.BalanceAffected,
-			&operation.BalanceKey,
-			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
+			&operation.CreatedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)

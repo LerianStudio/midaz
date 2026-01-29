@@ -1654,35 +1654,11 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			date: "2024-01-15T10:30:00Z",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID := uuid.New()
-				available := decimal.NewFromInt(5000)
-				onHold := decimal.NewFromInt(500)
-				version := int64(10)
-				operationCreatedAt := date.Add(-time.Hour)
-				balanceCreatedAt := date.Add(-24 * time.Hour) // Balance created 1 day before query date
+				balanceCreatedAt := date.Add(-24 * time.Hour)
+				updatedAt := date.Add(-time.Hour)
 
-				// Find last operations for account before date
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return([]*operation.Operation{
-						{
-							ID:         uuid.New().String(),
-							AccountID:  accountID.String(),
-							BalanceID:  balanceID.String(),
-							BalanceKey: "default",
-							AssetCode:  "USD",
-							BalanceAfter: operation.Balance{
-								Available: &available,
-								OnHold:    &onHold,
-								Version:   &version,
-							},
-							CreatedAt: operationCreatedAt,
-						},
-					}, libHTTP.CursorPagination{}, nil).
-					Times(1)
-
-				// Then get all balances for account
 				balanceRepo.EXPECT().
-					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
+					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return([]*mmodel.Balance{
 						{
 							ID:             balanceID.String(),
@@ -1693,22 +1669,23 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 							Key:            "default",
 							AssetCode:      "USD",
 							AccountType:    "deposit",
+							Available:      decimal.NewFromInt(5000),
+							OnHold:         decimal.NewFromInt(500),
+							Version:        10,
 							CreatedAt:      balanceCreatedAt,
+							UpdatedAt:      updatedAt,
 						},
 					}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
+				var result []map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
+				require.Len(t, result, 1, "should have one balance")
 
-				items, ok := result["items"].([]any)
-				require.True(t, ok, "response should have items array")
-				require.Len(t, items, 1, "should have one balance")
-
-				balance := items[0].(map[string]any)
+				balance := result[0]
 				assert.Contains(t, balance, "id", "balance should have id field")
 				assert.Contains(t, balance, "assetCode", "balance should have assetCode field")
 				assert.Equal(t, "USD", balance["assetCode"])
@@ -1773,15 +1750,8 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			name: "no balance data at date returns 404",
 			date: "2024-01-15T10:30:00Z",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
-				// No operations found before date
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return([]*operation.Operation{}, libHTTP.CursorPagination{}, nil).
-					Times(1)
-
-				// No balances exist for account (or all created after query date)
 				balanceRepo.EXPECT().
-					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
+					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return([]*mmodel.Balance{}, nil).
 					Times(1)
 			},
@@ -1796,41 +1766,11 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 		},
 		{
-			name: "operation repository error returns 500",
-			date: "2024-01-15T10:30:00Z",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{
-						Code:    "0046",
-						Title:   "Internal Server Error",
-						Message: "Database connection failed",
-					}).
-					Times(1)
-			},
-			expectedStatus: 500,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
-			},
-		},
-		{
 			name: "balance repository error returns 500",
 			date: "2024-01-15T10:30:00Z",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
-				// Operations found
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return([]*operation.Operation{}, libHTTP.CursorPagination{}, nil).
-					Times(1)
-
-				// But balance repo fails
 				balanceRepo.EXPECT().
-					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
+					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -1854,49 +1794,11 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID1 := uuid.New()
 				balanceID2 := uuid.New()
-				available1 := decimal.NewFromInt(5000)
-				available2 := decimal.NewFromInt(3000)
-				onHold := decimal.NewFromInt(500)
-				version := int64(10)
-				operationCreatedAt := date.Add(-time.Hour)
 				balanceCreatedAt := date.Add(-24 * time.Hour)
+				updatedAt := date.Add(-time.Hour)
 
-				// Find last operations for account before date - returns 2 balances
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return([]*operation.Operation{
-						{
-							ID:         uuid.New().String(),
-							AccountID:  accountID.String(),
-							BalanceID:  balanceID1.String(),
-							BalanceKey: "default",
-							AssetCode:  "USD",
-							BalanceAfter: operation.Balance{
-								Available: &available1,
-								OnHold:    &onHold,
-								Version:   &version,
-							},
-							CreatedAt: operationCreatedAt,
-						},
-						{
-							ID:         uuid.New().String(),
-							AccountID:  accountID.String(),
-							BalanceID:  balanceID2.String(),
-							BalanceKey: "default",
-							AssetCode:  "BRL",
-							BalanceAfter: operation.Balance{
-								Available: &available2,
-								OnHold:    &onHold,
-								Version:   &version,
-							},
-							CreatedAt: operationCreatedAt,
-						},
-					}, libHTTP.CursorPagination{}, nil).
-					Times(1)
-
-				// Then get all balances for account
 				balanceRepo.EXPECT().
-					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
+					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return([]*mmodel.Balance{
 						{
 							ID:             balanceID1.String(),
@@ -1907,7 +1809,11 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 							Key:            "default",
 							AssetCode:      "USD",
 							AccountType:    "deposit",
+							Available:      decimal.NewFromInt(5000),
+							OnHold:         decimal.NewFromInt(500),
+							Version:        10,
 							CreatedAt:      balanceCreatedAt,
+							UpdatedAt:      updatedAt,
 						},
 						{
 							ID:             balanceID2.String(),
@@ -1918,91 +1824,29 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 							Key:            "default",
 							AssetCode:      "BRL",
 							AccountType:    "deposit",
+							Available:      decimal.NewFromInt(3000),
+							OnHold:         decimal.NewFromInt(500),
+							Version:        10,
 							CreatedAt:      balanceCreatedAt,
+							UpdatedAt:      updatedAt,
 						},
 					}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
+				var result []map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
-
-				items, ok := result["items"].([]any)
-				require.True(t, ok, "response should have items array")
-				require.Len(t, items, 2, "should have two balances")
+				require.Len(t, result, 2, "should have two balances")
 
 				// Verify both balances are present
 				assetCodes := make([]string, 0, 2)
-				for _, item := range items {
-					balance := item.(map[string]any)
+				for _, balance := range result {
 					assetCodes = append(assetCodes, balance["assetCode"].(string))
 				}
 				assert.Contains(t, assetCodes, "USD", "should contain USD balance")
 				assert.Contains(t, assetCodes, "BRL", "should contain BRL balance")
-			},
-		},
-		{
-			name: "success with pagination cursor returns cursor in response",
-			date: "2024-01-15T10:30:00Z",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
-				balanceID := uuid.New()
-				available := decimal.NewFromInt(5000)
-				onHold := decimal.NewFromInt(500)
-				version := int64(10)
-				operationCreatedAt := date.Add(-time.Hour)
-				balanceCreatedAt := date.Add(-24 * time.Hour)
-
-				// Find last operations for account with pagination cursor
-				operationRepo.EXPECT().
-					FindLastOperationsForAccountBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Any()).
-					Return([]*operation.Operation{
-						{
-							ID:         uuid.New().String(),
-							AccountID:  accountID.String(),
-							BalanceID:  balanceID.String(),
-							BalanceKey: "default",
-							AssetCode:  "USD",
-							BalanceAfter: operation.Balance{
-								Available: &available,
-								OnHold:    &onHold,
-								Version:   &version,
-							},
-							CreatedAt: operationCreatedAt,
-						},
-					}, libHTTP.CursorPagination{Next: "next-cursor", Prev: "prev-cursor"}, nil).
-					Times(1)
-
-				// Then get all balances for account
-				balanceRepo.EXPECT().
-					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
-					Return([]*mmodel.Balance{
-						{
-							ID:             balanceID.String(),
-							OrganizationID: orgID.String(),
-							LedgerID:       ledgerID.String(),
-							AccountID:      accountID.String(),
-							Alias:          "@user1",
-							Key:            "default",
-							AssetCode:      "USD",
-							AccountType:    "deposit",
-							CreatedAt:      balanceCreatedAt,
-						},
-					}, nil).
-					Times(1)
-			},
-			expectedStatus: 200,
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-
-				// Verify pagination cursors are present (snake_case as per JSON convention)
-				assert.Contains(t, result, "next_cursor", "response should have next_cursor")
-				assert.Contains(t, result, "prev_cursor", "response should have prev_cursor")
-				assert.Equal(t, "next-cursor", result["next_cursor"])
-				assert.Equal(t, "prev-cursor", result["prev_cursor"])
 			},
 		},
 	}

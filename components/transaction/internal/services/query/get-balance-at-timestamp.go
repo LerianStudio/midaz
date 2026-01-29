@@ -18,6 +18,7 @@ import (
 // It finds the last operation before the given timestamp and returns the balance state after that operation.
 func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "query.get_balance_at_timestamp")
 	defer span.End()
 
@@ -28,6 +29,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "timestamp cannot be in the future")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Timestamp is in the future", err)
 		logger.Warnf("Timestamp is in the future: %s", timestamp)
+
 		return nil, err
 	}
 
@@ -36,6 +38,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get current balance", err)
 		logger.Errorf("Error getting current balance: %v", err)
+
 		return nil, err
 	}
 
@@ -43,6 +46,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
 		logger.Warnf("Balance not found: %s", balanceID)
+
 		return nil, err
 	}
 
@@ -51,6 +55,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get operation before timestamp", err)
 		logger.Errorf("Error getting operation before timestamp: %v", err)
+
 		return nil, err
 	}
 
@@ -64,11 +69,13 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 			err := pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, timestamp.Format(time.RFC3339))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
 			logger.Warnf("Balance %s was created after timestamp %s (created_at: %s)", balanceID, timestamp, currentBalance.CreatedAt)
+
 			return nil, err
 		}
 
 		// Balance existed but had no operations yet - return with zero values
 		logger.Infof("Balance %s existed at timestamp %s but had no operations, returning initial state", balanceID, timestamp.Format(time.RFC3339))
+
 		balance = &mmodel.Balance{
 			ID:             currentBalance.ID,
 			OrganizationID: currentBalance.OrganizationID,

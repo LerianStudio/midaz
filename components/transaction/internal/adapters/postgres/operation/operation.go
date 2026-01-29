@@ -46,6 +46,41 @@ type OperationPostgreSQLModel struct {
 	Metadata              map[string]any   // Additional custom attributes
 }
 
+// OperationPointInTimeModel is a lightweight model for point-in-time balance queries.
+// It contains only the fields needed to reconstruct the balance state at a specific timestamp,
+// enabling PostgreSQL to use Index-Only Scan with covering indexes.
+// Note: ID is included for cursor pagination support in list queries.
+type OperationPointInTimeModel struct {
+	ID                    string           // Unique identifier (UUID format) - for cursor pagination
+	BalanceID             string           // Balance ID affected by operation
+	AccountID             string           // Account ID associated with operation
+	AssetCode             string           // Asset code for the operation
+	BalanceKey            string           // Balance key for additional balances
+	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
+	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
+	VersionBalanceAfter   *int64           // Balance version after operation
+	CreatedAt             time.Time        // Creation timestamp (used as UpdatedAt for balance)
+}
+
+// ToEntity converts an OperationPointInTimeModel to entity Operation with only point-in-time relevant fields
+func (t *OperationPointInTimeModel) ToEntity() *Operation {
+	balanceAfter := Balance{
+		Available: t.AvailableBalanceAfter,
+		OnHold:    t.OnHoldBalanceAfter,
+		Version:   t.VersionBalanceAfter,
+	}
+
+	return &Operation{
+		ID:           t.ID,
+		BalanceID:    t.BalanceID,
+		AccountID:    t.AccountID,
+		AssetCode:    t.AssetCode,
+		BalanceKey:   t.BalanceKey,
+		BalanceAfter: balanceAfter,
+		CreatedAt:    t.CreatedAt,
+	}
+}
+
 // Status structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Status
