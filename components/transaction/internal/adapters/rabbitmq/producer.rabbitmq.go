@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -68,9 +69,37 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
+	// Timeout for each connection/publish attempt
+	operationTimeout := utils.GetEnvDuration("RABBITMQ_OPERATION_TIMEOUT", 3*time.Second)
+
 	maxRetries := utils.MaxRetries()
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if err = prmq.conn.EnsureChannel(); err != nil {
+		// Create a timeout context for this attempt
+		attemptCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+
+		// Execute EnsureChannel with timeout
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- prmq.conn.EnsureChannel()
+		}()
+
+		select {
+		case err = <-errChan:
+			cancel()
+			if err != nil {
+				logger.Errorf("Failed to reopen channel: %v", err)
+
+				sleepDuration := utils.FullJitter(backoff)
+				logger.Infof("Retrying to reconnect in %v...", sleepDuration)
+				time.Sleep(sleepDuration)
+
+				backoff = utils.NextBackoff(backoff)
+
+				continue
+			}
+		case <-attemptCtx.Done():
+			cancel()
+			err = fmt.Errorf("timeout connecting to RabbitMQ after %v", operationTimeout)
 			logger.Errorf("Failed to reopen channel: %v", err)
 
 			sleepDuration := utils.FullJitter(backoff)
@@ -82,39 +111,66 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			continue
 		}
 
-		err = prmq.conn.Channel.Publish(
-			exchange,
-			key,
-			false,
-			false,
-			amqp.Publishing{
-				ContentType:  "application/json",
-				DeliveryMode: amqp.Persistent,
-				Headers:      headers,
-				Body:         message,
-			},
-		)
-		if err == nil {
-			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
+		// Execute Publish with timeout
+		attemptCtx, cancel = context.WithTimeout(ctx, operationTimeout)
+		go func() {
+			errChan <- prmq.conn.Channel.Publish(
+				exchange,
+				key,
+				false,
+				false,
+				amqp.Publishing{
+					ContentType:  "application/json",
+					DeliveryMode: amqp.Persistent,
+					Headers:      headers,
+					Body:         message,
+				},
+			)
+		}()
 
-			return nil, nil
+		select {
+		case err = <-errChan:
+			cancel()
+			if err == nil {
+				logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
+
+				return nil, nil
+			}
+
+			logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
+
+			if attempt == maxRetries {
+				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
+
+				logger.Errorf("Giving up after %d attempts: %s", maxRetries+1, err)
+
+				return nil, err
+			}
+
+			sleepDuration := utils.FullJitter(backoff)
+			logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
+			time.Sleep(sleepDuration)
+
+			backoff = utils.NextBackoff(backoff)
+		case <-attemptCtx.Done():
+			cancel()
+			err = fmt.Errorf("timeout publishing to RabbitMQ after %v", operationTimeout)
+			logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
+
+			if attempt == maxRetries {
+				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
+
+				logger.Errorf("Giving up after %d attempts: %s", maxRetries+1, err)
+
+				return nil, err
+			}
+
+			sleepDuration := utils.FullJitter(backoff)
+			logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
+			time.Sleep(sleepDuration)
+
+			backoff = utils.NextBackoff(backoff)
 		}
-
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
-
-		if attempt == maxRetries {
-			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
-
-			logger.Errorf("Giving up after %d attempts: %s", maxRetries+1, err)
-
-			return nil, err
-		}
-
-		sleepDuration := utils.FullJitter(backoff)
-		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
-		time.Sleep(sleepDuration)
-
-		backoff = utils.NextBackoff(backoff)
 	}
 
 	return nil, err
