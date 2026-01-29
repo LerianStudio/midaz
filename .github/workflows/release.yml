@@ -8,6 +8,8 @@ on:
       - develop
       - release-candidate
       - main
+    paths-ignore:
+      - '.github/workflows/**'
 
 permissions:
   contents: write
