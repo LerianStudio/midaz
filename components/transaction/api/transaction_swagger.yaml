@@ -1679,35 +1679,15 @@ paths:
         name: date
         required: true
         type: string
-      - default: 10
-        description: Limit
-        in: query
-        name: limit
-        type: integer
-      - description: Cursor
-        in: query
-        name: cursor
-        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-                  type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
-              type: object
+            type: array
+            items:
+              $ref: '#/definitions/mmodel.Balance'
         "400":
           description: Invalid date format or date in the future
           schema:

@@ -366,23 +366,14 @@ paths:
         required: true
         schema:
           type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                type: array
+                items:
+                  $ref: '#/components/schemas/mmodel.Balance'
           description: OK
         "400":
           content:

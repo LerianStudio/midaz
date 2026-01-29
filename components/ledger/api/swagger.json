@@ -4401,50 +4401,16 @@
             "name": "date",
             "in": "query",
             "required": true
-          },
-          {
-            "type": "integer",
-            "default": 10,
-            "description": "Limit",
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "type": "string",
-            "description": "Cursor",
-            "name": "cursor",
-            "in": "query"
           }
         ],
         "responses": {
           "200": {
             "description": "OK",
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Pagination"
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/definitions/mmodel.Balance"
-                      }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/mmodel.Balance"
+              }
             }
           },
           "400": {
