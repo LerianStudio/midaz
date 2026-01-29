@@ -25,7 +25,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/shopspring/decimal"
 )
 
 var balanceColumnList = []string{
@@ -1651,36 +1650,21 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 	spanQuery.End()
 
 	for rows.Next() {
-		var (
-			id          string
-			orgID       string
-			ledgID      string
-			accID       string
-			alias       string
-			key         string
-			assetCode   string
-			accountType string
-			createdAt   time.Time
-			available   int64
-			onHold      int64
-			version     int64
-			updatedAt   time.Time
-		)
-
+		var balance BalanceAtTimestampModel
 		if err := rows.Scan(
-			&id,
-			&orgID,
-			&ledgID,
-			&accID,
-			&alias,
-			&key,
-			&assetCode,
-			&accountType,
-			&createdAt,
-			&available,
-			&onHold,
-			&version,
-			&updatedAt,
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.Key,
+			&balance.AssetCode,
+			&balance.AccountType,
+			&balance.CreatedAt,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.UpdatedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)
@@ -1688,23 +1672,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 			return nil, err
 		}
 
-		balance := &mmodel.Balance{
-			ID:             id,
-			OrganizationID: orgID,
-			LedgerID:       ledgID,
-			AccountID:      accID,
-			Alias:          alias,
-			Key:            key,
-			AssetCode:      assetCode,
-			AccountType:    accountType,
-			Available:      decimal.NewFromInt(available),
-			OnHold:         decimal.NewFromInt(onHold),
-			Version:        version,
-			CreatedAt:      createdAt,
-			UpdatedAt:      updatedAt,
-		}
-
-		balances = append(balances, balance)
+		balances = append(balances, balance.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {

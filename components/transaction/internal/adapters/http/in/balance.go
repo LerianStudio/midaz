@@ -514,9 +514,29 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balance_at_timestamp")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get organization_id from path", err)
+		logger.Errorf("Failed to get organization_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger_id from path", err)
+		logger.Errorf("Failed to get ledger_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance_id from path", err)
+		logger.Errorf("Failed to get balance_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
 
 	// Parse date from query parameter
 	dateStr := c.Query("date")
@@ -579,9 +599,29 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_account_balances_at_timestamp")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get organization_id from path", err)
+		logger.Errorf("Failed to get organization_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger_id from path", err)
+		logger.Errorf("Failed to get ledger_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get account_id from path", err)
+		logger.Errorf("Failed to get account_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
 
 	// Parse date from query parameter
 	dateStr := c.Query("date")
