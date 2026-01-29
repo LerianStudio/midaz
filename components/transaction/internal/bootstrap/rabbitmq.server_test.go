@@ -98,6 +98,9 @@ func (s *balanceRepoStub) UpdateAllByAccountID(ctx context.Context, orgID, ledge
 func (s *balanceRepoStub) ListByAccountID(ctx context.Context, orgID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
+func (s *balanceRepoStub) ListByIDs(ctx context.Context, orgID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
+	return nil, nil
+}
 
 // =============================================================================
 // UNIT TESTS - handlerBalanceCreateQueue

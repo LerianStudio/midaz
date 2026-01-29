@@ -261,6 +261,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
+
 		return nil, err
 	}
 
@@ -281,6 +282,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
+
 		return nil, err
 	}
 
@@ -290,6 +292,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 		logger.Errorf("Failed to execute query: %v", err)
+
 		return nil, err
 	}
 
@@ -319,6 +322,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)
+
 			return nil, err
 		}
 
@@ -328,6 +332,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 		logger.Errorf("Failed to iterate rows: %v", err)
+
 		return nil, err
 	}
 
@@ -832,9 +837,9 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
-		var updates []string
+		updates := make([]string, 0, 4)
 
-		var args []any
+		args := make([]any, 0, 8)
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Available)

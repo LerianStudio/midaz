@@ -902,6 +902,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
+
 		return nil, err
 	}
 
@@ -921,6 +922,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 		logger.Errorf("Failed to build query: %v", err)
+
 		return nil, err
 	}
 
@@ -964,11 +966,13 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No operation found before timestamp", err)
 			logger.Debugf("No operation found for balance %s before timestamp %s", balanceID, timestamp)
+
 			return nil, nil
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 		logger.Errorf("Failed to scan row: %v", err)
+
 		return nil, err
 	}
 
@@ -987,6 +991,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -1001,13 +1006,14 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 			logger.Errorf("Failed to decode cursor: %v", err)
+
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}
 
 	// Build query using DISTINCT ON to get the last operation per balance_id
 	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY
-	findQuery := squirrel.Select("DISTINCT ON (balance_id) " + strings.Join(operationColumnList, ", ")).
+	findQuery := squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationColumnList, ", ")).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -1022,6 +1028,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build subquery", err)
 		logger.Errorf("Failed to build subquery: %v", err)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -1036,6 +1043,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build outer query", err)
 		logger.Errorf("Failed to build outer query: %v, subquery was: %s with args: %v", err, subQuery, subArgs)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -1047,6 +1055,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 		logger.Errorf("Failed to query database: %v", err)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 	defer rows.Close()
@@ -1085,6 +1094,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)
+
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
@@ -1094,6 +1104,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 		logger.Errorf("Failed to get rows: %v", err)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -1108,6 +1119,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 			logger.Errorf("Failed to calculate cursor: %v", err)
+
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}

@@ -789,7 +789,7 @@ type CreateTransactionInflowSwaggerModel struct {
 
 // BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction
 func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transaction {
-	listFrom := make([]pkgTransaction.FromTo, 0)
+	listFrom := make([]pkgTransaction.FromTo, 0, 1)
 
 	from := pkgTransaction.FromTo{
 		IsFrom:       true,
@@ -1000,7 +1000,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 
 // BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction
 func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Transaction {
-	listTo := make([]pkgTransaction.FromTo, 0)
+	listTo := make([]pkgTransaction.FromTo, 0, 1)
 
 	to := pkgTransaction.FromTo{
 		IsFrom:       false,
