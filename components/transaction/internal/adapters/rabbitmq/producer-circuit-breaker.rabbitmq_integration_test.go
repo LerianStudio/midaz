@@ -356,6 +356,7 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 
 	t.Log("Attempting requests to allow circuit to recover naturally...")
 	var successCount int
+	currentBackoff := utils.InitialBackoff()
 	for i := 0; i < int(naturalRecoveryConfig.MaxRequests)+1; i++ {
 		msg.ID = uuid.New().String()
 		msg.Timestamp = time.Now()
@@ -366,11 +367,15 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 		if err == nil {
 			successCount++
 			t.Logf("Request %d succeeded, circuit state: %s", i+1, cb.State())
+			currentBackoff = utils.InitialBackoff()
 		} else {
 			t.Logf("Request %d failed: %v, circuit state: %s", i+1, err, cb.State())
+			currentBackoff = utils.NextBackoff(currentBackoff)
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		sleepDuration := utils.FullJitter(currentBackoff)
+		t.Logf("Sleeping for %v (backoff: %v)", sleepDuration, currentBackoff)
+		time.Sleep(sleepDuration)
 	}
 
 	state := cb.State()

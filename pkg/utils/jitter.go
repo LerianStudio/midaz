@@ -73,6 +73,7 @@ func getConfig() *retryConfig {
 
 // MaxRetries returns the configured maximum number of retries.
 // Reads from RETRY_MAX_RETRIES environment variable, defaults to 5.
+// A value of 0 means no retries (only the initial attempt is made).
 func MaxRetries() int {
 	return getConfig().maxRetries
 }
