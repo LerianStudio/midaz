@@ -79,6 +79,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 		// Execute EnsureChannel with timeout
 		errChan := make(chan error, 1)
+
 		go func() {
 			errChan <- prmq.conn.EnsureChannel()
 		}()
@@ -86,6 +87,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		select {
 		case err = <-errChan:
 			cancel()
+
 			if err != nil {
 				logger.Errorf("Failed to reopen channel: %v", err)
 
@@ -99,6 +101,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			}
 		case <-attemptCtx.Done():
 			cancel()
+
 			err = fmt.Errorf("timeout connecting to RabbitMQ after %v", operationTimeout)
 			logger.Errorf("Failed to reopen channel: %v", err)
 
@@ -113,6 +116,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 		// Execute Publish with timeout
 		attemptCtx, cancel = context.WithTimeout(ctx, operationTimeout)
+
 		go func() {
 			errChan <- prmq.conn.Channel.Publish(
 				exchange,
@@ -131,6 +135,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		select {
 		case err = <-errChan:
 			cancel()
+
 			if err == nil {
 				logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 
@@ -154,6 +159,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			backoff = utils.NextBackoff(backoff)
 		case <-attemptCtx.Done():
 			cancel()
+
 			err = fmt.Errorf("timeout publishing to RabbitMQ after %v", operationTimeout)
 			logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
 
