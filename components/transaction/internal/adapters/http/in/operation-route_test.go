@@ -151,11 +151,8 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 				assert.Contains(t, result, "account", "response should contain account")
 			},
 		},
-		// NOTE: The following two tests document ACTUAL behavior where ErrMissingFieldsInRequest
-		// is NOT mapped in ValidateBusinessError, causing the handler to return 500 instead of 400.
-		// This is a known limitation in the current error handling implementation.
 		{
-			name: "validation error - ruleType without validIf returns 500 (unmapped error)",
+			name: "validation error - ruleType without validIf returns 400",
 			payload: &mmodel.CreateOperationRouteInput{
 				Title:         "Invalid Route",
 				OperationType: "source",
@@ -167,14 +164,17 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
 			},
 		},
 		{
-			name: "validation error - validIf without ruleType returns 500 (unmapped error)",
+			name: "validation error - validIf without ruleType returns 400",
 			payload: &mmodel.CreateOperationRouteInput{
 				Title:         "Invalid Route",
 				OperationType: "source",
@@ -186,10 +186,13 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
 			},
 		},
 		{
@@ -714,10 +717,8 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 				assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), errResp["code"], "should return operation route not found error code")
 			},
 		},
-		// NOTE: This test documents ACTUAL behavior where ErrMissingFieldsInRequest
-		// is NOT mapped in ValidateBusinessError, causing the handler to return 500 instead of 400.
 		{
-			name: "validation error - ruleType without validIf returns 500 (unmapped error)",
+			name: "validation error - ruleType without validIf returns 400",
 			payload: &mmodel.UpdateOperationRouteInput{
 				Title: "Invalid Update",
 				Account: &mmodel.AccountRule{
@@ -728,10 +729,13 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
 			},
 		},
 		{
