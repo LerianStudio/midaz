@@ -3,8 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -13,9 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
@@ -55,21 +51,6 @@ func envFallbackInt(prefixed, fallback int) int {
 	}
 
 	return fallback
-}
-
-// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
-func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
-	u := &url.URL{
-		Scheme: uri,
-		User:   url.UserPassword(user, pass),
-		Host:   fmt.Sprintf("%s:%s", host, port),
-	}
-	if vhost != "" {
-		u.RawPath = "/" + url.PathEscape(vhost)
-		u.Path = "/" + vhost
-	}
-
-	return u.String()
 }
 
 // Config is the top level configuration struct for the entire application.
@@ -374,63 +355,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	// Determine service name for RabbitMQ pool registration
-	// When running as part of unified ledger, use the caller's service name
-	serviceName := ApplicationName
-	if opts != nil && opts.ServiceName != "" {
-		serviceName = opts.ServiceName
-	}
-
-	// Initialize RabbitMQ producer based on mode
+	// Initialize RabbitMQ producer based on mode (single-tenant or multi-tenant)
 	var producerRabbitMQRepository rabbitmq.ProducerRepository
-	var rabbitMQPool *poolmanager.RabbitMQPool
-	var postgresPool *poolmanager.Pool
-	var mongoPool *poolmanager.MongoPool
+	var multiTenantPools *MultiTenantPools
 
 	if cfg.MultiTenantEnabled {
 		// Multi-tenant mode: use RabbitMQ pool for tenant-specific connections
-		logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ producer")
-
-		poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
-		rabbitMQPool = poolmanager.NewRabbitMQPool(poolManagerClient, serviceName,
-			poolmanager.WithRabbitMQModule("transaction"),
-			poolmanager.WithRabbitMQLogger(logger),
-		)
-
-		// Create PostgreSQL pool for multi-tenant mode
-		postgresPool = poolmanager.NewPool(poolManagerClient, serviceName,
-			poolmanager.WithModule("transaction"),
-			poolmanager.WithPoolLogger(logger),
-		)
-		logger.Info("Created PostgreSQL connection pool for multi-tenant mode")
-
-		// Create MongoDB pool for multi-tenant mode
-		mongoPool = poolmanager.NewMongoPool(poolManagerClient, serviceName,
-			poolmanager.WithMongoModule("transaction"),
-			poolmanager.WithMongoLogger(logger),
-		)
-		logger.Info("Created MongoDB connection pool for multi-tenant mode")
-
-		producerRabbitMQRepository = rabbitmq.NewProducerRabbitMQMultiTenant(rabbitMQPool)
-		logger.Infof("Multi-tenant RabbitMQ producer initialized for service: %s", serviceName)
+		result := initMultiTenantProducer(cfg, opts, logger)
+		producerRabbitMQRepository = result.Producer
+		multiTenantPools = result.Pools
 	} else {
 		// Single-tenant mode: use static RabbitMQ connection
-		rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-			ConnectionStringSource: rabbitSource,
-			HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-			Host:                   cfg.RabbitMQHost,
-			Port:                   cfg.RabbitMQPortAMQP,
-			User:                   cfg.RabbitMQUser,
-			Pass:                   cfg.RabbitMQPass,
-			Queue:                  cfg.RabbitMQBalanceCreateQueue,
-			Logger:                 logger,
-		}
-
-		producerRabbitMQRepository = rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-		logger.Infof("Single-tenant RabbitMQ producer initialized for service: %s", serviceName)
+		result := initSingleTenantProducer(cfg, logger)
+		producerRabbitMQRepository = result.Producer
 	}
 
 	useCase := &command.UseCase{
@@ -487,53 +424,25 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	// Only create single-tenant RabbitMQ consumer when NOT in multi-tenant mode
+	// Initialize RabbitMQ consumer based on mode (single-tenant or multi-tenant)
 	// In multi-tenant mode, the unified ledger handles message routing through Pool Manager
 	var multiQueueConsumer *MultiQueueConsumer
 	var multiTenantRabbitMQConsumer *MultiTenantRabbitMQConsumer
 
 	if !cfg.MultiTenantEnabled {
-		rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-			cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-		rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-			ConnectionStringSource: rabbitConsumerSource,
-			HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-			Host:                   cfg.RabbitMQHost,
-			Port:                   cfg.RabbitMQPortAMQP,
-			User:                   cfg.RabbitMQConsumerUser,
-			Pass:                   cfg.RabbitMQConsumerPass,
-			Queue:                  cfg.RabbitMQBalanceCreateQueue,
-			Logger:                 logger,
-		}
-
-		routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-		multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
-
-		logger.Infof("Single-tenant RabbitMQ consumer initialized for service: %s", serviceName)
+		// Single-tenant mode: use static RabbitMQ connection
+		multiQueueConsumer = initSingleTenantConsumer(cfg, useCase, logger, telemetry)
 	} else {
-		// Multi-tenant mode: reuse the RabbitMQ pool created for the producer
-		logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ consumer")
-
-		// Get BTO queue name from environment
-		btoQueue := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
-
-		// Create multi-tenant consumer using the same pool as the producer
-		multiTenantRabbitMQConsumer = NewMultiTenantRabbitMQConsumer(
-			rabbitMQPool,
+		// Multi-tenant mode: reuse the pools created for the producer
+		multiTenantRabbitMQConsumer = initMultiTenantConsumer(
+			cfg,
+			opts,
+			multiTenantPools,
 			redisConsumerRepository.GetClient(),
-			serviceName,
-			cfg.PoolManagerURL,
-			cfg.RabbitMQBalanceCreateQueue,
-			btoQueue,
 			useCase,
 			logger,
 			telemetry,
-			postgresPool,
-			mongoPool,
 		)
-
-		logger.Infof("Multi-tenant RabbitMQ consumer initialized for service: %s", serviceName)
 	}
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
