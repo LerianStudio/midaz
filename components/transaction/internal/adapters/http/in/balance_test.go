@@ -1471,7 +1471,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Equal(t, cn.ErrMissingFieldsInRequest.Error(), errResp["code"])
+				assert.Equal(t, cn.ErrMissingRequiredQueryParameter.Error(), errResp["code"])
 			},
 		},
 		{
@@ -1721,7 +1721,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Equal(t, cn.ErrMissingFieldsInRequest.Error(), errResp["code"])
+				assert.Equal(t, cn.ErrMissingRequiredQueryParameter.Error(), errResp["code"])
 			},
 		},
 		{

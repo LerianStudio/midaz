@@ -1201,11 +1201,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
-		constant.ErrMissingFieldsInRequest: ValidationError{
+		constant.ErrMissingRequiredQueryParameter: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrMissingFieldsInRequest.Error(),
-			Title:      "Missing Required Parameter",
-			Message:    fmt.Sprintf("The required parameter '%v' is missing from the request.", args...),
+			Code:       constant.ErrMissingRequiredQueryParameter.Error(),
+			Title:      "Missing Required Query Parameter",
+			Message:    fmt.Sprintf("The required query parameter '%v' is missing from the request.", args...),
 		},
 		constant.ErrInvalidTimestamp: ValidationError{
 			EntityType: entityType,

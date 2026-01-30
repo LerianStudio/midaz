@@ -923,7 +923,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	}
 
 	// Build query to find the last operation for this balance before the timestamp
-	// Uses optimized column list (8 columns vs 26) to enable Index-Only Scan with covering index
+	// Uses optimized column list (9 columns vs 26) to enable Index-Only Scan with covering index
 	findQuery := squirrel.Select(operationPointInTimeColumns...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).

@@ -538,7 +538,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	// Parse date from query parameter - requires yyyy-mm-dd hh:mm:ss format
 	dateStr := c.Query("date")
 	if dateStr == "" {
-		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, "Balance", "date")
+		err := pkg.ValidateBusinessError(cn.ErrMissingRequiredQueryParameter, "Balance", "date")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
 		logger.Warnf("Missing date query parameter")
 
@@ -633,7 +633,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	// Parse date from query parameter - requires yyyy-mm-dd hh:mm:ss format
 	dateStr := c.Query("date")
 	if dateStr == "" {
-		err := pkg.ValidateBusinessError(cn.ErrMissingFieldsInRequest, "Balance", "date")
+		err := pkg.ValidateBusinessError(cn.ErrMissingRequiredQueryParameter, "Balance", "date")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
 		logger.Warnf("Missing date query parameter")
 
