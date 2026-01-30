@@ -531,22 +531,22 @@ func TestTransaction_IDtoUUID(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
+		name          string
 		transactionID string
 		expectedUUID  uuid.UUID
 	}{
 		{
-			name:         "valid UUID",
+			name:          "valid UUID",
 			transactionID: "550e8400-e29b-41d4-a716-446655440000",
 			expectedUUID:  uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		},
 		{
-			name:         "another valid UUID",
+			name:          "another valid UUID",
 			transactionID: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
 			expectedUUID:  uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
 		},
 		{
-			name:         "nil UUID",
+			name:          "nil UUID",
 			transactionID: "00000000-0000-0000-0000-000000000000",
 			expectedUUID:  uuid.Nil,
 		},
@@ -564,7 +564,7 @@ func TestTransaction_IDtoUUID(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInput_FromDSL(t *testing.T) {
+func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -681,7 +681,7 @@ func TestCreateTransactionInput_FromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.FromDSL()
+			result := tt.input.BuildTransaction()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)
@@ -871,7 +871,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
+func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -1005,7 +1005,7 @@ func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.InflowFromDSL()
+			result := tt.input.BuildInflowEntry()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)
@@ -1013,7 +1013,7 @@ func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionOutflowInput_OutflowFromDSL(t *testing.T) {
+func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -1177,7 +1177,7 @@ func TestCreateTransactionOutflowInput_OutflowFromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.OutflowFromDSL()
+			result := tt.input.BuildOutflowEntry()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)

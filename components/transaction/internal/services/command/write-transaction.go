@@ -14,21 +14,23 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// TransactionExecute func that send balances, transaction and operations to execute sync/async.
-func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+// WriteTransaction routes the transaction to sync or async execution
+// based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
+func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		return uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
+		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	} else {
-		return uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
+		return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	}
 }
 
-// SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
-func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+// WriteTransactionAsync publishes the transaction payload to RabbitMQ
+// for asynchronous processing. Falls back to direct DB write if queue fails.
+func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
-	defer spanSendBTOQueue.End()
+	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
+	defer span.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -36,12 +38,12 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		Input:       parseDSL,
+		Input:       transactionInput,
 	}
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction to JSON string", err)
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
@@ -61,7 +63,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	message, err := msgpack.Marshal(queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal exchange message struct", err)
 
 		logger.Errorf("Failed to marshal exchange message struct")
 
@@ -69,7 +71,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	}
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxSendBTOQueue,
+		ctx,
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
 		message,
@@ -78,9 +80,9 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
-		err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTOQueue, queueMessage)
+		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTOQueue, "Failed to send message directly to database", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send message directly to database", err)
 
 			logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
@@ -97,12 +99,13 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	return nil
 }
 
-// CreateBTOExecuteSync func that send balances, transaction and operations to execute in database sync.
-func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+// WriteTransactionSync performs direct database writes for balance updates,
+// transaction record creation, and operation records.
+func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctxSendBTODirect, spanSendBTODirect := tracer.Start(ctx, "command.create_bto_execute_sync")
-	defer spanSendBTODirect.End()
+	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
+	defer span.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -110,12 +113,12 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		Input:       parseDSL,
+		Input:       transactionInput,
 	}
 
 	marshal, err := msgpack.Marshal(value)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to marshal transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction to JSON string", err)
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
@@ -133,9 +136,9 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 		QueueData:      queueData,
 	}
 
-	err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTODirect, queueMessage)
+	err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTODirect, "Failed to send message directly to database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send message directly to database", err)
 
 		logger.Errorf("Failed to send message directly to database: %s", err.Error())
 

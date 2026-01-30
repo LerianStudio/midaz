@@ -7,8 +7,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/shopspring/decimal"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // Balance is a struct designed to encapsulate response payload data.
@@ -403,7 +403,7 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
+	TransactionInput  pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
 	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`

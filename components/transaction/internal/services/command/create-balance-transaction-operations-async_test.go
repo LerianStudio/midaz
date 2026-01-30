@@ -132,14 +132,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -270,13 +270,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -374,13 +374,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -564,14 +564,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -756,14 +756,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -917,14 +917,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -1080,14 +1080,14 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
 		}
 
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
 		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			Input:       parseDSL,
+			Input:       transactionInput,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -1254,13 +1254,13 @@ func TestCreateBTOAsync(t *testing.T) {
 		Metadata:       map[string]interface{}{},
 	}
 
-	parseDSL := &pkgTransaction.Transaction{}
+	transactionInput := &pkgTransaction.Transaction{}
 
 	transactionQueue := transaction.TransactionProcessingPayload{
 		Transaction: tran,
 		Validate:    validate,
 		Balances:    balances,
-		Input:       parseDSL,
+		Input:       transactionInput,
 	}
 
 	transactionBytes, _ := msgpack.Marshal(transactionQueue)

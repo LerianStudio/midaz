@@ -32,11 +32,11 @@ import (
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	rabbitmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -204,7 +204,7 @@ func getBalanceFromRedis(t *testing.T, ctx context.Context, redisRepo redis.Redi
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. TransactionExecute -> CreateBTOExecuteSync (since RABBITMQ_TRANSACTION_ASYNC=false)
+// 6. WriteTransaction -> WriteTransactionSync (since RABBITMQ_TRANSACTION_ASYNC=false)
 // 7. CreateBalanceTransactionOperationsAsync persists all data
 // 8. Returns HTTP 201 with complete transaction
 func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T) {
@@ -774,7 +774,7 @@ func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expect
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. TransactionExecute -> SendBTOExecuteAsync (since RABBITMQ_TRANSACTION_ASYNC=true)
+// 6. WriteTransaction -> WriteTransactionAsync (since RABBITMQ_TRANSACTION_ASYNC=true)
 // 7. Message is sent to RabbitMQ queue
 // 8. Returns HTTP 201 with transaction in CREATED status (immediate response)
 // 9. Consumer processes the message and updates status to APPROVED
