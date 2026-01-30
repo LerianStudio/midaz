@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -34,18 +33,11 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	}
 
 	// First, verify the balance exists (current state)
+	// Note: Find returns (nil, ErrEntityNotFound) when balance doesn't exist, never (nil, nil)
 	currentBalance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get current balance", err)
 		logger.Errorf("Error getting current balance: %v", err)
-
-		return nil, err
-	}
-
-	if currentBalance == nil {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
-		logger.Warnf("Balance not found: %s", balanceID)
 
 		return nil, err
 	}

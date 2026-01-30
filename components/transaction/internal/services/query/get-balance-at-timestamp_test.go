@@ -9,6 +9,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
@@ -123,15 +124,16 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		uc := UseCase{BalanceRepo: balanceRepo, OperationRepo: operationRepo}
 
+		// Repository returns (nil, ErrEntityNotFound) when balance doesn't exist
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "Balance")
 		balanceRepo.EXPECT().
 			Find(gomock.Any(), orgID, ledgerID, balanceID).
-			Return(nil, nil)
+			Return(nil, notFoundErr)
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		// Error message contains "not found" from ValidateBusinessError
 		assert.Contains(t, err.Error(), "entity")
 	})
 

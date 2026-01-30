@@ -1651,14 +1651,14 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 	tests := []struct {
 		name           string
 		date           string
-		setupMocks     func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time)
+		setupMocks     func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name: "success returns 200 with balances at date with valid createdAt",
 			date: "2024-01-15 10:30:00",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID := uuid.New()
 				balanceCreatedAt := date.Add(-24 * time.Hour)
 				updatedAt := date.Add(-time.Hour)
@@ -1711,7 +1711,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "missing date returns 400",
 			date: "",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				// No mocks needed - validation happens before repository calls
 			},
 			expectedStatus: 400,
@@ -1727,7 +1727,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "invalid date format returns 400",
 			date: "not-a-date",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				// No mocks needed - validation happens before repository calls
 			},
 			expectedStatus: 400,
@@ -1743,7 +1743,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "future timestamp returns 400",
 			date: "2099-01-15 10:30:00",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				// No mocks needed - service validates timestamp before repository calls
 			},
 			expectedStatus: 400,
@@ -1759,7 +1759,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "no balance data at date returns 404",
 			date: "2024-01-15 10:30:00",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return([]*mmodel.Balance{}, nil).
@@ -1778,7 +1778,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "balance repository error returns 500",
 			date: "2024-01-15 10:30:00",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
 					Return(nil, pkg.InternalServerError{
@@ -1801,7 +1801,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		{
 			name: "success with multiple balances returns all balances",
 			date: "2024-01-15 10:30:00",
-			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
+			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID1 := uuid.New()
 				balanceID2 := uuid.New()
 				balanceCreatedAt := date.Add(-24 * time.Hour)
@@ -1883,7 +1883,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 				}
 			}
 
-			tt.setupMocks(mockBalanceRepo, mockOperationRepo, orgID, ledgerID, accountID, date)
+			tt.setupMocks(mockBalanceRepo, orgID, ledgerID, accountID, date)
 
 			uc := &query.UseCase{
 				BalanceRepo:   mockBalanceRepo,

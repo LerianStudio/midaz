@@ -373,7 +373,7 @@ paths:
             application/json:
               schema:
                 items:
-                  $ref: '#/components/schemas/mmodel.Balance'
+                  $ref: '#/components/schemas/BalanceHistory'
                 type: array
           description: OK
         "400":
@@ -1188,7 +1188,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.Balance'
+                $ref: '#/components/schemas/BalanceHistory'
           description: OK
         "400":
           content:
@@ -4370,6 +4370,132 @@ components:
             Custom key-value pairs for extending the balance information
             example: {"purpose": "Main savings", "category": "Personal"}
           type: object
+        onHold:
+          description: |-
+            Amount currently on hold and unavailable for transactions
+            example: 500
+            minimum: 0
+          example: 500.0
+          minimum: 0
+          type: number
+        organizationId:
+          description: |-
+            Organization that owns this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        updatedAt:
+          description: |-
+            Timestamp when the balance was last updated (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        version:
+          description: |-
+            Optimistic concurrency control version
+            example: 1
+            minimum: 1
+          example: 1
+          minimum: 1
+          type: integer
+      type: object
+    BalanceHistory:
+      description: Historical balance snapshot at a specific point in time. Does not
+        include permission flags (allowSending/allowReceiving) as these are not tracked
+        historically.
+      example:
+        assetCode: USD
+        onHold: 500.0
+        accountType: creditCard
+        available: 1500.0
+        version: 1
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        alias: '@person1'
+        id: 00000000-0000-0000-0000-000000000000
+        key: asset-freeze
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountId:
+          description: |-
+            Account that holds this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        accountType:
+          description: |-
+            Type of account holding this balance
+            example: creditCard
+            maxLength: 50
+          example: creditCard
+          maxLength: 50
+          type: string
+        alias:
+          description: |-
+            Alias for the account, used for easy identification or tagging
+            example: @person1
+            maxLength: 256
+          example: '@person1'
+          maxLength: 256
+          type: string
+        assetCode:
+          description: |-
+            Asset code identifying the currency or asset type of this balance
+            example: USD
+            minLength: 2
+            maxLength: 10
+          example: USD
+          maxLength: 10
+          minLength: 2
+          type: string
+        available:
+          description: |-
+            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+            example: 1500
+            minimum: 0
+          example: 1500.0
+          minimum: 0
+          type: number
+        createdAt:
+          description: |-
+            Timestamp when the balance was created (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        id:
+          description: |-
+            Unique identifier for the balance (UUID format)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        key:
+          description: |-
+            Unique key for the balance
+            example: asset-freeze
+            maxLength: 100
+          example: asset-freeze
+          maxLength: 100
+          type: string
+        ledgerId:
+          description: |-
+            Ledger containing the account this balance belongs to
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         onHold:
           description: |-
             Amount currently on hold and unavailable for transactions
