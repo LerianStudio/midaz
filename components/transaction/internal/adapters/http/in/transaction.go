@@ -1051,7 +1051,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -1206,7 +1206,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		}
 	}
 
-	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 

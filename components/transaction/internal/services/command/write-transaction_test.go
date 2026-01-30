@@ -30,7 +30,7 @@ type testData struct {
 	tran           *transaction.Transaction
 }
 
-// createTestData creates common test data for BTO execute tests
+// createTestData creates common test data for transaction write tests
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
 
@@ -154,8 +154,8 @@ func setupMocksForFallback(
 		AnyTimes()
 }
 
-// TestTransactionExecute tests the routing logic that decides between async and sync execution
-func TestTransactionExecute(t *testing.T) {
+// TestWriteTransaction tests the routing logic that decides between async and sync execution
+func TestWriteTransaction(t *testing.T) {
 	t.Run("routes_to_async_when_env_true", func(t *testing.T) {
 		// Set env var to enable async mode
 		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
@@ -184,7 +184,7 @@ func TestTransactionExecute(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -217,7 +217,7 @@ func TestTransactionExecute(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -251,7 +251,7 @@ func TestTransactionExecute(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -284,7 +284,7 @@ func TestTransactionExecute(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -318,14 +318,14 @@ func TestTransactionExecute(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
 }
 
-// TestSendBTOExecuteAsync tests the async queue publishing with fallback behavior
-func TestSendBTOExecuteAsync(t *testing.T) {
+// TestWriteTransactionAsync tests the async queue publishing with fallback behavior
+func TestWriteTransactionAsync(t *testing.T) {
 	t.Run("success_publishes_to_queue", func(t *testing.T) {
 		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
 		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
@@ -352,7 +352,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -392,7 +392,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		// Should succeed via fallback
 		assert.NoError(t, err)
@@ -446,7 +446,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			Return(errors.New("database connection failed")).
 			Times(1)
 
-		err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		// Should return error from fallback
 		assert.Error(t, err)
@@ -480,14 +480,14 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
 }
 
-// TestCreateBTOExecuteSync tests the synchronous direct DB write path
-func TestCreateBTOExecuteSync(t *testing.T) {
+// TestWriteTransactionSync tests the synchronous direct DB write path
+func TestWriteTransactionSync(t *testing.T) {
 	t.Run("success_writes_directly_to_db", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -514,7 +514,7 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -558,7 +558,7 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 			Return(errors.New("failed to update balances")).
 			Times(1)
 
-		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
@@ -609,7 +609,7 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
-		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create transaction")
@@ -709,7 +709,7 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
-		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
 
 		assert.NoError(t, err)
 	})

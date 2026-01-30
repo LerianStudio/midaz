@@ -13,18 +13,20 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
-const CronTimeToRun = 30 * time.Minute
-const MessageTimeOfLife = 30
-const MaxWorkers = 100
-const ConsumerLockTTL = 1500 // 25 minutes in seconds
+const (
+	CronTimeToRun     = 30 * time.Minute
+	MessageTimeOfLife = 30
+	MaxWorkers        = 100
+	ConsumerLockTTL   = 1500 // 25 minutes in seconds
+)
 
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
@@ -234,7 +236,7 @@ Outer:
 
 			utils.SanitizeAccountAliases(&m.ParserDSL)
 
-			if err := r.TransactionHandler.Command.SendBTOExecuteAsync(
+			if err := r.TransactionHandler.Command.WriteTransactionAsync(
 				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
 			); err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
