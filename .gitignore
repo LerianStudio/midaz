@@ -10,7 +10,7 @@ CLAUDE.md
 .cursor/
 .run/onboarding.run.xml
 .run/transaction.run.xml
-.agent/
+.gemini/
 
 # OS generated files
 .DS_Store
