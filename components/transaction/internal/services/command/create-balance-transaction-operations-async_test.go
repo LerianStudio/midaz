@@ -135,11 +135,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		parseDSL := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -272,11 +272,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		parseDSL := &pkgTransaction.Transaction{}
 
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -376,11 +376,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		parseDSL := &pkgTransaction.Transaction{}
 
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -567,11 +567,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		parseDSL := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -759,11 +759,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		parseDSL := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -920,11 +920,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		parseDSL := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -1083,11 +1083,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		parseDSL := &pkgTransaction.Transaction{}
 
 		// Create a transaction queue with the necessary fields
-		transactionQueue := transaction.TransactionQueue{
+		transactionQueue := transaction.TransactionProcessingPayload{
 			Transaction: tran,
 			Validate:    validate,
 			Balances:    balances,
-			ParseDSL:    parseDSL,
+			Input:       parseDSL,
 		}
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
@@ -1256,11 +1256,11 @@ func TestCreateBTOAsync(t *testing.T) {
 
 	parseDSL := &pkgTransaction.Transaction{}
 
-	transactionQueue := transaction.TransactionQueue{
+	transactionQueue := transaction.TransactionProcessingPayload{
 		Transaction: tran,
 		Validate:    validate,
 		Balances:    balances,
-		ParseDSL:    parseDSL,
+		Input:       parseDSL,
 	}
 
 	transactionBytes, _ := msgpack.Marshal(transactionQueue)

@@ -1,4 +1,30 @@
-## [v3.5.1] - 2026-01-19
+## [v3.5.2-beta.1] - 2026-01-21
+
+### 🧪 Testing
+- enhance unit tests for RabbitMQ connection string builder to cover additional special character scenarios
+- add unit tests for RabbitMQ connection string builder and update main.go for clarity
+
+### 🔧 Maintenance
+- add RabbitMQ virtual host configuration to ledger .env.example
+- update dependencies in go.mod and go.sum, add RabbitMQ vhost configuration to .env.example files
+- Update CHANGELOG
+
+
+## [v3.5.1-beta.3] - 2026-01-20
+
+### 🐛 Bug Fixes
+- remove CPF and CNPJ validation functions and related tests
+- remove cpf and cnpj document validation in holder creation
+- update version to v3.5.1 in environment configuration files
+- replace MongoDB connection string construction with centralized utility function
+- add BuildMongoConnectionString function and related tests
+
+### 🔧 Maintenance
+- test GPT changelog generation (#1728) (#1728)
+- Update CHANGELOG
+
+
+## [v3.5.2-beta.1] - 2026-01-20
 
 ### 🐛 Bug Fixes
 - remove CPF and CNPJ validation functions and related tests
@@ -11,7 +37,7 @@
 - Update CHANGELOG
 
 
-## [v3.5.0] - 2026-01-12
+## [v3.5.2-beta.2] - 2026-01-21
 
 ### ✨ Features
 - add ClosingDate field to BankingDetails and update related services for alias management
@@ -10320,3 +10346,6 @@ BREAKING
 * remove wrong rule :bug: ([b732416](https://github.com/LerianStudio/midaz/v3/commit/b732416c1e69094c1fa2526159f39e0eaee0cc1f))
 * semantic-release ([138e1cc](https://github.com/LerianStudio/midaz/v3/commit/138e1cca68d5b250222001645e608aef8b2c7b77))
 * Update merge-back.yml ([5c90141](https://github.com/LerianStudio/midaz/v3/commit/5c901412f9daff57e16013e38a8fbc1ac93222c2))
+
+## Test Entry
+- Test GPT changelog generation 2026-01-19

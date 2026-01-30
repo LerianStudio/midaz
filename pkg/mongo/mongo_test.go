@@ -3,6 +3,7 @@ package mongo
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -299,4 +300,134 @@ func TestShouldUnset(t *testing.T) {
 			assert.Equal(t, tt.want, result)
 		})
 	}
+}
+
+func TestExtractMongoPortAndParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		port               string
+		parameters         string
+		expectedPort       string
+		expectedParameters string
+		expectWarning      bool
+		warningSubstring   string
+	}{
+		{
+			name:               "legacy_embedded_parameters",
+			port:               "5703/replicaSet=rs0&authSource=admin",
+			parameters:         "",
+			expectedPort:       "5703",
+			expectedParameters: "replicaSet=rs0&authSource=admin",
+			expectWarning:      true,
+			warningSubstring:   "embedded in MONGO_PORT",
+		},
+		{
+			name:               "legacy_embedded_with_question_mark",
+			port:               "5703?replicaSet=rs0",
+			parameters:         "",
+			expectedPort:       "5703",
+			expectedParameters: "replicaSet=rs0",
+			expectWarning:      true,
+			warningSubstring:   "embedded in MONGO_PORT",
+		},
+		{
+			name:               "new_clean_port_with_parameters",
+			port:               "5703",
+			parameters:         "replicaSet=rs0&authSource=admin",
+			expectedPort:       "5703",
+			expectedParameters: "replicaSet=rs0&authSource=admin",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+		{
+			name:               "transition_both_set_parameters_wins",
+			port:               "5703/embedded=old",
+			parameters:         "explicit=new",
+			expectedPort:       "5703",
+			expectedParameters: "explicit=new",
+			expectWarning:      true,
+			warningSubstring:   "takes precedence",
+		},
+		{
+			name:               "default_no_parameters",
+			port:               "27017",
+			parameters:         "",
+			expectedPort:       "27017",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+		{
+			name:               "empty_port_and_parameters",
+			port:               "",
+			parameters:         "",
+			expectedPort:       "",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+		{
+			name:               "port_with_whitespace",
+			port:               " 5703 ",
+			parameters:         "",
+			expectedPort:       " 5703 ",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+		{
+			name:               "non_numeric_port",
+			port:               "abc",
+			parameters:         "",
+			expectedPort:       "abc",
+			expectedParameters: "",
+			expectWarning:      false,
+			warningSubstring:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := &stubs.LoggerStub{}
+
+			actualPort, actualParameters := ExtractMongoPortAndParameters(tt.port, tt.parameters, logger)
+
+			assert.Equal(t, tt.expectedPort, actualPort, "port mismatch")
+			assert.Equal(t, tt.expectedParameters, actualParameters, "parameters mismatch")
+
+			if tt.expectWarning {
+				assert.True(t, logger.WarningCount() > 0, "expected warning to be logged")
+				assert.True(t, logger.HasWarning(tt.warningSubstring),
+					"expected warning containing %q, got: %v", tt.warningSubstring, logger.Warnings)
+			} else {
+				assert.Equal(t, 0, logger.WarningCount(), "expected no warnings, got: %v", logger.Warnings)
+			}
+		})
+	}
+}
+
+func TestExtractMongoPortAndParameters_NilLogger(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_logger_with_embedded_parameters_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		actualPort, actualParameters := ExtractMongoPortAndParameters("5703/replicaSet=rs0", "", nil)
+
+		assert.Equal(t, "5703", actualPort)
+		assert.Equal(t, "replicaSet=rs0", actualParameters)
+	})
+
+	t.Run("nil_logger_with_both_embedded_and_explicit_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		actualPort, actualParameters := ExtractMongoPortAndParameters("5703/embedded=old", "explicit=new", nil)
+
+		assert.Equal(t, "5703", actualPort)
+		assert.Equal(t, "explicit=new", actualParameters)
+	})
 }

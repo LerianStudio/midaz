@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -21,7 +22,12 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+
+		os.Exit(1)
+	}
 
 	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger: logger,

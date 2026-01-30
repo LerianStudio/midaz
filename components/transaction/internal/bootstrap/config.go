@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -52,6 +53,21 @@ func envFallbackInt(prefixed, fallback int) int {
 	}
 
 	return fallback
+}
+
+// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
+func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
+	u := &url.URL{
+		Scheme: uri,
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+	}
+	if vhost != "" {
+		u.RawPath = "/" + url.PathEscape(vhost)
+		u.Path = "/" + vhost
+	}
+
+	return u.String()
 }
 
 // Config is the top level configuration struct for the entire application.
@@ -136,6 +152,7 @@ type Config struct {
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
 	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                string `env:"RABBITMQ_VHOST"`
 	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
@@ -198,14 +215,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if opts != nil && opts.Logger != nil {
 		logger = opts.Logger
 	} else {
-		logger = libZap.InitializeLogger()
+		var err error
+
+		logger, err = libZap.InitializeLoggerWithError()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
 	// BalanceSyncWorkerEnabled defaults to true via struct tag
 	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
 	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -214,6 +236,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
@@ -261,10 +286,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
 	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := utils.BuildMongoConnectionString(
+	mongoSource := libMongo.BuildConnectionString(
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
 	// Safe conversion: use uint64 with default, only assign if positive
@@ -336,8 +361,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+	rabbitSource := buildRabbitMQConnectionString(
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
 
 	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
@@ -346,6 +371,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
+		VHost:                  cfg.RabbitMQVHost,
 		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
@@ -406,8 +432,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+	rabbitConsumerSource := buildRabbitMQConnectionString(
+		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
 
 	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitConsumerSource,
@@ -416,6 +442,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQConsumerUser,
 		Pass:                   cfg.RabbitMQConsumerPass,
+		VHost:                  cfg.RabbitMQVHost,
 		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}

@@ -215,6 +215,7 @@ func main() {
 	outPath := flag.String("out", "", "path to write correlation summary")
 	transURL := flag.String("trans", getenv("TRANSACTION_URL", "http://localhost:3001"), "transaction base URL")
 	auth := flag.String("auth", getenv("TEST_AUTH_HEADER", ""), "Authorization header value")
+
 	flag.Parse()
 
 	if *acceptedPath == "" || *logPath == "" || *outPath == "" {
@@ -247,7 +248,7 @@ func main() {
 		len(entries), found, missing, len(missIDs), strings.Join(missIDs, "\n"), strings.Join(aliasReports, "\n"), strings.Join(discrepancies, "\n"),
 	)
 
-	if err := os.WriteFile(*outPath, []byte(report), 0644); err != nil {
+	if err := os.WriteFile(*outPath, []byte(report), 0o644); err != nil {
 		panic(err)
 	}
 }

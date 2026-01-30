@@ -1,152 +1,46 @@
 name: "Go Combined Analysis"
 
+# Shared workflows version: v1.10.1
+
 on:
   pull_request:
     branches:
       - develop
+      - release-candidate
       - main
     types:
       - opened
-      - edited
       - synchronize
       - reopened
-
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
-  actions: read
-  security-events: write
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'LICENSE'
+      - 'CODEOWNERS'
+      - '.gitignore'
+      - '.editorconfig'
+      - '*.png'
+      - '*.jpg'
+      - '*.svg'
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      onboarding: ${{ steps.changes.outputs.onboarding }}
-      transaction: ${{ steps.changes.outputs.transaction }}
-      migrations: ${{ steps.changes.outputs.migrations }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Detect backend changes
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            onboarding:
-              - 'components/onboarding/**'
-            transaction:
-              - 'components/transaction/**'
-            crm:
-              - 'components/crm/**'
-            migrations:
-              - 'components/onboarding/migrations/**'
-              - 'components/transaction/migrations/**'
-
-  CodeQL:
-    name: Run CodeQL to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: go
-            build-mode: autobuild
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
-
-  GolangCI-Lint:
-    name: Run GolangCI-Lint to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run GoLangCI Lint
-        uses: LerianStudio/github-actions-golangci-lint@main
-        with:
-          lerian_studio_midaz_push_bot_app_id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          lerian_studio_midaz_push_bot_private_key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-          lerian_ci_cd_user_gpg_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
-          lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
-          lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: '1.25'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: 'v2.4.0'
-
-  GoSec:
-    name: Run GoSec to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Gosec Scanner
-        uses: securego/gosec@master
-        with:
-          args: -exclude-generated ./components/... ./pkg/...
-
-  unit-tests:
-    name: Run Unit Tests to Midaz
-    needs: detect-changes
-    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true' || needs.detect-changes.outputs.crm == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Unit Tests (unit only)
-        shell: bash
-        run: make test-unit
-
-  migration-lint:
-    name: Lint Database Migrations
-    needs: detect-changes
-    if: needs.detect-changes.outputs.migrations == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Build migration linter
-        run: go build -o ./bin/migration-lint ./scripts/migration_linter
-
-      - name: Lint onboarding migrations
-        run: ./bin/migration-lint ./components/onboarding/migrations
-
-      - name: Lint transaction migrations
-        run: ./bin/migration-lint ./components/transaction/migrations
+  go-analysis:
+    name: Go Analysis
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.10.1
+    with:
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      filter_paths: '["components/onboarding", "components/transaction", "components/crm", "components/ledger"]'
+      path_level: 2
+      app_name_prefix: "midaz"
+      go_version: "1.25"
+      golangci_lint_version: "v2.4.0"
+      golangci_lint_args: "--timeout=5m"
+      coverage_threshold: 85
+      fail_on_coverage_threshold: true
+      enable_lint: true
+      enable_security: true
+      enable_tests: true
+      enable_coverage: true
+      enable_build: true
+    secrets: inherit
