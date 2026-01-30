@@ -38,45 +38,59 @@ func (s *balanceRepoStub) Create(ctx context.Context, b *mmodel.Balance) error {
 func (s *balanceRepoStub) Find(ctx context.Context, orgID, ledgerID, id uuid.UUID) (*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) FindByAccountIDAndKey(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) ExistsByAccountIDAndKey(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, key string) (bool, error) {
 	return false, nil
 }
+
 func (s *balanceRepoStub) ListAll(ctx context.Context, orgID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	return nil, libHTTP.CursorPagination{}, nil
 }
+
 func (s *balanceRepoStub) ListAllByAccountID(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	return nil, libHTTP.CursorPagination{}, nil
 }
+
 func (s *balanceRepoStub) ListByAccountIDs(ctx context.Context, orgID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) ListByAliases(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) ListByAliasesWithKeys(ctx context.Context, orgID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) BalancesUpdate(ctx context.Context, orgID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	return nil
 }
+
 func (s *balanceRepoStub) Update(ctx context.Context, orgID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
 	return nil, nil
 }
+
 func (s *balanceRepoStub) Delete(ctx context.Context, orgID, ledgerID, id uuid.UUID) error {
 	return nil
 }
+
 func (s *balanceRepoStub) DeleteAllByIDs(ctx context.Context, orgID, ledgerID uuid.UUID, ids []uuid.UUID) error {
 	return nil
 }
+
 func (s *balanceRepoStub) Sync(ctx context.Context, orgID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
 	return false, nil
 }
+
 func (s *balanceRepoStub) UpdateAllByAccountID(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error {
 	return nil
 }
+
 func (s *balanceRepoStub) ListByAccountID(ctx context.Context, orgID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
@@ -313,7 +327,7 @@ func TestHandlerBTOQueue(t *testing.T) {
 		err = consumer.handlerBTOQueue(ctx, body)
 
 		// The UseCase.CreateBalanceTransactionOperationsAsync tries to
-		// unmarshal QueueData.Value into TransactionQueue which fails
+		// unmarshal QueueData.Value into TransactionProcessingPayload which fails
 		require.Error(t, err)
 	})
 }

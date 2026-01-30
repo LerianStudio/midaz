@@ -28,7 +28,7 @@ import (
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	var t transaction.TransactionQueue
+	var t transaction.TransactionProcessingPayload
 
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
@@ -125,7 +125,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
-func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
+func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
 
@@ -144,7 +144,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 		tran.Status = status
 	case constant.PENDING:
-		tran.Body = *t.ParseDSL
+		tran.Body = *t.Input
 	}
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)

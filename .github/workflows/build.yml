@@ -8,15 +8,22 @@ name: "Build"
 # - Uses filter_paths to detect which components changed
 # - Builds only the changed components
 # - Updates GitOps for beta/rc tags
+# - Dispatches Helm chart updates for RC and production releases
 
 on:
   push:
     tags:
       - '**'
 
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  packages: write
+
 jobs:
   build:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.10.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.10.2
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       # Monorepo configuration
@@ -26,7 +33,7 @@ jobs:
         components/console
         components/crm
         components/ledger
-      path_level: 2
+      path_level: '2'
       app_name_prefix: "midaz"
       # Registry configuration
       enable_dockerhub: true
@@ -34,6 +41,14 @@ jobs:
       dockerhub_org: lerianstudio
       # GitOps artifacts for update_gitops job
       enable_gitops_artifacts: true
+      # Helm dispatch configuration (triggers on production and RC releases)
+      enable_helm_dispatch: true
+      helm_repository: "LerianStudio/helm"
+      helm_chart: "midaz"
+      helm_target_ref: "main"
+      helm_components_base_path: "components"
+      helm_env_file: ".env.example"
+      helm_detect_env_changes: true
     secrets: inherit
 
   # =========================
@@ -42,7 +57,7 @@ jobs:
   update_gitops:
     needs: [build]
     if: (contains(github.ref, '-beta') || contains(github.ref, '-rc')) && needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.10.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.10.2
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"

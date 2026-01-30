@@ -32,11 +32,11 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	queueData := make([]mmodel.QueueData, 0)
 
-	value := transaction.TransactionQueue{
+	value := transaction.TransactionProcessingPayload{
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		ParseDSL:    parseDSL,
+		Input:       parseDSL,
 	}
 
 	marshal, err := msgpack.Marshal(value)
@@ -106,11 +106,11 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 	queueData := make([]mmodel.QueueData, 0)
 
-	value := transaction.TransactionQueue{
+	value := transaction.TransactionProcessingPayload{
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		ParseDSL:    parseDSL,
+		Input:       parseDSL,
 	}
 
 	marshal, err := msgpack.Marshal(value)
