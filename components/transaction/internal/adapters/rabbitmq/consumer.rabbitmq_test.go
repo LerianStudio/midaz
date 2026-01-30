@@ -434,7 +434,6 @@ func TestConsumerRoutes_PrefetchCalculation(t *testing.T) {
 			t.Parallel()
 
 			cr := &ConsumerRoutes{
-				NumbersOfWorkers:  tt.workers,
 				NumbersOfPrefetch: tt.workers * tt.prefetch,
 			}
 

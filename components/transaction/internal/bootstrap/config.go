@@ -423,7 +423,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	cbManager.RegisterStateChangeListener(NewCircuitBreakerListener(logger, telemetry, cbManager))
 
-	producerWithCircuitBreaker := rabbitmq.NewProducerCircuitBreaker(producerRabbitMQRepository, cb)
+	producerWithCircuitBreaker, err := rabbitmq.NewProducerCircuitBreaker(producerRabbitMQRepository, cb)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create producer circuit breaker: %w", err)
+	}
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,

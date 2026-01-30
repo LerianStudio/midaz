@@ -25,7 +25,8 @@ func TestProducerCircuitBreaker_ProducerDefault_Success(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-success", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -55,7 +56,8 @@ func TestProducerCircuitBreaker_ProducerDefault_ReturnsMessageID(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-msgid", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -87,7 +89,8 @@ func TestProducerCircuitBreaker_ProducerDefault_Error(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-error", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -128,7 +131,8 @@ func TestProducerCircuitBreaker_CircuitOpens_AfterConsecutiveFailures(t *testing
 	}
 	cb := manager.GetOrCreate("rabbitmq-test-circuit", config)
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -173,7 +177,8 @@ func TestProducerCircuitBreaker_CheckRabbitMQHealth_ReturnsTrue(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-health-true", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	mockRepo.EXPECT().
 		CheckRabbitMQHealth().
@@ -197,7 +202,8 @@ func TestProducerCircuitBreaker_CheckRabbitMQHealth_ReturnsFalse(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-health-false", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	mockRepo.EXPECT().
 		CheckRabbitMQHealth().
@@ -221,14 +227,15 @@ func TestNewProducerCircuitBreaker_ValidParameters(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-new", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	require.NotNil(t, wrapper)
 	assert.NotNil(t, wrapper.repo)
 	assert.NotNil(t, wrapper.cb)
 }
 
-func TestNewProducerCircuitBreaker_NilRepo_Panics(t *testing.T) {
+func TestNewProducerCircuitBreaker_NilRepo_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	logger, err := libZap.InitializeLoggerWithError()
@@ -236,12 +243,14 @@ func TestNewProducerCircuitBreaker_NilRepo_Panics(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-nil-repo", libCircuitBreaker.DefaultConfig())
 
-	assert.Panics(t, func() {
-		NewProducerCircuitBreaker(nil, cb)
-	}, "should panic when repo is nil")
+	wrapper, err := NewProducerCircuitBreaker(nil, cb)
+
+	assert.Error(t, err)
+	assert.Nil(t, wrapper)
+	assert.Contains(t, err.Error(), "repo cannot be nil")
 }
 
-func TestNewProducerCircuitBreaker_NilCircuitBreaker_Panics(t *testing.T) {
+func TestNewProducerCircuitBreaker_NilCircuitBreaker_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -249,9 +258,11 @@ func TestNewProducerCircuitBreaker_NilCircuitBreaker_Panics(t *testing.T) {
 
 	mockRepo := NewMockProducerRepository(ctrl)
 
-	assert.Panics(t, func() {
-		NewProducerCircuitBreaker(mockRepo, nil)
-	}, "should panic when circuit breaker is nil")
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, wrapper)
+	assert.Contains(t, err.Error(), "cb cannot be nil")
 }
 
 func TestProducerCircuitBreaker_ProducerDefault_WithCancelledContext(t *testing.T) {
@@ -266,7 +277,8 @@ func TestProducerCircuitBreaker_ProducerDefault_WithCancelledContext(t *testing.
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-cancelled", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -300,7 +312,8 @@ func TestProducerCircuitBreaker_ProducerDefault_EmptyInputs(t *testing.T) {
 	manager := libCircuitBreaker.NewManager(logger)
 	cb := manager.GetOrCreate("rabbitmq-test-empty", libCircuitBreaker.DefaultConfig())
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, cb)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := ""
@@ -343,7 +356,8 @@ func TestProducerCircuitBreaker_ProducerDefault_TypeAssertionError(t *testing.T)
 	mockRepo := NewMockProducerRepository(ctrl)
 	stubCB := &stubCircuitBreakerWithWrongType{}
 
-	wrapper := NewProducerCircuitBreaker(mockRepo, stubCB)
+	wrapper, err := NewProducerCircuitBreaker(mockRepo, stubCB)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"

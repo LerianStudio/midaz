@@ -60,7 +60,8 @@ func TestIntegration_CircuitBreaker_NormalOperation(t *testing.T) {
 	baseProducer := NewProducerRabbitMQ(conn)
 	cbManager := libCircuitBreaker.NewManager(logger)
 	cb := cbManager.GetOrCreate("rabbitmq-integration-test", libCircuitBreaker.DefaultConfig())
-	producer := NewProducerCircuitBreaker(baseProducer, cb)
+	producer, err := NewProducerCircuitBreaker(baseProducer, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -125,7 +126,8 @@ func TestIntegration_CircuitBreaker_FastFail(t *testing.T) {
 		MinRequests:         1,
 	}
 	cb := cbManager.GetOrCreate("rabbitmq-fastfail-test", aggressiveConfig)
-	producer := NewProducerCircuitBreaker(baseProducer, cb)
+	producer, err := NewProducerCircuitBreaker(baseProducer, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -204,7 +206,8 @@ func TestIntegration_CircuitBreaker_Recovery(t *testing.T) {
 		MinRequests:         1,
 	}
 	cb := cbManager.GetOrCreate("rabbitmq-recovery-test", recoveryConfig)
-	producer := NewProducerCircuitBreaker(baseProducer, cb)
+	producer, err := NewProducerCircuitBreaker(baseProducer, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -294,7 +297,8 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 		MinRequests:         1,
 	}
 	cb := cbManager.GetOrCreate("rabbitmq-natural-recovery-test", naturalRecoveryConfig)
-	producer := NewProducerCircuitBreaker(baseProducer, cb)
+	producer, err := NewProducerCircuitBreaker(baseProducer, cb)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -348,7 +352,8 @@ func TestIntegration_CircuitBreaker_NaturalRecovery(t *testing.T) {
 	}
 
 	newBaseProducer := NewProducerRabbitMQ(newConn)
-	newProducer := NewProducerCircuitBreaker(newBaseProducer, cb)
+	newProducer, err := NewProducerCircuitBreaker(newBaseProducer, cb)
+	require.NoError(t, err)
 
 	newCh := rmqtestutil.CreateChannelWithRetry(t, newURI, 30*time.Second)
 	rmqtestutil.SetupExchange(t, newCh, exchange, "topic")

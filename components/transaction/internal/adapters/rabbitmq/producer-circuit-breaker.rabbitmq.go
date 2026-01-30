@@ -20,19 +20,20 @@ type ProducerCircuitBreaker struct {
 
 // NewProducerCircuitBreaker creates a new ProducerCircuitBreaker that wraps the given
 // repository with circuit breaker protection.
-func NewProducerCircuitBreaker(repo ProducerRepository, cb libCircuitBreaker.CircuitBreaker) *ProducerCircuitBreaker {
+// Returns an error if repo or cb is nil.
+func NewProducerCircuitBreaker(repo ProducerRepository, cb libCircuitBreaker.CircuitBreaker) (*ProducerCircuitBreaker, error) {
 	if repo == nil {
-		panic("repo cannot be nil")
+		return nil, fmt.Errorf("repo cannot be nil")
 	}
 
 	if cb == nil {
-		panic("cb cannot be nil")
+		return nil, fmt.Errorf("cb cannot be nil")
 	}
 
 	return &ProducerCircuitBreaker{
 		repo: repo,
 		cb:   cb,
-	}
+	}, nil
 }
 
 // ProducerDefault sends a message through the circuit breaker.
