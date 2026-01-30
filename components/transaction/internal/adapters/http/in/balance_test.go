@@ -1452,6 +1452,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 				assert.True(t, ok, "createdAt should be a string")
 				assert.NotEqual(t, "0001-01-01T00:00:00Z", createdAt, "createdAt should not be zero value")
 				assert.NotEmpty(t, createdAt, "createdAt should not be empty")
+
+				// Verify permission flags are NOT present in history response
+				assert.NotContains(t, result, "allowSending", "history response should not contain allowSending")
+				assert.NotContains(t, result, "allowReceiving", "history response should not contain allowReceiving")
 			},
 		},
 		{
@@ -1698,6 +1702,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 				assert.True(t, ok, "createdAt should be a string")
 				assert.NotEqual(t, "0001-01-01T00:00:00Z", createdAt, "createdAt should not be zero value")
 				assert.NotEmpty(t, createdAt, "createdAt should not be empty")
+
+				// Verify permission flags are NOT present in history response
+				assert.NotContains(t, balance, "allowSending", "history response should not contain allowSending")
+				assert.NotContains(t, balance, "allowReceiving", "history response should not contain allowReceiving")
 			},
 		},
 		{

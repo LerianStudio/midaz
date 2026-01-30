@@ -496,7 +496,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	mmodel.Balance
+//	@Success		200				{object}	mmodel.BalanceHistory
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -575,7 +575,8 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05"))
 
-	return http.OK(c, balance)
+	// Convert to history response (without permission flags)
+	return http.OK(c, balance.ToHistoryResponse())
 }
 
 // GetAccountBalancesAtTimestamp retrieves all balances for an account at a specific point in time.
@@ -590,7 +591,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	[]mmodel.Balance
+//	@Success		200				{object}	[]mmodel.BalanceHistory
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -679,5 +680,11 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 
 	logger.Infof("Successfully retrieved %d balances for account %s at date %s", len(balances), accountID, date.Format("2006-01-02 15:04:05"))
 
-	return http.OK(c, balances)
+	// Convert to history responses (without permission flags)
+	historyBalances := make([]*mmodel.BalanceHistory, len(balances))
+	for i := range balances {
+		historyBalances[i] = balances[i].ToHistoryResponse()
+	}
+
+	return http.OK(c, historyBalances)
 }

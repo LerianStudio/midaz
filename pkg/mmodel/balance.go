@@ -104,6 +104,98 @@ type Balance struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// BalanceHistory represents a historical balance snapshot without permission flags.
+// Permission flags (AllowSending/AllowReceiving) are not tracked historically.
+//
+// swagger:model BalanceHistory
+// @Description Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.
+type BalanceHistory struct {
+	// Unique identifier for the balance (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Organization that owns this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Ledger containing the account this balance belongs to
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Account that holds this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string `json:"alias" example:"@person1" maxLength:"256"`
+
+	// Unique key for the balance
+	// example: asset-freeze
+	// maxLength: 100
+	Key string `json:"key" example:"asset-freeze" maxLength:"100"`
+
+	// Asset code identifying the currency or asset type of this balance
+	// example: USD
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
+
+	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+	// example: 1500
+	// minimum: 0
+	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+
+	// Amount currently on hold and unavailable for transactions
+	// example: 500
+	// minimum: 0
+	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+
+	// Optimistic concurrency control version
+	// example: 1
+	// minimum: 1
+	Version int64 `json:"version" example:"1" minimum:"1"`
+
+	// Type of account holding this balance
+	// example: creditCard
+	// maxLength: 50
+	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
+
+	// Timestamp when the balance was created (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the balance was last updated (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+} // @name BalanceHistory
+
+// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags)
+func (b *Balance) ToHistoryResponse() *BalanceHistory {
+	return &BalanceHistory{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+	}
+}
+
 // ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
 func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
 	return &pkgTransaction.Balance{
