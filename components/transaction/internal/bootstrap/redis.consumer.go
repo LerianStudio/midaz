@@ -196,14 +196,14 @@ Outer:
 				ParentTransactionID:      parentTransactionID,
 				OrganizationID:           m.OrganizationID.String(),
 				LedgerID:                 m.LedgerID.String(),
-				Description:              m.ParserDSL.Description,
-				Amount:                   &m.ParserDSL.Send.Value,
-				AssetCode:                m.ParserDSL.Send.Asset,
-				ChartOfAccountsGroupName: m.ParserDSL.ChartOfAccountsGroupName,
+				Description:              m.TransactionInput.Description,
+				Amount:                   &m.TransactionInput.Send.Value,
+				AssetCode:                m.TransactionInput.Send.Asset,
+				ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 				CreatedAt:                m.TransactionDate,
 				UpdatedAt:                time.Now(),
-				Route:                    m.ParserDSL.Route,
-				Metadata:                 m.ParserDSL.Metadata,
+				Route:                    m.TransactionInput.Route,
+				Metadata:                 m.TransactionInput.Metadata,
 				Status: postgreTransaction.Status{
 					Code:        m.TransactionStatus,
 					Description: &m.TransactionStatus,
@@ -212,15 +212,15 @@ Outer:
 
 			var fromTo []pkgTransaction.FromTo
 
-			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Source.From, true)...)
-			to := r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Distribute.To, true)
+			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
+			to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
 
 			if m.TransactionStatus != constant.PENDING {
 				fromTo = append(fromTo, to...)
 			}
 
 			operations, _, err := r.TransactionHandler.BuildOperations(
-				msgCtxWithSpan, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+				msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
 			)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", err)
@@ -234,10 +234,10 @@ Outer:
 			tran.Destination = m.Validate.Destinations
 			tran.Operations = operations
 
-			utils.SanitizeAccountAliases(&m.ParserDSL)
+			utils.SanitizeAccountAliases(&m.TransactionInput)
 
 			if err := r.TransactionHandler.Command.WriteTransactionAsync(
-				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
+				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, tran,
 			); err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
 

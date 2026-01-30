@@ -21,20 +21,20 @@ import (
 
 // testData holds common test data used across multiple tests
 type testData struct {
-	organizationID uuid.UUID
-	ledgerID       uuid.UUID
-	transactionID  string
-	parseDSL       *pkgTransaction.Transaction
-	validate       *pkgTransaction.Responses
-	balances       []*mmodel.Balance
-	tran           *transaction.Transaction
+	organizationID   uuid.UUID
+	ledgerID         uuid.UUID
+	transactionID    string
+	transactionInput *pkgTransaction.Transaction
+	validate         *pkgTransaction.Responses
+	balances         []*mmodel.Balance
+	tran             *transaction.Transaction
 }
 
 // createTestData creates common test data for transaction write tests
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
 
-	parseDSL := &pkgTransaction.Transaction{}
+	transactionInput := &pkgTransaction.Transaction{}
 
 	validate := &pkgTransaction.Responses{
 		Aliases: []string{"alias1", "alias2"},
@@ -92,13 +92,13 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	}
 
 	return &testData{
-		organizationID: organizationID,
-		ledgerID:       ledgerID,
-		transactionID:  transactionID,
-		parseDSL:       parseDSL,
-		validate:       validate,
-		balances:       balances,
-		tran:           tran,
+		organizationID:   organizationID,
+		ledgerID:         ledgerID,
+		transactionID:    transactionID,
+		transactionInput: transactionInput,
+		validate:         validate,
+		balances:         balances,
+		tran:             tran,
 	}
 }
 
@@ -184,7 +184,7 @@ func TestWriteTransaction(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -217,7 +217,7 @@ func TestWriteTransaction(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -251,7 +251,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -284,7 +284,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -318,7 +318,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -352,7 +352,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -392,7 +392,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		// Should succeed via fallback
 		assert.NoError(t, err)
@@ -446,7 +446,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(errors.New("database connection failed")).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		// Should return error from fallback
 		assert.Error(t, err)
@@ -480,7 +480,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -514,7 +514,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -558,7 +558,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(errors.New("failed to update balances")).
 			Times(1)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
@@ -609,7 +609,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create transaction")
@@ -631,7 +631,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		transactionID := uuid.New().String()
 
 		// Create minimal test data with single balance
-		parseDSL := &pkgTransaction.Transaction{}
+		transactionInput := &pkgTransaction.Transaction{}
 		validate := &pkgTransaction.Responses{
 			Aliases: []string{"alias1"},
 			From: map[string]pkgTransaction.Amount{
@@ -709,7 +709,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
 		assert.NoError(t, err)
 	})

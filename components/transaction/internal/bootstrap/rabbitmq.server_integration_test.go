@@ -211,7 +211,7 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		}
 
 		// KEY: Use ParseDSL field (old name) - this is what old producers send
-		parseDSL := &pkgTransaction.Transaction{
+		transactionInput := &pkgTransaction.Transaction{
 			Description: "DSL from old producer",
 			Send: pkgTransaction.Send{
 				Asset: "BRL",
@@ -224,7 +224,7 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Validate:    validate,
 			Balances:    balances,
 			Transaction: tran,
-			ParseDSL:    parseDSL,
+			ParseDSL:    transactionInput,
 		}
 
 		// Serialize the payload with msgpack

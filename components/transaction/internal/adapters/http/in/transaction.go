@@ -69,20 +69,20 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInput)
-	parserDSL := input.FromDSL()
-	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
+	transactionInput := input.BuildTransaction()
+	logger.Infof("Request to create an transaction with details: %#v", transactionInput)
 
 	transactionStatus := constant.CREATED
-	if parserDSL.Pending {
+	if transactionInput.Pending {
 		transactionStatus = constant.PENDING
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	return handler.createTransaction(c, *parserDSL, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionStatus)
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
@@ -115,10 +115,10 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInput)
-	parserDSL := input.FromDSL()
-	logger.Infof("Create an transaction annotation without an affected balance: %#v", parserDSL)
+	transactionInput := input.BuildTransaction()
+	logger.Infof("Create an transaction annotation without an affected balance: %#v", transactionInput)
 
-	return handler.createTransaction(c, *parserDSL, constant.NOTED)
+	return handler.createTransaction(c, *transactionInput, constant.NOTED)
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
@@ -151,15 +151,15 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInflowInput)
-	parserDSL := input.InflowFromDSL()
-	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
+	transactionInput := input.BuildInflowEntry()
+	logger.Infof("Request to create an transaction inflow with details: %#v", transactionInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	response := handler.createTransaction(c, *parserDSL, constant.CREATED)
+	response := handler.createTransaction(c, *transactionInput, constant.CREATED)
 
 	return response
 }
@@ -194,20 +194,20 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionOutflowInput)
-	parserDSL := input.OutflowFromDSL()
-	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
+	transactionInput := input.BuildOutflowEntry()
+	logger.Infof("Request to create an transaction outflow with details: %#v", transactionInput)
 
 	transactionStatus := constant.CREATED
-	if parserDSL.Pending {
+	if transactionInput.Pending {
 		transactionStatus = constant.PENDING
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	return handler.createTransaction(c, *parserDSL, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionStatus)
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -281,7 +281,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parsed := goldTransaction.Parse(dsl)
 
-	parserDSL, ok := parsed.(pkgTransaction.Transaction)
+	transactionInput, ok := parsed.(pkgTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
@@ -290,12 +290,12 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.send", parserDSL.Send)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.send", transactionInput.Send)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	response := handler.createTransaction(c, parserDSL, constant.CREATED)
+	response := handler.createTransaction(c, transactionInput, constant.CREATED)
 
 	return response
 }
@@ -739,12 +739,12 @@ func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.
 	return result
 }
 
-func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
+func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
 	transactionDate := now
 
-	if parserDSL.TransactionDate != nil && !parserDSL.TransactionDate.IsZero() {
-		if parserDSL.TransactionDate.After(now) {
+	if transactionInput.TransactionDate != nil && !transactionInput.TransactionDate.IsZero() {
+		if transactionInput.TransactionDate.After(now) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
 
 			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
@@ -757,7 +757,7 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 
 			return time.Time{}, err
 		} else {
-			transactionDate = parserDSL.TransactionDate.Time()
+			transactionDate = transactionInput.TransactionDate.Time()
 		}
 	}
 
@@ -769,7 +769,7 @@ func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
 	fromTo []pkgTransaction.FromTo,
-	parserDSL pkgTransaction.Transaction,
+	transactionInput pkgTransaction.Transaction,
 	tran transaction.Transaction,
 	validate *pkgTransaction.Responses,
 	transactionDate time.Time,
@@ -833,7 +833,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 				description := fromTo[i].Description
 				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
-					description = parserDSL.Description
+					description = transactionInput.Description
 				}
 
 				operations = append(operations, &operation.Operation{
@@ -841,7 +841,7 @@ func (handler *TransactionHandler) BuildOperations(
 					TransactionID:   tran.ID,
 					Description:     description,
 					Type:            amt.Operation,
-					AssetCode:       parserDSL.Send.Asset,
+					AssetCode:       transactionInput.Send.Asset,
 					ChartOfAccounts: fromTo[i].ChartOfAccounts,
 					Amount:          amount,
 					Balance:         balance,
@@ -868,7 +868,7 @@ func (handler *TransactionHandler) BuildOperations(
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -882,7 +882,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
+	transactionDate, err := handler.checkTransactionDate(logger, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to check transaction date", err)
 
@@ -891,14 +891,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction to JSON string", err)
 
 		logger.Errorf("Failed to convert transaction to JSON string, Error: %s", err.Error())
 	}
 
-	if parserDSL.Send.Value.LessThanOrEqual(decimal.Zero) {
+	if transactionInput.Send.Value.LessThanOrEqual(decimal.Zero) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction with non-positive value", err)
@@ -908,13 +908,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 		return http.WithError(c, err)
 	}
 
-	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
+	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
-	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
+	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, true)...)
+	to := handler.HandleAccountFields(transactionInput.Send.Distribute.To, true)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
@@ -922,7 +922,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 
-	ts, _ := libCommons.StructToJSONString(parserDSL)
+	ts, _ := libCommons.StructToJSONString(transactionInput)
 	hash := libCommons.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
@@ -953,7 +953,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	spanIdempotency.End()
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -968,7 +968,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
 
@@ -989,7 +989,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 
@@ -1005,8 +1005,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	spanGetBalances.End()
 
-	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
-	to = handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
+	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, false)...)
+	to = handler.HandleAccountFields(transactionInput.Send.Distribute.To, false)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
@@ -1024,21 +1024,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
-		Description:              parserDSL.Description,
-		Amount:                   &parserDSL.Send.Value,
-		AssetCode:                parserDSL.Send.Asset,
-		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
+		Description:              transactionInput.Description,
+		Amount:                   &transactionInput.Send.Value,
+		AssetCode:                transactionInput.Send.Asset,
+		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    parserDSL.Route,
-		Metadata:                 parserDSL.Metadata,
+		Route:                    transactionInput.Route,
+		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
 			Code:        transactionStatus,
 			Description: &transactionStatus,
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
+	operations, _, err := handler.BuildOperations(ctx, balances, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -1051,7 +1051,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -1117,15 +1117,15 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		}
 	}
 
-	parserDSL := tran.Body
+	transactionInput := tran.Body
 
-	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
+	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
-	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
+	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, true)...)
+	to := handler.HandleAccountFields(transactionInput.Send.Distribute.To, true)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -1143,7 +1143,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
+	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -1170,8 +1170,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
-	to = handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
+	fromTo = append(fromTo, handler.HandleAccountFields(transactionInput.Send.Source.From, false)...)
+	to = handler.HandleAccountFields(transactionInput.Send.Distribute.To, false)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -1183,7 +1183,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balances, fromTo, parserDSL, *tran, validate, time.Now(), false)
+	operations, preBalances, err := handler.BuildOperations(ctx, balances, fromTo, transactionInput, *tran, validate, time.Now(), false)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -1206,7 +1206,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		}
 	}
 
-	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, preBalances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 

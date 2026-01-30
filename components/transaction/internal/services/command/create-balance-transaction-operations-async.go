@@ -225,18 +225,18 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	utils.SanitizeAccountAliases(&parserDSL)
+	utils.SanitizeAccountAliases(&transactionInput)
 
 	queue := mmodel.TransactionRedisQueue{
 		HeaderID:          reqId,
 		OrganizationID:    organizationID,
 		LedgerID:          ledgerID,
 		TransactionID:     transactionID,
-		ParserDSL:         parserDSL,
+		TransactionInput:  transactionInput,
 		TTL:               time.Now(),
 		Validate:          validate,
 		TransactionStatus: transactionStatus,

@@ -16,17 +16,17 @@ import (
 
 // WriteTransaction routes the transaction to sync or async execution
 // based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
-func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
+		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	} else {
-		return uc.WriteTransactionSync(ctx, organizationID, ledgerID, parseDSL, validate, blc, tran)
+		return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	}
 }
 
 // WriteTransactionAsync publishes the transaction payload to RabbitMQ
 // for asynchronous processing. Falls back to direct DB write if queue fails.
-func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
@@ -38,7 +38,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		Input:       parseDSL,
+		Input:       transactionInput,
 	}
 
 	marshal, err := msgpack.Marshal(value)
@@ -101,7 +101,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
-func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
@@ -113,7 +113,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
-		Input:       parseDSL,
+		Input:       transactionInput,
 	}
 
 	marshal, err := msgpack.Marshal(value)

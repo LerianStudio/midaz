@@ -483,8 +483,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// FromDSL converts an entity FromDSL to goldModel.Transaction
-func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
+// BuildTransaction converts a CreateTransactionInput to a pkgTransaction.Transaction
+func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transaction {
 	dsl := &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
@@ -783,8 +783,8 @@ type CreateTransactionInflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionInflowSwaggerModel
 
-// InflowFromDSL converts an entity InflowFromDSL to a pkgTransaction.Transaction
-func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transaction {
+// BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction
+func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transaction {
 	listFrom := make([]pkgTransaction.FromTo, 0)
 
 	from := pkgTransaction.FromTo{
@@ -994,8 +994,8 @@ type CreateTransactionOutflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionOutflowSwaggerModel
 
-// OutflowFromDSL converts an entity OutflowFromDSL to a pkgTransaction.Transaction
-func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transaction {
+// BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction
+func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Transaction {
 	listTo := make([]pkgTransaction.FromTo, 0)
 
 	to := pkgTransaction.FromTo{
