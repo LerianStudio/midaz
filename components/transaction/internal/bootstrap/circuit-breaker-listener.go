@@ -55,6 +55,16 @@ func (l *CircuitBreakerListener) OnStateChange(serviceName string, from libCircu
 			serviceName, from, to,
 			counts.ConsecutiveSuccesses,
 		)
+	default:
+		l.logger.Warnf(
+			"Circuit breaker [%s] UNKNOWN STATE: %s -> %s | state_numeric=%d, consecutive_failures=%d, total_failures=%d, requests=%d, consecutive_successes=%d",
+			serviceName, from, to,
+			stateToInt(to),
+			counts.ConsecutiveFailures,
+			counts.TotalFailures,
+			counts.Requests,
+			counts.ConsecutiveSuccesses,
+		)
 	}
 
 	l.emitMetrics(serviceName, stateValue, counts)

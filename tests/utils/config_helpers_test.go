@@ -60,6 +60,22 @@ func TestEnvFloat64_InvalidValue(t *testing.T) {
 	assert.Equal(t, 0.5, result)
 }
 
+func TestEnvFloat64_NaNValue(t *testing.T) {
+	t.Setenv("TEST_ENV_FLOAT64_NAN", "NaN")
+
+	result := utils.GetEnvFloat64("TEST_ENV_FLOAT64_NAN", 0.5)
+
+	assert.Equal(t, 0.5, result)
+}
+
+func TestEnvFloat64_InfValue(t *testing.T) {
+	t.Setenv("TEST_ENV_FLOAT64_INF", "+Inf")
+
+	result := utils.GetEnvFloat64("TEST_ENV_FLOAT64_INF", 0.5)
+
+	assert.Equal(t, 0.5, result)
+}
+
 func TestEnvFloat64WithRange_DefaultValue(t *testing.T) {
 	result := utils.GetEnvFloat64WithRange("TEST_ENV_FLOAT64_RANGE_DEFAULT_UNSET", 0.5, 0.0, 1.0)
 
@@ -88,6 +104,14 @@ func TestEnvFloat64WithRange_AboveMax(t *testing.T) {
 	result := utils.GetEnvFloat64WithRange("TEST_ENV_FLOAT64_RANGE_ABOVE", 0.5, 0.0, 1.0)
 
 	assert.Equal(t, 1.0, result)
+}
+
+func TestEnvFloat64WithRange_SwappedMinMax(t *testing.T) {
+	t.Setenv("TEST_ENV_FLOAT64_RANGE_SWAPPED", "0.75")
+
+	result := utils.GetEnvFloat64WithRange("TEST_ENV_FLOAT64_RANGE_SWAPPED", 0.5, 1.0, 0.0)
+
+	assert.Equal(t, 0.75, result)
 }
 
 func TestEnvDuration_DefaultValue(t *testing.T) {
