@@ -248,7 +248,7 @@ func main() {
 		len(entries), found, missing, len(missIDs), strings.Join(missIDs, "\n"), strings.Join(aliasReports, "\n"), strings.Join(discrepancies, "\n"),
 	)
 
-	if err := os.WriteFile(*outPath, []byte(report), 0644); err != nil {
+	if err := os.WriteFile(*outPath, []byte(report), 0o644); err != nil {
 		panic(err)
 	}
 }

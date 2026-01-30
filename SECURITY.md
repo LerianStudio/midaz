@@ -1,85 +1,46 @@
-# Security Policy
+# Security & Compliance
 
-## Reporting a Vulnerability
+This document covers our security measures, responsible disclosure policies, and recommendations for secure usage.
 
-We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+## 1. Overview of Security Practices
 
-### How to Report
+Midaz utilizes the Ory Open-source Stack, which is designed with robust security measures to protect both the software and its users. Our security infrastructure includes multiple components:
 
-You can report security vulnerabilities through:
+* **Identity Management and Authentication:** An identity and user management server that handles user registration, login, and user profile management.
+* **Authorization and Access Control:** OAuth2 provider that handles authorization and access delegation.
+* **Access Control Policies:** Implementation of attribute-based access control (ABAC) and access control policies.
+* **Identity and Access Proxy:** Identity and Access Proxy (IAP) that validates incoming requests.
 
-1. **GitHub Security Advisory** (Preferred)
-   - Go to the **Security** tab of this repository
-   - Click **"Report a vulnerability"**
-   - This allows private discussion until a fix is ready
+These components ensure that Midaz maintains high security standards and protects against unauthorized access and other potential security threats.
 
-2. **Email**
-   - Send details to: [security@lerian.studio](mailto:security@lerian.studio)
-   - PGP key available at [keys.openpgp.org](https://keys.openpgp.org) (search for security@lerian.studio)
-   - We recommend [Mailvelope](https://mailvelope.com/en) for email encryption
+To learn more about the Ory Open-source Stack, visit the [Ory Website](https://www.ory.sh/).
 
-**Please do NOT disclose the vulnerability publicly until we have addressed it.**
+## 2. Recommendations for Secure Usage and Configuration
 
-## Response Timeline
+To ensure the security of your deployments, we recommend the following best practices:
 
-| Action | Timeframe |
-|--------|-----------|
-| Acknowledgment | Within 24 hours |
-| Initial assessment | Within 72 hours |
-| Status update | Within 7 days |
-| Resolution target | Within 90 days (severity dependent) |
+* **Avoid Hardcoding Sensitive Information:** Hardcoding passwords, API keys, or other sensitive data in the source code can lead to security vulnerabilities. Use environment variables or secure secrets management tools like HashiCorp Vault.
+* **Use Secrets Management:** Store sensitive configuration such as passwords and API keys using secrets management tools. This prevents sensitive data from being exposed in your configuration files or source code.
+* **Regular Updates:** Keep your Midaz installation and its dependencies up-to-date to protect against vulnerabilities.
+* **Secure Configuration:** Follow our configuration guidelines in the official documentation to set up Midaz securely.
 
-## Disclosure Process
+## 3. Responsible Disclosure Policy
 
-1. **Initial Contact**: You submit vulnerability via GitHub Advisory or email
-2. **Acknowledgment**: We confirm receipt within 24 hours
-3. **Verification**: Our security team verifies the vulnerability
-4. **Assessment**: We determine severity and potential impact
-5. **Resolution**: We develop and deploy a fix
-6. **Notification**: We inform you of the resolution
-7. **Public Disclosure**: We coordinate with you to disclose responsibly
+For transparency, any known securities improvements join in our **[GitHub Discussions](https://github.com/LerianStudio/midaz/v3/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
 
-## Supported Versions
+If you discover a security vulnerability within Midaz, please report it using our responsible disclosure policy. Do not disclose the issue publicly until we have had the opportunity to address it.
 
-| Version | Supported |
-|---------|-----------|
-| Latest release | Yes |
-| Previous minor | Security fixes only |
-| Older versions | No |
+* **Initial Contact:** Researcher submits vulnerability via secure email.
+* **Acknowledgment:** We acknowledge receipt within 24 hours.
+* **Verification:** Our security team verifies the vulnerability.
+* **Impact Assessment:** We determine the severity and potential impact.
+* **Resolution:** We develop and deploy a fix.
+* **Notification:** We inform the researcher of the resolution.
+* **Public Disclosure:** We coordinate with the researcher to publicly disclose the vulnerability responsibly.
 
-We recommend always running the latest version.
+### Contact Information:
 
-## Scope
+* **Security Email:** [security@lerian.studio](security@lerian.studio)
+* **PGP Key:** Available for secure communications on our security page. We recommend [Mailvelope](https://mailvelope.com/en) to encrypt emails.
 
-### In Scope
-- Authentication and authorization vulnerabilities
-- Data exposure or leakage
-- Injection vulnerabilities (SQL, command, etc.)
-- Cryptographic issues
-- Business logic flaws
-
-### Out of Scope
-- Denial of service (DoS) attacks
-- Social engineering
-- Physical security
-- Issues in dependencies (report to upstream)
-
-## Security Best Practices
-
-When deploying this application:
-
-- **Never hardcode secrets** - Use environment variables or secrets management (e.g., HashiCorp Vault)
-- **Keep updated** - Regularly update to the latest version
-- **Secure configuration** - Follow our documentation for secure setup
-- **Network security** - Use TLS, firewalls, and network segmentation
-- **Access control** - Apply principle of least privilege
-
-## Recognition
-
-We appreciate security researchers who help keep our project secure. With your permission, we'll acknowledge your contribution in our release notes.
-
-## Contact
-
-- **Security Email**: [security@lerian.studio](mailto:security@lerian.studio)
-- **General Issues**: Use GitHub Issues for non-security bugs
-- **Discussions**: [GitHub Discussions](https://github.com/LerianStudio/midaz/discussions)
+We review all reports within 24 hours and work with you to resolve the issue quickly and confidentially.

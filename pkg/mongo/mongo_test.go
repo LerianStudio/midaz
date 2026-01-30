@@ -431,4 +431,3 @@ func TestExtractMongoPortAndParameters_NilLogger(t *testing.T) {
 		assert.Equal(t, "explicit=new", actualParameters)
 	})
 }
-
