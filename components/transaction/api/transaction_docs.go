@@ -474,7 +474,7 @@ const docTemplatetransaction = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
             "get": {
-                "description": "Get the historical state of all Balances for an account at a specific point in time (RFC3339 format)",
+                "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
                 ],
@@ -519,54 +519,20 @@ const docTemplatetransaction = `{
                     },
                     {
                         "type": "string",
-                        "description": "Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
                         "name": "date",
                         "in": "query",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "Limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor",
-                        "name": "cursor",
-                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/Pagination"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "items": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
-                                            }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/mmodel.Balance"
+                            }
                         }
                     },
                     "400": {
@@ -1549,7 +1515,7 @@ const docTemplatetransaction = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
             "get": {
-                "description": "Get the historical state of a Balance at a specific point in time (RFC3339 format)",
+                "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
                 ],
@@ -1594,7 +1560,7 @@ const docTemplatetransaction = `{
                     },
                     {
                         "type": "string",
-                        "description": "Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
                         "name": "date",
                         "in": "query",
                         "required": true

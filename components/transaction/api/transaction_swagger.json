@@ -464,7 +464,7 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
             "get": {
-                "description": "Get the historical state of all Balances for an account at a specific point in time (RFC3339 format)",
+                "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
                 ],
@@ -509,7 +509,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
                         "name": "date",
                         "in": "query",
                         "required": true
@@ -1505,7 +1505,7 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
             "get": {
-                "description": "Get the historical state of a Balance at a specific point in time (RFC3339 format)",
+                "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
                 ],
@@ -1550,7 +1550,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
                         "name": "date",
                         "in": "query",
                         "required": true

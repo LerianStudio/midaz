@@ -1648,7 +1648,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       description: Get the historical state of all Balances for an account at a specific
-        point in time (RFC3339 format)
+        point in time (yyyy-mm-dd hh:mm:ss format)
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1674,7 +1674,8 @@ paths:
         name: account_id
         required: true
         type: string
-      - description: Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)
+      - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
         in: query
         name: date
         required: true
@@ -1685,9 +1686,9 @@ paths:
         "200":
           description: OK
           schema:
-            type: array
             items:
               $ref: '#/definitions/mmodel.Balance'
+            type: array
         "400":
           description: Invalid date format or date in the future
           schema:
@@ -2477,7 +2478,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       description: Get the historical state of a Balance at a specific point in time
-        (RFC3339 format)
+        (yyyy-mm-dd hh:mm:ss format)
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -2503,7 +2504,8 @@ paths:
         name: balance_id
         required: true
         type: string
-      - description: Point in time (RFC3339 format, e.g. 2024-01-15T10:30:00Z)
+      - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
         in: query
         name: date
         required: true

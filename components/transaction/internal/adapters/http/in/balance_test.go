@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -1392,7 +1394,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 	}{
 		{
 			name: "success returns 200 with balance at date",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				accountID := uuid.New()
 				available := decimal.NewFromInt(5000)
@@ -1486,7 +1488,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "future timestamp returns 400",
-			date: "2099-01-15T10:30:00Z",
+			date: "2099-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				// No mocks needed - service validates timestamp before any repository calls
 			},
@@ -1502,7 +1504,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "balance not found returns 404",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -1521,7 +1523,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "no balance data at date returns 404",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				// Balance exists but was created AFTER the query date
 				balanceRepo.EXPECT().
@@ -1556,7 +1558,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "repository error returns 500",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -1595,7 +1597,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			var date time.Time
 			if tt.date != "" {
 				var err error
-				date, err = time.Parse(time.RFC3339, tt.date)
+				date, _, err = libCommons.ParseDateTime(tt.date, false)
 				if err != nil {
 					date = time.Time{}
 				}
@@ -1621,11 +1623,11 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			)
 
 			// Act
-			url := "/test/" + orgID.String() + "/" + ledgerID.String() + "/balances/" + balanceID.String() + "/history"
+			testURL := "/test/" + orgID.String() + "/" + ledgerID.String() + "/balances/" + balanceID.String() + "/history"
 			if tt.date != "" {
-				url += "?date=" + tt.date
+				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequest("GET", testURL, nil)
 			resp, err := app.Test(req)
 
 			// Assert
@@ -1651,7 +1653,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 	}{
 		{
 			name: "success returns 200 with balances at date with valid createdAt",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID := uuid.New()
 				balanceCreatedAt := date.Add(-24 * time.Hour)
@@ -1732,7 +1734,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "future timestamp returns 400",
-			date: "2099-01-15T10:30:00Z",
+			date: "2099-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				// No mocks needed - service validates timestamp before repository calls
 			},
@@ -1748,7 +1750,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "no balance data at date returns 404",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
@@ -1767,7 +1769,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "balance repository error returns 500",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, date).
@@ -1790,7 +1792,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 		},
 		{
 			name: "success with multiple balances returns all balances",
-			date: "2024-01-15T10:30:00Z",
+			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, accountID uuid.UUID, date time.Time) {
 				balanceID1 := uuid.New()
 				balanceID2 := uuid.New()
@@ -1867,7 +1869,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			var date time.Time
 			if tt.date != "" {
 				var err error
-				date, err = time.Parse(time.RFC3339, tt.date)
+				date, _, err = libCommons.ParseDateTime(tt.date, false)
 				if err != nil {
 					date = time.Time{}
 				}
@@ -1893,11 +1895,11 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			)
 
 			// Act
-			url := "/test/" + orgID.String() + "/" + ledgerID.String() + "/accounts/" + accountID.String() + "/balances/history"
+			testURL := "/test/" + orgID.String() + "/" + ledgerID.String() + "/accounts/" + accountID.String() + "/balances/history"
 			if tt.date != "" {
-				url += "?date=" + tt.date
+				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequest("GET", testURL, nil)
 			resp, err := app.Test(req)
 
 			// Assert
