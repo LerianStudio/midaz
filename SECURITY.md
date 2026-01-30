@@ -7,8 +7,8 @@ This document covers our security measures, responsible disclosure policies, and
 Midaz utilizes the Ory Open-source Stack, which is designed with robust security measures to protect both the software and its users. Our security infrastructure includes multiple components:
 
 * **Identity Management and Authentication:** An identity and user management server that handles user registration, login, and user profile management.
-* **Authorization and Access Control:** OAuth2 provider that handles authentication and authorization.
-* **Token Issuance and Management:** Implementation of attribute-based access control (ABAC) and access control policies.
+* **Authorization and Access Control:** OAuth2 provider that handles authorization and access delegation.
+* **Access Control Policies:** Implementation of attribute-based access control (ABAC) and access control policies.
 * **Identity and Access Proxy:** Identity and Access Proxy (IAP) that validates incoming requests.
 
 These components ensure that Midaz maintains high security standards and protects against unauthorized access and other potential security threats.
@@ -26,7 +26,7 @@ To ensure the security of your deployments, we recommend the following best prac
 
 ## 3. Responsible Disclosure Policy
 
-For transparency, any known securities improvements join in our **[Github Discussions](https://github.com/LerianStudio/midaz/v3/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
+For transparency, any known securities improvements join in our **[GitHub Discussions](https://github.com/LerianStudio/midaz/v3/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
 
 If you discover a security vulnerability within Midaz, please report it using our responsible disclosure policy. Do not disclose the issue publicly until we have had the opportunity to address it.
 

@@ -11,4 +11,4 @@ Use the Discussions tab in our repository to share opinions, ideas, and report b
 
 **Pick an Issue, Share Ideas and Questions:** Check out open issues labeled for beginners or propose your own project.
 
-Whether it's your first contribution or you're an experienced developer, you're welcome here. Every contribution helps make Midaz better.
+Whether it's your first contribution or you're an experienced developer, you're welcome here—every contribution makes Midaz better.

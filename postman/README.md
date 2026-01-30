@@ -209,11 +209,11 @@ newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_enviro
 
 ## Success Metrics
 
-The current workflow achieves:
-- **100% Success Rate**: 57/57 requests passing
-- **165 Assertions**: Complete business logic validation
+A successful test run typically shows:
+- **100% Success Rate**: Example: 57/57 requests passing
+- **Full Assertion Coverage**: Example: 165+ assertions validating business logic
 - **End-to-End Coverage**: All API endpoints tested
-- **Performance Validated**: <5ms average response time
-- **Production Ready**: Comprehensive error handling
+- **Fast Response Times**: Target: <5ms average response time
+- **Production Ready**: Comprehensive error handling verified
 
 This automated testing framework ensures the Midaz API maintains high quality, performance, and reliability across all services and endpoints.
