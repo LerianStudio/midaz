@@ -23,8 +23,8 @@ func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizati
 
 	logger.Infof("Retrieving balances for account %s at timestamp %s", accountID, timestamp.Format(time.RFC3339))
 
-	// Validate timestamp is not in the future
-	if timestamp.After(time.Now()) {
+	// Validate timestamp is not in the future (use UTC for consistent comparison)
+	if timestamp.After(time.Now().UTC()) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "timestamp cannot be in the future")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Timestamp is in the future", err)
 		logger.Warnf("Timestamp is in the future: %s", timestamp)
