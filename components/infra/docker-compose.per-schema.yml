@@ -1,0 +1,221 @@
+# Per-schema shared infrastructure
+# Single shared database instance for per-schema multi-tenant mode
+#
+# Usage:
+#   docker compose --env-file .env.per-schema -f docker-compose.per-schema.yml up -d
+#
+# This creates a single instance of each service on different ports,
+# allowing it to run alongside the main infrastructure.
+
+name: midaz-per-schema
+
+services:
+  midaz-mongodb-schema:
+    container_name: midaz-mongodb-schema
+    image: mongo:8
+    env_file:
+      - .env.per-schema
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: root
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - ${MONGO_PORT}:${MONGO_PORT}
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
+    volumes:
+      - ./mongo/mongo-keyfile:/data/mongo-keyfile
+      - mongodb-schema-data:/data/db
+    networks:
+      - infra-network
+
+  midaz-mongodb-schema-init:
+    container_name: midaz-mongodb-schema-init
+    env_file:
+      - .env.per-schema
+    image: mongo:8
+    depends_on:
+      midaz-mongodb-schema:
+        condition: service_healthy
+    environment:
+      MONGO_PORT: ${MONGO_PORT}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+    entrypoint:
+      - bash
+      - -c
+      - |
+        echo "Waiting for MongoDB to be ready..."
+        sleep 5
+
+        # Check if replica set is already initialized (without auth first)
+        RS_STATUS=$$(mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
+
+        if [ "$$RS_STATUS" = "1" ]; then
+          echo "Replica set already initialized, skipping..."
+          exit 0
+        fi
+
+        echo "Initiating replica set for per-schema MongoDB..."
+        # Initialize without auth (replica set init must happen before auth works properly)
+        mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet <<EOF
+        rs.initiate({
+          _id: "rs0",
+          members: [{ _id: 0, host: "midaz-mongodb-schema:$${MONGO_PORT}" }]
+        })
+        EOF
+
+        echo "Waiting for replica set to elect primary..."
+        sleep 5
+
+        # Verify initialization
+        RS_STATUS=$$(mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet --eval "rs.status().ok" 2>/dev/null || echo "0")
+        if [ "$$RS_STATUS" = "1" ]; then
+          echo "Replica set initiated successfully for per-schema MongoDB"
+        else
+          echo "Warning: Replica set may not be fully initialized"
+        fi
+    networks:
+      - infra-network
+
+  midaz-valkey-schema:
+    container_name: midaz-valkey-schema
+    image: valkey/valkey:8
+    restart: always
+    env_file:
+      - .env.per-schema
+    environment:
+      - REDIS_USER=${REDIS_USER}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command:
+      [
+        "redis-server",
+        "--requirepass", "${REDIS_PASSWORD}",
+        "--port", "${REDIS_PORT}",
+        "--lua-time-limit", "3000",
+        "--stop-writes-on-bgsave-error", "no",
+        "--appendonly", "yes",
+        "--appendfsync", "everysec"
+      ]
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+    volumes:
+      - redis-schema-data:/data
+    networks:
+      - infra-network
+
+  midaz-postgres-schema-primary:
+    container_name: midaz-postgres-schema-primary
+    image: postgres:17
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+    environment:
+      PGPORT: ${DB_PORT}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: |
+      postgres
+      -c wal_level=logical
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby_feedback=on
+      -c max_connections=${MAX_CONNECTIONS}
+      -c shared_buffers=${SHARED_BUFFERS}
+    volumes:
+      - postgres-schema-data:/var/lib/postgresql/data
+      - ./postgres/init-schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - infra-network
+
+  midaz-postgres-schema-replica:
+    container_name: midaz-postgres-schema-replica
+    image: postgres:17
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
+    ports:
+      - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
+    environment:
+      PGPORT: ${DB_REPLICA_PORT}
+      PGUSER: ${REPLICATION_USER}
+      PGPASSWORD: ${REPLICATION_PASSWORD}
+    command: |
+      bash -c "
+      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-schema-primary --port=${DB_PORT}
+        do
+          echo 'Waiting for midaz-postgres-schema-primary to connect...'
+          sleep 1s
+        done
+
+        echo 'Backup done..., starting midaz-postgres-schema-replica...'
+        chmod 0700 /var/lib/postgresql/data
+
+        # Ensure the port is set to use for the replica
+        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+
+        # Define database max conn
+        sed -i 's/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf
+
+        # Define database shared buffers
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf
+      fi
+      exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
+      "
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -p ${DB_REPLICA_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      midaz-postgres-schema-primary:
+        condition: service_healthy
+    volumes:
+      - postgres-schema-replica-data:/var/lib/postgresql/data
+    networks:
+      - infra-network
+
+  midaz-rabbitmq-schema:
+    image: rabbitmq:4.1.3-management-alpine
+    container_name: midaz-rabbitmq-schema
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
+      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
+    volumes:
+      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
+      - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - rabbitmq-schema-data:/var/lib/rabbitmq
+      - rabbitmq-schema-logs:/var/log/rabbitmq
+    networks:
+      - infra-network
+
+volumes:
+  postgres-schema-data:
+  postgres-schema-replica-data:
+  redis-schema-data:
+  mongodb-schema-data:
+  rabbitmq-schema-data:
+  rabbitmq-schema-logs:
+
+networks:
+  infra-network:
+    name: infra-network
+    external: true
