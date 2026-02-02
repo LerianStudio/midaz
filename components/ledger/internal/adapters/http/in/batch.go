@@ -716,10 +716,13 @@ func (h *BatchHandler) processRequest(ctx context.Context, reqItem mmodel.BatchR
 	// Read response body with size limit to prevent memory exhaustion
 	// Copy body first to avoid referencing fasthttp internal buffer
 	body := fasthttpCtx.Response.Body()
-	bodyCopy := make([]byte, len(body))
-	copy(bodyCopy, body)
-	if len(bodyCopy) > MaxResponseBodySize {
-		bodyCopy = bodyCopy[:MaxResponseBodySize]
+	copyLen := len(body)
+	if copyLen > MaxResponseBodySize {
+		copyLen = MaxResponseBodySize
+	}
+	bodyCopy := make([]byte, copyLen)
+	copy(bodyCopy, body[:copyLen])
+	if len(body) > MaxResponseBodySize {
 		logger.Warnf("Response body truncated for batch item %s (exceeded %d bytes)", reqItem.ID, MaxResponseBodySize)
 	}
 
