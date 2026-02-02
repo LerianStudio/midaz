@@ -4,13 +4,11 @@ import (
 	"context"
 	"os"
 	"strings"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -58,63 +56,39 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	var err error
-
-	backoff := utils.InitialBackoff
-
 	headers := amqp.Table{
 		libConstants.HeaderID: reqId,
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
-		if err = prmq.conn.EnsureChannel(); err != nil {
-			logger.Errorf("Failed to reopen channel: %v", err)
+	if err := prmq.conn.EnsureChannel(); err != nil {
+		logger.Errorf("Failed to ensure channel: %v", err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to ensure channel", err)
 
-			sleepDuration := utils.FullJitter(backoff)
-			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
-			time.Sleep(sleepDuration)
-
-			backoff = utils.NextBackoff(backoff)
-
-			continue
-		}
-
-		err = prmq.conn.Channel.Publish(
-			exchange,
-			key,
-			false,
-			false,
-			amqp.Publishing{
-				ContentType:  "application/json",
-				DeliveryMode: amqp.Persistent,
-				Headers:      headers,
-				Body:         message,
-			},
-		)
-		if err == nil {
-			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
-
-			return nil, nil
-		}
-
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
-
-		if attempt == utils.MaxRetries {
-			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
-
-			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
-
-			return nil, err
-		}
-
-		sleepDuration := utils.FullJitter(backoff)
-		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
-		time.Sleep(sleepDuration)
-
-		backoff = utils.NextBackoff(backoff)
+		return nil, err
 	}
 
-	return nil, err
+	err := prmq.conn.Channel.Publish(
+		exchange,
+		key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			DeliveryMode: amqp.Persistent,
+			Headers:      headers,
+			Body:         message,
+		},
+	)
+	if err != nil {
+		logger.Errorf("Failed to publish message to exchange: %s, key: %s: %v", exchange, key, err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
+
+	return nil, nil
 }
