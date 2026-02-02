@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 // TransactionService extends mbootstrap.Service with transaction-specific functionality.
@@ -29,6 +30,10 @@ type TransactionService interface {
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
 	GetRouteRegistrar() func(*fiber.App)
+
+	// GetRedisClient returns the Redis client for use by other modules.
+	// This is used for rate limiting in unified ledger mode.
+	GetRedisClient() *redis.Client
 }
 
 // Options configures the transaction service initialization behavior.

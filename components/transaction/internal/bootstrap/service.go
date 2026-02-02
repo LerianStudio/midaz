@@ -7,6 +7,7 @@ import (
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 // Ports groups all external interface dependencies for the transaction service.
@@ -19,6 +20,9 @@ type Ports struct {
 
 	// MetadataPort is the MongoDB metadata repository for direct access in unified ledger mode.
 	MetadataPort mbootstrap.MetadataIndexRepository
+
+	// RedisClient is exposed for rate limiting in unified ledger mode.
+	RedisClient *redis.Client
 }
 
 // Service is the application glue where we put all top level components to be used.
@@ -104,6 +108,11 @@ func (app *Service) GetBalancePort() mbootstrap.BalancePort {
 // GetMetadataIndexPort returns the metadata index port for use by ledger in unified mode.
 // This allows direct in-process calls for metadata index operations.
 func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
+	if app.Ports.MetadataPort == nil {
+		// Return nil explicitly - caller should check
+		return nil
+	}
+
 	return app.Ports.MetadataPort
 }
 
@@ -122,6 +131,12 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 			app.transactionRouteHandler,
 		)
 	}
+}
+
+// GetRedisClient returns the Redis client for use by other modules.
+// This is used for rate limiting in unified ledger mode.
+func (app *Service) GetRedisClient() *redis.Client {
+	return app.Ports.RedisClient
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

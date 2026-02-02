@@ -458,6 +458,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Info("BalanceSyncWorker disabled.")
 	}
 
+	// Get Redis client for rate limiting in unified ledger mode
+	redisClient, err := redisConsumerRepository.GetClient(context.Background())
+	if err != nil {
+		logger.Warnf("Failed to get Redis client for rate limiting: %v", err)
+	}
+
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
@@ -469,6 +475,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Ports: Ports{
 			BalancePort:  useCase,
 			MetadataPort: metadataMongoDBRepository,
+			RedisClient:  redisClient,
 		},
 		auth:                    auth,
 		transactionHandler:      transactionHandler,

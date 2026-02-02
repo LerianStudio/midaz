@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -61,8 +62,15 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 
 	bodyBytes := c.Body() // Get the body bytes
 
-	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+	// Check if batch request was already parsed by rate limiter middleware
+	if batchReq, ok := c.Locals("batchRequest").(*mmodel.BatchRequest); ok {
+		// Use the pre-parsed batch request to avoid double parsing
+		s = batchReq
+	} else {
+		// Parse body normally if not pre-parsed
+		if err := json.Unmarshal(bodyBytes, s); err != nil {
+			return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		}
 	}
 
 	marshaled, err := json.Marshal(s)
