@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -48,6 +49,12 @@ const (
 	// Longer paths are truncated with "..." to prevent log injection or storage issues.
 	MaxLogPathLength = 200
 )
+
+// orphanedHandlerCount tracks the number of handler goroutines that are still running
+// after their context was cancelled (timeout/cancellation). This metric helps identify
+// handlers that don't respect context cancellation and may be leaking goroutines.
+// The count is incremented when a handler times out and decremented when it eventually completes.
+var orphanedHandlerCount atomic.Int64
 
 // forbiddenHeaders contains headers that cannot be overridden by batch request items.
 // These headers are security-critical and must be inherited from the parent batch request.
@@ -115,6 +122,13 @@ func NewBatchHandlerWithRedis(app *fiber.App, redisClient *redis.Client) (*Batch
 		App:         app,
 		RedisClient: redisClient,
 	}, nil
+}
+
+// GetOrphanedHandlerCount returns the current count of orphaned handler goroutines.
+// This can be used for metrics and monitoring to detect handlers that don't respect
+// context cancellation and may be consuming resources after timeout.
+func GetOrphanedHandlerCount() int64 {
+	return orphanedHandlerCount.Load()
 }
 
 // ProcessBatch processes a batch of API requests.
@@ -464,15 +478,17 @@ func (h *BatchHandler) ProcessBatch(p any, c *fiber.Ctx) error {
 
 	logger.Infof("Batch processing complete: %d success, %d failure", successCount, failureCount)
 
-	// Store response in idempotency cache asynchronously if idempotency key was provided
-	// Use a background context with timeout instead of request context, which may be
-	// cancelled after the HTTP response is sent
+	// Store response in idempotency cache synchronously if idempotency key was provided.
+	// We use synchronous caching (not async) to prevent orphaned locks in Redis.
+	// If we used async caching and the goroutine failed to complete (e.g., Redis unavailable),
+	// the lock created by checkOrCreateIdempotencyKey would remain until TTL expires,
+	// blocking retries of the same idempotency key.
+	// Synchronous caching ensures the lock is either properly updated with the response
+	// or the error is logged before we return to the client.
 	if idempotencyKey != "" && h.RedisClient != nil {
 		idempCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		go func() {
-			defer cancel()
-			h.setIdempotencyValue(idempCtx, idempotencyKey, &response, idempotencyTTL)
-		}()
+		defer cancel()
+		h.setIdempotencyValue(idempCtx, idempotencyKey, &response, idempotencyTTL)
 	}
 
 	// Determine response status code
@@ -601,8 +617,8 @@ func (h *BatchHandler) processRequest(ctx context.Context, reqItem mmodel.BatchR
 	// Propagate the deadline-aware context to Fiber handlers.
 	// This allows handlers calling c.UserContext() to receive the context with timeout,
 	// enabling cooperative cancellation when the deadline is exceeded.
-	// Key "__local_user_ctx__" is Fiber v2's internal key for user context.
-	fasthttpCtx.SetUserValue("__local_user_ctx__", reqCtx)
+	// Key "__local_user_context__" is Fiber v2's internal key for user context.
+	fasthttpCtx.SetUserValue("__local_user_context__", reqCtx)
 
 	// Create a channel to handle timeout and response
 	type handlerResult struct {
@@ -625,6 +641,31 @@ func (h *BatchHandler) processRequest(ctx context.Context, reqItem mmodel.BatchR
 	// Wait for handler completion or timeout
 	select {
 	case <-reqCtx.Done():
+		// Log potential goroutine leak: the handler goroutine may still be running
+		// after we return from this function. This is expected behavior when handlers
+		// don't respect context cancellation, but we track it for observability.
+		orphanedHandlerCount.Add(1)
+		currentOrphaned := orphanedHandlerCount.Load()
+		logger.Warnf("Batch item %s: handler goroutine potentially orphaned (context done). Total orphaned handlers: %d. "+
+			"The goroutine will terminate when the handler completes, but may consume resources until then.",
+			reqItem.ID, currentOrphaned)
+
+		// Spawn cleanup goroutine to track when the orphaned handler completes
+		go func() {
+			select {
+			case <-resultChan:
+				// Handler completed after timeout - decrement orphan count
+				orphanedHandlerCount.Add(-1)
+				logger.Debugf("Batch item %s: orphaned handler completed. Remaining orphaned handlers: %d",
+					reqItem.ID, orphanedHandlerCount.Load())
+			case <-time.After(5 * time.Minute):
+				// Handler still running after 5 minutes - log severe warning
+				logger.Errorf("Batch item %s: orphaned handler still running after 5 minutes. "+
+					"This indicates a handler that doesn't respect context cancellation. "+
+					"Remaining orphaned handlers: %d", reqItem.ID, orphanedHandlerCount.Load())
+			}
+		}()
+
 		if reqCtx.Err() == context.DeadlineExceeded {
 			return mmodel.BatchResponseItem{
 				ID:     reqItem.ID,

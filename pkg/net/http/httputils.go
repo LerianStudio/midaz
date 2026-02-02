@@ -21,29 +21,29 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata                             *bson.M
-	Limit                                int
-	Page                                 int
-	Cursor                               string
-	SortOrder                            string
-	StartDate                            time.Time
-	EndDate                              time.Time
-	UseMetadata                          bool
-	PortfolioID                          string
-	OperationType                        string
-	ToAssetCodes                         []string
-	HolderID                             *string
-	ExternalID                           *string
-	Document                             *string
-	AccountID                            *string
-	LedgerID                             *string
-	BankingDetailsBranch                 *string
-	BankingDetailsAccount                *string
-	BankingDetailsIban                   *string
-	EntityName                           *string
-	RegulatoryFieldsParticipantDocument  *string
-	RelatedPartyDocument                 *string
-	RelatedPartyRole                     *string
+	Metadata                            *bson.M
+	Limit                               int
+	Page                                int
+	Cursor                              string
+	SortOrder                           string
+	StartDate                           time.Time
+	EndDate                             time.Time
+	UseMetadata                         bool
+	PortfolioID                         string
+	OperationType                       string
+	ToAssetCodes                        []string
+	HolderID                            *string
+	ExternalID                          *string
+	Document                            *string
+	AccountID                           *string
+	LedgerID                            *string
+	BankingDetailsBranch                *string
+	BankingDetailsAccount               *string
+	BankingDetailsIban                  *string
+	EntityName                          *string
+	RegulatoryFieldsParticipantDocument *string
+	RelatedPartyDocument                *string
+	RelatedPartyRole                    *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -266,7 +266,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 		t = libRedis.TTL
 	}
 
-	ttl := time.Duration(t)
+	ttl := time.Duration(t) * time.Second
 
 	return ikey, ttl
 }

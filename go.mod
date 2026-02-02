@@ -105,8 +105,10 @@ require (
 
 require (
 	github.com/Shopify/toxiproxy/v2 v2.12.0
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
+	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0
 )
 
@@ -124,7 +126,6 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
-	github.com/go-redis/redismock/v9 v9.2.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -151,6 +152,7 @@ require (
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
@@ -169,7 +171,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.69.0 // indirect
+	github.com/valyala/fasthttp v1.69.0
 	golang.org/x/sys v0.40.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )

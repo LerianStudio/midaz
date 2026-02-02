@@ -2,15 +2,19 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -314,4 +318,503 @@ func TestSafeInt64(t *testing.T) {
 			assert.Equal(t, tc.ok, ok)
 		})
 	}
+}
+
+// setupTestRedis creates a miniredis instance for testing
+func setupTestRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	t.Cleanup(func() {
+		client.Close()
+		mr.Close()
+	})
+	return mr, client
+}
+
+func TestRateLimiter_ExactLimit(t *testing.T) {
+	_, redisClient := setupTestRedis(t)
+	maxRequests := 5
+
+	app := fiber.New()
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         maxRequests,
+		Expiration:  time.Minute,
+		RedisClient: redisClient,
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Make exactly Max requests - all should succeed
+	for i := 0; i < maxRequests; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.1:12345" // Fixed IP for consistent key
+		resp, err := app.Test(req, -1)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "Request %d should succeed", i+1)
+
+		// Verify rate limit headers
+		remaining := resp.Header.Get("X-RateLimit-Remaining")
+		expectedRemaining := maxRequests - (i + 1)
+		assert.Equal(t, fmt.Sprintf("%d", expectedRemaining), remaining, "Request %d should have correct remaining count", i+1)
+	}
+
+	// Make one more request - should be rejected
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.1:12345" // Same IP
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "Request exceeding limit should be rejected")
+
+	var errResp RateLimitError
+	err = json.NewDecoder(resp.Body).Decode(&errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, "0139", errResp.Code) // ErrRateLimitExceeded
+	assert.Equal(t, "Rate Limit Exceeded", errResp.Title)
+
+	// Verify rate limit headers on rejection
+	assert.Equal(t, fmt.Sprintf("%d", maxRequests), resp.Header.Get("X-RateLimit-Limit"))
+	assert.Equal(t, "0", resp.Header.Get("X-RateLimit-Remaining"))
+	assert.NotEmpty(t, resp.Header.Get("Retry-After"))
+	assert.NotEmpty(t, resp.Header.Get("X-RateLimit-Reset"))
+}
+
+func TestRateLimiter_WindowExpiration(t *testing.T) {
+	mr, redisClient := setupTestRedis(t)
+	maxRequests := 3
+	windowDuration := 2 * time.Second // Short window for testing
+
+	app := fiber.New()
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         maxRequests,
+		Expiration:  windowDuration,
+		RedisClient: redisClient,
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Make Max requests - all should succeed
+	for i := 0; i < maxRequests; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "192.168.1.2:12345" // Fixed IP for consistent key
+		resp, err := app.Test(req, -1)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "Request %d should succeed", i+1)
+	}
+
+	// Verify limit is reached
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.2:12345"
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "Request should be rejected after reaching limit")
+
+	// Fast-forward time to expire the window
+	mr.FastForward(windowDuration + 100*time.Millisecond)
+
+	// After expiration, requests should be allowed again
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "192.168.1.2:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Request should succeed after window expiration")
+
+	// Verify rate limit headers show reset
+	remaining := resp.Header.Get("X-RateLimit-Remaining")
+	assert.Equal(t, fmt.Sprintf("%d", maxRequests-1), remaining, "Remaining should be Max-1 after first request in new window")
+}
+
+// =============================================================================
+// Redis Integration Tests for Rate Limiting (Lua Script Execution Path)
+// These tests use miniredis to actually execute the Lua script and verify
+// the full rate limiting logic including atomic check-and-increment operations.
+// =============================================================================
+
+// TestRateLimiter_LuaScript_AtomicIncrementAndCheck tests that the Lua script
+// correctly performs atomic check-and-increment operations.
+func TestRateLimiter_LuaScript_AtomicIncrementAndCheck(t *testing.T) {
+	mr, redisClient := setupTestRedis(t)
+	_ = mr // Keep reference to mr to prevent GC
+
+	app := fiber.New()
+
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         3,
+		Expiration:  time.Minute,
+		RedisClient: redisClient,
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Test the atomic nature of the Lua script by making sequential requests
+	// and verifying the counter increments correctly
+
+	// Request 1: Should allow, counter becomes 1
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "2", resp.Header.Get("X-RateLimit-Remaining"))
+	resp.Body.Close()
+
+	// Request 2: Should allow, counter becomes 2
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "1", resp.Header.Get("X-RateLimit-Remaining"))
+	resp.Body.Close()
+
+	// Request 3: Should allow, counter becomes 3 (at limit)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "0", resp.Header.Get("X-RateLimit-Remaining"))
+	resp.Body.Close()
+
+	// Request 4: Should reject, counter stays at 3
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	assert.Equal(t, "0", resp.Header.Get("X-RateLimit-Remaining"))
+	assert.NotEmpty(t, resp.Header.Get("Retry-After"))
+	resp.Body.Close()
+}
+
+// TestRateLimiter_LuaScript_SetsExpirationOnFirstRequest tests that the Lua script
+// correctly sets the TTL only on the first request (when key doesn't exist).
+func TestRateLimiter_LuaScript_SetsExpirationOnFirstRequest(t *testing.T) {
+	mr, redisClient := setupTestRedis(t)
+
+	app := fiber.New()
+
+	windowDuration := 30 * time.Second
+	// Use custom key generator to ensure unique key for this test
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         5,
+		Expiration:  windowDuration,
+		RedisClient: redisClient,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return "ttl-test-key"
+		},
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// First request creates the key with TTL
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp.Body.Close()
+
+	// Verify the key was created with TTL
+	ctx := context.Background()
+	ttl, err := redisClient.TTL(ctx, "ratelimit:ttl-test-key").Result()
+	require.NoError(t, err)
+	assert.True(t, ttl > 0, "Key should have a positive TTL")
+	assert.True(t, ttl <= windowDuration, "TTL should not exceed window duration")
+
+	// Make another request after some "time" passes
+	mr.FastForward(10 * time.Second)
+
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp.Body.Close()
+
+	// TTL should still be decreasing, not reset
+	ttl2, err := redisClient.TTL(ctx, "ratelimit:ttl-test-key").Result()
+	require.NoError(t, err)
+	assert.True(t, ttl2 < ttl, "TTL should decrease between requests, not reset")
+}
+
+// TestBatchRateLimiter_LuaScript_CountsBatchItems tests that the batch rate limiter
+// correctly counts individual batch items (not just the request count).
+func TestBatchRateLimiter_LuaScript_CountsBatchItems(t *testing.T) {
+	_, redisClient := setupTestRedis(t)
+
+	app := fiber.New()
+
+	app.Use(NewBatchRateLimiter(BatchRateLimiterConfig{
+		MaxItemsPerWindow: 15,
+		Expiration:        time.Minute,
+		RedisClient:       redisClient,
+		MaxBatchSize:      10,
+	}))
+
+	app.Post("/batch", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// First batch with 5 items - should succeed
+	batchReq1 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 5),
+	}
+	for i := 0; i < 5; i++ {
+		batchReq1.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("batch1-req-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body1, _ := json.Marshal(batchReq1)
+	req := httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body1))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.3:12345"
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "10", resp.Header.Get("X-RateLimit-Remaining")) // 15-5=10
+	resp.Body.Close()
+
+	// Second batch with 8 items - should succeed (5+8=13 < 15)
+	batchReq2 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 8),
+	}
+	for i := 0; i < 8; i++ {
+		batchReq2.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("batch2-req-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body2, _ := json.Marshal(batchReq2)
+	req = httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body2))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.3:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "2", resp.Header.Get("X-RateLimit-Remaining")) // 15-13=2
+	resp.Body.Close()
+
+	// Third batch with 5 items - should be rejected (13+5=18 > 15)
+	batchReq3 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 5),
+	}
+	for i := 0; i < 5; i++ {
+		batchReq3.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("batch3-req-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body3, _ := json.Marshal(batchReq3)
+	req = httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body3))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.3:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	resp.Body.Close()
+}
+
+// TestRateLimiter_LuaScript_DifferentKeysIndependent tests that rate limits
+// for different keys (different IPs/users) are tracked independently.
+func TestRateLimiter_LuaScript_DifferentKeysIndependent(t *testing.T) {
+	_, redisClient := setupTestRedis(t)
+
+	// Track which user key to use based on request header
+	app := fiber.New()
+
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         2,
+		Expiration:  time.Minute,
+		RedisClient: redisClient,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			// Use custom header to distinguish users since RemoteAddr doesn't work in tests
+			return c.Get("X-User-ID")
+		},
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// User 1: Make 2 requests (at limit)
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-User-ID", "user-1")
+		resp, err := app.Test(req, -1)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp.Body.Close()
+	}
+
+	// User 1: 3rd request should be rejected
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-User-ID", "user-1")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	resp.Body.Close()
+
+	// User 2: Should still have full quota (independent counter)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-User-ID", "user-2")
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "1", resp.Header.Get("X-RateLimit-Remaining")) // First request for User 2
+	resp.Body.Close()
+}
+
+// TestRateLimiter_LuaScript_ConcurrentRequests tests that the Lua script handles
+// concurrent requests correctly without race conditions.
+func TestRateLimiter_LuaScript_ConcurrentRequests(t *testing.T) {
+	_, redisClient := setupTestRedis(t)
+
+	app := fiber.New()
+
+	maxRequests := 10
+	app.Use(NewRateLimiter(RateLimitConfig{
+		Max:         maxRequests,
+		Expiration:  time.Minute,
+		RedisClient: redisClient,
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Make concurrent requests
+	concurrency := 20
+	successCount := 0
+	failCount := 0
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.RemoteAddr = "10.0.0.4:12345" // Same IP for all requests
+			resp, err := app.Test(req, -1)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+
+			mu.Lock()
+			if resp.StatusCode == http.StatusOK {
+				successCount++
+			} else if resp.StatusCode == http.StatusTooManyRequests {
+				failCount++
+			}
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+
+	// Exactly maxRequests should succeed, rest should fail
+	assert.Equal(t, maxRequests, successCount, "Exactly %d requests should succeed", maxRequests)
+	assert.Equal(t, concurrency-maxRequests, failCount, "Remaining %d requests should be rejected", concurrency-maxRequests)
+}
+
+// TestBatchRateLimiter_LuaScript_PartialBatchDoesNotIncrementOnReject tests that
+// when a batch is rejected, the counter is NOT incremented (atomic behavior).
+func TestBatchRateLimiter_LuaScript_PartialBatchDoesNotIncrementOnReject(t *testing.T) {
+	_, redisClient := setupTestRedis(t)
+
+	app := fiber.New()
+
+	app.Use(NewBatchRateLimiter(BatchRateLimiterConfig{
+		MaxItemsPerWindow: 10,
+		Expiration:        time.Minute,
+		RedisClient:       redisClient,
+		MaxBatchSize:      20,
+	}))
+
+	app.Post("/batch", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// First batch with 8 items - should succeed
+	batchReq1 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 8),
+	}
+	for i := 0; i < 8; i++ {
+		batchReq1.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("req-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body1, _ := json.Marshal(batchReq1)
+	req := httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body1))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.5:12345"
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "2", resp.Header.Get("X-RateLimit-Remaining")) // 10-8=2
+	resp.Body.Close()
+
+	// Second batch with 5 items - should be rejected (8+5=13 > 10)
+	batchReq2 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 5),
+	}
+	for i := 0; i < 5; i++ {
+		batchReq2.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("req2-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body2, _ := json.Marshal(batchReq2)
+	req = httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body2))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.5:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	// Remaining should still be 2 (not 0) because rejected batch doesn't increment
+	assert.Equal(t, "2", resp.Header.Get("X-RateLimit-Remaining"))
+	resp.Body.Close()
+
+	// A smaller batch with 2 items should still succeed
+	batchReq3 := mmodel.BatchRequest{
+		Requests: make([]mmodel.BatchRequestItem, 2),
+	}
+	for i := 0; i < 2; i++ {
+		batchReq3.Requests[i] = mmodel.BatchRequestItem{
+			ID: fmt.Sprintf("req3-%d", i), Method: "GET", Path: "/test",
+		}
+	}
+
+	body3, _ := json.Marshal(batchReq3)
+	req = httptest.NewRequest(http.MethodPost, "/batch", bytes.NewReader(body3))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.5:12345"
+	resp, err = app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "0", resp.Header.Get("X-RateLimit-Remaining")) // 10-8-2=0
+	resp.Body.Close()
 }
