@@ -355,7 +355,6 @@ func TestRateLimiter_ExactLimit(t *testing.T) {
 		req.RemoteAddr = "192.168.1.1:12345" // Fixed IP for consistent key
 		resp, err := app.Test(req, -1)
 		require.NoError(t, err)
-		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode, "Request %d should succeed", i+1)
 
@@ -363,6 +362,7 @@ func TestRateLimiter_ExactLimit(t *testing.T) {
 		remaining := resp.Header.Get("X-RateLimit-Remaining")
 		expectedRemaining := maxRequests - (i + 1)
 		assert.Equal(t, fmt.Sprintf("%d", expectedRemaining), remaining, "Request %d should have correct remaining count", i+1)
+		resp.Body.Close()
 	}
 
 	// Make one more request - should be rejected
