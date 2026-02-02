@@ -385,6 +385,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Action Not Permitted",
 			Message:    "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
 		},
+		constant.ErrMissingFieldsInRequest: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingFieldsInRequest.Error(),
+			Title:      "Missing Fields in Request",
+			Message:    fmt.Sprintf("Your request is missing one or more required fields: %v. Please refer to the documentation to ensure all necessary fields are included in your request.", args...),
+		},
 		constant.ErrAccountTypeImmutable: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountTypeImmutable.Error(),

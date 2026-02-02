@@ -1512,7 +1512,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
-					Return(nil, nil).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
 					Times(1)
 			},
 			expectedStatus: 404,
