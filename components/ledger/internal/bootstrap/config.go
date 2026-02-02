@@ -44,7 +44,7 @@ type Config struct {
 	// tenant-specific database connections from the Pool Manager
 	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
 	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
-	TenantCacheTTL     string `env:"TENANT_CACHE_TTL" default:"24h"`
+	TenantCacheTTL     string `env:"MULTI_TENANT_CACHE_TTL" default:"24h"`
 
 	// PostgreSQL Primary - for multi-tenant default connection
 	PrimaryDBHost     string `env:"DB_HOST"`
