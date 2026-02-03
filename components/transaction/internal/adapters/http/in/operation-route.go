@@ -2,6 +2,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -23,6 +24,23 @@ import (
 type OperationRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+}
+
+// NewOperationRouteHandler creates a new OperationRouteHandler with validation.
+// Returns an error if required dependencies are nil.
+func NewOperationRouteHandler(cmd *command.UseCase, qry *query.UseCase) (*OperationRouteHandler, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("command use case cannot be nil")
+	}
+
+	if qry == nil {
+		return nil, fmt.Errorf("query use case cannot be nil")
+	}
+
+	return &OperationRouteHandler{
+		Command: cmd,
+		Query:   qry,
+	}, nil
 }
 
 // Create an Operation Route.

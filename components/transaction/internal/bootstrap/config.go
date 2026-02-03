@@ -376,34 +376,34 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisRepo:            redisConsumerRepository,
 	}
 
-	transactionHandler := &in.TransactionHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	transactionHandler, err := in.NewTransactionHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
-	operationHandler := &in.OperationHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	operationHandler, err := in.NewOperationHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
-	assetRateHandler := &in.AssetRateHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	assetRateHandler, err := in.NewAssetRateHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
-	balanceHandler := &in.BalanceHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	balanceHandler, err := in.NewBalanceHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
-	operationRouteHandler := &in.OperationRouteHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	operationRouteHandler, err := in.NewOperationRouteHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
-	transactionRouteHandler := &in.TransactionRouteHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	transactionRouteHandler, err := in.NewTransactionRouteHandler(useCase, queryUseCase)
+	if err != nil {
+		return nil, err
 	}
 
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
