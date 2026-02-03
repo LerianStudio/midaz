@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +70,10 @@ func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndex
 
 func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
 	return func(app *fiber.App) {}
+}
+
+func (s *StubTransactionService) GetRedisClient() *redis.Client {
+	return nil
 }
 
 // Ensure StubTransactionService implements transaction.TransactionService

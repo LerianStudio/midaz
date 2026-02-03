@@ -39,6 +39,23 @@ type TransactionHandler struct {
 	Query   *query.UseCase
 }
 
+// NewTransactionHandler creates a new TransactionHandler with validation.
+// Returns an error if required dependencies are nil.
+func NewTransactionHandler(cmd *command.UseCase, qry *query.UseCase) (*TransactionHandler, error) {
+	if cmd == nil {
+		return nil, pkg.ValidateInternalError(constant.ErrInternalServer, "Command use case cannot be nil")
+	}
+
+	if qry == nil {
+		return nil, pkg.ValidateInternalError(constant.ErrInternalServer, "Query use case cannot be nil")
+	}
+
+	return &TransactionHandler{
+		Command: cmd,
+		Query:   qry,
+	}, nil
+}
+
 // CreateTransactionJSON method that create transaction using JSON
 //
 //	@Summary		Create a Transaction using JSON

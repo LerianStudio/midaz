@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -17,6 +19,23 @@ import (
 type OperationHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+}
+
+// NewOperationHandler creates a new OperationHandler with validation.
+// Returns an error if required dependencies are nil.
+func NewOperationHandler(cmd *command.UseCase, qry *query.UseCase) (*OperationHandler, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("command use case cannot be nil")
+	}
+
+	if qry == nil {
+		return nil, fmt.Errorf("query use case cannot be nil")
+	}
+
+	return &OperationHandler{
+		Command: cmd,
+		Query:   qry,
+	}, nil
 }
 
 // GetAllOperationsByAccount retrieves all operations by account.

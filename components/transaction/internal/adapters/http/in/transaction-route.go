@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -13,9 +15,27 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// TransactionRouteHandler is a struct that contains the command and query use cases.
 type TransactionRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+}
+
+// NewTransactionRouteHandler creates a new TransactionRouteHandler with validation.
+// Returns an error if required dependencies are nil.
+func NewTransactionRouteHandler(cmd *command.UseCase, qry *query.UseCase) (*TransactionRouteHandler, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("command use case cannot be nil")
+	}
+
+	if qry == nil {
+		return nil, fmt.Errorf("query use case cannot be nil")
+	}
+
+	return &TransactionRouteHandler{
+		Command: cmd,
+		Query:   qry,
+	}, nil
 }
 
 // Create a Transaction Route.

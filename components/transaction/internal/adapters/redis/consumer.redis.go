@@ -76,6 +76,24 @@ func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*R
 	return r, nil
 }
 
+// GetClient returns the underlying Redis client for direct access.
+// This is used for rate limiting in unified ledger mode.
+// Returns an error if the client is not a *redis.Client (e.g., cluster client).
+func (rr *RedisConsumerRepository) GetClient(ctx context.Context) (*redis.Client, error) {
+	universalClient, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to cast to *redis.Client - may fail for cluster configurations
+	client, ok := universalClient.(*redis.Client)
+	if !ok {
+		return nil, fmt.Errorf("redis client is not a *redis.Client (likely cluster mode), rate limiting requires standalone Redis")
+	}
+
+	return client, nil
+}
+
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
