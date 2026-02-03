@@ -1015,13 +1015,13 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 		t.Log("Internal account credit validation passed")
 	})
 
-	t.Run("external account can be debited to exactly zero", func(t *testing.T) {
+	t.Run("external account debit makes balance more negative", func(t *testing.T) {
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		transactionID := uuid.New()
 
 		// External account with Available = -100
-		// Debiting 100 should succeed because result would be 0 (not positive)
+		// Debiting 100 results in -200 (more negative), which is valid for external accounts
 		balanceOps := []mmodel.BalanceOperation{
 			redistestutil.CreateBalanceOperationWithAvailable(
 				orgID, ledgerID, "@external-to-zero", "USD",
@@ -1033,10 +1033,10 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 
 		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 
-		// Should succeed - result is exactly 0, not positive
-		require.NoError(t, err, "debit to external account that reaches zero should succeed")
+		// Should succeed - result is -200 (negative), not positive
+		require.NoError(t, err, "debit to external account should succeed when result stays negative")
 		require.NotNil(t, balances, "should return balances")
-		t.Log("External account debit to zero validation passed")
+		t.Log("External account debit validation passed - balance became more negative")
 	})
 
 	t.Log("Integration test passed: external account credit validation verified")
