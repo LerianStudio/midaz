@@ -13,7 +13,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 )
 
 var (
@@ -54,7 +53,7 @@ func NewCircuitBreakerManager(
 	logger libLog.Logger,
 	rabbitConn *libRabbitmq.RabbitMQConnection,
 	cbConfig rabbitmq.CircuitBreakerConfig,
-	stateListener mcircuitbreaker.StateListener,
+	stateListener libCircuitBreaker.StateChangeListener,
 ) (*CircuitBreakerManager, error) {
 	// Validate required parameters
 	if logger == nil {
@@ -94,8 +93,7 @@ func NewCircuitBreakerManager(
 
 	// Register state change listener if provided
 	if stateListener != nil {
-		adapter := mcircuitbreaker.NewLibCommonsAdapter(stateListener)
-		cbManager.RegisterStateChangeListener(adapter)
+		cbManager.RegisterStateChangeListener(stateListener)
 	}
 
 	// Determine health check interval and timeout (use config values or defaults)

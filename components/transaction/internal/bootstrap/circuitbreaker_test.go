@@ -11,11 +11,19 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testStateListener implements libCircuitBreaker.StateChangeListener for testing
+type testStateListener struct {
+	calls int
+}
+
+func (t *testStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State, counts libCircuitBreaker.Counts) {
+	t.calls++
+}
 
 // testCircuitBreakerConfig returns a standard config for testing
 func testCircuitBreakerConfig() rabbitmq.CircuitBreakerConfig {
@@ -91,7 +99,7 @@ func TestNewCircuitBreakerManager_RegistersStateListener(t *testing.T) {
 	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
 
 	conn := testRabbitMQConnection()
-	listener := mcircuitbreaker.NewMockStateListener(ctrl)
+	listener := &testStateListener{}
 	cbConfig := testCircuitBreakerConfig()
 
 	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, listener)

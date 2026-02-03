@@ -102,11 +102,11 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 	}
 
 	// Add circuit breaker health checker as a runnable for unified ledger mode
-	// if app.CircuitBreakerManager != nil {
-	// 	runnables = append(runnables, mbootstrap.RunnableConfig{
-	// 		Name: "Transaction Circuit Breaker Health Checker", Runnable: NewCircuitBreakerRunnable(app.CircuitBreakerManager),
-	// 	})
-	// }
+	if app.CircuitBreakerManager != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Circuit Breaker Health Checker", Runnable: NewCircuitBreakerRunnable(app.CircuitBreakerManager),
+		})
+	}
 
 	return runnables
 }

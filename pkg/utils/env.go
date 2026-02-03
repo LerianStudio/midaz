@@ -1,6 +1,9 @@
 package utils
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // EnvFallback returns the prefixed value if not empty, otherwise returns the fallback value.
 // This is useful for supporting both prefixed env vars (e.g., DB_ONBOARDING_HOST) with
@@ -51,10 +54,11 @@ func GetDurationWithDefault(value, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
-// GetUint32FromIntWithDefault converts an int to uint32, returning the default if value is <= 0.
+// GetUint32FromIntWithDefault converts an int to uint32, returning the default if value is invalid.
+// Returns the default if value is negative or exceeds uint32 max range.
 // This is useful when reading config from env vars that only support int types.
 func GetUint32FromIntWithDefault(value int, defaultValue uint32) uint32 {
-	if value > 0 {
+	if value >= 0 && value <= math.MaxUint32 {
 		return uint32(value)
 	}
 
@@ -62,10 +66,10 @@ func GetUint32FromIntWithDefault(value int, defaultValue uint32) uint32 {
 }
 
 // GetFloat64FromIntPercentWithDefault converts an int percentage (0-100) to float64 ratio (0.0-1.0),
-// returning the default if value is <= 0.
+// returning the default if value is out of range (<=0 or >100).
 // Example: 50 -> 0.5, 75 -> 0.75
 func GetFloat64FromIntPercentWithDefault(value int, defaultValue float64) float64 {
-	if value > 0 {
+	if value > 0 && value <= 100 {
 		return float64(value) / 100.0
 	}
 

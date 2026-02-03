@@ -6,10 +6,10 @@ package transaction
 import (
 	"fmt"
 
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -40,7 +40,7 @@ type Options struct {
 
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
 	// This is optional - pass nil if you don't need state change notifications.
-	CircuitBreakerStateListener mcircuitbreaker.StateListener
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 }
 
 // InitService initializes the transaction service.

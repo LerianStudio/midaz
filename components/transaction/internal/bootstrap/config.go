@@ -9,6 +9,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -29,7 +30,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
@@ -213,7 +213,7 @@ type Options struct {
 
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
 	// This is optional - pass nil if you don't need state change notifications.
-	CircuitBreakerStateListener mcircuitbreaker.StateListener
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 }
 
 // InitServers initiate http and grpc servers.
@@ -400,9 +400,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
 	}
 
-	// Get state listener from options (if provided)
-	var stateListener mcircuitbreaker.StateListener
-	if opts != nil {
+	// Get state listener from options if provided
+	var stateListener libCircuitBreaker.StateChangeListener
+	if opts != nil && opts.CircuitBreakerStateListener != nil {
 		stateListener = opts.CircuitBreakerStateListener
 	}
 
@@ -434,9 +434,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
 	}
-
-	logger.Infof("Circuit breaker initialized for RabbitMQ producer (failures=%d, timeout=%s)",
-		cbConfig.ConsecutiveFailures, cbConfig.Timeout)
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,

@@ -2,14 +2,12 @@ package rabbitmq
 
 import (
 	"context"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
@@ -67,81 +65,53 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 }
 
 // RunConsumers init consume for all registry queues.
+// Note: This function does not retry on failure - the circuit breaker handles recovery.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
 		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		go func(queueName string, handler QueueHandlerFunc) {
-			backoff := utils.InitialBackoff
+			if err := cr.conn.EnsureChannel(); err != nil {
+				cr.Errorf("[Consumer %s] failed to ensure channel: %v", queueName, err)
+				return
+			}
 
-			for {
-				if err := cr.conn.EnsureChannel(); err != nil {
-					cr.Errorf("[Consumer %s] failed to ensure channel: %v", queueName, err)
+			if err := cr.conn.Channel.Qos(
+				cr.NumbersOfPrefetch,
+				0,
+				false,
+			); err != nil {
+				cr.Errorf("[Consumer %s] failed to set QoS: %v", queueName, err)
+				return
+			}
 
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying EnsureChannel in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
+			messages, err := cr.conn.Channel.Consume(
+				queueName,
+				"",
+				false,
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err != nil {
+				cr.Errorf("[Consumer %s] failed to start consuming: %v", queueName, err)
+				return
+			}
 
-					backoff = utils.NextBackoff(backoff)
+			cr.Infof("[Consumer %s] consuming started", queueName)
 
-					continue
-				}
+			notifyClose := make(chan *amqp.Error, 1)
+			cr.conn.Channel.NotifyClose(notifyClose)
 
-				if err := cr.conn.Channel.Qos(
-					cr.NumbersOfPrefetch,
-					0,
-					false,
-				); err != nil {
-					cr.Errorf("[Consumer %s] failed to set QoS: %v", queueName, err)
+			for i := 0; i < cr.NumbersOfWorkers; i++ {
+				go cr.startWorker(i, queueName, handler, messages)
+			}
 
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying QoS in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
-
-					backoff = utils.NextBackoff(backoff)
-
-					continue
-				}
-
-				messages, err := cr.conn.Channel.Consume(
-					queueName,
-					"",
-					false,
-					false,
-					false,
-					false,
-					nil,
-				)
-				if err != nil {
-					cr.Errorf("[Consumer %s] failed to start consuming: %v", queueName, err)
-
-					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying Consume in %v...", queueName, sleepDuration)
-					time.Sleep(sleepDuration)
-
-					backoff = utils.NextBackoff(backoff)
-
-					continue
-				}
-
-				cr.Infof("[Consumer %s] consuming started", queueName)
-
-				backoff = utils.InitialBackoff
-
-				notifyClose := make(chan *amqp.Error, 1)
-				cr.conn.Channel.NotifyClose(notifyClose)
-
-				for i := 0; i < cr.NumbersOfWorkers; i++ {
-					go cr.startWorker(i, queueName, handler, messages)
-				}
-
-				if errClose := <-notifyClose; errClose != nil {
-					cr.Warnf("[Consumer %s] channel closed: %v", queueName, errClose)
-				} else {
-					cr.Warnf("[Consumer %s] channel closed: no error info", queueName)
-				}
-
-				cr.Warnf("[Consumer %s] restarting...", queueName)
+			if errClose := <-notifyClose; errClose != nil {
+				cr.Errorf("[Consumer %s] channel closed: %v", queueName, errClose)
+			} else {
+				cr.Warnf("[Consumer %s] channel closed: no error info", queueName)
 			}
 		}(queueName, handler)
 	}

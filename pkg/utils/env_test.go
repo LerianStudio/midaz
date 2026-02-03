@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -269,6 +270,183 @@ func TestGetDurationWithDefault(t *testing.T) {
 			t.Parallel()
 
 			result := GetDurationWithDefault(tt.value, tt.defaultValue)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetUint32FromIntWithDefault(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		value        int
+		defaultValue uint32
+		expected     uint32
+	}{
+		{
+			name:         "returns value when positive",
+			value:        15,
+			defaultValue: 10,
+			expected:     15,
+		},
+		{
+			name:         "returns value when zero",
+			value:        0,
+			defaultValue: 10,
+			expected:     0,
+		},
+		{
+			name:         "returns default when negative",
+			value:        -5,
+			defaultValue: 10,
+			expected:     10,
+		},
+		{
+			name:         "handles max uint32 value",
+			value:        math.MaxUint32,
+			defaultValue: 10,
+			expected:     math.MaxUint32,
+		},
+		{
+			name:         "returns default when exceeds uint32 max",
+			value:        math.MaxUint32 + 1,
+			defaultValue: 10,
+			expected:     10,
+		},
+		{
+			name:         "handles value of 1",
+			value:        1,
+			defaultValue: 100,
+			expected:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := GetUint32FromIntWithDefault(tt.value, tt.defaultValue)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetFloat64FromIntPercentWithDefault(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		value        int
+		defaultValue float64
+		expected     float64
+	}{
+		{
+			name:         "converts 50% to 0.5",
+			value:        50,
+			defaultValue: 0.3,
+			expected:     0.5,
+		},
+		{
+			name:         "converts 100% to 1.0",
+			value:        100,
+			defaultValue: 0.3,
+			expected:     1.0,
+		},
+		{
+			name:         "converts 1% to 0.01",
+			value:        1,
+			defaultValue: 0.3,
+			expected:     0.01,
+		},
+		{
+			name:         "returns default when value is zero",
+			value:        0,
+			defaultValue: 0.5,
+			expected:     0.5,
+		},
+		{
+			name:         "returns default when value is negative",
+			value:        -10,
+			defaultValue: 0.5,
+			expected:     0.5,
+		},
+		{
+			name:         "returns default when value exceeds 100",
+			value:        101,
+			defaultValue: 0.5,
+			expected:     0.5,
+		},
+		{
+			name:         "returns default when value is 200",
+			value:        200,
+			defaultValue: 0.75,
+			expected:     0.75,
+		},
+		{
+			name:         "converts 75% to 0.75",
+			value:        75,
+			defaultValue: 0.5,
+			expected:     0.75,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := GetFloat64FromIntPercentWithDefault(tt.value, tt.defaultValue)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetDurationSecondsWithDefault(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		value        int
+		defaultValue time.Duration
+		expected     time.Duration
+	}{
+		{
+			name:         "converts 30 seconds",
+			value:        30,
+			defaultValue: 10 * time.Second,
+			expected:     30 * time.Second,
+		},
+		{
+			name:         "returns default when value is zero",
+			value:        0,
+			defaultValue: 30 * time.Second,
+			expected:     30 * time.Second,
+		},
+		{
+			name:         "returns default when value is negative",
+			value:        -5,
+			defaultValue: 30 * time.Second,
+			expected:     30 * time.Second,
+		},
+		{
+			name:         "converts 120 seconds to 2 minutes",
+			value:        120,
+			defaultValue: 1 * time.Minute,
+			expected:     2 * time.Minute,
+		},
+		{
+			name:         "converts 1 second",
+			value:        1,
+			defaultValue: 10 * time.Second,
+			expected:     1 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := GetDurationSecondsWithDefault(tt.value, tt.defaultValue)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
