@@ -228,7 +228,8 @@ end
 
 local function main()
     local ttl = 3600 -- 1 hour
-    local groupSize = 12
+
+    local groupSize = 16
     local returnBalances = {}
     local rollbackBalances = {}
 
@@ -256,13 +257,39 @@ local function main()
 
         local alias = ARGV[i + 5]
 
+        -- Balance object stored in Redis cache.
+        --
+        -- FIELD USAGE:
+        -- Fields used by THIS Lua script for atomic operations:
+        --   - ID:          Returned to Go for operation tracking
+        --   - Available:   Balance calculations (DEBIT/CREDIT)
+        --   - OnHold:      Balance calculations (ON_HOLD/RELEASE)
+        --   - Version:     Optimistic concurrency control
+        --   - AccountType: Validation 0018 (external account cannot have positive balance)
+        --   - AccountID:   Returned to Go for operation tracking
+        --
+        -- Fields NOT used by Lua, but required in cache for Go pre-validation:
+        --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
+        --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
+        --
+        -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
+        -- transaction validation flow that reads balances from cache before calling Lua.
+        -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
         local balance = {
+            -- Fields used by Lua
             ID = ARGV[i + 6],
             Available = ARGV[i + 7],
             OnHold = ARGV[i + 8],
             Version = tonumber(ARGV[i + 9]),
             AccountType = ARGV[i + 10],
             AccountID = ARGV[i + 11],
+            -- Fields for cache only (used by Go pre-validation, not by Lua)
+            AssetCode = ARGV[i + 12],
+            AllowSending = tonumber(ARGV[i + 13]),
+            AllowReceiving = tonumber(ARGV[i + 14]),
+            Key = ARGV[i + 15],
         }
 
         local redisBalance = cjson.encode(balance)

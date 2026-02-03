@@ -276,6 +276,16 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	args := []any{}
 
 	for _, blcs := range balancesOperation {
+		allowSending := 0
+		if blcs.Balance.AllowSending {
+			allowSending = 1
+		}
+
+		allowReceiving := 0
+		if blcs.Balance.AllowReceiving {
+			allowReceiving = 1
+		}
+
 		args = append(args,
 			blcs.InternalKey,
 			isPending,
@@ -289,6 +299,10 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 			strconv.FormatInt(blcs.Balance.Version, 10),
 			blcs.Balance.AccountType,
 			blcs.Balance.AccountID,
+			blcs.Balance.AssetCode,
+			allowSending,
+			allowReceiving,
+			blcs.Balance.Key,
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
