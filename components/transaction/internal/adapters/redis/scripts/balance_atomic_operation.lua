@@ -170,6 +170,17 @@ local function startsWithMinus(s)
     return s:sub(1, 1) == "-"
 end
 
+-- isPositive checks if a decimal string represents a value greater than zero
+-- Returns true if the value is positive (not negative and not zero)
+local function isPositive(s)
+    if startsWithMinus(s) then
+        return false
+    end
+    -- Check if it's zero (could be "0", "0.0", "0.00", etc.)
+    local normalized = s:gsub("%.?0+$", ""):gsub("^0+", "")
+    return normalized ~= "" and normalized ~= "."
+end
+
 local function cloneBalance(tbl)
     local copy = {}
     for k, v in pairs(tbl) do
@@ -301,12 +312,16 @@ local function main()
             end
         end
 
-        if isPending == 1 and isFrom and balance.AccountType == "external" then
-            rollback(rollbackBalances, ttl)
-            return redis.error_reply("0098")
-        end
 
         if startsWithMinus(result) and balance.AccountType ~= "external" then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0018")
+        end
+
+        -- External accounts cannot have positive balance (they represent debt to external entities)
+        -- This validation MUST be atomic to prevent race conditions where two concurrent
+        -- transactions both credit an external account
+        if operation == "CREDIT" and balance.AccountType == "external" and isPositive(result) then
             rollback(rollbackBalances, ttl)
             return redis.error_reply("0018")
         end
