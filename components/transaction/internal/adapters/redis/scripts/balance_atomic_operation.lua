@@ -228,7 +228,7 @@ end
 
 local function main()
     local ttl = 3600 -- 1 hour
-    local groupSize = 16
+    local groupSize = 12
     local returnBalances = {}
     local rollbackBalances = {}
 
@@ -262,11 +262,7 @@ local function main()
             OnHold = ARGV[i + 8],
             Version = tonumber(ARGV[i + 9]),
             AccountType = ARGV[i + 10],
-            AllowSending = tonumber(ARGV[i + 11]),
-            AllowReceiving = tonumber(ARGV[i + 12]),
-            AssetCode = ARGV[i + 13],
-            AccountID = ARGV[i + 14],
-            Key = ARGV[i + 15],
+            AccountID = ARGV[i + 11],
         }
 
         local redisBalance = cjson.encode(balance)
