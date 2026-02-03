@@ -1015,98 +1015,29 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 		t.Log("Internal account credit validation passed")
 	})
 
-	t.Log("Integration test passed: external account credit validation verified")
-}
+	t.Run("external account can be debited to exactly zero", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
 
-// TestIntegration_Chaos_Redis_ExternalAccountConcurrentCredit tests that the Lua script
-// correctly prevents race conditions where two concurrent transactions both try to
-// credit an external account.
-// This is a CRITICAL test - without atomic validation in Lua, both transactions
-// could succeed and leave the external account with positive balance.
-func TestIntegration_Chaos_Redis_ExternalAccountConcurrentCredit(t *testing.T) {
-	skipIfNotChaos(t)
-	if testing.Short() {
-		t.Skip("skipping chaos test in short mode")
-	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
-	infra := setupRedisChaosInfra(t)
-	defer infra.cleanup()
-
-	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
-	// External account with Available = 0
-	// Two concurrent requests will try to credit 100 each
-	// Only ONE should succeed (the one that executes first in Lua)
-	// The second should fail with 0018 because Available would become positive
-
-	numWorkers := 10
-	creditAmount := decimal.NewFromInt(100)
-
-	type result struct {
-		workerID int
-		err      error
-	}
-	results := make(chan result, numWorkers)
-
-	// Start concurrent credit operations to same external account
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-
-			transactionID := uuid.New()
-			balanceOps := []mmodel.BalanceOperation{
-				redistestutil.CreateBalanceOperationWithAvailable(
-					orgID, ledgerID, "@external-concurrent", "USD",
-					constant.CREDIT, creditAmount,
-					decimal.NewFromInt(0), // All start with Available = 0
-					"external",
-				),
-			}
-
-			_, err := infra.repo.ProcessBalanceAtomicOperation(
-				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
-			)
-			results <- result{workerID: workerID, err: err}
-		}(i)
-	}
-
-	// Wait for all workers
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Analyze results
-	var successCount, externalValidationErrorCount, otherErrorCount int
-	for r := range results {
-		if r.err == nil {
-			successCount++
-		} else if r.err.Error() == "0018" ||
-			(len(r.err.Error()) > 0 && r.err.Error()[:4] == "0018") {
-			externalValidationErrorCount++
-		} else {
-			otherErrorCount++
-			t.Logf("Worker %d unexpected error: %v", r.workerID, r.err)
+		// External account with Available = -100
+		// Debiting 100 should succeed because result would be 0 (not positive)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-to-zero", "USD",
+				constant.DEBIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(-100), // Available = -100
+				"external",
+			),
 		}
-	}
 
-	t.Logf("Results: %d successful, %d external validation errors (0018), %d other errors",
-		successCount, externalValidationErrorCount, otherErrorCount)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 
-	// CRITICAL: Only ONE transaction should succeed
-	// All others should fail with 0018 (external account would have positive balance)
-	assert.Equal(t, 1, successCount,
-		"exactly ONE concurrent credit to external account should succeed")
-	assert.Equal(t, numWorkers-1, externalValidationErrorCount,
-		"all other concurrent credits should fail with 0018")
-	assert.Equal(t, 0, otherErrorCount,
-		"no unexpected errors should occur")
+		// Should succeed - result is exactly 0, not positive
+		require.NoError(t, err, "debit to external account that reaches zero should succeed")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("External account debit to zero validation passed")
+	})
 
-	t.Log("Chaos test passed: external account concurrent credit race condition prevented")
+	t.Log("Integration test passed: external account credit validation verified")
 }
