@@ -79,10 +79,6 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 			if !balance.AllowReceiving {
 				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
-
-			if balance.Available.IsPositive() && balance.AccountType == constant.ExternalAccountType {
-				return commons.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", balance.Alias)
-			}
 		}
 	}
 
@@ -97,9 +93,9 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 			return Amount{}, Balance{}, err
 		}
 
-		if ba.Available.IsNegative() && balance.AccountType != constant.ExternalAccountType {
-			return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
-		}
+		// NOTE: Insufficient funds validation (0018) is performed atomically in Lua.
+		// DO NOT add validation here - it would be redundant and miss race conditions.
+		// See balance_atomic_operation.lua lines 315-318.
 
 		return validate.From[ft.AccountAlias], ba, nil
 	} else {
