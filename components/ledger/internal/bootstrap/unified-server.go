@@ -141,14 +141,22 @@ func registerBatchEndpoint(app *fiber.App, logger libLog.Logger, opts *UnifiedSe
 		middlewares = append(middlewares, opts.AuthClient.Authorize("midaz", "batch", "post"))
 	}
 
-	// Add rate limiting if enabled and Redis is available
-	if pkghttp.RateLimitEnabled() && opts != nil && opts.RedisClient != nil {
-		logger.Info("Batch rate limiting enabled")
+	// Add rate limiting if enabled (fail-closed when Redis is unavailable)
+	if pkghttp.RateLimitEnabled() {
+		var redisClient *redis.Client
+		if opts != nil {
+			redisClient = opts.RedisClient
+		}
+		if redisClient == nil {
+			logger.Info("Rate limiting enabled but Redis client not configured; batch endpoint will respond 503")
+		} else {
+			logger.Info("Batch rate limiting enabled")
+		}
 
 		batchRateLimiter := pkghttp.NewBatchRateLimiter(pkghttp.BatchRateLimiterConfig{
 			MaxItemsPerWindow: pkghttp.GetRateLimitMaxBatchItems(),
 			Expiration:        time.Minute,
-			RedisClient:       opts.RedisClient,
+			RedisClient:       redisClient,
 			MaxBatchSize:      pkghttp.GetRateLimitMaxBatchSize(),
 		})
 		middlewares = append(middlewares, batchRateLimiter)
