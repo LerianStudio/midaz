@@ -405,7 +405,11 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]pkgTransaction.FromTo)
+	arrField, ok := fl.Field().Interface().([]pkgTransaction.FromTo)
+	if !ok {
+		return false
+	}
+
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {
@@ -430,14 +434,20 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 
 // validateProhibitedExternalAccountPrefix
 func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
-	f := fl.Field().Interface().(string)
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
 
 	return !strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
 }
 
 // validateInvalidAliasCharacters validate if it has invalid characters on alias. only permit a-zA-Z0-9@:_-
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
-	f := fl.Field().Interface().(string)
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
 
 	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
@@ -820,7 +830,12 @@ func compareSlices(original, marshaled []any) []any {
 
 // validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive)
 func validateInvalidStrings(fl validator.FieldLevel) bool {
-	f := strings.ToLower(fl.Field().Interface().(string))
+	val, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	f := strings.ToLower(val)
 
 	invalidStrings := strings.Split(fl.Param(), ",")
 
