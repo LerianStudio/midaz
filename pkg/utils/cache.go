@@ -149,14 +149,20 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 }
 
 // BatchIdempotencyKey returns a key with the following format to be used on redis cluster:
-// "batch_idempotency:{batch}:key"
+// "batch_idempotency:{organizationID:ledgerID:batch}:key"
 // This key is used for batch endpoint idempotency to cache responses and prevent duplicate processing.
-func BatchIdempotencyKey(key string) string {
+// The organizationID and ledgerID are included in the hash tag to ensure tenant isolation and
+// distribute keys across Redis cluster slots based on tenant context.
+func BatchIdempotencyKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
 	builder.WriteString("batch_idempotency")
 	builder.WriteString(keySeparator)
 	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
 	builder.WriteString("batch")
 	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)

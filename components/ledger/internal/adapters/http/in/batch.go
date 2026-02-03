@@ -23,6 +23,7 @@ import (
 	pkghttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
 )
@@ -93,6 +94,23 @@ func propagateRequestID(c *fiber.Ctx) {
 	if requestID := c.Get("X-Request-Id"); requestID != "" {
 		c.Set("X-Request-Id", requestID)
 	}
+}
+
+// extractUUIDFromHeader extracts a UUID from the specified header.
+// Returns uuid.Nil if the header is empty or contains an invalid UUID.
+// This provides tenant context for idempotency key scoping without requiring the header.
+func extractUUIDFromHeader(c *fiber.Ctx, headerName string) uuid.UUID {
+	headerValue := c.Get(headerName)
+	if headerValue == "" {
+		return uuid.Nil
+	}
+
+	id, err := uuid.Parse(headerValue)
+	if err != nil {
+		return uuid.Nil
+	}
+
+	return id
 }
 
 // BatchHandler handles batch API requests.
@@ -178,12 +196,18 @@ func (h *BatchHandler) ProcessBatch(p any, c *fiber.Ctx) error {
 
 	logger.Infof("Processing batch request with %d items", len(payload.Requests))
 
+	// Extract tenant context from headers for idempotency key scoping.
+	// This ensures tenant isolation and distributes keys across Redis cluster slots.
+	// If headers are not provided, uuid.Nil is used (reduced isolation but backward compatible).
+	organizationID := extractUUIDFromHeader(c, "X-Organization-Id")
+	ledgerID := extractUUIDFromHeader(c, "X-Ledger-Id")
+
 	// Handle idempotency if Redis is available and idempotency key is provided
 	idempotencyKey, idempotencyTTL := pkghttp.GetIdempotencyKeyAndTTL(c)
 	if idempotencyKey != "" && h.RedisClient != nil {
 		ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.process_batch_idempotency")
 
-		cachedResponse, err := h.checkOrCreateIdempotencyKey(ctxIdempotency, idempotencyKey, idempotencyTTL)
+		cachedResponse, err := h.checkOrCreateIdempotencyKey(ctxIdempotency, organizationID, ledgerID, idempotencyKey, idempotencyTTL)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanIdempotency, "Idempotency key conflict", err)
 			spanIdempotency.End()
@@ -488,7 +512,7 @@ func (h *BatchHandler) ProcessBatch(p any, c *fiber.Ctx) error {
 	if idempotencyKey != "" && h.RedisClient != nil {
 		idempCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		h.setIdempotencyValue(idempCtx, idempotencyKey, &response, idempotencyTTL)
+		h.setIdempotencyValue(idempCtx, organizationID, ledgerID, idempotencyKey, &response, idempotencyTTL)
 	}
 
 	// Determine response status code
@@ -766,15 +790,16 @@ func (h *BatchHandler) processRequest(ctx context.Context, reqItem mmodel.BatchR
 // If it exists and has a value, it returns the cached response.
 // If it exists but is empty (in progress), it returns an error.
 // If it doesn't exist, it creates the key with an empty value and returns nil.
-func (h *BatchHandler) checkOrCreateIdempotencyKey(ctx context.Context, key string, ttl time.Duration) (*mmodel.BatchResponse, error) {
+// The organizationID and ledgerID parameters provide tenant context for key isolation and slot distribution.
+func (h *BatchHandler) checkOrCreateIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string, ttl time.Duration) (*mmodel.BatchResponse, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.batch_idempotency_check")
 	defer span.End()
 
-	logger.Infof("Checking idempotency key for batch request: %s", key)
+	logger.Infof("Checking idempotency key for batch request: %s (org: %s, ledger: %s)", key, organizationID, ledgerID)
 
-	internalKey := utils.BatchIdempotencyKey(key)
+	internalKey := utils.BatchIdempotencyKey(organizationID, ledgerID, key)
 
 	// Multiply by time.Second since GetIdempotencyKeyAndTTL returns seconds count as time.Duration
 	// Try to acquire the lock using SetNX
@@ -828,15 +853,16 @@ func (h *BatchHandler) checkOrCreateIdempotencyKey(ctx context.Context, key stri
 
 // setIdempotencyValue stores the batch response in Redis for the given idempotency key.
 // This is called asynchronously after successful batch processing.
-func (h *BatchHandler) setIdempotencyValue(ctx context.Context, key string, response *mmodel.BatchResponse, ttl time.Duration) {
+// The organizationID and ledgerID parameters provide tenant context for key isolation and slot distribution.
+func (h *BatchHandler) setIdempotencyValue(ctx context.Context, organizationID, ledgerID uuid.UUID, key string, response *mmodel.BatchResponse, ttl time.Duration) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.batch_idempotency_set")
 	defer span.End()
 
-	logger.Infof("Storing batch response for idempotency key: %s", key)
+	logger.Infof("Storing batch response for idempotency key: %s (org: %s, ledger: %s)", key, organizationID, ledgerID)
 
-	internalKey := utils.BatchIdempotencyKey(key)
+	internalKey := utils.BatchIdempotencyKey(organizationID, ledgerID, key)
 
 	value, err := json.Marshal(response)
 	if err != nil {

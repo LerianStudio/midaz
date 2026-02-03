@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/go-redis/redismock/v9"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1740,18 +1741,20 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisSetNXError(t *testing.T) 
 			}
 
 			key := "test-idempotency-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			// Mock SetNX to return error
 			mock.ExpectSetNX(internalKey, "", expectedTTL).SetErr(tt.redisErr)
 
 			// Act
 			ctx := context.Background()
-			result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+			result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 			// Assert
 			if tt.expectErr {
@@ -1804,11 +1807,13 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisGetError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			// Mock SetNX to return false (key exists)
 			mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
@@ -1817,7 +1822,7 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisGetError(t *testing.T) {
 
 			// Act
 			ctx := context.Background()
-			result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+			result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 			// Assert
 			if tt.expectErr {
@@ -1872,11 +1877,13 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_UnmarshalError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			// Mock SetNX to return false (key exists)
 			mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
@@ -1885,7 +1892,7 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_UnmarshalError(t *testing.T) {
 
 			// Act
 			ctx := context.Background()
-			result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+			result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 			// Assert
 			if tt.expectErr {
@@ -1935,11 +1942,13 @@ func TestBatchHandler_SetIdempotencyValue_RedisSetXXError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			response := &mmodel.BatchResponse{
 				SuccessCount: 1,
@@ -1954,7 +1963,7 @@ func TestBatchHandler_SetIdempotencyValue_RedisSetXXError(t *testing.T) {
 
 			// Act - this method doesn't return error, it just logs
 			ctx := context.Background()
-			handler.setIdempotencyValue(ctx, key, response, ttl)
+			handler.setIdempotencyValue(ctx, orgID, ledgerID, key, response, ttl)
 
 			// Assert - verify the mock was called (method doesn't return error)
 			// The method logs errors but doesn't return them
@@ -2004,11 +2013,13 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_Success(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			if tt.keyExists {
 				mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
@@ -2019,7 +2030,7 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_Success(t *testing.T) {
 
 			// Act
 			ctx := context.Background()
-			result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+			result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 			// Assert
 			assert.NoError(t, err)
@@ -2047,11 +2058,13 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_InProgress(t *testing.T) {
 	}
 
 	key := "test-idempotency-key"
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 	ttl := time.Duration(86400)   // 24 hours in seconds
 	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-	internalKey := "batch_idempotency:{batch}:" + key
+	internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 	// Key exists but value is empty (request in progress)
 	mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
@@ -2059,7 +2072,7 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_InProgress(t *testing.T) {
 
 	// Act
 	ctx := context.Background()
-	result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+	result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 	// Assert - should return idempotency conflict error
 	assert.Error(t, err)
@@ -2317,18 +2330,20 @@ func TestBatchHandler_SetIdempotencyValue_Success(t *testing.T) {
 			}
 
 			key := "test-key"
+			orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+			ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 			ttl := time.Duration(86400)   // 24 hours in seconds
 			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-			internalKey := "batch_idempotency:{batch}:" + key
+			internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 			// Mock SetXX to succeed
 			mock.ExpectSetXX(internalKey, gomock.Any(), expectedTTL).SetVal(true)
 
 			// Act
 			ctx := context.Background()
-			handler.setIdempotencyValue(ctx, key, tt.response, ttl)
+			handler.setIdempotencyValue(ctx, orgID, ledgerID, key, tt.response, ttl)
 
 			// Assert - method completes without panic
 			// Note: setIdempotencyValue doesn't return error, it logs internally
@@ -2348,11 +2363,13 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisNilError(t *testing.T) {
 	}
 
 	key := "test-key"
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 	ttl := time.Duration(86400)   // 24 hours in seconds
 	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-	internalKey := "batch_idempotency:{batch}:" + key
+	internalKey := "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:" + key
 
 	// Key exists (SetNX returns false), but Get returns redis.Nil (key expired between SetNX and Get)
 	mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
@@ -2361,7 +2378,7 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisNilError(t *testing.T) {
 
 	// Act
 	ctx := context.Background()
-	result, err := handler.checkOrCreateIdempotencyKey(ctx, key, ttl)
+	result, err := handler.checkOrCreateIdempotencyKey(ctx, orgID, ledgerID, key, ttl)
 
 	// Assert - should return conflict error because empty value means request in progress
 	assert.Error(t, err)
@@ -3001,7 +3018,8 @@ func TestBatchHandler_XIdempotencyReplayedHeader(t *testing.T) {
 	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
 	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
 	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
-	internalKey := "batch_idempotency:{batch}:" + idempotencyKey
+	// Use nil UUIDs since headers won't be set in this test
+	internalKey := "batch_idempotency:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:batch}:" + idempotencyKey
 
 	batchReq := mmodel.BatchRequest{
 		Requests: []mmodel.BatchRequestItem{
