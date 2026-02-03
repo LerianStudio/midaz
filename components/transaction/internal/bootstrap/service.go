@@ -29,6 +29,7 @@ type Service struct {
 	*RedisQueueConsumer
 	*BalanceSyncWorker
 	BalanceSyncWorkerEnabled bool
+	*CircuitBreakerManager
 	libLog.Logger
 
 	// Ports groups all external interface dependencies.
@@ -47,6 +48,11 @@ type Service struct {
 // Run starts the application.
 // This is the only necessary code to run an app in main.go
 func (app *Service) Run() {
+	// Start circuit breaker health checker if enabled
+	if app.CircuitBreakerManager != nil {
+		app.CircuitBreakerManager.Start()
+	}
+
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
@@ -60,6 +66,11 @@ func (app *Service) Run() {
 	}
 
 	libCommons.NewLauncher(opts...).Run()
+
+	// Stop circuit breaker health checker on shutdown
+	if app.CircuitBreakerManager != nil {
+		app.CircuitBreakerManager.Stop()
+	}
 }
 
 // GetRunnables returns all runnable components for composition in unified deployment.
@@ -89,6 +100,13 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 			Name: "Transaction gRPC Server", Runnable: app.ServerGRPC,
 		})
 	}
+
+	// Add circuit breaker health checker as a runnable for unified ledger mode
+	// if app.CircuitBreakerManager != nil {
+	// 	runnables = append(runnables, mbootstrap.RunnableConfig{
+	// 		Name: "Transaction Circuit Breaker Health Checker", Runnable: NewCircuitBreakerRunnable(app.CircuitBreakerManager),
+	// 	})
+	// }
 
 	return runnables
 }

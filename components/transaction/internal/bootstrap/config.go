@@ -29,7 +29,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -189,6 +191,18 @@ type Config struct {
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
 	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+
+	// Circuit Breaker configuration for RabbitMQ
+	// Protects against RabbitMQ outages by failing fast when broker is unavailable
+	RabbitMQCircuitBreakerConsecutiveFailures int `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`
+	RabbitMQCircuitBreakerFailureRatio        int `env:"RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO"` // Stored as percentage (e.g., 50 for 0.5)
+	RabbitMQCircuitBreakerInterval            int `env:"RABBITMQ_CIRCUIT_BREAKER_INTERVAL"`      // Stored in seconds
+	RabbitMQCircuitBreakerMaxRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS"`
+	RabbitMQCircuitBreakerMinRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS"`
+	RabbitMQCircuitBreakerTimeout             int `env:"RABBITMQ_CIRCUIT_BREAKER_TIMEOUT"` // Stored in seconds
+	// Health Check configuration for circuit breaker recovery
+	RabbitMQCircuitBreakerHealthCheckInterval int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL"` // Stored in seconds
+	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`  // Stored in seconds
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -196,6 +210,10 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding double
 	// initialization when the cmd/app wants to handle bootstrap errors.
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener mcircuitbreaker.StateListener
 }
 
 // InitServers initiate http and grpc servers.
@@ -376,7 +394,49 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                 logger,
 	}
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// Create raw producer
+	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
+	}
+
+	// Get state listener from options (if provided)
+	var stateListener mcircuitbreaker.StateListener
+	if opts != nil {
+		stateListener = opts.CircuitBreakerStateListener
+	}
+
+	// Prepare circuit breaker configuration with defaults applied
+	// Note: Config fields are int because lib-commons doesn't support uint32/float64/time.Duration
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
+		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
+		Interval:            utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerInterval, 2*time.Minute),
+		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMaxRequests, 3),
+		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMinRequests, 10),
+		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
+		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
+		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
+	}
+
+	// Create circuit breaker manager (always enabled)
+	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
+	}
+
+	// Wrap producer with circuit breaker
+	producerRabbitMQRepository, err := rabbitmq.NewCircuitBreakerProducer(
+		rawProducerRabbitMQ,
+		circuitBreakerManager.Manager,
+		logger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
+	}
+
+	logger.Infof("Circuit breaker initialized for RabbitMQ producer (failures=%d, timeout=%s)",
+		cbConfig.ConsecutiveFailures, cbConfig.Timeout)
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
@@ -492,6 +552,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		CircuitBreakerManager:    circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
 			BalancePort:  useCase,

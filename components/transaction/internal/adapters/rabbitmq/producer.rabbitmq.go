@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -25,17 +26,22 @@ type ProducerRabbitMQRepository struct {
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
+// Returns an error if the connection cannot be established.
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) (*ProducerRabbitMQRepository, error) {
+	if c == nil {
+		return nil, fmt.Errorf("rabbitmq connection cannot be nil")
+	}
+
 	prmq := &ProducerRabbitMQRepository{
 		conn: c,
 	}
 
 	_, err := c.GetNewConnect()
 	if err != nil {
-		panic("Failed to connect rabbitmq")
+		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
 	}
 
-	return prmq
+	return prmq, nil
 }
 
 // CheckRabbitMQHealth checks the health of the rabbitmq connection.

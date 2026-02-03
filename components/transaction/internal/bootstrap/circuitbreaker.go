@@ -1,9 +1,14 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
@@ -16,6 +21,16 @@ var (
 	ErrNilLogger = errors.New("logger cannot be nil")
 	// ErrNilRabbitConn indicates that the RabbitMQ connection parameter is nil.
 	ErrNilRabbitConn = errors.New("rabbitConn cannot be nil")
+	// ErrInvalidFailureRatio indicates that FailureRatio is outside valid bounds (0.0-1.0).
+	ErrInvalidFailureRatio = errors.New("failure_ratio must be between 0.0 and 1.0")
+	// ErrInvalidConsecutiveFailures indicates that ConsecutiveFailures must be greater than 0.
+	ErrInvalidConsecutiveFailures = errors.New("consecutive_failures must be greater than 0")
+	// ErrInvalidMaxRequests indicates that MaxRequests must be greater than 0.
+	ErrInvalidMaxRequests = errors.New("max_requests must be greater than 0")
+	// ErrInvalidTimeout indicates that Timeout must be positive.
+	ErrInvalidTimeout = errors.New("timeout must be positive")
+	// ErrInvalidInterval indicates that Interval must be positive.
+	ErrInvalidInterval = errors.New("interval must be positive")
 )
 
 const (
@@ -48,6 +63,27 @@ func NewCircuitBreakerManager(
 
 	if rabbitConn == nil {
 		return nil, ErrNilRabbitConn
+	}
+
+	// Validate circuit breaker configuration bounds
+	if cbConfig.FailureRatio < 0 || cbConfig.FailureRatio > 1.0 {
+		return nil, ErrInvalidFailureRatio
+	}
+
+	if cbConfig.ConsecutiveFailures == 0 {
+		return nil, ErrInvalidConsecutiveFailures
+	}
+
+	if cbConfig.MaxRequests == 0 {
+		return nil, ErrInvalidMaxRequests
+	}
+
+	if cbConfig.Timeout <= 0 {
+		return nil, ErrInvalidTimeout
+	}
+
+	if cbConfig.Interval <= 0 {
+		return nil, ErrInvalidInterval
 	}
 
 	// Create circuit breaker manager
@@ -108,4 +144,36 @@ func (cbm *CircuitBreakerManager) Start() {
 func (cbm *CircuitBreakerManager) Stop() {
 	cbm.logger.Info("Stopping circuit breaker health checker")
 	cbm.HealthChecker.Stop()
+}
+
+// CircuitBreakerRunnable wraps CircuitBreakerManager to implement the Runnable interface
+// for integration with the launcher in unified ledger mode.
+type CircuitBreakerRunnable struct {
+	manager *CircuitBreakerManager
+}
+
+// NewCircuitBreakerRunnable creates a new runnable wrapper for the circuit breaker manager.
+func NewCircuitBreakerRunnable(manager *CircuitBreakerManager) *CircuitBreakerRunnable {
+	return &CircuitBreakerRunnable{manager: manager}
+}
+
+// Run implements the Runnable interface for integration with libCommons.Launcher.
+// It starts the health checker and blocks until the process receives a shutdown signal.
+func (r *CircuitBreakerRunnable) Run(_ *libCommons.Launcher) error {
+	if r.manager == nil {
+		// Silently return - manager may be nil in test scenarios or when circuit breaker is disabled
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	r.manager.Start()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+
+	r.manager.Stop()
+
+	return nil
 }

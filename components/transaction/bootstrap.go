@@ -9,6 +9,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -36,6 +37,10 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener mcircuitbreaker.StateListener
 }
 
 // InitService initializes the transaction service.
@@ -66,6 +71,7 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: opts.Logger,
+		Logger:                      opts.Logger,
+		CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -22,15 +23,33 @@ func setupMockLogger(ctrl *gomock.Controller) *libLog.MockLogger {
 	return logger
 }
 
+// setupCircuitBreakerManager creates a cbManager with the circuit breaker pre-registered.
+// This simulates what NewCircuitBreakerManager does in bootstrap.
+func setupCircuitBreakerManager(logger libLog.Logger) libCircuitBreaker.Manager {
+	cbManager := libCircuitBreaker.NewManager(logger)
+	// Pre-register the circuit breaker (normally done by bootstrap.NewCircuitBreakerManager)
+	cbConfig := CircuitBreakerConfig{
+		ConsecutiveFailures: 3,
+		FailureRatio:        0.5,
+		Interval:            30 * time.Second,
+		MaxRequests:         3,
+		MinRequests:         5,
+		Timeout:             30 * time.Second,
+	}
+	cbManager.GetOrCreate(CircuitBreakerServiceName, RabbitMQCircuitBreakerConfig(cbConfig))
+	return cbManager
+}
+
 func TestCircuitBreakerProducer_ImplementsProducerRepository(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	// Verify it implements the interface
 	var _ ProducerRepository = cbProducer
@@ -42,9 +61,10 @@ func TestCircuitBreakerProducer_ProducerDefault_SuccessPath(t *testing.T) {
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -70,9 +90,10 @@ func TestCircuitBreakerProducer_ProducerDefault_FailureTripsCircuit(t *testing.T
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -102,9 +123,10 @@ func TestCircuitBreakerProducer_ProducerDefault_CircuitOpenReturnsError(t *testi
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -123,11 +145,11 @@ func TestCircuitBreakerProducer_ProducerDefault_CircuitOpenReturnsError(t *testi
 
 	// Now when circuit is open, no calls to underlying producer
 	// ProducerDefault should not be called again (circuit is open)
-	_, err := cbProducer.ProducerDefault(ctx, exchange, key, message)
+	_, producerErr := cbProducer.ProducerDefault(ctx, exchange, key, message)
 
 	// Verify error indicates circuit is open
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "circuit breaker open")
+	require.Error(t, producerErr)
+	assert.Contains(t, producerErr.Error(), "circuit breaker open")
 }
 
 func TestCircuitBreakerProducer_CheckRabbitMQHealth_DelegatesToUnderlying(t *testing.T) {
@@ -136,9 +158,10 @@ func TestCircuitBreakerProducer_CheckRabbitMQHealth_DelegatesToUnderlying(t *tes
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	// Setup expectation
 	mockProducer.EXPECT().
@@ -158,9 +181,10 @@ func TestCircuitBreakerProducer_GetCircuitState_ReturnsCurrentState(t *testing.T
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	// Initial state should be closed
 	state := cbProducer.GetCircuitState()
@@ -173,9 +197,10 @@ func TestCircuitBreakerProducer_IsCircuitHealthy_ReturnsTrueWhenClosed(t *testin
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	// Initial state should be healthy (closed)
 	assert.True(t, cbProducer.IsCircuitHealthy())
@@ -187,9 +212,10 @@ func TestCircuitBreakerProducer_IsCircuitHealthy_ReturnsFalseWhenOpen(t *testing
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -218,9 +244,10 @@ func TestCircuitBreakerProducer_GetCounts_ReturnsStatistics(t *testing.T) {
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -238,8 +265,8 @@ func TestCircuitBreakerProducer_GetCounts_ReturnsStatistics(t *testing.T) {
 		ProducerDefault(ctx, exchange, key, message).
 		Return(nil, nil)
 
-	_, err := cbProducer.ProducerDefault(ctx, exchange, key, message)
-	require.NoError(t, err)
+	_, producerErr := cbProducer.ProducerDefault(ctx, exchange, key, message)
+	require.NoError(t, producerErr)
 
 	// Verify counts updated
 	countsAfterSuccess := cbProducer.GetCounts()
@@ -252,8 +279,8 @@ func TestCircuitBreakerProducer_GetCounts_ReturnsStatistics(t *testing.T) {
 		ProducerDefault(ctx, exchange, key, message).
 		Return(nil, errors.New("connection refused"))
 
-	_, err = cbProducer.ProducerDefault(ctx, exchange, key, message)
-	require.Error(t, err)
+	_, producerErr = cbProducer.ProducerDefault(ctx, exchange, key, message)
+	require.Error(t, producerErr)
 
 	// Verify counts updated
 	countsAfterFailure := cbProducer.GetCounts()
@@ -268,9 +295,10 @@ func TestCircuitBreakerProducer_ProducerDefault_WithNonNilReturn(t *testing.T) {
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -298,9 +326,10 @@ func TestCircuitBreakerProducer_ProducerDefault_WithEmptyMessage(t *testing.T) {
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -326,9 +355,10 @@ func TestCircuitBreakerProducer_ProducerDefault_WithEmptyExchangeAndKey(t *testi
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	emptyExchange := ""
@@ -354,9 +384,10 @@ func TestCircuitBreakerProducer_ProducerDefault_WithNilMessage(t *testing.T) {
 
 	mockProducer := NewMockProducerRepository(ctrl)
 	logger := setupMockLogger(ctrl)
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager := setupCircuitBreakerManager(logger)
 
-	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	exchange := "test-exchange"
@@ -369,9 +400,49 @@ func TestCircuitBreakerProducer_ProducerDefault_WithNilMessage(t *testing.T) {
 		Return(nil, nil)
 
 	// Execute
-	result, err := cbProducer.ProducerDefault(ctx, exchange, key, nilMessage)
+	result, producerErr := cbProducer.ProducerDefault(ctx, exchange, key, nilMessage)
 
 	// Verify - circuit breaker passes through nil messages
-	assert.NoError(t, err)
+	assert.NoError(t, producerErr)
 	assert.Nil(t, result)
+}
+
+func TestNewCircuitBreakerProducer_ReturnsErrorOnNilUnderlying(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := setupMockLogger(ctrl)
+	cbManager := setupCircuitBreakerManager(logger)
+
+	cbProducer, err := NewCircuitBreakerProducer(nil, cbManager, logger)
+
+	assert.Nil(t, cbProducer)
+	assert.ErrorIs(t, err, ErrNilUnderlying)
+}
+
+func TestNewCircuitBreakerProducer_ReturnsErrorOnNilCBManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProducer := NewMockProducerRepository(ctrl)
+	logger := setupMockLogger(ctrl)
+
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, nil, logger)
+
+	assert.Nil(t, cbProducer)
+	assert.ErrorIs(t, err, ErrNilCBManager)
+}
+
+func TestNewCircuitBreakerProducer_ReturnsErrorOnNilLogger(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProducer := NewMockProducerRepository(ctrl)
+	logger := setupMockLogger(ctrl)
+	cbManager := setupCircuitBreakerManager(logger)
+
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, nil)
+
+	assert.Nil(t, cbProducer)
+	assert.ErrorIs(t, err, ErrNilCBLogger)
 }

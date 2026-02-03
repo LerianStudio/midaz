@@ -12,18 +12,10 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mockStateListener implements mcircuitbreaker.StateListener for testing
-type mockStateListener struct {
-	events []mcircuitbreaker.StateChangeEvent
-}
-
-func (m *mockStateListener) OnCircuitBreakerStateChange(event mcircuitbreaker.StateChangeEvent) {
-	m.events = append(m.events, event)
-}
 
 // testCircuitBreakerConfig returns a standard config for testing
 func testCircuitBreakerConfig() rabbitmq.CircuitBreakerConfig {
@@ -99,7 +91,7 @@ func TestNewCircuitBreakerManager_RegistersStateListener(t *testing.T) {
 	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
 
 	conn := testRabbitMQConnection()
-	listener := &mockStateListener{}
+	listener := mcircuitbreaker.NewMockStateListener(ctrl)
 	cbConfig := testCircuitBreakerConfig()
 
 	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, listener)
@@ -179,4 +171,299 @@ func TestCircuitBreakerManager_CircuitBreakerServiceNameIsRegistered(t *testing.
 	// Verify the circuit breaker is registered with the correct service name
 	isHealthy := cbm.Manager.IsHealthy(rabbitmq.CircuitBreakerServiceName)
 	assert.True(t, isHealthy, "newly created circuit breaker should be healthy (closed)")
+}
+
+func TestNewCircuitBreakerManager_UsesDefaultHealthCheckInterval(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+		HealthCheckInterval: 0, // Zero to trigger default
+		HealthCheckTimeout:  10 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	require.NoError(t, err)
+	assert.NotNil(t, cbm)
+	assert.NotNil(t, cbm.HealthChecker)
+}
+
+func TestNewCircuitBreakerManager_UsesDefaultHealthCheckTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+		HealthCheckInterval: 30 * time.Second,
+		HealthCheckTimeout:  0, // Zero to trigger default
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	require.NoError(t, err)
+	assert.NotNil(t, cbm)
+	assert.NotNil(t, cbm.HealthChecker)
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidFailureRatio(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+
+	tests := []struct {
+		name         string
+		failureRatio float64
+	}{
+		{"negative ratio", -0.1},
+		{"ratio greater than 1", 1.1},
+		{"ratio equals 2", 2.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cbConfig := rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 15,
+				FailureRatio:        tt.failureRatio,
+				Interval:            2 * time.Minute,
+				MaxRequests:         3,
+				MinRequests:         10,
+				Timeout:             30 * time.Second,
+			}
+
+			cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+			assert.Nil(t, cbm)
+			assert.ErrorIs(t, err, ErrInvalidFailureRatio)
+		})
+	}
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnZeroConsecutiveFailures(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 0, // Invalid: must be > 0
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	assert.Nil(t, cbm)
+	assert.ErrorIs(t, err, ErrInvalidConsecutiveFailures)
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{"zero timeout", 0},
+		{"negative timeout", -1 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cbConfig := rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 15,
+				FailureRatio:        0.5,
+				Interval:            2 * time.Minute,
+				MaxRequests:         3,
+				MinRequests:         10,
+				Timeout:             tt.timeout,
+			}
+
+			cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+			assert.Nil(t, cbm)
+			assert.ErrorIs(t, err, ErrInvalidTimeout)
+		})
+	}
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidInterval(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+
+	tests := []struct {
+		name     string
+		interval time.Duration
+	}{
+		{"zero interval", 0},
+		{"negative interval", -1 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cbConfig := rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 15,
+				FailureRatio:        0.5,
+				Interval:            tt.interval,
+				MaxRequests:         3,
+				MinRequests:         10,
+				Timeout:             30 * time.Second,
+			}
+
+			cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+			assert.Nil(t, cbm)
+			assert.ErrorIs(t, err, ErrInvalidInterval)
+		})
+	}
+}
+
+func TestNewCircuitBreakerManager_AcceptsValidBoundaryValues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+
+	tests := []struct {
+		name   string
+		config rabbitmq.CircuitBreakerConfig
+	}{
+		{
+			name: "failure ratio at 0",
+			config: rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 1,
+				FailureRatio:        0.0,
+				Interval:            1 * time.Second,
+				MaxRequests:         1,
+				MinRequests:         1,
+				Timeout:             1 * time.Second,
+			},
+		},
+		{
+			name: "failure ratio at 1.0",
+			config: rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 1,
+				FailureRatio:        1.0,
+				Interval:            1 * time.Second,
+				MaxRequests:         1,
+				MinRequests:         1,
+				Timeout:             1 * time.Second,
+			},
+		},
+		{
+			name: "minimum consecutive failures",
+			config: rabbitmq.CircuitBreakerConfig{
+				ConsecutiveFailures: 1,
+				FailureRatio:        0.5,
+				Interval:            1 * time.Second,
+				MaxRequests:         1,
+				MinRequests:         1,
+				Timeout:             1 * time.Second,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cbm, err := NewCircuitBreakerManager(logger, conn, tt.config, nil)
+
+			require.NoError(t, err)
+			assert.NotNil(t, cbm)
+		})
+	}
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMaxRequests(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         0, // Invalid: must be > 0
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	assert.Nil(t, cbm)
+	assert.ErrorIs(t, err, ErrInvalidMaxRequests)
+}
+
+func TestNewCircuitBreakerRunnable_CreatesWrapper(t *testing.T) {
+	runnable := NewCircuitBreakerRunnable(nil)
+
+	assert.NotNil(t, runnable)
+	assert.Nil(t, runnable.manager)
+}
+
+func TestNewCircuitBreakerRunnable_WithManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	cbConfig := testCircuitBreakerConfig()
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+	require.NoError(t, err)
+
+	runnable := NewCircuitBreakerRunnable(cbm)
+
+	assert.NotNil(t, runnable)
+	assert.NotNil(t, runnable.manager)
+	assert.Equal(t, cbm, runnable.manager)
+}
+
+func TestCircuitBreakerRunnable_Run_WithNilManager(t *testing.T) {
+	runnable := NewCircuitBreakerRunnable(nil)
+
+	// Should return nil without blocking when manager is nil
+	err := runnable.Run(nil)
+
+	assert.NoError(t, err)
 }

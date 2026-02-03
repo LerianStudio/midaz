@@ -11,6 +11,7 @@ import (
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +44,10 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener mcircuitbreaker.StateListener
 }
 
 // InitServers initializes the unified ledger service that composes
@@ -109,10 +114,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Initializing transaction module...")
 
+	var stateListener mcircuitbreaker.StateListener
+	
+	if opts != nil {
+		stateListener = opts.CircuitBreakerStateListener
+	}
+
+	transactionOpts := &transaction.Options{
+		Logger:                      transactionLogger,
+		CircuitBreakerStateListener: stateListener,
+	}
+
 	// Initialize transaction module first to get the BalancePort
-	transactionService, err := transaction.InitServiceWithOptionsOrError(&transaction.Options{
-		Logger: transactionLogger,
-	})
+	transactionService, err := transaction.InitServiceWithOptionsOrError(transactionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
 	}

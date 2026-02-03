@@ -4,6 +4,8 @@
 // on the lib-commons implementation details.
 package mcircuitbreaker
 
+//go:generate mockgen --destination=listener_mock.go --package=mcircuitbreaker . StateListener
+
 import (
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 )

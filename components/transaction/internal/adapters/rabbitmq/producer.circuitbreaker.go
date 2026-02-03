@@ -2,12 +2,20 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	"github.com/LerianStudio/midaz/v3/pkg/mcircuitbreaker"
+)
+
+var (
+	// ErrNilUnderlying indicates that the underlying producer parameter is nil.
+	ErrNilUnderlying = errors.New("underlying producer cannot be nil")
+	// ErrNilCBManager indicates that the circuit breaker manager parameter is nil.
+	ErrNilCBManager = errors.New("circuit breaker manager cannot be nil")
+	// ErrNilCBLogger indicates that the logger parameter is nil.
+	ErrNilCBLogger = errors.New("logger cannot be nil")
 )
 
 // CircuitBreakerProducer wraps ProducerRepository with circuit breaker protection.
@@ -20,36 +28,31 @@ type CircuitBreakerProducer struct {
 }
 
 // NewCircuitBreakerProducer creates a new circuit breaker wrapped producer.
-// The stateListener parameter is optional - pass nil if you don't need state change notifications.
+// The cbManager must already have the circuit breaker initialized via NewCircuitBreakerManager.
+// State listeners should be registered in NewCircuitBreakerManager, not here.
+// Returns an error if any required parameter is nil.
 func NewCircuitBreakerProducer(
 	underlying ProducerRepository,
 	cbManager libCircuitBreaker.Manager,
 	logger libLog.Logger,
-	stateListener mcircuitbreaker.StateListener,
-) *CircuitBreakerProducer {
-	cbConfig := CircuitBreakerConfig{
-		ConsecutiveFailures: getEnvAsUint32("RABBITMQ_CB_CONSECUTIVE_FAILURES", 3),
-		FailureRatio:        getEnvAsFloat64("RABBITMQ_CB_FAILURE_RATIO", 0.4),
-		Interval:            getEnvAsDuration("RABBITMQ_CB_INTERVAL", 30*time.Second),
-		MaxRequests:         getEnvAsUint32("RABBITMQ_CB_MAX_REQUESTS", 3),
-		MinRequests:         getEnvAsUint32("RABBITMQ_CB_MIN_REQUESTS", 5),
-		Timeout:             getEnvAsDuration("RABBITMQ_CB_TIMEOUT", 30*time.Second),
+) (*CircuitBreakerProducer, error) {
+	if underlying == nil {
+		return nil, ErrNilUnderlying
 	}
 
-	// Initialize circuit breaker with RabbitMQ-optimized config
-	cbManager.GetOrCreate(CircuitBreakerServiceName, RabbitMQCircuitBreakerConfig(cbConfig))
+	if cbManager == nil {
+		return nil, ErrNilCBManager
+	}
 
-	// Register state change listener if provided
-	if stateListener != nil {
-		adapter := mcircuitbreaker.NewLibCommonsAdapter(stateListener)
-		cbManager.RegisterStateChangeListener(adapter)
+	if logger == nil {
+		return nil, ErrNilCBLogger
 	}
 
 	return &CircuitBreakerProducer{
 		underlying: underlying,
 		cbManager:  cbManager,
 		logger:     logger,
-	}
+	}, nil
 }
 
 // ProducerDefault publishes a message through the circuit breaker.
