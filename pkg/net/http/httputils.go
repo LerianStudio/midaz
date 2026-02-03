@@ -266,7 +266,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 		t = libRedis.TTL
 	}
 
-	ttl := time.Duration(t) * time.Second
+	ttl := time.Duration(t)
 
 	return ikey, ttl
 }

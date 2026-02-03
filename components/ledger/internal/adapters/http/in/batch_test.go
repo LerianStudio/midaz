@@ -1740,11 +1740,14 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisSetNXError(t *testing.T) 
 			}
 
 			key := "test-idempotency-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			// Mock SetNX to return error
-			mock.ExpectSetNX(internalKey, "", ttl).SetErr(tt.redisErr)
+			mock.ExpectSetNX(internalKey, "", expectedTTL).SetErr(tt.redisErr)
 
 			// Act
 			ctx := context.Background()
@@ -1801,11 +1804,14 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisGetError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			// Mock SetNX to return false (key exists)
-			mock.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+			mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 			// Mock Get to return error
 			mock.ExpectGet(internalKey).SetErr(tt.redisErr)
 
@@ -1866,11 +1872,14 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_UnmarshalError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			// Mock SetNX to return false (key exists)
-			mock.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+			mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 			// Mock Get to return invalid cached value
 			mock.ExpectGet(internalKey).SetVal(tt.cachedValue)
 
@@ -1926,7 +1935,10 @@ func TestBatchHandler_SetIdempotencyValue_RedisSetXXError(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			response := &mmodel.BatchResponse{
@@ -1938,7 +1950,7 @@ func TestBatchHandler_SetIdempotencyValue_RedisSetXXError(t *testing.T) {
 			}
 
 			// Mock SetXX to return error
-			mock.ExpectSetXX(internalKey, gomock.Any(), ttl).SetErr(tt.redisErr)
+			mock.ExpectSetXX(internalKey, gomock.Any(), expectedTTL).SetErr(tt.redisErr)
 
 			// Act - this method doesn't return error, it just logs
 			ctx := context.Background()
@@ -1992,14 +2004,17 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_Success(t *testing.T) {
 			}
 
 			key := "test-idempotency-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			if tt.keyExists {
-				mock.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+				mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 				mock.ExpectGet(internalKey).SetVal(tt.cachedValue)
 			} else {
-				mock.ExpectSetNX(internalKey, "", ttl).SetVal(true)
+				mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(true)
 			}
 
 			// Act
@@ -2032,11 +2047,14 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_InProgress(t *testing.T) {
 	}
 
 	key := "test-idempotency-key"
-	ttl := 24 * time.Hour
+	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+	ttl := time.Duration(86400)   // 24 hours in seconds
+	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 	internalKey := "batch_idempotency:{batch}:" + key
 
 	// Key exists but value is empty (request in progress)
-	mock.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+	mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 	mock.ExpectGet(internalKey).SetVal("")
 
 	// Act
@@ -2299,11 +2317,14 @@ func TestBatchHandler_SetIdempotencyValue_Success(t *testing.T) {
 			}
 
 			key := "test-key"
-			ttl := 24 * time.Hour
+			// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+			// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+			ttl := time.Duration(86400)   // 24 hours in seconds
+			expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 			internalKey := "batch_idempotency:{batch}:" + key
 
 			// Mock SetXX to succeed
-			mock.ExpectSetXX(internalKey, gomock.Any(), ttl).SetVal(true)
+			mock.ExpectSetXX(internalKey, gomock.Any(), expectedTTL).SetVal(true)
 
 			// Act
 			ctx := context.Background()
@@ -2327,11 +2348,14 @@ func TestBatchHandler_CheckOrCreateIdempotencyKey_RedisNilError(t *testing.T) {
 	}
 
 	key := "test-key"
-	ttl := 24 * time.Hour
+	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+	ttl := time.Duration(86400)   // 24 hours in seconds
+	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 	internalKey := "batch_idempotency:{batch}:" + key
 
 	// Key exists (SetNX returns false), but Get returns redis.Nil (key expired between SetNX and Get)
-	mock.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+	mock.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 	// Redis.Nil is handled specially - it means key exists but has no value (in progress)
 	mock.ExpectGet(internalKey).SetVal("")
 
@@ -2974,7 +2998,9 @@ func TestBatchHandler_PanicRecovery_ErrorMessageDoesNotLeakDetails(t *testing.T)
 func TestBatchHandler_XIdempotencyReplayedHeader(t *testing.T) {
 	t.Skip("Skipping: Core idempotency logic tested via CheckOrCreateIdempotencyKey_* and SetIdempotencyValue_* tests")
 	idempotencyKey := "test-idempotency-replay-key"
-	ttl := 24 * time.Hour
+	// GetIdempotencyKeyAndTTL returns seconds count as nanoseconds (time.Duration)
+	// Batch handler multiplies by time.Second, so pass 86400 (24 hours in seconds) as nanoseconds
+	expectedTTL := 24 * time.Hour // What Redis will receive after multiplication
 	internalKey := "batch_idempotency:{batch}:" + idempotencyKey
 
 	batchReq := mmodel.BatchRequest{
@@ -3011,9 +3037,9 @@ func TestBatchHandler_XIdempotencyReplayedHeader(t *testing.T) {
 	assert.NotNil(t, handler1.RedisClient, "RedisClient should be set")
 
 	// Mock SetNX to return true (key doesn't exist - first request)
-	mock1.ExpectSetNX(internalKey, "", ttl).SetVal(true)
+	mock1.ExpectSetNX(internalKey, "", expectedTTL).SetVal(true)
 	// Mock SetXX for synchronous save after processing (caching is now synchronous)
-	mock1.ExpectSetXX(internalKey, gomock.Any(), ttl).SetVal(true)
+	mock1.ExpectSetXX(internalKey, gomock.Any(), expectedTTL).SetVal(true)
 
 	// Register batch handler with Redis support
 	app1.Post("/v1/batch", func(c *fiber.Ctx) error {
@@ -3081,7 +3107,7 @@ func TestBatchHandler_XIdempotencyReplayedHeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// Mock SetNX to return false (key exists)
-	mock2.ExpectSetNX(internalKey, "", ttl).SetVal(false)
+	mock2.ExpectSetNX(internalKey, "", expectedTTL).SetVal(false)
 	// Mock Get to return cached response
 	mock2.ExpectGet(internalKey).SetVal(string(cachedResponseJSON))
 

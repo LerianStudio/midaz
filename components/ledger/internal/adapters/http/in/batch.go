@@ -776,9 +776,9 @@ func (h *BatchHandler) checkOrCreateIdempotencyKey(ctx context.Context, key stri
 
 	internalKey := utils.BatchIdempotencyKey(key)
 
-	// Use ttl directly since it's already time.Duration
+	// Multiply by time.Second since GetIdempotencyKeyAndTTL returns seconds count as time.Duration
 	// Try to acquire the lock using SetNX
-	success, err := h.RedisClient.SetNX(ctx, internalKey, "", ttl).Result()
+	success, err := h.RedisClient.SetNX(ctx, internalKey, "", ttl*time.Second).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error setting idempotency key in Redis", err)
 
@@ -847,10 +847,10 @@ func (h *BatchHandler) setIdempotencyValue(ctx context.Context, key string, resp
 		return
 	}
 
-	// Use ttl directly since it's already time.Duration
+	// Multiply by time.Second since GetIdempotencyKeyAndTTL returns seconds count as time.Duration
 	// Use SetXX to only set if key exists (we created it with SetNX)
 	// This prevents race conditions where key might have expired
-	err = h.RedisClient.SetXX(ctx, internalKey, string(value), ttl).Err()
+	err = h.RedisClient.SetXX(ctx, internalKey, string(value), ttl*time.Second).Err()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error storing batch response in Redis", err)
 
