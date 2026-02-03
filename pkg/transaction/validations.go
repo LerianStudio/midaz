@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// ValidateBalancesRules function with some validates in accounts and DSL operations
+// ValidateBalancesRules function with some validates in accounts operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
 	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
 
@@ -92,10 +92,6 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 		if err != nil {
 			return Amount{}, Balance{}, err
 		}
-
-		// NOTE: Insufficient funds validation (0018) is performed atomically in Lua.
-		// DO NOT add validation here - it would be redundant and miss race conditions.
-		// See balance_atomic_operation.lua lines 315-318.
 
 		return validate.From[ft.AccountAlias], ba, nil
 	} else {
