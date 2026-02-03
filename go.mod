@@ -32,8 +32,6 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-replace github.com/LerianStudio/lib-commons/v2 => ../lib-commons
-
 require (
 	cloud.google.com/go/auth v0.18.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect

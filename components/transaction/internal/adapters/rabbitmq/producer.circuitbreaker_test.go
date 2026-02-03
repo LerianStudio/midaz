@@ -446,3 +446,143 @@ func TestNewCircuitBreakerProducer_ReturnsErrorOnNilLogger(t *testing.T) {
 	assert.Nil(t, cbProducer)
 	assert.ErrorIs(t, err, ErrNilCBLogger)
 }
+
+func TestCircuitBreakerProducer_ProducerDefault_HalfOpenState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProducer := NewMockProducerRepository(ctrl)
+	logger := setupMockLogger(ctrl)
+
+	// Create circuit breaker with very short timeout to trigger half-open quickly
+	cbManager := libCircuitBreaker.NewManager(logger)
+	cbConfig := CircuitBreakerConfig{
+		ConsecutiveFailures: 3,
+		FailureRatio:        0.5,
+		Interval:            30 * time.Second,
+		MaxRequests:         3, // Requests allowed in half-open before deciding
+		MinRequests:         5,
+		Timeout:             50 * time.Millisecond, // Very short timeout for test
+	}
+	cbManager.GetOrCreate(CircuitBreakerServiceName, RabbitMQCircuitBreakerConfig(cbConfig))
+
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	exchange := "test-exchange"
+	key := "test.key"
+	message := []byte("test message")
+
+	// Trip the circuit first with 3 consecutive failures
+	mockProducer.EXPECT().
+		ProducerDefault(ctx, exchange, key, message).
+		Return(nil, errors.New("connection refused")).
+		Times(3)
+
+	for i := 0; i < 3; i++ {
+		_, err := cbProducer.ProducerDefault(ctx, exchange, key, message)
+		require.Error(t, err, "Call %d should fail", i)
+	}
+
+	// Verify circuit is now open
+	assert.Equal(t, libCircuitBreaker.StateOpen, cbProducer.GetCircuitState())
+
+	// Wait for timeout to transition to half-open
+	time.Sleep(100 * time.Millisecond)
+
+	// In half-open state, the circuit allows MaxRequests (3) to test if service recovered
+	// After MaxRequests consecutive successes, the circuit should close
+	mockProducer.EXPECT().
+		ProducerDefault(ctx, exchange, key, message).
+		Return(nil, nil).
+		Times(3)
+
+	for i := 0; i < 3; i++ {
+		_, err = cbProducer.ProducerDefault(ctx, exchange, key, message)
+		assert.NoError(t, err, "request %d in half-open state should succeed", i)
+	}
+
+	// After MaxRequests successes in half-open, circuit should be closed
+	assert.Equal(t, libCircuitBreaker.StateClosed, cbProducer.GetCircuitState())
+}
+
+func TestCircuitBreakerProducer_ProducerDefault_HalfOpenToOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProducer := NewMockProducerRepository(ctrl)
+	logger := setupMockLogger(ctrl)
+
+	// Create circuit breaker with very short timeout
+	cbManager := libCircuitBreaker.NewManager(logger)
+	cbConfig := CircuitBreakerConfig{
+		ConsecutiveFailures: 3,
+		FailureRatio:        0.5,
+		Interval:            30 * time.Second,
+		MaxRequests:         3,
+		MinRequests:         5,
+		Timeout:             50 * time.Millisecond, // Very short timeout for test
+	}
+	cbManager.GetOrCreate(CircuitBreakerServiceName, RabbitMQCircuitBreakerConfig(cbConfig))
+
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	exchange := "test-exchange"
+	key := "test.key"
+	message := []byte("test message")
+
+	// Trip the circuit first with 3 consecutive failures
+	mockProducer.EXPECT().
+		ProducerDefault(ctx, exchange, key, message).
+		Return(nil, errors.New("connection refused")).
+		Times(3)
+
+	for i := 0; i < 3; i++ {
+		_, err := cbProducer.ProducerDefault(ctx, exchange, key, message)
+		require.Error(t, err, "Call %d should fail", i)
+	}
+
+	// Verify circuit is now open
+	assert.Equal(t, libCircuitBreaker.StateOpen, cbProducer.GetCircuitState())
+
+	// Wait for timeout to transition to half-open
+	time.Sleep(100 * time.Millisecond)
+
+	// In half-open state, a failure should re-open the circuit
+	mockProducer.EXPECT().
+		ProducerDefault(ctx, exchange, key, message).
+		Return(nil, errors.New("still failing")).
+		Times(1)
+
+	_, err = cbProducer.ProducerDefault(ctx, exchange, key, message)
+	assert.Error(t, err, "request in half-open state should fail")
+
+	// After failure in half-open, circuit should be open again
+	assert.Equal(t, libCircuitBreaker.StateOpen, cbProducer.GetCircuitState())
+}
+
+func TestCircuitBreakerProducer_CheckRabbitMQHealth_ReturnsFalseWhenUnhealthy(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProducer := NewMockProducerRepository(ctrl)
+	logger := setupMockLogger(ctrl)
+	cbManager := setupCircuitBreakerManager(logger)
+
+	cbProducer, err := NewCircuitBreakerProducer(mockProducer, cbManager, logger)
+	require.NoError(t, err)
+
+	// Setup expectation - underlying returns false
+	mockProducer.EXPECT().
+		CheckRabbitMQHealth().
+		Return(false)
+
+	// Execute
+	result := cbProducer.CheckRabbitMQHealth()
+
+	// Verify
+	assert.False(t, result)
+}

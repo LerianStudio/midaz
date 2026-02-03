@@ -50,7 +50,7 @@ type Service struct {
 func (app *Service) Run() {
 	// Start circuit breaker health checker if enabled
 	if app.CircuitBreakerManager != nil {
-		app.CircuitBreakerManager.Start()
+		app.CircuitBreakerManager.Start() //nolint:staticcheck // QF1008: explicit field access for clarity
 	}
 
 	opts := []libCommons.LauncherOption{
@@ -69,7 +69,7 @@ func (app *Service) Run() {
 
 	// Stop circuit breaker health checker on shutdown
 	if app.CircuitBreakerManager != nil {
-		app.CircuitBreakerManager.Stop()
+		app.CircuitBreakerManager.Stop() //nolint:staticcheck // QF1008: explicit field access for clarity
 	}
 }
 

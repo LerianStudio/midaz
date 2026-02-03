@@ -1,6 +1,9 @@
 package bootstrap
 
 import (
+	"errors"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,26 +19,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testStateListener implements libCircuitBreaker.StateChangeListener for testing
+// testStateListener implements libCircuitBreaker.StateChangeListener for testing.
+// Uses atomic counter for thread safety since lib-commons calls OnStateChange in a goroutine.
 type testStateListener struct {
-	calls int
+	calls atomic.Int32
 }
 
-func (t *testStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State, counts libCircuitBreaker.Counts) {
-	t.calls++
+func (t *testStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+	t.calls.Add(1)
+}
+
+func (t *testStateListener) getCalls() int {
+	return int(t.calls.Load())
 }
 
 // testCircuitBreakerConfig returns a standard config for testing
 func testCircuitBreakerConfig() rabbitmq.CircuitBreakerConfig {
 	return rabbitmq.CircuitBreakerConfig{
-		ConsecutiveFailures:  15,
-		FailureRatio:         0.5,
-		Interval:             2 * time.Minute,
-		MaxRequests:          3,
-		MinRequests:          10,
-		Timeout:              30 * time.Second,
-		HealthCheckInterval:  30 * time.Second,
-		HealthCheckTimeout:   10 * time.Second,
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+		HealthCheckInterval: 30 * time.Second,
+		HealthCheckTimeout:  10 * time.Second,
 	}
 }
 
@@ -111,6 +119,59 @@ func TestNewCircuitBreakerManager_RegistersStateListener(t *testing.T) {
 	// Verify circuit breaker state is accessible (confirms manager is properly initialized)
 	state := cbm.Manager.GetState(rabbitmq.CircuitBreakerServiceName)
 	assert.Equal(t, libCircuitBreaker.StateClosed, state, "circuit breaker should start in closed state")
+}
+
+func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	listener := &testStateListener{}
+
+	// Use config with low consecutive failures to easily trip the circuit
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 3,
+		FailureRatio:        0.5,
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         10,
+		Timeout:             30 * time.Second,
+		HealthCheckInterval: 30 * time.Second,
+		HealthCheckTimeout:  10 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, listener)
+	require.NoError(t, err)
+
+	// Initial state should be closed
+	initialState := cbm.Manager.GetState(rabbitmq.CircuitBreakerServiceName)
+	assert.Equal(t, libCircuitBreaker.StateClosed, initialState, "circuit should start in closed state")
+
+	// Trip the circuit by recording consecutive failures
+	for i := 0; i < 3; i++ {
+		_, _ = cbm.Manager.Execute(rabbitmq.CircuitBreakerServiceName, func() (any, error) {
+			return nil, errors.New("simulated failure")
+		})
+	}
+
+	// Verify the circuit is now open
+	state := cbm.Manager.GetState(rabbitmq.CircuitBreakerServiceName)
+	assert.Equal(t, libCircuitBreaker.StateOpen, state, "circuit should be open after consecutive failures")
+
+	// Verify the circuit is unhealthy
+	assert.False(t, cbm.Manager.IsHealthy(rabbitmq.CircuitBreakerServiceName), "circuit should be unhealthy when open")
+
+	// Wait briefly for async state change notification (lib-commons calls listeners in a goroutine)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify the state listener was invoked (use thread-safe getter)
+	assert.Greater(t, listener.getCalls(), 0, "state listener should have been called on state change")
 }
 
 func TestCircuitBreakerManager_StartStop_DoesNotPanic(t *testing.T) {
@@ -465,6 +526,47 @@ func TestNewCircuitBreakerRunnable_WithManager(t *testing.T) {
 	assert.NotNil(t, runnable)
 	assert.NotNil(t, runnable.manager)
 	assert.Equal(t, cbm, runnable.manager)
+}
+
+func TestCircuitBreakerRunnable_Run_WithValidManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Info(gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	cbConfig := testCircuitBreakerConfig()
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+	require.NoError(t, err)
+
+	runnable := NewCircuitBreakerRunnable(cbm)
+
+	// Channel to track when Run completes
+	done := make(chan error, 1)
+
+	// Run in a goroutine
+	go func() {
+		done <- runnable.Run(nil)
+	}()
+
+	// Wait briefly for it to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Send interrupt signal to trigger shutdown
+	err = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+	require.NoError(t, err)
+
+	// Assert Run returns without error within a timeout
+	select {
+	case runErr := <-done:
+		assert.NoError(t, runErr)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return within timeout")
+	}
 }
 
 func TestCircuitBreakerRunnable_Run_WithNilManager(t *testing.T) {
