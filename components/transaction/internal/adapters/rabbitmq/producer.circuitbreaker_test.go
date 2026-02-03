@@ -12,34 +12,22 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// mockLogger implements libLog.Logger for testing
-type mockLogger struct{}
+func setupMockLogger(ctrl *gomock.Controller) *libLog.MockLogger {
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
 
-func (m *mockLogger) Info(args ...any)                                {}
-func (m *mockLogger) Infof(format string, args ...any)                {}
-func (m *mockLogger) Error(args ...any)                               {}
-func (m *mockLogger) Errorf(format string, args ...any)               {}
-func (m *mockLogger) Warn(args ...any)                                {}
-func (m *mockLogger) Warnf(format string, args ...any)                {}
-func (m *mockLogger) Debug(args ...any)                               {}
-func (m *mockLogger) Debugf(format string, args ...any)               {}
-func (m *mockLogger) Fatal(args ...any)                               {}
-func (m *mockLogger) Fatalf(format string, args ...any)               {}
-func (m *mockLogger) WithFields(keyValues ...any) libLog.Logger       { return m }
-func (m *mockLogger) WithDefaultMessageTemplate(string) libLog.Logger { return m }
-func (m *mockLogger) Debugln(args ...any)                               {}
-func (m *mockLogger) Errorln(args ...any)                               {}
-func (m *mockLogger) Fatalln(args ...any)                               {}
-func (m *mockLogger) Infoln(args ...any)                                {}
-func (m *mockLogger) Warnln(args ...any)                                {}
-func (m *mockLogger) Sync() error                                       { return nil }
+	return logger
+}
 
 func TestCircuitBreakerProducer_ImplementsProducerRepository(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -53,7 +41,7 @@ func TestCircuitBreakerProducer_ProducerDefault_SuccessPath(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -81,7 +69,7 @@ func TestCircuitBreakerProducer_ProducerDefault_FailureTripsCircuit(t *testing.T
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -113,7 +101,7 @@ func TestCircuitBreakerProducer_ProducerDefault_CircuitOpenReturnsError(t *testi
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -147,7 +135,7 @@ func TestCircuitBreakerProducer_CheckRabbitMQHealth_DelegatesToUnderlying(t *tes
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -169,7 +157,7 @@ func TestCircuitBreakerProducer_GetCircuitState_ReturnsCurrentState(t *testing.T
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -184,7 +172,7 @@ func TestCircuitBreakerProducer_IsCircuitHealthy_ReturnsTrueWhenClosed(t *testin
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -198,7 +186,7 @@ func TestCircuitBreakerProducer_IsCircuitHealthy_ReturnsFalseWhenOpen(t *testing
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -229,7 +217,7 @@ func TestCircuitBreakerProducer_GetCounts_ReturnsStatistics(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -279,7 +267,7 @@ func TestCircuitBreakerProducer_ProducerDefault_WithNonNilReturn(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -309,7 +297,7 @@ func TestCircuitBreakerProducer_ProducerDefault_WithEmptyMessage(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -337,7 +325,7 @@ func TestCircuitBreakerProducer_ProducerDefault_WithEmptyExchangeAndKey(t *testi
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
@@ -365,7 +353,7 @@ func TestCircuitBreakerProducer_ProducerDefault_WithNilMessage(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockProducer := NewMockProducerRepository(ctrl)
-	logger := &mockLogger{}
+	logger := setupMockLogger(ctrl)
 	cbManager := libCircuitBreaker.NewManager(logger)
 
 	cbProducer := NewCircuitBreakerProducer(mockProducer, cbManager, logger, nil)
