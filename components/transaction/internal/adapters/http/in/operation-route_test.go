@@ -13,7 +13,6 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -1280,6 +1279,3 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
