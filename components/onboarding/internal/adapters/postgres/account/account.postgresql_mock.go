@@ -208,18 +208,18 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, p
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, portfolioID, id, acc)
+	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, portfolioID, id, uai)
 	ret0, _ := ret[0].(*mmodel.Account)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, portfolioID, id, acc any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, portfolioID, id, uai any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, portfolioID, id, acc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, portfolioID, id, uai)
 }
 
 // Count mocks base method.

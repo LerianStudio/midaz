@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUpdateAccount(t *testing.T) {
@@ -46,8 +47,8 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				SegmentID: nil,
-				Metadata:  map[string]any{"key": "value"},
+				// SegmentID omitted - uses zero value (unset)
+				Metadata: map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
@@ -76,8 +77,8 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				SegmentID: nil,
-				Metadata:  nil,
+				// SegmentID omitted - uses zero value (unset)
+				Metadata: nil,
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
@@ -97,8 +98,8 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				SegmentID: nil,
-				Metadata:  map[string]any{"key": "value"},
+				// SegmentID omitted - uses zero value (unset)
+				Metadata: map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
@@ -163,12 +164,12 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 
 	mockAccountRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-			if acc.Blocked == nil || !*acc.Blocked {
-				t.Fatalf("expected acc.Blocked to be true and non-nil")
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
+			if uai.Blocked == nil || !*uai.Blocked {
+				t.Fatalf("expected uai.Blocked to be true and non-nil")
 			}
 			// Echo back
-			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Blocked: acc.Blocked}, nil
+			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account", Status: mmodel.Status{Code: "active"}, Blocked: uai.Blocked}, nil
 		})
 
 	mockMetadataRepo.EXPECT().
@@ -218,9 +219,9 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 
 	mockAccountRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-			if acc.Blocked != nil {
-				t.Fatalf("expected acc.Blocked to be nil when omitted")
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
+			if uai.Blocked != nil {
+				t.Fatalf("expected uai.Blocked to be nil when omitted")
 			}
 			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account"}, nil
 		})
