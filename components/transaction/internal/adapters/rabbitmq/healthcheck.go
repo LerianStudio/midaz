@@ -150,10 +150,15 @@ func (s *StateAwareHealthChecker) Start() {
 // Stop stops the health checker if it's running.
 // Called during graceful shutdown.
 func (s *StateAwareHealthChecker) Stop() {
+	// Acquire startStopMu first to serialize with OnStateChange and prevent
+	// interleaving that could restart the checker after we set running=false
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	// Check and update running state under mu
 	s.mu.Lock()
-
 	wasRunning := s.running
+
 	if wasRunning {
 		s.running = false
 	}
@@ -161,8 +166,7 @@ func (s *StateAwareHealthChecker) Stop() {
 	s.mu.Unlock()
 
 	if wasRunning {
-		// stopRecoveryMonitor acquires startStopMu internally
-		s.stopRecoveryMonitor()
+		s.stopRecoveryMonitorLocked()
 		s.underlying.Stop()
 		s.logger.Info("StateAwareHealthChecker stopped")
 	}
@@ -284,15 +288,7 @@ func (s *StateAwareHealthChecker) startRecoveryMonitorLocked() {
 	}()
 }
 
-// stopRecoveryMonitor stops the recovery monitor goroutine.
-func (s *StateAwareHealthChecker) stopRecoveryMonitor() {
-	s.startStopMu.Lock()
-	defer s.startStopMu.Unlock()
-
-	s.stopRecoveryMonitorLocked()
-}
-
-// stopRecoveryMonitorLocked is the internal implementation of stopRecoveryMonitor.
+// stopRecoveryMonitorLocked stops the recovery monitor goroutine.
 // Caller must hold startStopMu.
 func (s *StateAwareHealthChecker) stopRecoveryMonitorLocked() {
 	if s.stopMonitor != nil {
