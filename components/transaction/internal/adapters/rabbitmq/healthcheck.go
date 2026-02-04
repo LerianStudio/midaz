@@ -150,10 +150,7 @@ func (s *StateAwareHealthChecker) Start() {
 // Stop stops the health checker if it's running.
 // Called during graceful shutdown.
 func (s *StateAwareHealthChecker) Stop() {
-	// Acquire startStopMu first to serialize with OnStateChange
-	s.startStopMu.Lock()
-	defer s.startStopMu.Unlock()
-
+	// Check and update running state under mu
 	s.mu.Lock()
 
 	wasRunning := s.running
@@ -164,6 +161,7 @@ func (s *StateAwareHealthChecker) Stop() {
 	s.mu.Unlock()
 
 	if wasRunning {
+		// stopRecoveryMonitor acquires startStopMu internally
 		s.stopRecoveryMonitor()
 		s.underlying.Stop()
 		s.logger.Info("StateAwareHealthChecker stopped")
@@ -197,7 +195,7 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 
 	s.mu.Unlock()
 
-	// Serialize start/stop decisions and execution to prevent race conditions
+	// Serialize start/stop decisions and underlying execution to prevent race conditions
 	// where Start() could run after Stop() due to interleaving
 	s.startStopMu.Lock()
 
@@ -217,20 +215,27 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 
 	s.mu.Unlock()
 
-	// Execute outside s.mu but inside startStopMu to maintain consistency
+	// Execute underlying start/stop under startStopMu to maintain consistency
 	if shouldStart {
 		s.logger.Infof("Circuit opened for %s - starting health checker", serviceName)
 		s.underlying.Start()
-		s.startRecoveryMonitor()
 	}
 
 	if shouldStop {
 		s.logger.Infof("All circuits closed - stopping health checker")
-		s.stopRecoveryMonitor()
 		s.underlying.Stop()
 	}
 
 	s.startStopMu.Unlock()
+
+	// Monitor methods acquire startStopMu internally - call after releasing lock
+	if shouldStart {
+		s.startRecoveryMonitor()
+	}
+
+	if shouldStop {
+		s.stopRecoveryMonitor()
+	}
 
 	// Forward to underlying for immediate health check on open
 	s.underlying.OnStateChange(serviceName, from, to)
@@ -258,18 +263,22 @@ func (s *StateAwareHealthChecker) GetUnhealthyServices() map[string]libCircuitBr
 // startRecoveryMonitor starts a goroutine that periodically checks if circuits
 // have been reset (closed) via lib-commons Reset() which doesn't trigger listeners.
 // When a reset is detected, it manually triggers the OnStateChange notification.
-// Caller must hold startStopMu to safely access s.stopMonitor.
 func (s *StateAwareHealthChecker) startRecoveryMonitor() {
-	// Signal the previous monitor goroutine to exit before starting a new one
+	s.startStopMu.Lock()
+
+	// Defensive double-start check: if monitor already exists, don't start another
 	if s.stopMonitor != nil {
-		close(s.stopMonitor)
+		s.startStopMu.Unlock()
+		return
 	}
 
-	s.stopMonitor = make(chan struct{})
-	// Capture channel in local variable to avoid race condition
-	// The goroutine reads from this local copy, not from s.stopMonitor which can be modified
-	stopCh := s.stopMonitor
+	// Create local channel and assign to struct field while holding lock
+	ch := make(chan struct{})
+	s.stopMonitor = ch
 
+	s.startStopMu.Unlock()
+
+	// Start goroutine closing over the local channel to avoid race with stopRecoveryMonitor
 	go func() {
 		// Check every 5 seconds for recovered services
 		ticker := time.NewTicker(5 * time.Second)
@@ -277,7 +286,7 @@ func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 
 		for {
 			select {
-			case <-stopCh:
+			case <-ch:
 				return
 			case <-ticker.C:
 				s.checkForRecoveredServices()
@@ -287,8 +296,10 @@ func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 }
 
 // stopRecoveryMonitor stops the recovery monitor goroutine.
-// Caller must hold startStopMu to safely access s.stopMonitor.
 func (s *StateAwareHealthChecker) stopRecoveryMonitor() {
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	if s.stopMonitor != nil {
 		close(s.stopMonitor)
 		s.stopMonitor = nil
