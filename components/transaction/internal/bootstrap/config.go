@@ -384,10 +384,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
 	}
 
-	// Get state listener from options if provided
+	// Create metric state listener for circuit breaker observability
+	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
+	}
+
+	// Use metric listener, or combine with external listener if provided
 	var stateListener libCircuitBreaker.StateChangeListener
 	if opts != nil && opts.CircuitBreakerStateListener != nil {
-		stateListener = opts.CircuitBreakerStateListener
+		stateListener = &compositeStateListener{
+			listeners: []libCircuitBreaker.StateChangeListener{
+				metricStateListener,
+				opts.CircuitBreakerStateListener,
+			},
+		}
+	} else {
+		stateListener = metricStateListener
 	}
 
 	// Prepare circuit breaker configuration with defaults applied
@@ -547,4 +560,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
+}
+
+// compositeStateListener fans out state change notifications to multiple listeners.
+type compositeStateListener struct {
+	listeners []libCircuitBreaker.StateChangeListener
+}
+
+// OnStateChange notifies all registered listeners of the state change.
+func (c *compositeStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+	for _, listener := range c.listeners {
+		listener.OnStateChange(serviceName, from, to)
+	}
 }

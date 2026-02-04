@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"sync"
+	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -21,6 +22,16 @@ var ErrNilHealthChecker = errors.New("underlying health checker cannot be nil")
 
 // ErrNilHealthCheckerLogger indicates that the logger parameter is nil.
 var ErrNilHealthCheckerLogger = errors.New("logger cannot be nil")
+
+// ErrNilCircuitBreakerManager indicates that the circuit breaker manager parameter is nil.
+var ErrNilCircuitBreakerManager = errors.New("circuit breaker manager cannot be nil")
+
+// CircuitStateChecker is the minimal interface needed to check circuit breaker state.
+// This interface allows for easier testing by not requiring the full Manager interface.
+type CircuitStateChecker interface {
+	// IsHealthy returns true if the circuit breaker for the service is in closed state.
+	IsHealthy(serviceName string) bool
+}
 
 // RabbitMQHealthChecker defines the interface for RabbitMQ health check operations.
 // Satisfied by *libRabbitmq.RabbitMQConnection.
@@ -77,25 +88,39 @@ func NewRabbitMQHealthCheckFunc(conn RabbitMQHealthChecker) libCircuitBreaker.He
 //   - Stops when all circuits close (all services recovered)
 //
 // This reduces unnecessary resource usage when all services are healthy.
+//
+// Note: lib-commons Reset() doesn't trigger state change listeners, so this wrapper
+// includes a recovery monitor that detects when circuits are reset and manually
+// triggers the closed notification.
 type StateAwareHealthChecker struct {
 	underlying      libCircuitBreaker.HealthChecker
+	stateChecker    CircuitStateChecker
 	logger          libLog.Logger
 	mu              sync.RWMutex
+	startStopMu     sync.Mutex // serializes Start/Stop to prevent interleaving
 	running         bool
 	unhealthyStates map[string]libCircuitBreaker.State
+	stopMonitor     chan struct{}
 }
 
 // NewStateAwareHealthChecker wraps a health checker with state-aware start/stop behavior.
 //
 // The underlying health checker (from lib-commons) runs the actual health check loop.
 // This wrapper controls when that loop starts and stops based on circuit breaker state.
+// The cbManager is used to detect when circuits are reset (workaround for lib-commons
+// Reset() not triggering state change listeners).
 // Returns an error if any required parameter is nil.
 func NewStateAwareHealthChecker(
 	underlying libCircuitBreaker.HealthChecker,
+	stateChecker CircuitStateChecker,
 	logger libLog.Logger,
 ) (*StateAwareHealthChecker, error) {
 	if underlying == nil {
 		return nil, ErrNilHealthChecker
+	}
+
+	if stateChecker == nil {
+		return nil, ErrNilCircuitBreakerManager
 	}
 
 	if logger == nil {
@@ -104,6 +129,7 @@ func NewStateAwareHealthChecker(
 
 	return &StateAwareHealthChecker{
 		underlying:      underlying,
+		stateChecker:    stateChecker,
 		logger:          logger,
 		unhealthyStates: make(map[string]libCircuitBreaker.State),
 	}, nil
@@ -124,12 +150,20 @@ func (s *StateAwareHealthChecker) Start() {
 // Stop stops the health checker if it's running.
 // Called during graceful shutdown.
 func (s *StateAwareHealthChecker) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Acquire startStopMu first to serialize with OnStateChange
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
 
-	if s.running {
-		s.underlying.Stop()
+	s.mu.Lock()
+	wasRunning := s.running
+	if wasRunning {
 		s.running = false
+	}
+	s.mu.Unlock()
+
+	if wasRunning {
+		s.stopRecoveryMonitor()
+		s.underlying.Stop()
 		s.logger.Info("StateAwareHealthChecker stopped")
 	}
 }
@@ -150,44 +184,47 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 	// Log state change outside the critical section to reduce lock contention
 	s.logger.Debugf("StateAwareHealthChecker: %s state changed %s -> %s", serviceName, from, to)
 
-	var shouldStart, shouldStop bool
-	var logServiceName string
-
-	// Critical section: update state and determine actions
+	// Update unhealthy states map
 	s.mu.Lock()
-	wasAllHealthy := len(s.unhealthyStates) == 0
-
 	if to == libCircuitBreaker.StateClosed {
 		delete(s.unhealthyStates, serviceName)
 	} else {
 		s.unhealthyStates[serviceName] = to
 	}
+	s.mu.Unlock()
 
-	isAllHealthy := len(s.unhealthyStates) == 0
+	// Serialize start/stop decisions and execution to prevent race conditions
+	// where Start() could run after Stop() due to interleaving
+	s.startStopMu.Lock()
 
-	// Determine actions to take after releasing lock
-	if wasAllHealthy && !isAllHealthy && !s.running {
-		shouldStart = true
-		logServiceName = serviceName
+	// Make decision under s.mu - re-read state to get current values
+	s.mu.Lock()
+	hasUnhealthy := len(s.unhealthyStates) > 0
+	shouldStart := hasUnhealthy && !s.running
+	shouldStop := !hasUnhealthy && s.running
+
+	if shouldStart {
 		s.running = true
 	}
-
-	if !wasAllHealthy && isAllHealthy && s.running {
-		shouldStop = true
+	if shouldStop {
 		s.running = false
 	}
 	s.mu.Unlock()
 
-	// Execute actions outside the critical section
+	// Execute outside s.mu but inside startStopMu to maintain consistency
 	if shouldStart {
-		s.logger.Infof("Circuit opened for %s - starting health checker", logServiceName)
+		s.logger.Infof("Circuit opened for %s - starting health checker", serviceName)
 		s.underlying.Start()
+		s.startRecoveryMonitor()
 	}
 
 	if shouldStop {
 		s.logger.Infof("All circuits closed - stopping health checker")
+		s.stopRecoveryMonitor()
 		s.underlying.Stop()
 	}
+
+	s.startStopMu.Unlock()
 
 	// Forward to underlying for immediate health check on open
 	s.underlying.OnStateChange(serviceName, from, to)
@@ -210,4 +247,60 @@ func (s *StateAwareHealthChecker) GetUnhealthyServices() map[string]libCircuitBr
 	maps.Copy(result, s.unhealthyStates)
 
 	return result
+}
+
+// startRecoveryMonitor starts a goroutine that periodically checks if circuits
+// have been reset (closed) via lib-commons Reset() which doesn't trigger listeners.
+// When a reset is detected, it manually triggers the OnStateChange notification.
+func (s *StateAwareHealthChecker) startRecoveryMonitor() {
+	s.stopMonitor = make(chan struct{})
+
+	go func() {
+		// Check every 5 seconds for recovered services
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.stopMonitor:
+				return
+			case <-ticker.C:
+				s.checkForRecoveredServices()
+			}
+		}
+	}()
+}
+
+// stopRecoveryMonitor stops the recovery monitor goroutine.
+func (s *StateAwareHealthChecker) stopRecoveryMonitor() {
+	if s.stopMonitor != nil {
+		close(s.stopMonitor)
+		s.stopMonitor = nil
+	}
+}
+
+// checkForRecoveredServices queries the circuit breaker manager to detect if any
+// services in unhealthyStates have been reset to closed state.
+func (s *StateAwareHealthChecker) checkForRecoveredServices() {
+	s.mu.RLock()
+	// Copy services to check to avoid holding lock while querying manager
+	toCheck := make([]string, 0, len(s.unhealthyStates))
+	previousStates := make(map[string]libCircuitBreaker.State, len(s.unhealthyStates))
+	for serviceName, state := range s.unhealthyStates {
+		toCheck = append(toCheck, serviceName)
+		previousStates[serviceName] = state
+	}
+	s.mu.RUnlock()
+
+	// Check each service against the circuit breaker state checker
+	for _, serviceName := range toCheck {
+		if s.stateChecker.IsHealthy(serviceName) {
+			// Circuit was reset to closed - manually trigger notification
+			previousState := previousStates[serviceName]
+			s.logger.Infof("Recovery monitor detected %s circuit reset from %s to closed", serviceName, previousState)
+
+			// Trigger the state change notification (this will update unhealthyStates and potentially stop the checker)
+			s.OnStateChange(serviceName, previousState, libCircuitBreaker.StateClosed)
+		}
+	}
 }

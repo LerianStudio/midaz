@@ -237,6 +237,34 @@ func setupTestLogger(ctrl *gomock.Controller) *libLog.MockLogger {
 	return logger
 }
 
+// mockCircuitStateChecker implements CircuitStateChecker for testing
+type mockCircuitStateChecker struct {
+	mu            sync.Mutex
+	healthyStatus map[string]bool
+}
+
+func newMockCircuitStateChecker() *mockCircuitStateChecker {
+	return &mockCircuitStateChecker{
+		healthyStatus: make(map[string]bool),
+	}
+}
+
+func (m *mockCircuitStateChecker) IsHealthy(serviceName string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	healthy, exists := m.healthyStatus[serviceName]
+	if !exists {
+		return true // default to healthy
+	}
+	return healthy
+}
+
+func (m *mockCircuitStateChecker) setHealthy(serviceName string, healthy bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.healthyStatus[serviceName] = healthy
+}
+
 func TestStateAwareHealthChecker_StartsWhenCircuitOpens(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -244,7 +272,7 @@ func TestStateAwareHealthChecker_StartsWhenCircuitOpens(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Initial Start() is a no-op
@@ -268,7 +296,7 @@ func TestStateAwareHealthChecker_StopsWhenAllCircuitsClose(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Open the circuit first
@@ -291,7 +319,7 @@ func TestStateAwareHealthChecker_KeepsRunningDuringHalfOpen(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Open the circuit
@@ -315,7 +343,7 @@ func TestStateAwareHealthChecker_StopsWhenHalfOpenCloses(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Open then half-open
@@ -338,7 +366,7 @@ func TestStateAwareHealthChecker_MultipleServices(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Open first service
@@ -369,7 +397,7 @@ func TestStateAwareHealthChecker_ForwardsStateChanges(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Trigger state change
@@ -390,7 +418,7 @@ func TestStateAwareHealthChecker_DelegatesRegister(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	healthFn := func(ctx context.Context) error { return nil }
@@ -407,7 +435,7 @@ func TestStateAwareHealthChecker_DelegatesGetHealthStatus(t *testing.T) {
 	mockHC.healthStatusMap["test-service"] = "open"
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	status := stateAware.GetHealthStatus()
@@ -422,7 +450,7 @@ func TestStateAwareHealthChecker_StopWhenRunning(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Start by opening a circuit
@@ -443,7 +471,7 @@ func TestStateAwareHealthChecker_StopWhenNotRunning(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Stop when not running - should be a no-op
@@ -460,7 +488,7 @@ func TestStateAwareHealthChecker_GetUnhealthyServices(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Initially empty
@@ -492,7 +520,7 @@ func TestStateAwareHealthChecker_HalfOpenToOpen(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Open -> Half-open -> Open (failure in half-open)
@@ -517,7 +545,7 @@ func TestStateAwareHealthChecker_IdempotentStart(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Multiple opens of same service should only start once
@@ -536,24 +564,39 @@ func TestNewStateAwareHealthChecker_ReturnsErrorOnNilUnderlying(t *testing.T) {
 	defer ctrl.Finish()
 
 	logger := setupTestLogger(ctrl)
+	mockStateChecker := newMockCircuitStateChecker()
 
-	stateAware, err := NewStateAwareHealthChecker(nil, logger)
+	stateAware, err := NewStateAwareHealthChecker(nil, mockStateChecker, logger)
 
 	assert.Nil(t, stateAware)
 	assert.ErrorIs(t, err, ErrNilHealthChecker)
 }
 
+func TestNewStateAwareHealthChecker_ReturnsErrorOnNilStateChecker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, nil, logger)
+
+	assert.Nil(t, stateAware)
+	assert.ErrorIs(t, err, ErrNilCircuitBreakerManager)
+}
+
 func TestNewStateAwareHealthChecker_ReturnsErrorOnNilLogger(t *testing.T) {
 	mockHC := newMockHealthChecker()
+	mockStateChecker := newMockCircuitStateChecker()
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, nil)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, mockStateChecker, nil)
 
 	assert.Nil(t, stateAware)
 	assert.ErrorIs(t, err, ErrNilHealthCheckerLogger)
 }
 
-func TestNewStateAwareHealthChecker_ReturnsErrorOnBothNil(t *testing.T) {
-	stateAware, err := NewStateAwareHealthChecker(nil, nil)
+func TestNewStateAwareHealthChecker_ReturnsErrorOnAllNil(t *testing.T) {
+	stateAware, err := NewStateAwareHealthChecker(nil, nil, nil)
 
 	assert.Nil(t, stateAware)
 	// Should return error for underlying first (order of validation)
@@ -571,7 +614,7 @@ func TestStateAwareHealthChecker_ConcurrentStateChanges(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Launch multiple goroutines to trigger concurrent state changes
@@ -612,7 +655,7 @@ func TestStateAwareHealthChecker_ConcurrentMultipleServices(t *testing.T) {
 	mockHC := newMockHealthChecker()
 	logger := setupTestLogger(ctrl)
 
-	stateAware, err := NewStateAwareHealthChecker(mockHC, logger)
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
 
 	// Launch goroutines for different services

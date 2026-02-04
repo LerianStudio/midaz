@@ -126,7 +126,8 @@ func NewCircuitBreakerManager(
 	}
 
 	// Wrap with state-aware health checker that starts/stops based on circuit state
-	stateAwareHealthChecker, err := rabbitmq.NewStateAwareHealthChecker(underlyingHealthChecker, logger)
+	// Pass cbManager so it can detect when circuits are reset (lib-commons Reset() doesn't trigger listeners)
+	stateAwareHealthChecker, err := rabbitmq.NewStateAwareHealthChecker(underlyingHealthChecker, cbManager, logger)
 	if err != nil {
 		return nil, err
 	}
