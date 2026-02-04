@@ -138,6 +138,19 @@ func setupCircuitBreakerTestInfra(t *testing.T, cbConfig CircuitBreakerConfig) *
 	cbProducer, err := NewCircuitBreakerProducer(rawProducer, cbManager, logger)
 	require.NoError(t, err, "failed to create circuit breaker producer")
 
+	// Register cleanup for AMQP resources
+	// Note: Cleanup runs in LIFO order, so connection is closed after channel
+	t.Cleanup(func() {
+		if conn.Channel != nil {
+			_ = conn.Channel.Close()
+		}
+	})
+	t.Cleanup(func() {
+		if conn.Connection != nil {
+			_ = conn.Connection.Close()
+		}
+	})
+
 	return &circuitBreakerTestInfra{
 		rmqContainer:        rmqContainer,
 		conn:                conn,
