@@ -368,13 +368,16 @@ local function main()
         end
     end
 
-    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
-
     -- Handle empty array case: cjson encodes {} as object, but Go expects array
-    -- When no changes occurred, return "[]" directly to ensure proper JSON array
+    -- When no changes occurred, use cjson.decode("[]") to get proper array type
+    -- for both the transaction hash and the return value
     if #returnBalances == 0 then
+        local emptyArray = cjson.decode("[]")
+        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray)
         return "[]"
     end
+
+    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
 
     local returnBalancesEncoded = cjson.encode(returnBalances)
     return returnBalancesEncoded
