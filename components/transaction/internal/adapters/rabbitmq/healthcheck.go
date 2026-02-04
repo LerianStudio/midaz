@@ -272,7 +272,11 @@ func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 }
 
 // stopRecoveryMonitor stops the recovery monitor goroutine.
+// It acquires startStopMu to safely access s.stopMonitor.
 func (s *StateAwareHealthChecker) stopRecoveryMonitor() {
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	if s.stopMonitor != nil {
 		close(s.stopMonitor)
 		s.stopMonitor = nil
