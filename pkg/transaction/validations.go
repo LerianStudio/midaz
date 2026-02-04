@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// ValidateBalancesRules function with some validates in accounts and DSL operations
+// ValidateBalancesRules function with some validates in accounts operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
 	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
 
@@ -79,10 +79,6 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 			if !balance.AllowReceiving {
 				return commons.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
-
-			if balance.Available.IsPositive() && balance.AccountType == constant.ExternalAccountType {
-				return commons.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", balance.Alias)
-			}
 		}
 	}
 
@@ -95,10 +91,6 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *Balance) (A
 		ba, err := OperateBalances(validate.From[ft.AccountAlias], *balance)
 		if err != nil {
 			return Amount{}, Balance{}, err
-		}
-
-		if ba.Available.IsNegative() && balance.AccountType != constant.ExternalAccountType {
-			return Amount{}, Balance{}, commons.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
 		}
 
 		return validate.From[ft.AccountAlias], ba, nil

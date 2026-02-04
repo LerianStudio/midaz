@@ -902,3 +902,142 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 
 	t.Log("Chaos test passed: graceful degradation verified")
 }
+
+// =============================================================================
+// INTEGRATION TESTS - EXTERNAL ACCOUNT VALIDATION
+// =============================================================================
+
+// TestIntegration_Redis_ExternalAccountCreditValidation tests that external accounts
+// cannot have positive balance after credit operations.
+// This validates error code 0018 for external destinations in the Lua script.
+func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	// NOTE: Each sub-test uses unique orgID/ledgerID to ensure isolated Redis keys.
+	// The Lua script uses SET NX (set if not exists), so sharing keys between tests
+	// would cause the first test's balance to be reused by subsequent tests.
+
+	t.Run("external account with zero balance cannot receive credit", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = 0
+		// Attempting to credit should fail because result would be positive
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-zero", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(0), // Available = 0
+				"external",            // AccountType = external
+			),
+		}
+
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should fail with error 0018 (insufficient funds / invalid balance state)
+		redistestutil.AssertInsufficientFundsError(t, err)
+		t.Log("External account credit validation passed: zero balance credit blocked")
+	})
+
+	t.Run("external account with negative balance can receive limited credit", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -100 (debt to external entity)
+		// Crediting 50 should succeed because result would be -50 (still negative)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-negative", "USD",
+				constant.CREDIT, decimal.NewFromInt(50),
+				decimal.NewFromInt(-100), // Available = -100
+				"external",               // AccountType = external
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed because result is -50 (still negative)
+		require.NoError(t, err, "credit to external account that stays negative should succeed")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("External account partial credit validation passed")
+	})
+
+	t.Run("external account credit that would result in positive balance fails", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -50
+		// Crediting 100 should fail because result would be +50 (positive)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-overflow", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(-50), // Available = -50
+				"external",              // AccountType = external
+			),
+		}
+
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should fail with error 0018
+		redistestutil.AssertInsufficientFundsError(t, err)
+		t.Log("External account overflow validation passed: positive result blocked")
+	})
+
+	t.Run("internal account can have positive balance", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Internal account (deposit type) can have positive balance
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@internal-account", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(0), // Available = 0
+				"deposit",             // AccountType = deposit (internal)
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed - internal accounts can have positive balance
+		require.NoError(t, err, "credit to internal account should succeed")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("Internal account credit validation passed")
+	})
+
+	t.Run("external account debit makes balance more negative", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -100
+		// Debiting 100 results in -200 (more negative), which is valid for external accounts
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-to-zero", "USD",
+				constant.DEBIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(-100), // Available = -100
+				"external",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed - result is -200 (negative), not positive
+		require.NoError(t, err, "debit to external account should succeed when result stays negative")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("External account debit validation passed - balance became more negative")
+	})
+
+	t.Log("Integration test passed: external account credit validation verified")
+}
