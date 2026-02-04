@@ -308,21 +308,17 @@ local function main()
 
         local result = balance.Available
         local resultOnHold = balance.OnHold
-        local isFrom = false
 
         if isPending == 1 then
             if operation == "ON_HOLD" and transactionStatus == "PENDING" then
                 result = sub_decimal(balance.Available, amount)
                 resultOnHold = add_decimal(balance.OnHold, amount)
-                isFrom = true
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
                 resultOnHold = sub_decimal(balance.OnHold, amount)
                 result = add_decimal(balance.Available, amount)
-                isFrom = true
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
                     resultOnHold = sub_decimal(balance.OnHold, amount)
-                    isFrom = true
                 else
                     result = add_decimal(balance.Available, amount)
                 end
@@ -349,23 +345,36 @@ local function main()
             return redis.error_reply("0018")
         end
 
-        balance.Alias = alias
-        table.insert(returnBalances, cloneBalance(balance))
+        -- Only update balance and increment version if there was an actual change.
+        -- This prevents version gaps when destinations are processed during PENDING
+        -- transactions (CREDIT + PENDING has no effect, so no version increment).
+        local hasChange = (result ~= balance.Available) or (resultOnHold ~= balance.OnHold)
 
-        balance.Available = result
-        balance.OnHold = resultOnHold
-        balance.Version = balance.Version + 1
+        if hasChange then
+            balance.Alias = alias
+            table.insert(returnBalances, cloneBalance(balance))
 
-        redisBalance = cjson.encode(balance)
-        redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+            balance.Available = result
+            balance.OnHold = resultOnHold
+            balance.Version = balance.Version + 1
 
-        -- Only schedule balance sync if enabled (scheduleSync == 1)
-        if scheduleSync == 1 then
-            redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            redisBalance = cjson.encode(balance)
+            redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+
+            -- Only schedule balance sync if enabled (scheduleSync == 1)
+            if scheduleSync == 1 then
+                redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            end
         end
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
+
+    -- Handle empty array case: cjson encodes {} as object, but Go expects array
+    -- When no changes occurred, return "[]" directly to ensure proper JSON array
+    if #returnBalances == 0 then
+        return "[]"
+    end
 
     local returnBalancesEncoded = cjson.encode(returnBalances)
     return returnBalancesEncoded
