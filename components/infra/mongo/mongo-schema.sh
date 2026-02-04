@@ -31,28 +31,29 @@ EOF
   sleep 5
 fi
 
-# Check if admin user already exists
-echo "checking admin user... 🔑"
-USER_EXISTS=$(mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" --quiet --eval "use admin; db.getUsers().users.filter(u => u.user === '${MONGO_USER}').length" 2>/dev/null || echo "0")
-
-if [ "$USER_EXISTS" = "0" ]; then
-  echo "creating admin user... 🔑"
-  mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" <<EOF
-      use admin;
-      db.createUser({
-        user: "${MONGO_USER}",
-        pwd: "${MONGO_PASSWORD}",
-        roles: [
-          { role: "root", db: "admin" },
-          { role: "userAdminAnyDatabase", db: "admin" },
-          { role: "dbAdminAnyDatabase", db: "admin" },
-          { role: "readWriteAnyDatabase", db: "admin" }
-        ]
-      });
-EOF
-  echo "admin user created! ✅"
-else
-  echo "admin user already exists, skipping... ✅"
-fi
+# Create admin user (idempotent - skips if already exists)
+echo "creating admin user... 🔑"
+mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" --eval '
+try {
+  db.getSiblingDB("admin").createUser({
+    user: "'"${MONGO_USER}"'",
+    pwd: "'"${MONGO_PASSWORD}"'",
+    roles: [
+      { role: "root", db: "admin" },
+      { role: "userAdminAnyDatabase", db: "admin" },
+      { role: "dbAdminAnyDatabase", db: "admin" },
+      { role: "readWriteAnyDatabase", db: "admin" }
+    ]
+  });
+  print("admin user created! ✅");
+} catch(e) {
+  if (e.codeName === "DuplicateKey" || e.message.includes("already exists")) {
+    print("admin user already exists, skipping... ✅");
+  } else {
+    print("ERROR: " + e.message);
+    throw e;
+  }
+}
+'
 
 echo "mongodb per-schema initialization complete! ✅ "
