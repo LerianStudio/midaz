@@ -178,7 +178,8 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer for publishing test messages
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	return &consumerTestInfra{
 		rmqContainer: rmqContainer,
@@ -227,7 +228,8 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer for publishing test messages
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -304,7 +306,8 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 	proxyConsumer := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer through proxy
-	proxyProducer := NewProducerRabbitMQ(proxyConn)
+	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
+	require.NoError(t, err, "failed to create proxy producer")
 
 	return &consumerNetworkChaosTestInfra{
 		rmqContainer:  rmqContainer,
