@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/nullable"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -217,6 +218,17 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	if err := en2.RegisterDefaultTranslations(v, trans); err != nil {
 		panic(err)
 	}
+
+	// Register custom type func for nullable.Nullable[string] to extract inner value for validation
+	v.RegisterCustomTypeFunc(func(field reflect.Value) any {
+		if n, ok := field.Interface().(nullable.Nullable[string]); ok {
+			if n.IsSet && !n.IsNull {
+				return n.Value
+			}
+		}
+
+		return nil
+	}, nullable.Nullable[string]{})
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
