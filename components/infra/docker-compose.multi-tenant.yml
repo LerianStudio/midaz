@@ -40,43 +40,13 @@ services:
       midaz-mongodb-tenant:
         condition: service_healthy
     environment:
+      MONGO_HOST: midaz-mongodb-tenant
       MONGO_PORT: ${MONGO_TENANT_PORT}
       MONGO_USER: ${MONGO_TENANT_USER}
       MONGO_PASSWORD: ${MONGO_TENANT_PASSWORD}
-    entrypoint:
-      - bash
-      - -c
-      - |
-        echo "Waiting for MongoDB to be ready..."
-        sleep 5
-
-        # Check if replica set is already initialized (without auth first)
-        RS_STATUS=$$(mongosh --host midaz-mongodb-tenant --port $${MONGO_PORT} --quiet --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
-
-        if [ "$$RS_STATUS" = "1" ]; then
-          echo "Replica set already initialized, skipping..."
-          exit 0
-        fi
-
-        echo "Initiating replica set for tenant MongoDB..."
-        # Initialize without auth (replica set init must happen before auth works properly)
-        mongosh --host midaz-mongodb-tenant --port $${MONGO_PORT} --quiet <<EOF
-        rs.initiate({
-          _id: "rs0",
-          members: [{ _id: 0, host: "midaz-mongodb-tenant:$${MONGO_PORT}" }]
-        })
-        EOF
-
-        echo "Waiting for replica set to elect primary..."
-        sleep 5
-
-        # Verify initialization
-        RS_STATUS=$$(mongosh --host midaz-mongodb-tenant --port $${MONGO_PORT} --quiet --eval "rs.status().ok" 2>/dev/null || echo "0")
-        if [ "$$RS_STATUS" = "1" ]; then
-          echo "Replica set initiated successfully for tenant MongoDB"
-        else
-          echo "Warning: Replica set may not be fully initialized"
-        fi
+    volumes:
+      - ./mongo/mongo-schema.sh:/data/mongo-schema.sh
+    entrypoint: [ "sh", "-c", "chmod +x /data/mongo-schema.sh && sh /data/mongo-schema.sh" ]
     networks:
       - infra-network
 

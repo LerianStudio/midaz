@@ -27,7 +27,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
-    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT} --keyFile /data/mongo-keyfile" ]
     volumes:
       - ./mongo/mongo-keyfile:/data/mongo-keyfile
       - mongodb-schema-data:/data/db
@@ -43,69 +43,13 @@ services:
       midaz-mongodb-schema:
         condition: service_healthy
     environment:
+      MONGO_HOST: midaz-mongodb-schema
       MONGO_PORT: ${MONGO_PORT}
       MONGO_USER: ${MONGO_USER}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
-    entrypoint:
-      - bash
-      - -c
-      - |
-        echo "Waiting for MongoDB to be ready..."
-        sleep 5
-
-        # Check if replica set is already initialized (without auth first)
-        RS_STATUS=$$(mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet --eval "try { rs.status().ok } catch(e) { 0 }" 2>/dev/null || echo "0")
-
-        if [ "$$RS_STATUS" = "1" ]; then
-          echo "Replica set already initialized, skipping..."
-          exit 0
-        fi
-
-        echo "Initiating replica set for per-schema MongoDB..."
-        # Initialize without auth (replica set init must happen before auth works properly)
-        mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet <<EOF
-        rs.initiate({
-          _id: "rs0",
-          members: [{ _id: 0, host: "midaz-mongodb-schema:$${MONGO_PORT}" }]
-        })
-        EOF
-
-        echo "Waiting for replica set to elect primary..."
-        sleep 5
-
-        # Verify initialization
-        RS_STATUS=$$(mongosh --host midaz-mongodb-schema --port $${MONGO_PORT} --quiet --eval "rs.status().ok" 2>/dev/null || echo "0")
-        if [ "$$RS_STATUS" = "1" ]; then
-          echo "Replica set initiated successfully for per-schema MongoDB"
-        else
-          echo "Warning: Replica set may not be fully initialized"
-        fi
-    networks:
-      - infra-network
-
-  midaz-valkey-schema:
-    container_name: midaz-valkey-schema
-    image: valkey/valkey:8
-    restart: always
-    env_file:
-      - .env.per-schema
-    environment:
-      - REDIS_USER=${REDIS_USER}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command:
-      [
-        "redis-server",
-        "--requirepass", "${REDIS_PASSWORD}",
-        "--port", "${REDIS_PORT}",
-        "--lua-time-limit", "3000",
-        "--stop-writes-on-bgsave-error", "no",
-        "--appendonly", "yes",
-        "--appendfsync", "everysec"
-      ]
-    ports:
-      - ${REDIS_PORT}:${REDIS_PORT}
     volumes:
-      - redis-schema-data:/data
+      - ./mongo/mongo-schema.sh:/data/mongo-schema.sh
+    entrypoint: [ "sh", "-c", "chmod +x /data/mongo-schema.sh && sh /data/mongo-schema.sh" ]
     networks:
       - infra-network
 
@@ -189,31 +133,10 @@ services:
     networks:
       - infra-network
 
-  midaz-rabbitmq-schema:
-    image: rabbitmq:4.1.3-management-alpine
-    container_name: midaz-rabbitmq-schema
-    restart: always
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-    ports:
-      - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
-      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
-    volumes:
-      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
-      - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - rabbitmq-schema-data:/var/lib/rabbitmq
-      - rabbitmq-schema-logs:/var/log/rabbitmq
-    networks:
-      - infra-network
-
 volumes:
   postgres-schema-data:
   postgres-schema-replica-data:
-  redis-schema-data:
   mongodb-schema-data:
-  rabbitmq-schema-data:
-  rabbitmq-schema-logs:
 
 networks:
   infra-network:
