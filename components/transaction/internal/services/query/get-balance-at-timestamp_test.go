@@ -21,7 +21,7 @@ import (
 func TestGetBalanceAtTimestamp(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Success returns balance with correct CreatedAt from currentBalance", func(t *testing.T) {
+	t.Run("success_returns_balance_with_created_at_from_current_balance", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -89,7 +89,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Equal(t, operationCreatedAt, result.UpdatedAt, "UpdatedAt should match operation.CreatedAt")
 	})
 
-	t.Run("Future timestamp returns error", func(t *testing.T) {
+	t.Run("future_timestamp_returns_error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -110,7 +110,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Contains(t, err.Error(), constant.ErrInvalidTimestamp.Error())
 	})
 
-	t.Run("Balance not found returns error", func(t *testing.T) {
+	t.Run("balance_not_found_returns_error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -137,31 +137,77 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Contains(t, err.Error(), "entity")
 	})
 
-	t.Run("Balance repo error returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+	t.Run("repo_errors", func(t *testing.T) {
+		t.Parallel()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
-		timestamp := time.Now().Add(-time.Hour)
+		tests := []struct {
+			name              string
+			balanceRepoErr    error
+			operationRepoErr  error
+			setupOperationExp bool
+		}{
+			{
+				name:              "balance_repo_error",
+				balanceRepoErr:    errors.New("balance database error"),
+				operationRepoErr:  nil,
+				setupOperationExp: false,
+			},
+			{
+				name:              "operation_repo_error",
+				balanceRepoErr:    nil,
+				operationRepoErr:  errors.New("operation database error"),
+				setupOperationExp: true,
+			},
+		}
 
-		balanceRepo := balance.NewMockRepository(ctrl)
-		operationRepo := operation.NewMockRepository(ctrl)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-		uc := UseCase{BalanceRepo: balanceRepo, OperationRepo: operationRepo}
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
 
-		balanceRepo.EXPECT().
-			Find(gomock.Any(), orgID, ledgerID, balanceID).
-			Return(nil, errors.New("database error"))
+				orgID := libCommons.GenerateUUIDv7()
+				ledgerID := libCommons.GenerateUUIDv7()
+				balanceID := libCommons.GenerateUUIDv7()
+				timestamp := time.Now().Add(-time.Hour)
 
-		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
+				currentBalance := &mmodel.Balance{
+					ID:             balanceID.String(),
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+				}
 
-		assert.Error(t, err)
-		assert.Nil(t, result)
+				balanceRepo := balance.NewMockRepository(ctrl)
+				operationRepo := operation.NewMockRepository(ctrl)
+
+				uc := UseCase{BalanceRepo: balanceRepo, OperationRepo: operationRepo}
+
+				if tt.balanceRepoErr != nil {
+					balanceRepo.EXPECT().
+						Find(gomock.Any(), orgID, ledgerID, balanceID).
+						Return(nil, tt.balanceRepoErr)
+				} else {
+					balanceRepo.EXPECT().
+						Find(gomock.Any(), orgID, ledgerID, balanceID).
+						Return(currentBalance, nil)
+				}
+
+				if tt.setupOperationExp {
+					operationRepo.EXPECT().
+						FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+						Return(nil, tt.operationRepoErr)
+				}
+
+				result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
+
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			})
+		}
 	})
 
-	t.Run("No operation before timestamp but balance created before timestamp returns zero balance", func(t *testing.T) {
+	t.Run("no_operation_before_timestamp_and_balance_exists_returns_zero_balance", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -213,7 +259,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Equal(t, "USD", result.AssetCode)
 	})
 
-	t.Run("No operation before timestamp and balance created after timestamp returns error", func(t *testing.T) {
+	t.Run("no_operation_and_balance_created_after_timestamp_returns_error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -252,41 +298,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Contains(t, err.Error(), "balance data")
 	})
 
-	t.Run("Operation repo error returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
-		timestamp := time.Now().Add(-time.Hour)
-
-		currentBalance := &mmodel.Balance{
-			ID:             balanceID.String(),
-			OrganizationID: orgID.String(),
-			LedgerID:       ledgerID.String(),
-		}
-
-		balanceRepo := balance.NewMockRepository(ctrl)
-		operationRepo := operation.NewMockRepository(ctrl)
-
-		uc := UseCase{BalanceRepo: balanceRepo, OperationRepo: operationRepo}
-
-		balanceRepo.EXPECT().
-			Find(gomock.Any(), orgID, ledgerID, balanceID).
-			Return(currentBalance, nil)
-
-		operationRepo.EXPECT().
-			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
-			Return(nil, errors.New("database error"))
-
-		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("Nil balance amounts default to zero", func(t *testing.T) {
+	t.Run("nil_balance_amounts_default_to_zero", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
