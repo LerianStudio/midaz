@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -946,15 +947,15 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 		{
 			name: "success returns 200 with updated balance",
 			payload: &mmodel.UpdateBalance{
-				AllowSending:   boolPtr(false),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(false),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				// Command.Update returns the updated balance directly (using RETURNING clause)
 				balanceRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, balanceID, mmodel.UpdateBalance{
-						AllowSending:   boolPtr(false),
-						AllowReceiving: boolPtr(true),
+						AllowSending:   testutils.Ptr(false),
+						AllowReceiving: testutils.Ptr(true),
 					}).
 					Return(&mmodel.Balance{
 						ID:             balanceID.String(),
@@ -995,7 +996,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 		{
 			name: "balance not found on update returns 404",
 			payload: &mmodel.UpdateBalance{
-				AllowSending: boolPtr(true),
+				AllowSending: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				balanceRepo.EXPECT().
@@ -1016,7 +1017,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 		{
 			name: "repository error on update returns 500",
 			payload: &mmodel.UpdateBalance{
-				AllowReceiving: boolPtr(false),
+				AllowReceiving: testutils.Ptr(false),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				balanceRepo.EXPECT().
@@ -1113,8 +1114,8 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			name: "success returns 201 with created balance",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "freeze-assets",
-				AllowSending:   boolPtr(false),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(false),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Check if balance with key already exists - returns not found (allows creation)
@@ -1172,8 +1173,8 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			name: "duplicate key returns 409 conflict",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "existing-key",
-				AllowSending:   boolPtr(true),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(true),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Check if balance with key already exists - returns existing balance
@@ -1204,8 +1205,8 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			name: "external account type returns 400 validation error",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "new-key",
-				AllowSending:   boolPtr(true),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(true),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Check if balance with key already exists - returns not found
@@ -1249,8 +1250,8 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			name: "default balance not found returns 404",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "new-balance",
-				AllowSending:   boolPtr(true),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(true),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Check if balance with key already exists - returns not found
@@ -1278,8 +1279,8 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			name: "repository error on create returns 500",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "test-key",
-				AllowSending:   boolPtr(true),
-				AllowReceiving: boolPtr(true),
+				AllowSending:   testutils.Ptr(true),
+				AllowReceiving: testutils.Ptr(true),
 			},
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Check if balance with key already exists - returns not found
@@ -1379,11 +1380,6 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 	}
 }
 
-// boolPtr is a helper function to create a pointer to a bool value.
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1422,10 +1418,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 				operationRepo.EXPECT().
 					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
 					Return(&operation.Operation{
-						ID:           uuid.New().String(),
-						AccountID:    accountID.String(),
-						BalanceKey:   "default",
-						AssetCode:    "USD",
+						ID:         uuid.New().String(),
+						AccountID:  accountID.String(),
+						BalanceKey: "default",
+						AssetCode:  "USD",
 						BalanceAfter: operation.Balance{
 							Available: &available,
 							OnHold:    &onHold,
