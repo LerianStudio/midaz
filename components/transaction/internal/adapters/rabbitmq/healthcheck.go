@@ -155,10 +155,12 @@ func (s *StateAwareHealthChecker) Stop() {
 	defer s.startStopMu.Unlock()
 
 	s.mu.Lock()
+
 	wasRunning := s.running
 	if wasRunning {
 		s.running = false
 	}
+
 	s.mu.Unlock()
 
 	if wasRunning {
@@ -186,11 +188,13 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 
 	// Update unhealthy states map
 	s.mu.Lock()
+
 	if to == libCircuitBreaker.StateClosed {
 		delete(s.unhealthyStates, serviceName)
 	} else {
 		s.unhealthyStates[serviceName] = to
 	}
+
 	s.mu.Unlock()
 
 	// Serialize start/stop decisions and execution to prevent race conditions
@@ -206,9 +210,11 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 	if shouldStart {
 		s.running = true
 	}
+
 	if shouldStop {
 		s.running = false
 	}
+
 	s.mu.Unlock()
 
 	// Execute outside s.mu but inside startStopMu to maintain consistency
@@ -289,11 +295,13 @@ func (s *StateAwareHealthChecker) checkForRecoveredServices() {
 	s.mu.RLock()
 	// Copy services to check to avoid holding lock while querying manager
 	toCheck := make([]string, 0, len(s.unhealthyStates))
+
 	previousStates := make(map[string]libCircuitBreaker.State, len(s.unhealthyStates))
 	for serviceName, state := range s.unhealthyStates {
 		toCheck = append(toCheck, serviceName)
 		previousStates[serviceName] = state
 	}
+
 	s.mu.RUnlock()
 
 	// Check each service against the circuit breaker state checker
