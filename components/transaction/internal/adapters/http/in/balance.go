@@ -567,7 +567,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 
 	balance, err := handler.Query.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, date)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balance at date", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve balance at date", err)
 		logger.Errorf("Failed to retrieve balance at date, Error: %s", err.Error())
 
 		return http.WithError(c, err)
@@ -662,7 +662,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 
 	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve account balances at date", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve account balances at date", err)
 		logger.Errorf("Failed to retrieve account balances at date, Error: %s", err.Error())
 
 		return http.WithError(c, err)
