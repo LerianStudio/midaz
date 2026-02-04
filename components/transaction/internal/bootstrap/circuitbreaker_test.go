@@ -126,12 +126,21 @@ func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testin
 	defer ctrl.Finish()
 
 	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Info(gomock.Any()).AnyTimes()
 	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debug(gomock.Any()).AnyTimes()
 	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
 	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
 	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Error(gomock.Any(), gomock.Any()).AnyTimes()
 
-	conn := testRabbitMQConnection()
+	// Connection with logger to prevent panic during health checks
+	conn := &libRabbitmq.RabbitMQConnection{
+		HealthCheckURL: "http://localhost:15672",
+		User:           "guest",
+		Pass:           "guest",
+		Logger:         logger, // Required for health check logging
+	}
 	listener := &testStateListener{}
 
 	// Use config with low consecutive failures to easily trip the circuit
@@ -148,6 +157,7 @@ func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testin
 
 	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, listener)
 	require.NoError(t, err)
+	defer cbm.Stop() // Ensure health checker is stopped after test
 
 	// Initial state should be closed
 	initialState := cbm.Manager.GetState(rabbitmq.CircuitBreakerServiceName)
@@ -155,9 +165,10 @@ func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testin
 
 	// Trip the circuit by recording consecutive failures
 	for i := 0; i < 3; i++ {
-		_, _ = cbm.Manager.Execute(rabbitmq.CircuitBreakerServiceName, func() (any, error) {
+		_, err := cbm.Manager.Execute(rabbitmq.CircuitBreakerServiceName, func() (any, error) {
 			return nil, errors.New("simulated failure")
 		})
+		require.Error(t, err, "iteration %d should fail", i)
 	}
 
 	// Verify the circuit is now open
@@ -498,6 +509,51 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMaxRequests(t *testing.T) {
 
 	assert.Nil(t, cbm)
 	assert.ErrorIs(t, err, ErrInvalidMaxRequests)
+}
+
+func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMinRequestsWithFailureRatio(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.5, // FailureRatio > 0 requires MinRequests > 0
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         0, // Invalid when FailureRatio > 0
+		Timeout:             30 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	assert.Nil(t, cbm)
+	assert.ErrorIs(t, err, ErrInvalidMinRequests)
+}
+
+func TestNewCircuitBreakerManager_AcceptsZeroMinRequestsWithZeroFailureRatio(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := libLog.NewMockLogger(ctrl)
+	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+
+	conn := testRabbitMQConnection()
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: 15,
+		FailureRatio:        0.0, // When FailureRatio is 0, MinRequests can be 0
+		Interval:            2 * time.Minute,
+		MaxRequests:         3,
+		MinRequests:         0, // Valid when FailureRatio is 0
+		Timeout:             30 * time.Second,
+	}
+
+	cbm, err := NewCircuitBreakerManager(logger, conn, cbConfig, nil)
+
+	require.NoError(t, err)
+	assert.NotNil(t, cbm)
 }
 
 func TestNewCircuitBreakerRunnable_CreatesWrapper(t *testing.T) {

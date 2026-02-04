@@ -39,6 +39,20 @@ func (m *MockRabbitMQHealthChecker) EXPECT() *MockRabbitMQHealthCheckerMockRecor
 	return m.recorder
 }
 
+// EnsureChannel mocks base method.
+func (m *MockRabbitMQHealthChecker) EnsureChannel() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsureChannel")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnsureChannel indicates an expected call of EnsureChannel.
+func (mr *MockRabbitMQHealthCheckerMockRecorder) EnsureChannel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureChannel", reflect.TypeOf((*MockRabbitMQHealthChecker)(nil).EnsureChannel))
+}
+
 // HealthCheck mocks base method.
 func (m *MockRabbitMQHealthChecker) HealthCheck() bool {
 	m.ctrl.T.Helper()

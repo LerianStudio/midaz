@@ -30,6 +30,8 @@ var (
 	ErrInvalidTimeout = errors.New("timeout must be positive")
 	// ErrInvalidInterval indicates that Interval must be positive.
 	ErrInvalidInterval = errors.New("interval must be positive")
+	// ErrInvalidMinRequests indicates that MinRequests must be greater than 0 when FailureRatio is used.
+	ErrInvalidMinRequests = errors.New("min_requests must be greater than 0 when failure_ratio is configured")
 )
 
 const (
@@ -85,6 +87,11 @@ func NewCircuitBreakerManager(
 		return nil, ErrInvalidInterval
 	}
 
+	// MinRequests must be > 0 when FailureRatio is configured to ensure meaningful ratio calculation
+	if cbConfig.FailureRatio > 0 && cbConfig.MinRequests == 0 {
+		return nil, ErrInvalidMinRequests
+	}
+
 	// Create circuit breaker manager
 	cbManager := libCircuitBreaker.NewManager(logger)
 
@@ -107,8 +114,8 @@ func NewCircuitBreakerManager(
 		healthCheckTimeout = DefaultHealthCheckTimeout
 	}
 
-	// Create health checker
-	healthChecker, err := libCircuitBreaker.NewHealthCheckerWithValidation(
+	// Create underlying health checker
+	underlyingHealthChecker, err := libCircuitBreaker.NewHealthCheckerWithValidation(
 		cbManager,
 		healthCheckInterval,
 		healthCheckTimeout,
@@ -118,16 +125,23 @@ func NewCircuitBreakerManager(
 		return nil, err
 	}
 
+	// Wrap with state-aware health checker that starts/stops based on circuit state
+	stateAwareHealthChecker, err := rabbitmq.NewStateAwareHealthChecker(underlyingHealthChecker, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	// Register RabbitMQ health check function
 	healthCheckFn := rabbitmq.NewRabbitMQHealthCheckFunc(rabbitConn)
-	healthChecker.Register(rabbitmq.CircuitBreakerServiceName, healthCheckFn)
+	stateAwareHealthChecker.Register(rabbitmq.CircuitBreakerServiceName, healthCheckFn)
 
-	// Register health checker as state change listener for immediate recovery attempts
-	cbManager.RegisterStateChangeListener(healthChecker)
+	// Register state-aware health checker as state change listener
+	// This enables dynamic start/stop based on circuit state
+	cbManager.RegisterStateChangeListener(stateAwareHealthChecker)
 
 	return &CircuitBreakerManager{
 		Manager:       cbManager,
-		HealthChecker: healthChecker,
+		HealthChecker: stateAwareHealthChecker,
 		logger:        logger,
 	}, nil
 }

@@ -3,7 +3,6 @@ package rabbitmq
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -16,11 +15,18 @@ var (
 	ErrNilCBManager = errors.New("circuit breaker manager cannot be nil")
 	// ErrNilCBLogger indicates that the logger parameter is nil.
 	ErrNilCBLogger = errors.New("logger cannot be nil")
+	// ErrServiceUnavailable indicates the message queue service is temporarily unavailable.
+	ErrServiceUnavailable = errors.New("message queue service temporarily unavailable")
+	// ErrInternalProducerError indicates an unexpected internal error in the producer.
+	ErrInternalProducerError = errors.New("internal producer error")
 )
 
 // CircuitBreakerProducer wraps ProducerRepository with circuit breaker protection.
-// When RabbitMQ becomes unavailable, the circuit opens and returns errors immediately,
-// allowing the caller to trigger fallback behavior without waiting for connection timeouts.
+//
+// State flow: CLOSED → OPEN (on failures) → HALF-OPEN (after Timeout, lazy) → CLOSED/OPEN
+//
+// Half-open transition is lazy: happens on first request after Timeout expires, not automatically.
+// HealthChecker can bypass half-open by resetting directly to closed when service recovers.
 type CircuitBreakerProducer struct {
 	underlying ProducerRepository
 	cbManager  libCircuitBreaker.Manager
@@ -56,18 +62,18 @@ func NewCircuitBreakerProducer(
 }
 
 // ProducerDefault publishes a message through the circuit breaker.
-// If the circuit is open, returns an error immediately without attempting to publish.
-// If the circuit is closed or half-open, attempts to publish and records success/failure.
+// CLOSED/HALF-OPEN: attempts publish. OPEN: returns error immediately.
+// In HALF-OPEN, success closes circuit, failure reopens it.
 func (p *CircuitBreakerProducer) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	result, err := p.cbManager.Execute(CircuitBreakerServiceName, func() (any, error) {
 		return p.underlying.ProducerDefault(ctx, exchange, key, message)
 	})
 	if err != nil {
-		// Check if error is due to circuit being open
 		state := p.cbManager.GetState(CircuitBreakerServiceName)
 		if state == libCircuitBreaker.StateOpen {
-			p.logger.Warnf("Circuit breaker open for RabbitMQ - returning error immediately")
-			return nil, fmt.Errorf("circuit breaker open for RabbitMQ: %w", err)
+			// Log detailed info internally, return generic error to caller
+			p.logger.Warnf("Circuit breaker open for RabbitMQ - returning error immediately: %v", err)
+			return nil, ErrServiceUnavailable
 		}
 
 		return nil, err
@@ -79,7 +85,9 @@ func (p *CircuitBreakerProducer) ProducerDefault(ctx context.Context, exchange, 
 
 	str, ok := result.(*string)
 	if !ok {
-		return nil, fmt.Errorf("unexpected result type from circuit breaker: %T", result)
+		// Log detailed type info internally, return generic error to caller
+		p.logger.Errorf("Unexpected result type from producer: %T", result)
+		return nil, ErrInternalProducerError
 	}
 
 	return str, nil

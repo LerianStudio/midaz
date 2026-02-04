@@ -11,14 +11,14 @@ const CircuitBreakerServiceName = "rabbitmq-producer"
 
 // CircuitBreakerConfig holds the configuration parameters for the RabbitMQ circuit breaker.
 type CircuitBreakerConfig struct {
-	ConsecutiveFailures uint32
-	FailureRatio        float64
-	Interval            time.Duration
-	MaxRequests         uint32
-	MinRequests         uint32
-	Timeout             time.Duration
-	HealthCheckInterval time.Duration
-	HealthCheckTimeout  time.Duration
+	ConsecutiveFailures uint32        // Opens circuit after N consecutive failures
+	FailureRatio        float64       // Opens circuit when failure rate >= ratio
+	Interval            time.Duration // Resets counters in CLOSED state
+	MaxRequests         uint32        // Test requests allowed in HALF-OPEN
+	MinRequests         uint32        // Min requests before checking FailureRatio
+	Timeout             time.Duration // Time in OPEN before HALF-OPEN (lazy, on next request)
+	HealthCheckInterval time.Duration // Active health check polling interval
+	HealthCheckTimeout  time.Duration // Timeout per health check probe
 }
 
 // RabbitMQCircuitBreakerConfig creates circuit breaker settings from provided configuration.

@@ -140,16 +140,17 @@ func TestCircuitBreakerProducer_ProducerDefault_CircuitOpenReturnsError(t *testi
 		Times(3)
 
 	for i := 0; i < 3; i++ {
-		cbProducer.ProducerDefault(ctx, exchange, key, message)
+		_, err := cbProducer.ProducerDefault(ctx, exchange, key, message)
+		require.Error(t, err, "call %d should fail", i)
 	}
 
 	// Now when circuit is open, no calls to underlying producer
 	// ProducerDefault should not be called again (circuit is open)
 	_, producerErr := cbProducer.ProducerDefault(ctx, exchange, key, message)
 
-	// Verify error indicates circuit is open
+	// Verify error indicates service is unavailable (generic error, no internal details exposed)
 	require.Error(t, producerErr)
-	assert.Contains(t, producerErr.Error(), "circuit breaker open")
+	assert.ErrorIs(t, producerErr, ErrServiceUnavailable)
 }
 
 func TestCircuitBreakerProducer_CheckRabbitMQHealth_DelegatesToUnderlying(t *testing.T) {
