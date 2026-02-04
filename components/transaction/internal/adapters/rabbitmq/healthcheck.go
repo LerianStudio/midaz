@@ -253,17 +253,9 @@ func (s *StateAwareHealthChecker) GetUnhealthyServices() map[string]libCircuitBr
 	return result
 }
 
-// startRecoveryMonitor starts a goroutine that periodically checks if circuits
+// startRecoveryMonitorLocked starts a goroutine that periodically checks if circuits
 // have been reset (closed) via lib-commons Reset() which doesn't trigger listeners.
 // When a reset is detected, it manually triggers the OnStateChange notification.
-func (s *StateAwareHealthChecker) startRecoveryMonitor() {
-	s.startStopMu.Lock()
-	defer s.startStopMu.Unlock()
-
-	s.startRecoveryMonitorLocked()
-}
-
-// startRecoveryMonitorLocked is the internal implementation of startRecoveryMonitor.
 // Caller must hold startStopMu.
 func (s *StateAwareHealthChecker) startRecoveryMonitorLocked() {
 	// Defensive double-start check: if monitor already exists, don't start another
