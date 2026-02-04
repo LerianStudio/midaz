@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -11,8 +12,14 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 )
+
+// TestMain verifies no goroutine leaks across all tests in this package.
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 // =============================================================================
 // RabbitMQ Health Check Function Tests
@@ -274,6 +281,7 @@ func TestStateAwareHealthChecker_StartsWhenCircuitOpens(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Initial Start() is a no-op
 	stateAware.Start()
@@ -321,6 +329,7 @@ func TestStateAwareHealthChecker_KeepsRunningDuringHalfOpen(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Open the circuit
 	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
@@ -399,6 +408,7 @@ func TestStateAwareHealthChecker_ForwardsStateChanges(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Trigger state change
 	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
@@ -490,6 +500,7 @@ func TestStateAwareHealthChecker_GetUnhealthyServices(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Initially empty
 	assert.Empty(t, stateAware.GetUnhealthyServices())
@@ -522,6 +533,7 @@ func TestStateAwareHealthChecker_HalfOpenToOpen(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Open -> Half-open -> Open (failure in half-open)
 	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
@@ -547,6 +559,7 @@ func TestStateAwareHealthChecker_IdempotentStart(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Multiple opens of same service should only start once
 	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
@@ -616,6 +629,7 @@ func TestStateAwareHealthChecker_ConcurrentStateChanges(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Launch multiple goroutines to trigger concurrent state changes
 	const numGoroutines = 10
@@ -657,6 +671,7 @@ func TestStateAwareHealthChecker_ConcurrentMultipleServices(t *testing.T) {
 
 	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
 
 	// Launch goroutines for different services
 	services := []string{"service-1", "service-2", "service-3", "service-4", "service-5"}
@@ -683,4 +698,525 @@ func TestStateAwareHealthChecker_ConcurrentMultipleServices(t *testing.T) {
 	// All services should be closed after all operations
 	unhealthy := stateAware.GetUnhealthyServices()
 	assert.Empty(t, unhealthy, "all services should be healthy after closing")
+}
+
+// =============================================================================
+// Recovery Monitor Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_RecoveryMonitorDetectsReset(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	mockStateChecker := newMockCircuitStateChecker()
+	logger := setupTestLogger(ctrl)
+
+	// Service starts as unhealthy (circuit open)
+	mockStateChecker.setHealthy("test-service", false)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, mockStateChecker, logger)
+	require.NoError(t, err)
+
+	// Open the circuit
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	assert.True(t, stateAware.IsRunning())
+	assert.Len(t, stateAware.GetUnhealthyServices(), 1)
+
+	// Simulate external reset by making service healthy in mock
+	// (This simulates lib-commons Reset() which doesn't trigger listeners)
+	mockStateChecker.setHealthy("test-service", true)
+
+	// Manually trigger the recovery check (normally called by ticker)
+	stateAware.checkForRecoveredServices()
+
+	// Should have detected recovery and stopped
+	assert.False(t, stateAware.IsRunning(), "should stop after recovery detected")
+	assert.Empty(t, stateAware.GetUnhealthyServices(), "service should be removed from unhealthy")
+}
+
+func TestStateAwareHealthChecker_RecoveryMonitorPartialRecovery(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	mockStateChecker := newMockCircuitStateChecker()
+	logger := setupTestLogger(ctrl)
+
+	// Both services start as unhealthy
+	mockStateChecker.setHealthy("service-1", false)
+	mockStateChecker.setHealthy("service-2", false)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, mockStateChecker, logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
+
+	// Open both circuits
+	stateAware.OnStateChange("service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange("service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	assert.True(t, stateAware.IsRunning())
+	assert.Len(t, stateAware.GetUnhealthyServices(), 2)
+
+	// Only service-1 recovers externally
+	mockStateChecker.setHealthy("service-1", true)
+
+	// Trigger recovery check
+	stateAware.checkForRecoveredServices()
+
+	// Should still be running because service-2 is still unhealthy
+	assert.True(t, stateAware.IsRunning(), "should keep running while service-2 is unhealthy")
+	assert.Len(t, stateAware.GetUnhealthyServices(), 1)
+	assert.NotContains(t, stateAware.GetUnhealthyServices(), "service-1")
+	assert.Contains(t, stateAware.GetUnhealthyServices(), "service-2")
+}
+
+// =============================================================================
+// Goroutine Cleanup Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_GoroutineCleanupOnStop(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+
+	// Get goroutine count before starting monitor
+	runtime.GC()
+	time.Sleep(20 * time.Millisecond)
+	beforeStart := runtime.NumGoroutine()
+
+	// Start the monitor by opening a circuit
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	assert.True(t, stateAware.IsRunning(), "health checker should be running")
+	time.Sleep(50 * time.Millisecond) // Let goroutine start
+
+	// Stop
+	stateAware.Stop()
+	assert.False(t, stateAware.IsRunning(), "health checker should be stopped")
+	time.Sleep(50 * time.Millisecond) // Let goroutine clean up
+
+	runtime.GC()
+	time.Sleep(20 * time.Millisecond)
+	afterStop := runtime.NumGoroutine()
+
+	// After stop, goroutine count should not significantly exceed what it was before start
+	// Allow small variance (2) for test infrastructure
+	assert.LessOrEqual(t, afterStop, beforeStart+2, "goroutine should be cleaned up after stop")
+}
+
+func TestStateAwareHealthChecker_GoroutineCleanupOnAllCircuitsClose(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	runtime.GC()
+	time.Sleep(10 * time.Millisecond)
+	baseline := runtime.NumGoroutine()
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+
+	// Start by opening a circuit
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	time.Sleep(50 * time.Millisecond)
+
+	// Close the circuit (this should stop the monitor)
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	time.Sleep(50 * time.Millisecond)
+
+	runtime.GC()
+	time.Sleep(10 * time.Millisecond)
+	afterClose := runtime.NumGoroutine()
+
+	assert.LessOrEqual(t, afterClose, baseline+2, "goroutine should be cleaned up after all circuits close")
+}
+
+// =============================================================================
+// Double-Stop Idempotency Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_DoubleStopIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+
+	// Start by opening a circuit
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	assert.True(t, stateAware.IsRunning())
+
+	// Double stop - should not panic or cause issues
+	stateAware.Stop()
+	stateAware.Stop()
+
+	assert.False(t, stateAware.IsRunning())
+	assert.Equal(t, 1, mockHC.getStopCount(), "underlying Stop should only be called once")
+}
+
+func TestStateAwareHealthChecker_MultipleStopsNotRunning(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+
+	// Multiple stops when not running - should be no-ops
+	stateAware.Stop()
+	stateAware.Stop()
+	stateAware.Stop()
+
+	assert.Equal(t, 0, mockHC.getStopCount(), "should not call Stop() on underlying when not running")
+}
+
+// =============================================================================
+// Concurrent Start/Stop Race Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_ConcurrentStartStop(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	// Goroutine 1: Opens circuits
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+		}
+	}()
+
+	// Goroutine 2: Closes circuits
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+		}
+	}()
+
+	// Goroutine 3: Calls Stop
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			stateAware.Stop()
+		}
+	}()
+
+	wg.Wait()
+
+	// Should not panic, state should be consistent
+	running := stateAware.IsRunning()
+	unhealthy := stateAware.GetUnhealthyServices()
+
+	// Final state: If running, should have unhealthy services; if not running, may or may not have unhealthy
+	if running {
+		assert.NotEmpty(t, unhealthy, "if running, should have unhealthy services")
+	}
+	// The main assertion is that we didn't panic - race detector will catch data races
+}
+
+func TestStateAwareHealthChecker_ConcurrentOnStateChangeAndStop(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
+
+	// Start the health checker
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: Rapid state changes
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			stateAware.OnStateChange("service-"+string(rune('a'+i%5)), libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+			stateAware.OnStateChange("service-"+string(rune('a'+i%5)), libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+		}
+	}()
+
+	// Goroutine 2: Calls Stop repeatedly
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			stateAware.Stop()
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	wg.Wait()
+
+	// Should complete without panic
+	_ = stateAware.IsRunning()
+}
+
+// =============================================================================
+// Error Wrapping Tests
+// =============================================================================
+
+func TestRabbitMQHealthCheckFunc_ErrorWrappingPreservesOriginalError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	originalErr := errors.New("channel closed by server")
+
+	mockConn := NewMockRabbitMQHealthChecker(ctrl)
+	mockConn.EXPECT().HealthCheck().Return(true)
+	mockConn.EXPECT().EnsureChannel().Return(originalErr)
+
+	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
+
+	ctx := context.Background()
+	err := healthCheckFn(ctx)
+
+	// Should wrap both errors
+	assert.ErrorIs(t, err, ErrRabbitMQChannelUnavailable, "should contain ErrRabbitMQChannelUnavailable")
+	assert.ErrorIs(t, err, originalErr, "should preserve original error")
+	assert.Contains(t, err.Error(), "channel closed by server", "error message should contain original error text")
+}
+
+func TestRabbitMQHealthCheckFunc_ErrorWrappingWithMultipleErrors(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create a wrapped original error
+	innerErr := errors.New("connection reset")
+	wrappedErr := errors.Join(errors.New("network error"), innerErr)
+
+	mockConn := NewMockRabbitMQHealthChecker(ctrl)
+	mockConn.EXPECT().HealthCheck().Return(true)
+	mockConn.EXPECT().EnsureChannel().Return(wrappedErr)
+
+	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
+
+	ctx := context.Background()
+	err := healthCheckFn(ctx)
+
+	// Should contain all errors in the chain
+	assert.ErrorIs(t, err, ErrRabbitMQChannelUnavailable)
+	assert.ErrorIs(t, err, innerErr, "should preserve inner error")
+}
+
+// =============================================================================
+// Stop During Recovery Monitor Tick Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_StopDuringRecoveryMonitorExecution(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	mockStateChecker := newMockCircuitStateChecker()
+	logger := setupTestLogger(ctrl)
+
+	// Service starts as unhealthy
+	mockStateChecker.setHealthy("test-service", false)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, mockStateChecker, logger)
+	require.NoError(t, err)
+
+	// Open the circuit to start the monitor
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	assert.True(t, stateAware.IsRunning())
+
+	// Give the monitor time to potentially start a tick
+	time.Sleep(10 * time.Millisecond)
+
+	// Stop while monitor may be checking
+	done := make(chan struct{})
+	go func() {
+		stateAware.Stop()
+		close(done)
+	}()
+
+	// Should complete without deadlock
+	select {
+	case <-done:
+		// Success
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() deadlocked")
+	}
+
+	assert.False(t, stateAware.IsRunning())
+}
+
+func TestStateAwareHealthChecker_RecoveryCheckDuringStop(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	mockStateChecker := newMockCircuitStateChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, mockStateChecker, logger)
+	require.NoError(t, err)
+
+	// Open circuit to start monitor
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: Calls checkForRecoveredServices repeatedly
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			stateAware.checkForRecoveredServices()
+		}
+	}()
+
+	// Goroutine 2: Calls Stop
+	go func() {
+		defer wg.Done()
+		time.Sleep(5 * time.Millisecond) // Let some checks run
+		stateAware.Stop()
+	}()
+
+	wg.Wait()
+
+	// Should complete without panic or deadlock
+	assert.False(t, stateAware.IsRunning())
+}
+
+// =============================================================================
+// Additional Parallel Test Markers
+// =============================================================================
+
+func TestNewRabbitMQHealthCheckFunc_ReturnsFunction_Parallel(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConn := NewMockRabbitMQHealthChecker(ctrl)
+
+	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
+
+	assert.NotNil(t, healthCheckFn)
+}
+
+func TestStateAwareHealthChecker_StartsWhenCircuitOpens_Parallel(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
+
+	stateAware.Start()
+	assert.False(t, mockHC.isStarted())
+	assert.False(t, stateAware.IsRunning())
+
+	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+
+	assert.True(t, mockHC.isStarted())
+	assert.True(t, stateAware.IsRunning())
+	assert.Equal(t, 1, mockHC.getStartCount())
+}
+
+// =============================================================================
+// Test for Deterministic Final State in Concurrent Tests
+// =============================================================================
+
+func TestStateAwareHealthChecker_ConcurrentStateChanges_DeterministicFinalState(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHC := newMockHealthChecker()
+	logger := setupTestLogger(ctrl)
+
+	stateAware, err := NewStateAwareHealthChecker(mockHC, newMockCircuitStateChecker(), logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { stateAware.Stop() })
+
+	const numGoroutines = 10
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	// All goroutines will eventually close their circuits
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			serviceName := "test-service"
+			// Open
+			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+			time.Sleep(time.Millisecond)
+			// Half-open
+			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+			time.Sleep(time.Millisecond)
+			// Close
+			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Give time for final state to settle
+	time.Sleep(50 * time.Millisecond)
+
+	// Final state should be deterministic: all circuits closed, health checker stopped
+	running := stateAware.IsRunning()
+	unhealthy := stateAware.GetUnhealthyServices()
+
+	assert.False(t, running, "should not be running after all circuits close")
+	assert.Empty(t, unhealthy, "should have no unhealthy services after all close")
 }

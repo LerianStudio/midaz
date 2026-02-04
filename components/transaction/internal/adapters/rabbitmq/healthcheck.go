@@ -215,27 +215,20 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 
 	s.mu.Unlock()
 
-	// Execute underlying start/stop under startStopMu to maintain consistency
+	// Execute underlying start/stop and monitor operations under startStopMu
 	if shouldStart {
 		s.logger.Infof("Circuit opened for %s - starting health checker", serviceName)
 		s.underlying.Start()
+		s.startRecoveryMonitorLocked()
 	}
 
 	if shouldStop {
 		s.logger.Infof("All circuits closed - stopping health checker")
+		s.stopRecoveryMonitorLocked()
 		s.underlying.Stop()
 	}
 
 	s.startStopMu.Unlock()
-
-	// Monitor methods acquire startStopMu internally - call after releasing lock
-	if shouldStart {
-		s.startRecoveryMonitor()
-	}
-
-	if shouldStop {
-		s.stopRecoveryMonitor()
-	}
 
 	// Forward to underlying for immediate health check on open
 	s.underlying.OnStateChange(serviceName, from, to)
@@ -265,10 +258,16 @@ func (s *StateAwareHealthChecker) GetUnhealthyServices() map[string]libCircuitBr
 // When a reset is detected, it manually triggers the OnStateChange notification.
 func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
 
+	s.startRecoveryMonitorLocked()
+}
+
+// startRecoveryMonitorLocked is the internal implementation of startRecoveryMonitor.
+// Caller must hold startStopMu.
+func (s *StateAwareHealthChecker) startRecoveryMonitorLocked() {
 	// Defensive double-start check: if monitor already exists, don't start another
 	if s.stopMonitor != nil {
-		s.startStopMu.Unlock()
 		return
 	}
 
@@ -276,9 +275,7 @@ func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 	ch := make(chan struct{})
 	s.stopMonitor = ch
 
-	s.startStopMu.Unlock()
-
-	// Start goroutine closing over the local channel to avoid race with stopRecoveryMonitor
+	// Start goroutine closing over the local channel to avoid race with stopRecoveryMonitorLocked
 	go func() {
 		// Check every 5 seconds for recovered services
 		ticker := time.NewTicker(5 * time.Second)
@@ -300,6 +297,12 @@ func (s *StateAwareHealthChecker) stopRecoveryMonitor() {
 	s.startStopMu.Lock()
 	defer s.startStopMu.Unlock()
 
+	s.stopRecoveryMonitorLocked()
+}
+
+// stopRecoveryMonitorLocked is the internal implementation of stopRecoveryMonitor.
+// Caller must hold startStopMu.
+func (s *StateAwareHealthChecker) stopRecoveryMonitorLocked() {
 	if s.stopMonitor != nil {
 		close(s.stopMonitor)
 		s.stopMonitor = nil
