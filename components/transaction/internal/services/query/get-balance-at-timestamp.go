@@ -51,13 +51,9 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
-	var balance *mmodel.Balance
-
+	// No operation found before the timestamp - check if balance existed and return initial state
 	if operation == nil {
-		// No operation found before the timestamp
-		// Check if the balance existed at the timestamp (created_at <= timestamp)
 		if currentBalance.CreatedAt.After(timestamp) {
-			// Balance didn't exist at that time
 			err := pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, timestamp.Format(time.RFC3339))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
 			logger.Warnf("Balance %s was created after timestamp %s (created_at: %s)", balanceID, timestamp, currentBalance.CreatedAt)
@@ -65,10 +61,9 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 			return nil, err
 		}
 
-		// Balance existed but had no operations yet - return with zero values
-		logger.Infof("Balance %s existed at timestamp %s but had no operations, returning initial state", balanceID, timestamp.Format(time.RFC3339))
+		logger.Infof("Balance %s at timestamp %s has no operations, returning initial state (zero values)", balanceID, timestamp.Format(time.RFC3339))
 
-		balance = &mmodel.Balance{
+		return &mmodel.Balance{
 			ID:             currentBalance.ID,
 			OrganizationID: currentBalance.OrganizationID,
 			LedgerID:       currentBalance.LedgerID,
@@ -81,44 +76,41 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 			Version:        0,
 			AccountType:    currentBalance.AccountType,
 			CreatedAt:      currentBalance.CreatedAt,
-			UpdatedAt:      currentBalance.CreatedAt, // Use created_at as updated_at for initial state
-		}
-	} else {
-		// Build the balance response from the operation's "after" state
-		// Dereference pointers with zero-value fallbacks for nil
-		available := decimal.Zero
-		if operation.BalanceAfter.Available != nil {
-			available = *operation.BalanceAfter.Available
-		}
-
-		onHold := decimal.Zero
-		if operation.BalanceAfter.OnHold != nil {
-			onHold = *operation.BalanceAfter.OnHold
-		}
-
-		var version int64
-		if operation.BalanceAfter.Version != nil {
-			version = *operation.BalanceAfter.Version
-		}
-
-		balance = &mmodel.Balance{
-			ID:             currentBalance.ID,
-			OrganizationID: currentBalance.OrganizationID,
-			LedgerID:       currentBalance.LedgerID,
-			AccountID:      operation.AccountID,
-			Alias:          currentBalance.Alias,
-			Key:            operation.BalanceKey,
-			AssetCode:      operation.AssetCode,
-			Available:      available,
-			OnHold:         onHold,
-			Version:        version,
-			AccountType:    currentBalance.AccountType,
-			CreatedAt:      currentBalance.CreatedAt,
-			UpdatedAt:      operation.CreatedAt, // The timestamp of the last operation
-		}
+			UpdatedAt:      currentBalance.CreatedAt,
+		}, nil
 	}
 
-	logger.Infof("Successfully retrieved balance %s at timestamp %s", balanceID, timestamp.Format(time.RFC3339))
+	// Build the balance response from the operation's "after" state
+	available := decimal.Zero
+	if operation.BalanceAfter.Available != nil {
+		available = *operation.BalanceAfter.Available
+	}
 
-	return balance, nil
+	onHold := decimal.Zero
+	if operation.BalanceAfter.OnHold != nil {
+		onHold = *operation.BalanceAfter.OnHold
+	}
+
+	var version int64
+	if operation.BalanceAfter.Version != nil {
+		version = *operation.BalanceAfter.Version
+	}
+
+	logger.Infof("Balance %s at timestamp %s retrieved from operation %s (version: %d)", balanceID, timestamp.Format(time.RFC3339), operation.ID, version)
+
+	return &mmodel.Balance{
+		ID:             currentBalance.ID,
+		OrganizationID: currentBalance.OrganizationID,
+		LedgerID:       currentBalance.LedgerID,
+		AccountID:      operation.AccountID,
+		Alias:          currentBalance.Alias,
+		Key:            operation.BalanceKey,
+		AssetCode:      operation.AssetCode,
+		Available:      available,
+		OnHold:         onHold,
+		Version:        version,
+		AccountType:    currentBalance.AccountType,
+		CreatedAt:      currentBalance.CreatedAt,
+		UpdatedAt:      operation.CreatedAt,
+	}, nil
 }
