@@ -258,8 +258,17 @@ func (s *StateAwareHealthChecker) GetUnhealthyServices() map[string]libCircuitBr
 // startRecoveryMonitor starts a goroutine that periodically checks if circuits
 // have been reset (closed) via lib-commons Reset() which doesn't trigger listeners.
 // When a reset is detected, it manually triggers the OnStateChange notification.
+// Caller must hold startStopMu to safely access s.stopMonitor.
 func (s *StateAwareHealthChecker) startRecoveryMonitor() {
+	// Signal the previous monitor goroutine to exit before starting a new one
+	if s.stopMonitor != nil {
+		close(s.stopMonitor)
+	}
+
 	s.stopMonitor = make(chan struct{})
+	// Capture channel in local variable to avoid race condition
+	// The goroutine reads from this local copy, not from s.stopMonitor which can be modified
+	stopCh := s.stopMonitor
 
 	go func() {
 		// Check every 5 seconds for recovered services
@@ -268,7 +277,7 @@ func (s *StateAwareHealthChecker) startRecoveryMonitor() {
 
 		for {
 			select {
-			case <-s.stopMonitor:
+			case <-stopCh:
 				return
 			case <-ticker.C:
 				s.checkForRecoveredServices()
