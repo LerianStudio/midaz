@@ -40,6 +40,11 @@ if [ -n "$LARGE_FILES" ]; then
     exit 1
 fi
 
+# Check license headers in source files
+if [ -x "$REPO_ROOT/scripts/check-license-header.sh" ]; then
+    "$REPO_ROOT/scripts/check-license-header.sh" || exit 1
+fi
+
 # Get staged Go files (excluding test files for formatting checks)
 STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=d | grep '\.go$' || true)
 
