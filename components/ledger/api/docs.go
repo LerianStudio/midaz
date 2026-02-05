@@ -4437,7 +4437,7 @@ const docTemplate = `
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/mmodel.Balance"
+                "$ref": "#/definitions/BalanceHistory"
               }
             }
           },
@@ -5476,7 +5476,7 @@ const docTemplate = `
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/mmodel.Balance"
+              "$ref": "#/definitions/BalanceHistory"
             }
           },
           "400": {
@@ -9145,6 +9145,91 @@ const docTemplate = `
           "type": "integer",
           "minimum": 0,
           "example": 2
+        }
+      }
+    },
+    "BalanceHistory": {
+      "description": "Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "accountType": {
+          "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
+          "type": "string",
+          "maxLength": 50,
+          "example": "creditCard"
+        },
+        "alias": {
+          "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
+          "type": "string",
+          "maxLength": 256,
+          "example": "@person1"
+        },
+        "assetCode": {
+          "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
+          "type": "string",
+          "maxLength": 10,
+          "minLength": 2,
+          "example": "USD"
+        },
+        "available": {
+          "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 1500
+        },
+        "createdAt": {
+          "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "id": {
+          "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "key": {
+          "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+          "type": "string",
+          "maxLength": 100,
+          "example": "asset-freeze"
+        },
+        "ledgerId": {
+          "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "onHold": {
+          "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
+          "type": "number",
+          "minimum": 0,
+          "example": 500
+        },
+        "organizationId": {
+          "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "type": "string",
+          "format": "uuid",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "updatedAt": {
+          "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+          "type": "string",
+          "format": "date-time",
+          "example": "2021-01-01T00:00:00Z"
+        },
+        "version": {
+          "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
+          "type": "integer",
+          "minimum": 1,
+          "example": 1
         }
       }
     },
