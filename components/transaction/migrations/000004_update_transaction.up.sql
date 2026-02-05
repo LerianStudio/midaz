@@ -1,10 +1,6 @@
 -- lint:ignore-file (legacy migration already applied)
-BEGIN;
-
 ALTER TABLE transaction
     ALTER COLUMN amount TYPE DECIMAL USING (amount / POWER(10, amount_scale::INTEGER))::DECIMAL;
-
-COMMIT;
 
 ALTER TABLE transaction
     DROP COLUMN IF EXISTS amount_scale;
@@ -15,10 +11,8 @@ ALTER TABLE transaction
 ALTER TABLE transaction
     ADD COLUMN IF NOT EXISTS route TEXT NULL;
 
-ALTER TABLE transaction 
+ALTER TABLE transaction
     ALTER COLUMN body DROP NOT NULL;
 
 UPDATE transaction
     SET body = NULL;
-
-VACUUM FULL transaction;
