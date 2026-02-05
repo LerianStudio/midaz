@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -25,8 +29,8 @@ func TestCreateAsset(t *testing.T) {
 	mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
 
 	uc := &UseCase{
-		AssetRepo:       mockAssetRepo,
-		AccountRepo:     mockAccountRepo,
+		AssetRepo:   mockAssetRepo,
+		AccountRepo: mockAccountRepo,
 		BalancePort: mockBalanceGRPC,
 	}
 
@@ -189,7 +193,7 @@ func TestCreateAsset(t *testing.T) {
 					Return(nil, nil).
 					Times(1)
 
-				var createdAccountID = uuid.New().String()
+				createdAccountID := uuid.New().String()
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {

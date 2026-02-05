@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 package holder
@@ -52,7 +56,7 @@ func TestIntegration_HolderRepo_Create(t *testing.T) {
 	originalName := "John Doe"
 	originalDocument := "12345678901"
 
-	holder := mongotestutil.CreateTestHolderSimple(t,originalName, originalDocument)
+	holder := mongotestutil.CreateTestHolderSimple(t, originalName, originalDocument)
 
 	// Act
 	result, err := repo.Create(ctx, organizationID, holder)
@@ -80,7 +84,7 @@ func TestIntegration_HolderRepo_Create_EncryptsData(t *testing.T) {
 	originalName := "Encrypted User"
 	originalDocument := "99988877766"
 
-	holder := mongotestutil.CreateTestHolderWithContact(t,originalName, originalDocument)
+	holder := mongotestutil.CreateTestHolderWithContact(t, originalName, originalDocument)
 
 	// Act
 	_, err := repo.Create(ctx, organizationID, holder)
@@ -118,12 +122,12 @@ func TestIntegration_HolderRepo_Create_DuplicateDocument(t *testing.T) {
 	sharedDocument := "11111111111"
 
 	// Create first holder
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"First User", sharedDocument)
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "First User", sharedDocument)
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err, "first create should succeed")
 
 	// Act - Try to create second holder with same document
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Second User", sharedDocument)
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Second User", sharedDocument)
 	_, err = repo.Create(ctx, organizationID, holder2)
 
 	// Assert
@@ -141,7 +145,7 @@ func TestIntegration_HolderRepo_Create_WithAllFields(t *testing.T) {
 
 	organizationID := "org-complete-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateCompleteTestHolder(t,"Complete User", "55566677788")
+	holder := mongotestutil.CreateCompleteTestHolder(t, "Complete User", "55566677788")
 
 	// Act
 	result, err := repo.Create(ctx, organizationID, holder)
@@ -179,7 +183,7 @@ func TestIntegration_HolderRepo_Create_WithLegalPerson(t *testing.T) {
 
 	organizationID := "org-legal-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderWithLegalPerson(t,"ACME Corp", "12345678000199")
+	holder := mongotestutil.CreateTestHolderWithLegalPerson(t, "ACME Corp", "12345678000199")
 
 	// Act
 	result, err := repo.Create(ctx, organizationID, holder)
@@ -214,7 +218,7 @@ func TestIntegration_HolderRepo_Find(t *testing.T) {
 	originalName := "Find Test User"
 	originalDocument := "44455566677"
 
-	holder := mongotestutil.CreateTestHolderWithContact(t,originalName, originalDocument)
+	holder := mongotestutil.CreateTestHolderWithContact(t, originalName, originalDocument)
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -256,7 +260,7 @@ func TestIntegration_HolderRepo_Find_ExcludesDeleted(t *testing.T) {
 
 	organizationID := "org-deleted-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Deleted User", "77788899900")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Deleted User", "77788899900")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -281,7 +285,7 @@ func TestIntegration_HolderRepo_Find_IncludesDeleted(t *testing.T) {
 
 	organizationID := "org-incldel-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Include Deleted User", "66655544433")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Include Deleted User", "66655544433")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -312,7 +316,7 @@ func TestIntegration_HolderRepo_FindAll(t *testing.T) {
 
 	// Create multiple holders
 	for i := 0; i < 5; i++ {
-		holder := mongotestutil.CreateTestHolderSimple(t,fmt.Sprintf("User %d", i), fmt.Sprintf("1111111111%d", i))
+		holder := mongotestutil.CreateTestHolderSimple(t, fmt.Sprintf("User %d", i), fmt.Sprintf("1111111111%d", i))
 		_, err := repo.Create(ctx, organizationID, holder)
 		require.NoError(t, err)
 	}
@@ -336,7 +340,7 @@ func TestIntegration_HolderRepo_FindAll_Pagination(t *testing.T) {
 
 	// Create 5 holders
 	for i := 0; i < 5; i++ {
-		holder := mongotestutil.CreateTestHolderSimple(t,fmt.Sprintf("Page User %d", i), fmt.Sprintf("2222222222%d", i))
+		holder := mongotestutil.CreateTestHolderSimple(t, fmt.Sprintf("Page User %d", i), fmt.Sprintf("2222222222%d", i))
 		_, err := repo.Create(ctx, organizationID, holder)
 		require.NoError(t, err)
 	}
@@ -377,11 +381,11 @@ func TestIntegration_HolderRepo_FindAll_FilterByExternalID(t *testing.T) {
 	targetExternalID := "EXT-TARGET-123"
 
 	// Create holders with different external IDs
-	holder1 := mongotestutil.CreateTestHolderWithExternalID(t,"Target User", "33344455566", targetExternalID)
+	holder1 := mongotestutil.CreateTestHolderWithExternalID(t, "Target User", "33344455566", targetExternalID)
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err)
 
-	holder2 := mongotestutil.CreateTestHolderWithExternalID(t,"Other User", "99988877766", "EXT-OTHER-456")
+	holder2 := mongotestutil.CreateTestHolderWithExternalID(t, "Other User", "99988877766", "EXT-OTHER-456")
 	_, err = repo.Create(ctx, organizationID, holder2)
 	require.NoError(t, err)
 
@@ -409,11 +413,11 @@ func TestIntegration_HolderRepo_FindAll_FilterByDocument(t *testing.T) {
 	targetDocument := "55566677788"
 
 	// Create holders with different documents
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"Target Doc User", targetDocument)
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "Target Doc User", targetDocument)
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err)
 
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Other Doc User", "11122233344")
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Other Doc User", "11122233344")
 	_, err = repo.Create(ctx, organizationID, holder2)
 	require.NoError(t, err)
 
@@ -440,12 +444,12 @@ func TestIntegration_HolderRepo_FindAll_FilterByMetadata(t *testing.T) {
 	organizationID := "org-filtermeta-" + uuid.New().String()[:8]
 
 	// Create holder with specific metadata
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"Metadata User 1", "77788899900")
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "Metadata User 1", "77788899900")
 	holder1.Metadata = map[string]any{"region": "us-east", "priority": "high"}
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err)
 
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Metadata User 2", "00011122233")
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Metadata User 2", "00011122233")
 	holder2.Metadata = map[string]any{"region": "eu-west", "priority": "low"}
 	_, err = repo.Create(ctx, organizationID, holder2)
 	require.NoError(t, err)
@@ -492,11 +496,11 @@ func TestIntegration_HolderRepo_FindAll_ExcludesDeleted(t *testing.T) {
 	organizationID := "org-findalldel-" + uuid.New().String()[:8]
 
 	// Create holders
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"Delete Test User 1", "44455566677")
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "Delete Test User 1", "44455566677")
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err)
 
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Delete Test User 2", "88899900011")
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Delete Test User 2", "88899900011")
 	_, err = repo.Create(ctx, organizationID, holder2)
 	require.NoError(t, err)
 
@@ -526,7 +530,7 @@ func TestIntegration_HolderRepo_Update(t *testing.T) {
 
 	organizationID := "org-update-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Original Name", "88899900011")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Original Name", "88899900011")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -551,7 +555,7 @@ func TestIntegration_HolderRepo_Update_FieldsToRemove(t *testing.T) {
 
 	organizationID := "org-remove-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Remove Fields User", "77766655544")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Remove Fields User", "77766655544")
 	holder.Metadata = map[string]any{"key1": "value1", "key2": "value2", "key3": "value3"}
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
@@ -604,7 +608,7 @@ func TestIntegration_HolderRepo_Delete_Soft(t *testing.T) {
 
 	organizationID := "org-softdel-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Soft Delete User", "55544433322")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Soft Delete User", "55544433322")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -629,7 +633,7 @@ func TestIntegration_HolderRepo_Delete_Hard(t *testing.T) {
 
 	organizationID := "org-harddel-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Hard Delete User", "22211100099")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Hard Delete User", "22211100099")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -670,7 +674,7 @@ func TestIntegration_HolderRepo_Delete_AlreadyDeleted(t *testing.T) {
 
 	organizationID := "org-delalready-" + uuid.New().String()[:8]
 
-	holder := mongotestutil.CreateTestHolderSimple(t,"Already Deleted User", "99900011122")
+	holder := mongotestutil.CreateTestHolderSimple(t, "Already Deleted User", "99900011122")
 	_, err := repo.Create(ctx, organizationID, holder)
 	require.NoError(t, err)
 
@@ -706,7 +710,7 @@ func TestIntegration_HolderRepo_EncryptionRoundTrip(t *testing.T) {
 	originalMotherName := "Round Trip Mother"
 	originalFatherName := "Round Trip Father"
 
-	holder := mongotestutil.CreateTestHolderSimple(t,originalName, originalDocument)
+	holder := mongotestutil.CreateTestHolderSimple(t, originalName, originalDocument)
 	holder.Contact = &mmodel.Contact{
 		PrimaryEmail: testutils.Ptr(originalEmail),
 		MobilePhone:  testutils.Ptr(originalPhone),
@@ -749,7 +753,7 @@ func TestIntegration_HolderRepo_EncryptionRoundTrip_LegalPerson(t *testing.T) {
 	originalRepDocument := "11122233344"
 	originalRepEmail := "rep@legalroundtrip.com"
 
-	holder := mongotestutil.CreateTestHolderWithLegalPerson(t,originalName, originalDocument)
+	holder := mongotestutil.CreateTestHolderWithLegalPerson(t, originalName, originalDocument)
 	holder.LegalPerson.Representative.Name = testutils.Ptr(originalRepName)
 	holder.LegalPerson.Representative.Document = testutils.Ptr(originalRepDocument)
 	holder.LegalPerson.Representative.Email = testutils.Ptr(originalRepEmail)
@@ -787,13 +791,13 @@ func TestIntegration_HolderRepo_Create_SameDocumentDifferentOrganizations(t *tes
 
 	// Create holder in first organization
 	org1 := "org-1-" + uuid.New().String()[:8]
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"Org1 User", sharedDocument)
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "Org1 User", sharedDocument)
 	_, err := repo.Create(ctx, org1, holder1)
 	require.NoError(t, err, "first org create should succeed")
 
 	// Act - Create holder with same document in different organization
 	org2 := "org-2-" + uuid.New().String()[:8]
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Org2 User", sharedDocument)
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Org2 User", sharedDocument)
 	_, err = repo.Create(ctx, org2, holder2)
 
 	// Assert - Should succeed since different collections
@@ -810,7 +814,7 @@ func TestIntegration_HolderRepo_Create_ReuseSoftDeletedDocument(t *testing.T) {
 	reusedDocument := "77788899900"
 
 	// Create and soft delete first holder
-	holder1 := mongotestutil.CreateTestHolderSimple(t,"First User", reusedDocument)
+	holder1 := mongotestutil.CreateTestHolderSimple(t, "First User", reusedDocument)
 	_, err := repo.Create(ctx, organizationID, holder1)
 	require.NoError(t, err)
 
@@ -818,7 +822,7 @@ func TestIntegration_HolderRepo_Create_ReuseSoftDeletedDocument(t *testing.T) {
 	require.NoError(t, err)
 
 	// Act - Create new holder with same document
-	holder2 := mongotestutil.CreateTestHolderSimple(t,"Second User", reusedDocument)
+	holder2 := mongotestutil.CreateTestHolderSimple(t, "Second User", reusedDocument)
 	_, err = repo.Create(ctx, organizationID, holder2)
 
 	// Assert - Should succeed since first was soft deleted

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -166,14 +170,14 @@ type Distribute struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
-	Description              string         `json:"description,omitempty" example:"Description"`
-	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool           `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Route                    string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
+	Description              string           `json:"description,omitempty" example:"Description"`
+	Code                     string           `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool             `json:"pending,omitempty" example:"false"`
+	Metadata                 map[string]any   `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Route                    string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionDate          *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
-	Send                     Send           `json:"send" validate:"required"`
+	Send                     Send             `json:"send" validate:"required"`
 } // @name Transaction
 
 // IsEmpty is a func that validate if transaction is Empty.

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package alias
 
 import (
@@ -27,11 +31,11 @@ type MongoDBModel struct {
 }
 
 type SearchMongoDB struct {
-	Document                             *string  `bson:"document,omitempty"`
-	BankingDetailsAccount                *string  `bson:"banking_details_account,omitempty"`
-	BankingDetailsIBAN                   *string  `bson:"banking_details_iban,omitempty"`
-	RegulatoryFieldsParticipantDocument  *string  `bson:"regulatory_fields_participant_document,omitempty"`
-	RelatedPartyDocuments                []string `bson:"related_party_documents,omitempty"`
+	Document                            *string  `bson:"document,omitempty"`
+	BankingDetailsAccount               *string  `bson:"banking_details_account,omitempty"`
+	BankingDetailsIBAN                  *string  `bson:"banking_details_iban,omitempty"`
+	RegulatoryFieldsParticipantDocument *string  `bson:"regulatory_fields_participant_document,omitempty"`
+	RelatedPartyDocuments               []string `bson:"related_party_documents,omitempty"`
 }
 
 type BankingMongoDBModel struct {

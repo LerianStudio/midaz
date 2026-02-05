@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -1101,7 +1105,6 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 
 	token := "Bearer test-token"
 	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, token)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

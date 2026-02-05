@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mongodb
 
 import (
@@ -41,13 +45,13 @@ func TestJSON_Value(t *testing.T) {
 		{
 			name: "various types",
 			json: JSON{
-				"string":  "test",
-				"int":     42,
-				"float":   3.14,
-				"bool":    true,
-				"null":    nil,
-				"array":   []any{"a", "b"},
-				"object":  map[string]any{"x": 1},
+				"string": "test",
+				"int":    42,
+				"float":  3.14,
+				"bool":   true,
+				"null":   nil,
+				"array":  []any{"a", "b"},
+				"object": map[string]any{"x": 1},
 			},
 			wantErr: false,
 		},
@@ -137,11 +141,11 @@ func TestJSON_Scan(t *testing.T) {
 
 func TestJSON_RoundTrip(t *testing.T) {
 	original := JSON{
-		"string":   "hello",
-		"number":   float64(123),
-		"boolean":  true,
-		"nullVal":  nil,
-		"array":    []any{"a", "b"},
+		"string":  "hello",
+		"number":  float64(123),
+		"boolean": true,
+		"nullVal": nil,
+		"array":   []any{"a", "b"},
 	}
 
 	value, err := original.Value()

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 package command
@@ -11,8 +15,8 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -1,12 +1,17 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // GetHolderByID fetch a holder from the repository

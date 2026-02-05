@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 package account
@@ -1148,7 +1152,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			container := pgtestutil.SetupContainer(t)
-		
+
 			repo := createRepository(t, container)
 
 			orgID := pgtestutil.CreateTestOrganization(t, container.DB)

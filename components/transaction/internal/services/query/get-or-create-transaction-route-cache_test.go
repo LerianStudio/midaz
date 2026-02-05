@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -232,7 +236,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		TransactionRouteRepo: mockTransactionRouteRepo,
 	}
 
-		expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -34,7 +38,6 @@ func TestCreateLedger(t *testing.T) {
 		expectedErr error
 		expectedRes *mmodel.Ledger
 	}{
-
 		{
 			name: "success - ledger created",
 			input: &mmodel.CreateLedgerInput{
