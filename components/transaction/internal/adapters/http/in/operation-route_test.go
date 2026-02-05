@@ -170,6 +170,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
@@ -192,6 +193,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
@@ -735,6 +737,7 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
