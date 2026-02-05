@@ -258,6 +258,10 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_balance_ids")
 	defer span.End()
 
+	if len(ids) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
