@@ -673,7 +673,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 		// No balances existed at that time
 		err := pkg.ValidateBusinessError(cn.ErrNoBalanceDataAtTimestamp, date.Format("2006-01-02 15:04:05"))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
-		logger.Infof("No balances found for account %s at timestamp %s", accountID, date)
+		logger.Infof("No balances found for account %s at timestamp %s", accountID, date.Format("2006-01-02 15:04:05"))
 
 		return http.WithError(c, err)
 	}
