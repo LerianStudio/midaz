@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -1332,13 +1336,13 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 // Run with: go test -fuzz=FuzzCreateOrganization_LegalName ./components/onboarding/internal/adapters/http/in/
 func FuzzCreateOrganization_LegalName(f *testing.F) {
 	// Seed corpus with edge cases
-	f.Add("Acme, Inc.")           // valid name
-	f.Add("")                     // empty string
-	f.Add("a")                    // single char
-	f.Add("Αθήνα")                // non-ASCII (Greek)
-	f.Add("日本語テスト")         // Japanese
-	f.Add("Test\x00Name")         // null byte
-	f.Add("Test\nName")           // newline
+	f.Add("Acme, Inc.")                // valid name
+	f.Add("")                          // empty string
+	f.Add("a")                         // single char
+	f.Add("Αθήνα")                     // non-ASCII (Greek)
+	f.Add("日本語テスト")                    // Japanese
+	f.Add("Test\x00Name")              // null byte
+	f.Add("Test\nName")                // newline
 	f.Add("<script>alert(1)</script>") // XSS attempt
 
 	f.Fuzz(func(t *testing.T, name string) {

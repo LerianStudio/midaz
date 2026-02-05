@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
@@ -431,7 +435,7 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
 }

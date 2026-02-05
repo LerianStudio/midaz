@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package operation
 
 import (
@@ -455,11 +459,11 @@ func TestOperation_ToLog(t *testing.T) {
 		statusDesc := "Completed"
 
 		operation := &Operation{
-			ID:            "op-log-123",
-			TransactionID: "tx-log-456",
-			Description:   "This should not be in log",
-			Type:          "DEBIT",
-			AssetCode:     "BRL",
+			ID:              "op-log-123",
+			TransactionID:   "tx-log-456",
+			Description:     "This should not be in log",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
 			ChartOfAccounts: "1000",
 			Amount: Amount{
 				Value: &amount,

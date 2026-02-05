@@ -1,10 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/gofiber/fiber/v2"
 	"net/http"
 	"strconv"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/gofiber/fiber/v2"
 )
 
 // Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.

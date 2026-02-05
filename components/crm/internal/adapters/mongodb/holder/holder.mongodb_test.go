@@ -1,10 +1,14 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package holder
 
 import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -463,4 +467,3 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	assert.Equal(t, "deleted_at", filter[0].Key)
 	assert.Nil(t, filter[0].Value)
 }
-

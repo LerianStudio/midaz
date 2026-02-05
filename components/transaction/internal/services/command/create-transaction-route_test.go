@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -386,7 +390,6 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 }
-
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {

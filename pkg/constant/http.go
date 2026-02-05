@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package constant
 
 var UUIDPathParameters = []string{
@@ -21,5 +25,7 @@ var UUIDPathParameters = []string{
 	"related_party_id",
 }
 
-const XTotalCount = "X-Total-Count"
-const ContentLength = "Content-Length"
+const (
+	XTotalCount   = "X-Total-Count"
+	ContentLength = "Content-Length"
+)

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package organization
 
 import (
@@ -565,7 +569,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 	ctx, span := tracer.Start(ctx, "postgres.count_organizations")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

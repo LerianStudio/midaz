@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package pkg
 
 import (
@@ -261,7 +265,7 @@ func ValidateInternalError(err error, entityType string) error {
 
 // ValidateUnmarshallingError validates the error and returns an appropriate ResponseError.
 func ValidateUnmarshallingError(err error) error {
-	var message = err.Error()
+	message := err.Error()
 
 	var ute *json.UnmarshalTypeError
 	if errors.As(err, &ute) {
@@ -865,7 +869,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrMessageBrokerUnavailable.Error(),
 			Title:      "Message Broker Unavailable",
-			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support."},
+			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
+		},
 		constant.ErrAccountAliasInvalid: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
@@ -1026,7 +1031,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFutureTransactionDate.Error(),
 			Title:      "Invalid Future Date Error",
-			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date."},
+			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date.",
+		},
 		constant.ErrInvalidPendingFutureTransactionDate: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidPendingFutureTransactionDate.Error(),

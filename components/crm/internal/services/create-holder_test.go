@@ -1,13 +1,18 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"testing"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestCreateHolder(t *testing.T) {

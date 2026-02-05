@@ -1,3 +1,10 @@
+## [v3.6.0] - 2026-02-05
+
+### 📜 License
+
+- Starting from version 3.6.0, this project is licensed under Elastic License 2.0. Previous versions remain under Apache 2.0.
+
+
 ## [v3.5.2-beta.1] - 2026-01-21
 
 ### 🧪 Testing

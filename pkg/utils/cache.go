@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package utils
 
 import (
@@ -6,12 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
-const BalanceSyncLockPrefix = "lock:{transactions}:balance-sync:"
+const (
+	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
+	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"
+)
 
-const beginningKey = "{"
-const keySeparator = ":"
-const endKey = "}"
+const (
+	beginningKey = "{"
+	keySeparator = ":"
+	endKey       = "}"
+)
 
 // TransactionInternalKey returns a key with the following format to be used on redis cluster:
 // "transaction:{transactions}:organizationID:ledgerID:key"

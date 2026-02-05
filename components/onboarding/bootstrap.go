@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Package onboarding provides the public API for initializing the onboarding component.
 // This package exposes factory functions that allow other components to instantiate
 // the onboarding service while keeping internal implementation details private.

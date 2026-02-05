@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -195,11 +199,11 @@ func TestFilterStaleBalances(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 
 	tests := []struct {
-		name           string
-		balances       []*mmodel.Balance
-		setupMocks     func(mockRedis *redis.MockRedisRepository)
-		expectedCount  int
-		expectedIDs    []string
+		name          string
+		balances      []*mmodel.Balance
+		setupMocks    func(mockRedis *redis.MockRedisRepository)
+		expectedCount int
+		expectedIDs   []string
 	}{
 		{
 			name: "cache_newer_version_filters_balance",

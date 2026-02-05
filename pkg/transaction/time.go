@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -51,7 +55,7 @@ func (td TransactionDate) MarshalJSON() ([]byte, error) {
 	}
 
 	t := time.Time(td)
-	
+
 	if t.Nanosecond() != 0 {
 		return json.Marshal(t.Format("2006-01-02T15:04:05.000Z07:00"))
 	}

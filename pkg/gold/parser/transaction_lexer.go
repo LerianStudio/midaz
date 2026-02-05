@@ -1,18 +1,25 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Code generated from Transaction.g4 by ANTLR 4.13.1. DO NOT EDIT.
 
 package parser
 
 import (
 	"fmt"
-	"github.com/antlr4-go/antlr/v4"
 	"sync"
 	"unicode"
+
+	"github.com/antlr4-go/antlr/v4"
 )
 
 // Suppress unused import error
-var _ = fmt.Printf
-var _ = sync.Once{}
-var _ = unicode.IsLetter
+var (
+	_ = fmt.Printf
+	_ = sync.Once{}
+	_ = unicode.IsLetter
+)
 
 type TransactionLexer struct {
 	*antlr.BaseLexer
