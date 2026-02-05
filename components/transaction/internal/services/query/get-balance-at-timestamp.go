@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -25,7 +29,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 
 	// Validate timestamp is not in the future (use UTC for consistent comparison)
 	if timestamp.After(time.Now().UTC()) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "timestamp cannot be in the future")
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Timestamp is in the future", err)
 		logger.Warnf("Timestamp is in the future: %s", timestamp)
 
