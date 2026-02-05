@@ -1868,7 +1868,6 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			accountID := uuid.New()
 
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
-			mockOperationRepo := operation.NewMockRepository(ctrl)
 
 			var date time.Time
 			if tt.date != "" {
@@ -1882,8 +1881,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, orgID, ledgerID, accountID, date)
 
 			uc := &query.UseCase{
-				BalanceRepo:   mockBalanceRepo,
-				OperationRepo: mockOperationRepo,
+				BalanceRepo: mockBalanceRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
