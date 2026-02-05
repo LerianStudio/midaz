@@ -902,3 +902,547 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 
 	t.Log("Chaos test passed: graceful degradation verified")
 }
+
+// =============================================================================
+// INTEGRATION TESTS - EXTERNAL ACCOUNT VALIDATION
+// =============================================================================
+
+// TestIntegration_Redis_ExternalAccountCreditValidation tests that external accounts
+// cannot have positive balance after credit operations.
+// This validates error code 0018 for external destinations in the Lua script.
+func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	// NOTE: Each sub-test uses unique orgID/ledgerID to ensure isolated Redis keys.
+	// The Lua script uses SET NX (set if not exists), so sharing keys between tests
+	// would cause the first test's balance to be reused by subsequent tests.
+
+	t.Run("external account with zero balance cannot receive credit", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = 0
+		// Attempting to credit should fail because result would be positive
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-zero", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(0), // Available = 0
+				"external",            // AccountType = external
+			),
+		}
+
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should fail with error 0018 (insufficient funds / invalid balance state)
+		redistestutil.AssertInsufficientFundsError(t, err)
+		t.Log("External account credit validation passed: zero balance credit blocked")
+	})
+
+	t.Run("external account with negative balance can receive limited credit", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -100 (debt to external entity)
+		// Crediting 50 should succeed because result would be -50 (still negative)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-negative", "USD",
+				constant.CREDIT, decimal.NewFromInt(50),
+				decimal.NewFromInt(-100), // Available = -100
+				"external",               // AccountType = external
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed because result is -50 (still negative)
+		require.NoError(t, err, "credit to external account that stays negative should succeed")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("External account partial credit validation passed")
+	})
+
+	t.Run("external account credit that would result in positive balance fails", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -50
+		// Crediting 100 should fail because result would be +50 (positive)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-overflow", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(-50), // Available = -50
+				"external",              // AccountType = external
+			),
+		}
+
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should fail with error 0018
+		redistestutil.AssertInsufficientFundsError(t, err)
+		t.Log("External account overflow validation passed: positive result blocked")
+	})
+
+	t.Run("internal account can have positive balance", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Internal account (deposit type) can have positive balance
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@internal-account", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(0), // Available = 0
+				"deposit",             // AccountType = deposit (internal)
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed - internal accounts can have positive balance
+		require.NoError(t, err, "credit to internal account should succeed")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("Internal account credit validation passed")
+	})
+
+	t.Run("external account debit makes balance more negative", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// External account with Available = -100
+		// Debiting 100 results in -200 (more negative), which is valid for external accounts
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@external-to-zero", "USD",
+				constant.DEBIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(-100), // Available = -100
+				"external",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+
+		// Should succeed - result is -200 (negative), not positive
+		require.NoError(t, err, "debit to external account should succeed when result stays negative")
+		require.NotNil(t, balances, "should return balances")
+		t.Log("External account debit validation passed - balance became more negative")
+	})
+
+	t.Log("Integration test passed: external account credit validation verified")
+}
+
+// =============================================================================
+// INTEGRATION TESTS - PENDING TRANSACTION VERSION GAPS
+// =============================================================================
+
+// TestIntegration_Redis_PendingDestinationNoVersionIncrement tests that destination balances
+// do NOT have their version incremented during PENDING transactions (CREDIT + PENDING).
+//
+// Bug context: Previously, the Lua script unconditionally incremented balance.Version
+// even when no actual balance change occurred. For PENDING destinations, the CREDIT
+// operation has no effect (the balance is credited only on APPROVED), but version
+// was still incremented, causing "version gaps" in the operation history.
+//
+// Fix: The Lua script now only increments version when hasChange is true:
+// hasChange = (result ~= balance.Available) or (resultOnHold ~= balance.OnHold)
+func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	t.Run("PENDING source ON_HOLD returns balance in returnBalances", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Source balance: ON_HOLD operation during PENDING should change balance
+		// Available: 1000 -> 900 (moved to OnHold)
+		// OnHold: 0 -> 100
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@source-pending", "USD",
+				constant.ONHOLD, decimal.NewFromInt(100),
+				decimal.NewFromInt(1000), // Available = 1000
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.PENDING, true, // isPending = true
+			balanceOps,
+		)
+
+		require.NoError(t, err, "PENDING source ON_HOLD should succeed")
+
+		// KEY ASSERTION: Source balance SHOULD be in returnBalances because change occurred
+		require.Len(t, balances, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@source-pending", balances[0].Alias, "returned balance should have correct alias")
+
+		t.Log("PENDING source ON_HOLD: balance included in returnBalances as expected")
+	})
+
+	t.Run("PENDING destination CREDIT does NOT increment version", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Destination balance: CREDIT operation during PENDING has NO effect
+		// Available: stays 500 (credit only applied on APPROVED)
+		// OnHold: stays 0
+		// Version should NOT increment because no change occurred
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@dest-pending", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(500), // Available = 500
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.PENDING, true, // isPending = true
+			balanceOps,
+		)
+
+		require.NoError(t, err, "PENDING destination CREDIT should succeed")
+
+		// KEY ASSERTION: Balance should NOT be in returnBalances because no change occurred
+		assert.Len(t, balances, 0,
+			"destination balance should NOT be in returnBalances (no change occurred)")
+
+		t.Log("PENDING destination CREDIT: balance correctly excluded from returnBalances")
+	})
+
+	t.Run("APPROVED source DEBIT returns balance in returnBalances", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Source balance: DEBIT on APPROVED (after PENDING phase)
+		// OnHold: 100 -> 0 (released)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithOnHold(
+				orgID, ledgerID, "@source-approved", "USD",
+				constant.DEBIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(900), // Available = 900
+				decimal.NewFromInt(100), // OnHold = 100 (from PENDING phase)
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.APPROVED, true, // isPending = true (was pending transaction)
+			balanceOps,
+		)
+
+		require.NoError(t, err, "APPROVED source DEBIT should succeed")
+
+		// KEY ASSERTION: Source balance SHOULD be in returnBalances because OnHold changed
+		require.Len(t, balances, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@source-approved", balances[0].Alias, "returned balance should have correct alias")
+
+		t.Log("APPROVED source DEBIT: balance included in returnBalances as expected")
+	})
+
+	t.Run("APPROVED destination CREDIT returns balance in returnBalances", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Destination balance: CREDIT on APPROVED
+		// Available: 500 -> 600
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@dest-approved", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(500), // Available = 500
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.APPROVED, true, // isPending = true (was pending transaction)
+			balanceOps,
+		)
+
+		require.NoError(t, err, "APPROVED destination CREDIT should succeed")
+
+		// KEY ASSERTION: Destination balance SHOULD be in returnBalances because Available changed
+		require.Len(t, balances, 1, "should return 1 balance (destination changed)")
+		assert.Equal(t, "@dest-approved", balances[0].Alias, "returned balance should have correct alias")
+
+		t.Log("APPROVED destination CREDIT: balance included in returnBalances as expected")
+	})
+
+	t.Run("non-PENDING transaction CREDIT returns balance in returnBalances", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Normal (non-PENDING) transaction: CREDIT should change balance
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@normal-credit", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(500),
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			"ACTIVE", false, // isPending = false (normal transaction)
+			balanceOps,
+		)
+
+		require.NoError(t, err, "normal CREDIT should succeed")
+
+		// KEY ASSERTION: Balance SHOULD be in returnBalances because Available changed
+		require.Len(t, balances, 1, "should return 1 balance")
+		assert.Equal(t, "@normal-credit", balances[0].Alias, "returned balance should have correct alias")
+
+		t.Log("non-PENDING CREDIT: balance included in returnBalances as expected")
+	})
+
+	t.Log("Integration test passed: PENDING destination version gap fix verified")
+}
+
+// TestIntegration_Redis_VersionContinuity tests that balance versions remain
+// contiguous (no gaps) through a complete PENDING transaction lifecycle.
+//
+// This is a regression test for the version gap bug where PENDING destinations
+// caused version increments without corresponding operations.
+func TestIntegration_Redis_VersionContinuity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	t.Run("complete PENDING lifecycle has no version gaps", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+
+		// Track versions through the lifecycle
+		var sourceVersions []int64
+		var destVersions []int64
+
+		// Phase 1: PENDING - only source should have version change
+		t.Log("Phase 1: Creating PENDING transaction")
+		pendingTxID := uuid.New()
+
+		// Source: ON_HOLD (Available: 1000 -> 900, OnHold: 0 -> 100)
+		sourceOp := redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@lifecycle-source", "USD",
+			constant.ONHOLD, decimal.NewFromInt(100),
+			decimal.NewFromInt(1000),
+			"deposit",
+		)
+
+		sourceBalances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, pendingTxID,
+			constant.PENDING, true,
+			[]mmodel.BalanceOperation{sourceOp},
+		)
+		require.NoError(t, err, "PENDING source should succeed")
+		require.Len(t, sourceBalances, 1, "source should be in returnBalances")
+		sourceVersions = append(sourceVersions, sourceBalances[0].Version)
+
+		// Destination: CREDIT during PENDING (no effect, no version change)
+		destOp := redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@lifecycle-dest", "USD",
+			constant.CREDIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(500),
+			"deposit",
+		)
+
+		destBalances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, pendingTxID,
+			constant.PENDING, true,
+			[]mmodel.BalanceOperation{destOp},
+		)
+		require.NoError(t, err, "PENDING destination should succeed")
+		// KEY: Destination should NOT be in returnBalances (no change)
+		assert.Len(t, destBalances, 0, "destination should NOT be in returnBalances during PENDING")
+
+		// Phase 2: APPROVED - both source and destination should have version change
+		t.Log("Phase 2: Approving PENDING transaction")
+		approvedTxID := uuid.New()
+
+		// Source: DEBIT (OnHold: 100 -> 0, releasing the hold)
+		sourceOpApproved := redistestutil.CreateBalanceOperationWithOnHold(
+			orgID, ledgerID, "@lifecycle-source", "USD",
+			constant.DEBIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(900), // Available stayed at 900
+			decimal.NewFromInt(100), // OnHold from PENDING phase
+			"deposit",
+		)
+
+		sourceBalancesApproved, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, approvedTxID,
+			constant.APPROVED, true,
+			[]mmodel.BalanceOperation{sourceOpApproved},
+		)
+		require.NoError(t, err, "APPROVED source should succeed")
+		require.Len(t, sourceBalancesApproved, 1, "source should be in returnBalances")
+		sourceVersions = append(sourceVersions, sourceBalancesApproved[0].Version)
+
+		// Destination: CREDIT on APPROVED (Available: 500 -> 600)
+		destOpApproved := redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, "@lifecycle-dest", "USD",
+			constant.CREDIT, decimal.NewFromInt(100),
+			decimal.NewFromInt(500), // Still at 500 (wasn't changed during PENDING)
+			"deposit",
+		)
+
+		destBalancesApproved, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, approvedTxID,
+			constant.APPROVED, true,
+			[]mmodel.BalanceOperation{destOpApproved},
+		)
+		require.NoError(t, err, "APPROVED destination should succeed")
+		require.Len(t, destBalancesApproved, 1, "destination should be in returnBalances on APPROVED")
+		destVersions = append(destVersions, destBalancesApproved[0].Version)
+
+		// Verify the key behavior: source appears twice, destination appears once
+		t.Logf("Source returnBalances count: %d, versions: %v", len(sourceVersions), sourceVersions)
+		t.Logf("Destination returnBalances count: %d, versions: %v", len(destVersions), destVersions)
+
+		// KEY ASSERTIONS:
+		// Source: should appear in returnBalances 2 times (PENDING and APPROVED)
+		require.Len(t, sourceVersions, 2, "source should be in returnBalances twice (PENDING + APPROVED)")
+
+		// Destination: should appear in returnBalances 1 time (only APPROVED)
+		// This proves the fix: PENDING destination is NOT in returnBalances (no version gap)
+		require.Len(t, destVersions, 1, "destination should be in returnBalances once (only APPROVED)")
+
+		// VERSION CONTINUITY VERIFICATION:
+		// What matters for continuity (proving the fix):
+		// - Source: 2 operations created → 2 entries in returnBalances
+		// - Destination: 1 operation created → 1 entry in returnBalances
+		// If the bug existed, destination would appear 2 times (PENDING + APPROVED)
+		// but only 1 operation would be created, causing a version gap.
+		//
+		// NOTE: The specific version values depend on Redis state and are not meaningful
+		// for this test because all balances share the same Redis key (balanceKey="default").
+		// The key assertion is the COUNT of entries in returnBalances.
+
+		// Verify versions are present (proves balances were processed)
+		assert.NotEmpty(t, sourceVersions[0], "source PENDING should have version")
+		assert.NotEmpty(t, sourceVersions[1], "source APPROVED should have version")
+		assert.NotEmpty(t, destVersions[0], "destination APPROVED should have version")
+
+		t.Log("Version continuity verified: destination excluded from PENDING phase, no version gap")
+	})
+
+	t.Log("Integration test passed: version continuity verified")
+}
+
+// TestIntegration_Redis_CanceledTransactionRelease tests the CANCELED transaction flow
+// where RELEASE operation returns held funds to Available balance.
+//
+// This completes the hasChange logic coverage for all transaction status paths:
+// - PENDING + ON_HOLD (covered in TestIntegration_Redis_PendingDestinationNoVersionIncrement)
+// - PENDING + CREDIT (covered - no change, excluded from returnBalances)
+// - APPROVED + DEBIT (covered)
+// - APPROVED + CREDIT (covered)
+// - CANCELED + RELEASE (this test)
+func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	t.Run("CANCELED RELEASE returns held funds to Available", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Source balance after PENDING phase:
+		// - Available: 900 (1000 - 100 moved to OnHold)
+		// - OnHold: 100 (held for pending transaction)
+		//
+		// On CANCELED with RELEASE:
+		// - OnHold: 100 -> 0 (released)
+		// - Available: 900 -> 1000 (restored)
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithOnHold(
+				orgID, ledgerID, "@canceled-source", "USD",
+				constant.RELEASE, decimal.NewFromInt(100),
+				decimal.NewFromInt(900), // Available = 900 (reduced during PENDING)
+				decimal.NewFromInt(100), // OnHold = 100 (held during PENDING)
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.CANCELED, true, // isPending = true (was pending transaction)
+			balanceOps,
+		)
+
+		require.NoError(t, err, "CANCELED RELEASE should succeed")
+
+		// KEY ASSERTION: Balance SHOULD be in returnBalances because both Available and OnHold changed
+		require.Len(t, balances, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@canceled-source", balances[0].Alias, "returned balance should have correct alias")
+
+		t.Log("CANCELED RELEASE: balance included in returnBalances as expected")
+	})
+
+	t.Run("CANCELED destination has no effect (similar to PENDING destination)", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// Destination balance during CANCELED:
+		// If the transaction is canceled, the destination never received the credit.
+		// Processing CREDIT + CANCELED should have no effect (no change).
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreateBalanceOperationWithAvailable(
+				orgID, ledgerID, "@canceled-dest", "USD",
+				constant.CREDIT, decimal.NewFromInt(100),
+				decimal.NewFromInt(500), // Available = 500 (unchanged)
+				"deposit",
+			),
+		}
+
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.CANCELED, true, // isPending = true
+			balanceOps,
+		)
+
+		require.NoError(t, err, "CANCELED destination CREDIT should succeed")
+
+		// KEY ASSERTION: Destination should NOT be in returnBalances (no change)
+		// CREDIT + CANCELED has no matching branch in Lua, so result == balance.Available
+		assert.Len(t, balances, 0,
+			"destination should NOT be in returnBalances (CREDIT + CANCELED has no effect)")
+
+		t.Log("CANCELED destination CREDIT: balance correctly excluded from returnBalances")
+	})
+
+	t.Log("Integration test passed: CANCELED transaction flow verified")
+}

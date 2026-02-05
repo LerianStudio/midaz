@@ -170,6 +170,17 @@ local function startsWithMinus(s)
     return s:sub(1, 1) == "-"
 end
 
+-- isPositive checks if a decimal string represents a value greater than zero
+-- Returns true if the value is positive (not negative and not zero)
+local function isPositive(s)
+    if startsWithMinus(s) then
+        return false
+    end
+    -- Check if it's zero (could be "0", "0.0", "0.00", etc.)
+    local normalized = s:gsub("%.?0+$", ""):gsub("^0+", "")
+    return normalized ~= "" and normalized ~= "."
+end
+
 local function cloneBalance(tbl)
     local copy = {}
     for k, v in pairs(tbl) do
@@ -217,6 +228,7 @@ end
 
 local function main()
     local ttl = 3600 -- 1 hour
+
     local groupSize = 16
     local returnBalances = {}
     local rollbackBalances = {}
@@ -245,16 +257,38 @@ local function main()
 
         local alias = ARGV[i + 5]
 
+        -- Balance object stored in Redis cache.
+        --
+        -- FIELD USAGE:
+        -- Fields used by THIS Lua script for atomic operations:
+        --   - ID:          Returned to Go for operation tracking
+        --   - Available:   Balance calculations (DEBIT/CREDIT)
+        --   - OnHold:      Balance calculations (ON_HOLD/RELEASE)
+        --   - Version:     Optimistic concurrency control
+        --   - AccountType: Validation 0018 (external account cannot have positive balance)
+        --   - AccountID:   Returned to Go for operation tracking
+        --
+        -- Fields NOT used by Lua, but required in cache for Go pre-validation:
+        --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
+        --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
+        --
+        -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
+        -- transaction validation flow that reads balances from cache before calling Lua.
+        -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
         local balance = {
+            -- Fields used by Lua
             ID = ARGV[i + 6],
             Available = ARGV[i + 7],
             OnHold = ARGV[i + 8],
             Version = tonumber(ARGV[i + 9]),
             AccountType = ARGV[i + 10],
-            AllowSending = tonumber(ARGV[i + 11]),
-            AllowReceiving = tonumber(ARGV[i + 12]),
-            AssetCode = ARGV[i + 13],
-            AccountID = ARGV[i + 14],
+            AccountID = ARGV[i + 11],
+            -- Fields for cache only (used by Go pre-validation, not by Lua)
+            AssetCode = ARGV[i + 12],
+            AllowSending = tonumber(ARGV[i + 13]),
+            AllowReceiving = tonumber(ARGV[i + 14]),
             Key = ARGV[i + 15],
         }
 
@@ -274,21 +308,17 @@ local function main()
 
         local result = balance.Available
         local resultOnHold = balance.OnHold
-        local isFrom = false
 
         if isPending == 1 then
             if operation == "ON_HOLD" and transactionStatus == "PENDING" then
                 result = sub_decimal(balance.Available, amount)
                 resultOnHold = add_decimal(balance.OnHold, amount)
-                isFrom = true
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
                 resultOnHold = sub_decimal(balance.OnHold, amount)
                 result = add_decimal(balance.Available, amount)
-                isFrom = true
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
                     resultOnHold = sub_decimal(balance.OnHold, amount)
-                    isFrom = true
                 else
                     result = add_decimal(balance.Available, amount)
                 end
@@ -301,30 +331,50 @@ local function main()
             end
         end
 
-        if isPending == 1 and isFrom and balance.AccountType == "external" then
-            rollback(rollbackBalances, ttl)
-            return redis.error_reply("0098")
-        end
 
         if startsWithMinus(result) and balance.AccountType ~= "external" then
             rollback(rollbackBalances, ttl)
             return redis.error_reply("0018")
         end
 
-        balance.Alias = alias
-        table.insert(returnBalances, cloneBalance(balance))
-
-        balance.Available = result
-        balance.OnHold = resultOnHold
-        balance.Version = balance.Version + 1
-
-        redisBalance = cjson.encode(balance)
-        redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
-
-        -- Only schedule balance sync if enabled (scheduleSync == 1)
-        if scheduleSync == 1 then
-            redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+        -- External accounts cannot have positive balance (they represent debt to external entities)
+        -- This validation MUST be atomic to prevent race conditions where two concurrent
+        -- transactions both credit an external account
+        if operation == "CREDIT" and balance.AccountType == "external" and isPositive(result) then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0018")
         end
+
+        -- Only update balance and increment version if there was an actual change.
+        -- This prevents version gaps when destinations are processed during PENDING
+        -- transactions (CREDIT + PENDING has no effect, so no version increment).
+        local hasChange = (result ~= balance.Available) or (resultOnHold ~= balance.OnHold)
+
+        if hasChange then
+            balance.Alias = alias
+            table.insert(returnBalances, cloneBalance(balance))
+
+            balance.Available = result
+            balance.OnHold = resultOnHold
+            balance.Version = balance.Version + 1
+
+            redisBalance = cjson.encode(balance)
+            redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+
+            -- Only schedule balance sync if enabled (scheduleSync == 1)
+            if scheduleSync == 1 then
+                redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            end
+        end
+    end
+
+    -- Handle empty array case: cjson encodes {} as object, but Go expects array
+    -- When no changes occurred, use cjson.decode("[]") to get proper array type
+    -- for both the transaction hash and the return value
+    if #returnBalances == 0 then
+        local emptyArray = cjson.decode("[]")
+        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray)
+        return "[]"
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)

@@ -418,24 +418,6 @@ func TestValidateToBalances(t *testing.T) {
 			expectError: true,
 			errorCode:   "0024", // ErrAccountStatusTransactionRestriction
 		},
-		{
-			name: "invalid - external account with positive balance",
-			balance: &Balance{
-				ID:             "123",
-				Alias:          "@external",
-				Key:            "default",
-				AssetCode:      "USD",
-				Available:      decimal.NewFromInt(100),
-				AllowReceiving: true,
-				AccountType:    constant.ExternalAccountType,
-			},
-			to: map[string]Amount{
-				"0#@external#default": {Value: decimal.NewFromInt(50)},
-			},
-			asset:       "USD",
-			expectError: true,
-			errorCode:   "0018", // ErrInsufficientFunds
-		},
 	}
 
 	for _, tt := range tests {

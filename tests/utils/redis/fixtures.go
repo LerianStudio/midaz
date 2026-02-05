@@ -26,6 +26,12 @@ func CreateBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode
 
 // CreateBalanceOperationWithAvailable creates a BalanceOperation with custom available balance and account type.
 func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available decimal.Decimal, accountType string) mmodel.BalanceOperation {
+	return CreateBalanceOperationWithOnHold(organizationID, ledgerID, alias, assetCode, operation, amount, available, decimal.Zero, accountType)
+}
+
+// CreateBalanceOperationWithOnHold creates a BalanceOperation with custom available, onHold balance and account type.
+// Used for testing PENDING transaction flows where OnHold balance is significant.
+func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available, onHold decimal.Decimal, accountType string) mmodel.BalanceOperation {
 	balanceID := libCommons.GenerateUUIDv7().String()
 	accountID := libCommons.GenerateUUIDv7().String()
 	balanceKey := "default"
@@ -42,7 +48,7 @@ func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, ali
 			Key:            balanceKey,
 			AssetCode:      assetCode,
 			Available:      available,
-			OnHold:         decimal.Zero,
+			OnHold:         onHold,
 			Version:        1,
 			AccountType:    accountType,
 			AllowSending:   true,
