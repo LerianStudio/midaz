@@ -931,7 +931,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		Where(squirrel.Eq{"balance_id": balanceID}).
 		Where(squirrel.LtOrEq{"created_at": timestamp}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
+		OrderBy("created_at DESC", "balance_version_after DESC", "id DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1021,7 +1021,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		Where(squirrel.Eq{"account_id": accountID}).
 		Where(squirrel.LtOrEq{"created_at": timestamp}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("balance_id", "created_at DESC").
+		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
 	// Apply pagination on the outer query
