@@ -1024,15 +1024,6 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		OrderBy("balance_id", "created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	// Wrap in subquery for cursor pagination (DISTINCT ON requires specific ordering)
-	subQuery, subArgs, err := findQuery.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build subquery", err)
-		logger.Errorf("Failed to build subquery: %v", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
 	// Apply pagination on the outer query
 	outerQuery := squirrel.Select(operationPointInTimeColumns...).
 		FromSelect(findQuery, "sub").
@@ -1043,7 +1034,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	query, args, err := outerQuery.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build outer query", err)
-		logger.Errorf("Failed to build outer query: %v, subquery was: %s with args: %v", err, subQuery, subArgs)
+		logger.Errorf("Failed to build outer query: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
