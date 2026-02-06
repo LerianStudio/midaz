@@ -1,3 +1,20 @@
+# Midaz Changelog
+
+## [3.5.1](https://github.com/LerianStudio/midaz/releases/tag/v3.5.1)
+
+- Fixes:
+  - Removed CPF and CNPJ validation functions and related tests.
+  - Removed CPF and CNPJ document validation in holder creation.
+  - Replaced MongoDB connection string construction with a centralized utility function.
+  - Added `BuildMongoConnectionString` function and related tests.
+  - Updated version to v3.5.1 in environment configuration files.
+
+Contributors: @mclara.tersi,
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.5.0...v3.5.1)
+
+---
+
 ## [v3.6.0] - 2026-02-05
 
 ### 📜 License
@@ -10356,3 +10373,4 @@ BREAKING
 
 ## Test Entry
 - Test GPT changelog generation 2026-01-19
+
